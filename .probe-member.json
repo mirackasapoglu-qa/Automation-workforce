@@ -1,0 +1,147 @@
+{
+  "cookies": [
+    {
+      "name": "personaclick_segment",
+      "value": "A",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "did",
+      "value": "WPevQyuflw",
+      "domain": ".personaclick.com",
+      "path": "/",
+      "expires": 1818584347.381083,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "sid_658",
+      "value": "sxnwIZBq3j",
+      "domain": ".personaclick.com",
+      "path": "/",
+      "expires": 1787055547.381208,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "personaclick_session_code",
+      "value": "sxnwIZBq3j",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": 1787053897,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "personaclick_device_id",
+      "value": "WPevQyuflw",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": 1818582697,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "temporary_auth_verified",
+      "value": "true",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": 1787133099.730337,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "JSESSIONID",
+      "value": "B41B82722A0112A2E3411E1EFD6298E4",
+      "domain": "ccdn.mobildev.in",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "personaclick_session_last_act",
+      "value": "1787048347701",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": 1787055547,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "auth_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTM0LCJlbWFpbCI6Im1pcmFjLmthc2Fwb2dsdUBtYWNoaW5hcml1bS5jbyIsInBob25lIjoiKzkwNTA3ODg3MzIxNiIsImNoYW5uZWxJZCI6MSwic2Vzc2lvbklkIjoiYWFlNTM5NjktODA2NC00YTRkLWE2ZTYtNDlkY2FhYzgzM2Y5IiwianRpIjoiYWFlNTM5NjktODA2NC00YTRkLWE2ZTYtNDlkY2FhYzgzM2Y5IiwiaWF0IjoxNzg3MDQ4MzUyLCJleHAiOjE3ODcwNTE5NTJ9.YCmAZY3J87kyGz7YrDvb4F2_idKy79IVvWHOgrn--Nw",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": 1787051952.370939,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "refresh_token",
+      "value": "a4df54ab-d50c-404b-8dc0-d996edd5444c",
+      "domain": "redesign-prod.test.tepehome.com.tr",
+      "path": "/",
+      "expires": 1787653151.371023,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "https://redesign-prod.test.tepehome.com.tr",
+      "localStorage": [
+        {
+          "name": "personaclick_segment_expires",
+          "value": "2026-08-19T09:51:33.710Z"
+        },
+        {
+          "name": "personaclick_session_last_act_expires",
+          "value": "2026-08-18T12:19:07.701Z"
+        },
+        {
+          "name": "personaclick_device_id",
+          "value": "WPevQyuflw"
+        },
+        {
+          "name": "personaclick_session_last_act",
+          "value": "1787048347701"
+        },
+        {
+          "name": "personaclick_session_code_expires",
+          "value": "2026-08-18T11:51:37.297Z"
+        },
+        {
+          "name": "personaclick_segment",
+          "value": "A"
+        },
+        {
+          "name": "personaclick_device_id_expires",
+          "value": "2027-08-18T09:51:37.301Z"
+        },
+        {
+          "name": "persist:root",
+          "value": "{\"auth\":\"{\\\"user\\\":{\\\"id\\\":134,\\\"name\\\":\\\"mirac\\\",\\\"surname\\\":\\\"kasapoglu\\\",\\\"email\\\":\\\"mirac.kasapoglu@machinarium.co\\\",\\\"emailVerified\\\":false,\\\"phone\\\":\\\"+905078873216\\\",\\\"phone2\\\":null,\\\"phoneVerified\\\":true,\\\"birthday\\\":null,\\\"gender\\\":null,\\\"externalId\\\":\\\"4000307879\\\",\\\"identityNumber\\\":null,\\\"channelId\\\":1,\\\"channel\\\":null,\\\"createdAt\\\":\\\"2026-08-18T11:49:16+03:00\\\",\\\"updatedAt\\\":\\\"2026-08-18T12:00:01+03:00\\\",\\\"deletedAt\\\":null},\\\"isAuthenticated\\\":true,\\\"isLoading\\\":false,\\\"isCheckingAuth\\\":false,\\\"error\\\":null,\\\"otpSentTo\\\":null,\\\"otpExpiresAt\\\":null}\",\"_persist\":\"{\\\"version\\\":-1,\\\"rehydrated\\\":true}\"}"
+        },
+        {
+          "name": "personaclick_session_code",
+          "value": "sxnwIZBq3j"
+        }
+      ]
+    }
+  ]
+}

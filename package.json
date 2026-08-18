@@ -1,0 +1,37 @@
+{
+  "name": "homee-tests",
+  "version": "1.0.0",
+  "description": "Homee (Tepe Home Redesign) QA Automation Suite",
+  "scripts": {
+    "test": "playwright test --project=chromium",
+    "test:headed": "playwright test --project=chromium --headed",
+    "test:guest": "playwright test tests/0 --project=chromium",
+    "test:member": "playwright test tests/2 --project=chromium",
+    "test:anasayfa": "playwright test tests/01-homepage.spec.ts --project=chromium --headed",
+    "test:menu": "playwright test tests/02-navigation.spec.ts --project=chromium --headed",
+    "test:liste": "playwright test tests/03-category-listing.spec.ts --project=chromium --headed",
+    "test:arama": "playwright test tests/04-search.spec.ts --project=chromium --headed",
+    "test:urun": "playwright test tests/05-product-detail.spec.ts --project=chromium --headed",
+    "test:sepet": "playwright test tests/06-cart.spec.ts --project=chromium --headed",
+    "test:magaza": "playwright test tests/07-stores.spec.ts --project=chromium --headed",
+    "test:statik": "playwright test tests/08-static-pages.spec.ts --project=chromium --headed",
+    "test:form": "playwright test tests/09-forms.spec.ts --project=chromium --headed",
+    "test:login": "playwright test tests/20-login.spec.ts --project=chromium --headed",
+    "test:hesabim": "playwright test tests/21-account-overview.spec.ts --project=chromium --headed",
+    "test:adres": "playwright test tests/22-addresses.spec.ts --project=chromium --headed",
+    "test:favori": "playwright test tests/23-favorites.spec.ts --project=chromium --headed",
+    "test:siparis": "playwright test tests/24-orders.spec.ts --project=chromium --headed",
+    "test:odeme": "playwright test tests/25-checkout-to-payment.spec.ts --project=chromium --headed",
+    "panel": "node panel/server.mjs",
+    "report:create": "node scripts/create-test-report.cjs",
+    "show-report": "playwright show-report",
+    "format": "prettier --write .",
+    "lint": "eslint . --ext .ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.44.0",
+    "@types/node": "^20.0.0",
+    "dotenv": "^16.0.0",
+    "prettier": "^3.8.3"
+  }
+}

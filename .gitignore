@@ -1,0 +1,9 @@
+node_modules/
+playwright/.auth/
+playwright-report/
+test-results/
+panel-data/
+.env
+*.pdf
+.recon-*
+.*.mjs

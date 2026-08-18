@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Homee QA Paneli</title>
+<style>
+  :root{--bg:#fff;--fg:#18181b;--mut:#71717a;--line:#e4e4e7;--card:#fafafa;--ok:#0f766e;--no:#b91c1c;--sk:#a16207;--acc:#b91c1c}
+  @media (prefers-color-scheme:dark){:root{--bg:#0f1012;--fg:#ededed;--mut:#a1a1aa;--line:#27272a;--card:#17181b;--ok:#34d399;--no:#f87171;--sk:#fbbf24;--acc:#f87171}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0}
+  .pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
+  main{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:calc(100vh - 58px)}
+  @media (max-width:860px){main{grid-template-columns:1fr}}
+  aside{border-right:1px solid var(--line);padding:16px;overflow-y:auto}
+  section{padding:16px 20px;overflow:hidden}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:18px 0 8px}
+  h2:first-child{margin-top:0}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg);
+         padding:7px 10px;border-radius:7px;width:100%;text-align:left;margin-bottom:6px}
+  button:hover{border-color:var(--acc)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  button.danger{border-color:var(--no);color:var(--no)}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+  .row button{width:auto}
+  pre#log{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;
+           height:340px;overflow:auto;font:12px/1.45 ui-monospace,SFMono-Regular,monospace;margin:0;white-space:pre-wrap}
+  .err{color:var(--no)}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+  .b{font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap}
+  .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  .mono{font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;color:var(--mut)}
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px}
+  .c{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px}
+  .c .n{font-size:20px;font-weight:650;line-height:1}.c .l{font-size:11px;color:var(--mut);margin-top:4px}
+  input,textarea,select{font:inherit;width:100%;padding:7px 9px;border:1px solid var(--line);
+                        border-radius:7px;background:var(--bg);color:var(--fg);margin-bottom:8px}
+  .scroll{overflow-x:auto}
+  .issue{border-left:3px solid var(--sk);padding:6px 10px;margin-bottom:8px;background:var(--card);border-radius:0 7px 7px 0}
+  .issue .id{font-weight:650;font-size:12px}
+  .issue .w{font-size:11.5px;color:var(--mut);font-family:ui-monospace,monospace}
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
+  .tabs button{width:auto;border:0;border-bottom:2px solid transparent;background:none;border-radius:0;margin:0;padding:8px 12px}
+  .tabs button[aria-selected=true]{border-bottom-color:var(--acc);color:var(--acc);font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Homee QA Paneli</h1>
+  <span class="pill" id="envPill">yukleniyor...</span>
+  <span class="pill" id="orderPill"></span>
+  <span class="pill" id="activePill"></span>
+</header>
+
+<main>
+  <aside>
+    <h2>Kosumlar</h2>
+    <div id="runs"></div>
+    <div class="row">
+      <button id="stopBtn" class="danger" style="width:auto">Durdur</button>
+      <button onclick="load()" style="width:auto">Yenile</button>
+    </div>
+    <h2>Bilinen hatalar</h2>
+    <div id="issues"></div>
+  </aside>
+
+  <section>
+    <div class="tabs">
+      <button data-tab="log" aria-selected="true">Canli log</button>
+      <button data-tab="results" aria-selected="false">Son sonuclar</button>
+      <button data-tab="verdict" aria-selected="false">Verdict</button>
+    </div>
+
+    <div id="tab-log">
+      <pre id="log">Bir kosum baslatin...</pre>
+    </div>
+
+    <div id="tab-results" hidden>
+      <div class="cards" id="resCards"></div>
+      <div class="scroll"><table id="resTable"></table></div>
+      <p class="mono"><a href="/report" target="_blank">Playwright HTML raporu</a></p>
+    </div>
+
+    <div id="tab-verdict" hidden>
+      <div class="row" style="display:block;max-width:520px">
+        <input id="vKey" placeholder="Kayit anahtari (orn. HOMEE-001 veya 06-sepet)">
+        <input id="vScope" placeholder="Kapsam (orn. /sepet adet artirma)">
+        <select id="vStatus">
+          <option value="">Durum sec...</option>
+          <option value="pass">pass</option>
+          <option value="fail">fail</option>
+          <option value="blocked">blocked</option>
+          <option value="known-issue">known-issue</option>
+        </select>
+        <textarea id="vNote" rows="4" placeholder="Not / adimlar / beklenen-gerceklesen"></textarea>
+        <button style="width:auto" onclick="saveVerdict()">Kaydet</button>
+      </div>
+      <h2>Kayitli verdict'ler</h2>
+      <div class="scroll"><table id="vTable"></table></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
+  for (const t of ['log','results','verdict']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
+  if (b.dataset.tab === 'results') loadResults();
+  if (b.dataset.tab === 'verdict') loadVerdicts();
+});
+
+async function load() {
+  const m = await (await fetch('/api/meta')).json();
+  $('#envPill').textContent = `ortam: ${m.env} - ${m.baseURL}`;
+  $('#orderPill').textContent = `siparis tamamlama: ${m.ordersAllowed ? 'ACIK' : 'kapali'}`;
+  $('#activePill').textContent = m.active ? `kosuyor: ${m.active.label}` : '';
+
+  const groups = {};
+  for (const r of m.runs) (groups[r.group || 'diger'] ??= []).push(r);
+  $('#runs').innerHTML = Object.entries(groups).map(([g, list]) =>
+    `<div class="mono" style="margin:8px 0 4px">${esc(g)}</div>` +
+    list.map(r => `<button onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')
+  ).join('');
+
+  $('#issues').innerHTML = m.knownIssues.length
+    ? m.knownIssues.map(i => `<div class="issue"><div class="id">${esc(i.id)}</div>
+        <div class="w">${esc(i.where)}</div><div style="font-size:12.5px">${esc(i.detail)}</div></div>`).join('')
+    : '<p class="mono">Kayit yok</p>';
+}
+
+async function startRun(id) {
+  $('#log').textContent = '';
+  document.querySelector('.tabs button[data-tab=log]').click();
+  const r = await (await fetch('/api/run', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({id})})).json();
+  if (!r.ok) appendLog('PANEL HATASI: ' + r.error, true);
+}
+
+$('#stopBtn').onclick = async () => {
+  const r = await (await fetch('/api/stop', {method:'POST'})).json();
+  appendLog(r.ok ? '-- durduruldu --' : 'PANEL: ' + r.error, !r.ok);
+};
+
+function appendLog(line, isErr) {
+  const log = $('#log');
+  const span = document.createElement('span');
+  if (isErr) span.className = 'err';
+  span.textContent = line + '\n';
+  log.appendChild(span);
+  log.scrollTop = log.scrollHeight;
+}
+
+const es = new EventSource('/api/events');
+es.addEventListener('run-start', e => {
+  const d = JSON.parse(e.data);
+  $('#activePill').textContent = 'kosuyor: ' + d.label;
+  appendLog(`=== ${d.label} basladi ===`);
+});
+es.addEventListener('log', e => { const d = JSON.parse(e.data); appendLog(d.line, d.stream === 'err'); });
+es.addEventListener('run-end', e => {
+  const d = JSON.parse(e.data);
+  $('#activePill').textContent = '';
+  appendLog(`=== bitti (cikis kodu ${d.code}, ${(d.durationMs/1000).toFixed(0)} sn) ===`, d.code !== 0);
+  loadResults();
+});
+
+const badge = (r) => r.status === 'passed' ? '<span class="b ok">GECTI</span>'
+  : r.status === 'skipped' ? '<span class="b sk">ATLANDI</span>'
+  : r.expected === 'failed' ? '<span class="b sk">BILINEN HATA</span>'
+  : '<span class="b no">BASARISIZ</span>';
+
+async function loadResults() {
+  const d = await (await fetch('/api/results')).json();
+  if (!d.rows?.length) { $('#resTable').innerHTML = '<tr><td class="mono">Sonuc yok - once test kos</td></tr>'; return; }
+  const c = d.counts;
+  $('#resCards').innerHTML = `
+    <div class="c"><div class="n">${c.total}</div><div class="l">toplam</div></div>
+    <div class="c"><div class="n ok">${c.passed}</div><div class="l">gecti</div></div>
+    <div class="c"><div class="n no">${c.failed}</div><div class="l">basarisiz</div></div>
+    <div class="c"><div class="n sk">${c.skipped}</div><div class="l">atlandi</div></div>`;
+  $('#resTable').innerHTML = '<tr><th>Durum</th><th>Spec</th><th>Test</th><th>Sure</th></tr>' +
+    d.rows.map(r => `<tr><td>${badge(r)}</td><td class="mono">${esc(r.file)}</td>
+      <td>${esc(r.title)}${r.error ? `<div class="mono err">${esc(r.error)}</div>` : ''}</td>
+      <td class="mono">${(r.duration/1000).toFixed(1)}s</td></tr>`).join('');
+}
+
+async function saveVerdict() {
+  const body = { key: $('#vKey').value.trim(), scope: $('#vScope').value.trim(),
+                 status: $('#vStatus').value, note: $('#vNote').value };
+  if (!body.key) return alert('Kayit anahtari zorunlu');
+  await fetch('/api/verdicts', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body)});
+  $('#vNote').value = '';
+  loadVerdicts();
+}
+
+async function loadVerdicts() {
+  const list = await (await fetch('/api/verdicts')).json();
+  $('#vTable').innerHTML = list.length
+    ? '<tr><th>Anahtar</th><th>Durum</th><th>Kapsam</th><th>Not</th><th>Guncelleme</th></tr>' +
+      list.map(v => `<tr><td class="mono">${esc(v.key)}</td><td>${esc(v.status)}</td>
+        <td>${esc(v.scope)}</td><td>${esc(v.note)}</td>
+        <td class="mono">${esc((v.updatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
+    : '<tr><td class="mono">Kayit yok</td></tr>';
+}
+
+load();
+</script>
+</body>
+</html>

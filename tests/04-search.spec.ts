@@ -1,0 +1,83 @@
+import { test, expect } from "@playwright/test";
+import { CategoryPage } from "../pages/CategoryPage";
+import { SEARCH_TERMS } from "./routes";
+import { KNOWN_ISSUES } from "./known-issues";
+
+/**
+ * ⚠️ Homee aramasi PersonaClick "full_search" ile calisiyor ve sonuc kartlari
+ * PROD domain'ine link veriyor (HOMEE-005). Bu yuzden site ici link sayan
+ * assertion'lar burada kullanilamaz; sonuc sayimi tum domainler uzerinden yapilir.
+ */
+test.describe("04 - Arama", () => {
+  test("header aramasıyla sonuç sayfasına gidilir", async ({ page }) => {
+    const cat = new CategoryPage(page);
+    await cat.open("/");
+    await cat.search(SEARCH_TERMS.hit);
+
+    expect(page.url()).toContain("/arama");
+    expect(page.url()).toContain(encodeURIComponent(SEARCH_TERMS.hit));
+    await cat.assertNotNotFound();
+
+    const cards = await page.locator('a[href*="-p-"]').count();
+    expect(cards, "arama sonucu hiç kart dönmedi").toBeGreaterThan(0);
+  });
+
+  test("arama sonucu başlığı sorguyu ve adedi gösterir", async ({ page }) => {
+    const cat = new CategoryPage(page);
+    await cat.open(`/arama?q=${SEARCH_TERMS.hit}`);
+
+    const h1 = await cat.heading.innerText();
+    expect(h1.toLocaleUpperCase("tr")).toContain(SEARCH_TERMS.hit.toLocaleUpperCase("tr"));
+    expect(h1, "sonuç adedi (N) gösterilmiyor").toMatch(/\(\d+\)/);
+  });
+
+  test("sonuç dönmeyen arama boş durum mesajı gösterir", async ({ page }) => {
+    const cat = new CategoryPage(page);
+    await cat.open(`/arama?q=${SEARCH_TERMS.miss}`);
+
+    await cat.assertNotNotFound();
+    expect(await cat.uniqueProductSlugs(), "boş sonuçta site içi ürün kartı olmamalı").toHaveLength(
+      0,
+    );
+    const body = await page.locator("body").innerText();
+    expect(body, "boş sonuç mesajı gösterilmiyor").toMatch(/bulunamadı|sonuç yok|0 ürün/i);
+  });
+
+  /** BİLİNEN HATA HOMEE-005: sonuç kartları prod domain'ine gidiyor */
+  test("arama sonuç kartları site içi link veriyor", async ({ page }) => {
+    test.fail(
+      true,
+      `${KNOWN_ISSUES.searchResultsLinkToProd.id}: ${KNOWN_ISSUES.searchResultsLinkToProd.detail}`,
+    );
+    const cat = new CategoryPage(page);
+    await cat.open(`/arama?q=${SEARCH_TERMS.hit}`);
+    await cat.loadLazyContent(3);
+
+    const all = await page.locator('a[href*="-p-"]').evaluateAll((as) =>
+      as.map((a) => a.getAttribute("href") ?? ""),
+    );
+    const external = [...new Set(all.filter((h) => !h.startsWith("/")))];
+    expect(
+      external,
+      `${external.length}/${all.length} sonuç kartı dış domain'e gidiyor, örn: ${external[0]}`,
+    ).toHaveLength(0);
+  });
+
+  /** BİLİNEN HATA HOMEE-006: alaka sorunu */
+  test("arama sonuçları sorguyla alakalı", async ({ page }) => {
+    test.fail(true, `${KNOWN_ISSUES.searchRelevance.id}: ${KNOWN_ISSUES.searchRelevance.detail}`);
+    const cat = new CategoryPage(page);
+    await cat.open(`/arama?q=${SEARCH_TERMS.hit}`);
+
+    const first5 = (
+      await page.locator('a[href*="-p-"]').evaluateAll((as) =>
+        as.map((a) => a.getAttribute("href") ?? ""),
+      )
+    ).slice(0, 5);
+    const relevant = first5.filter((h) => h.includes(SEARCH_TERMS.hit));
+    expect(
+      relevant.length,
+      `ilk 5 sonuçta "${SEARCH_TERMS.hit}" geçen ürün yok: ${first5.map((h) => h.split("/").pop()).join(", ")}`,
+    ).toBeGreaterThan(0);
+  });
+});

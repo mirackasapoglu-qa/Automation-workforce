@@ -1,0 +1,112 @@
+{
+  "runs": {
+    "guest-all": {
+      "label": "Misafir seti (01-09, headless)",
+      "cmd": "npx",
+      "args": ["playwright", "test", "tests/0", "--project=chromium", "--reporter=line"],
+      "group": "misafir"
+    },
+    "member-all": {
+      "label": "Uye seti (20-25, headless)",
+      "cmd": "npx",
+      "args": ["playwright", "test", "tests/2", "--project=chromium", "--reporter=line"],
+      "group": "uye"
+    },
+    "test-anasayfa": {
+      "label": "01 Anasayfa (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:anasayfa"],
+      "group": "misafir"
+    },
+    "test-menu": {
+      "label": "02 Navigasyon + rota sagligi (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:menu"],
+      "group": "misafir"
+    },
+    "test-liste": {
+      "label": "03 Kategori/liste (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:liste"],
+      "group": "misafir"
+    },
+    "test-arama": {
+      "label": "04 Arama (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:arama"],
+      "group": "misafir"
+    },
+    "test-urun": {
+      "label": "05 Urun detay (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:urun"],
+      "group": "misafir"
+    },
+    "test-sepet": {
+      "label": "06 Sepet (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:sepet"],
+      "group": "misafir"
+    },
+    "test-magaza": {
+      "label": "07 Magazalar (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:magaza"],
+      "group": "misafir"
+    },
+    "test-statik": {
+      "label": "08 Statik sayfalar (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:statik"],
+      "group": "misafir"
+    },
+    "test-form": {
+      "label": "09 Formlar (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:form"],
+      "group": "misafir"
+    },
+    "test-login": {
+      "label": "20 Giris pozitif/negatif (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:login"],
+      "group": "uye"
+    },
+    "test-hesabim": {
+      "label": "21 Hesabim ozeti (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:hesabim"],
+      "group": "uye"
+    },
+    "test-adres": {
+      "label": "22 Adres yonetimi (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:adres"],
+      "group": "uye"
+    },
+    "test-favori": {
+      "label": "23 Favoriler (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:favori"],
+      "group": "uye"
+    },
+    "test-siparis": {
+      "label": "24 Siparisler/iadeler (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:siparis"],
+      "group": "uye"
+    },
+    "test-odeme": {
+      "label": "25 Odeme adimi - siparis TAMAMLANMAZ (headed)",
+      "cmd": "npm",
+      "args": ["run", "test:odeme"],
+      "group": "uye"
+    },
+    "report": {
+      "label": "HTML rapor uret (son kosumdan)",
+      "cmd": "npm",
+      "args": ["run", "report:create"],
+      "group": "rapor"
+    }
+  }
+}
