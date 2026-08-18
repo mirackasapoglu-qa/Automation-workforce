@@ -16,7 +16,11 @@ export const KNOWN_ISSUES = {
     where: "/tepe-sap-test-yeni-urun-p-1099765 (ürün detay)",
     detail: 'pageerror: "parameters is not iterable"',
   },
-  /** /magazalar sayfasında kırık görsel (test CDN) */
+  /**
+   * /magazalar sayfasında kırık görsel (test CDN).
+   * ⚠️ ARALIKLI — bazı koşumlarda görsel yükleniyor. test.fail() ile işaretlenmez;
+   * 08-static-pages testi doğrudan assert eder.
+   */
   storesBrokenImage: {
     id: "HOMEE-002",
     where: "/magazalar",
@@ -30,7 +34,10 @@ export const KNOWN_ISSUES = {
     detail:
       "Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor",
   },
-  /** Ödeme sayfasında sözleşme metinleri yüklenemiyor */
+  /**
+   * Ödeme sayfasında sözleşme metinleri yüklenemiyor.
+   * ⚠️ ARALIKLI — bazı koşumlarda yükleniyor; test.fail() ile işaretlenmez.
+   */
   checkoutContractsNotLoading: {
     id: "HOMEE-004",
     where: "/odeme",
@@ -49,7 +56,10 @@ export const KNOWN_ISSUES = {
     detail:
       "Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
   },
-  /** Arama alaka sorunu */
+  /**
+   * Arama alaka sorunu.
+   * ⚠️ ARALIKLI — PersonaClick kişiselleştirmesi; test.fail() ile işaretlenmez.
+   */
   searchRelevance: {
     id: "HOMEE-006",
     where: "/arama?q=koltuk",

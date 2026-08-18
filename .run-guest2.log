@@ -162,3 +162,66 @@ Running 51 tests using 1 worker
 [33/51] [chromium] › tests/06-cart.spec.ts:96:7 › 06 - Sepet › ürün sepetten silinir ve sepet boşalır
 [34/51] [chromium] › tests/06-cart.spec.ts:112:7 › 06 - Sepet › boş sepette ödeme butonu yok, alışverişe devam bağlantısı var
 [35/51] [chromium] › tests/06-cart.spec.ts:122:7 › 06 - Sepet › iki farklı ürün sepette iki satır oluşturur
+[36/51] [chromium] › tests/07-stores.spec.ts:5:7 › 07 - Mağazalar › mağaza listesi yüklenir
+[chromium] › tests/07-stores.spec.ts:5:7 › 07 - Mağazalar › mağaza listesi yüklenir
+  4 mağaza: Lefkoşa, Ana Lokasyon, tuğçe 1 aş, Ankara Depo
+
+[37/51] [chromium] › tests/07-stores.spec.ts:16:7 › 07 - Mağazalar › mağaza arama listeyi filtreler
+[38/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /magazalar açılır ve doğru başlığı gösterir
+[39/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /iletisim açılır ve doğru başlığı gösterir
+[40/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /blogs açılır ve doğru başlığı gösterir
+[41/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /sikca-sorulan-sorular açılır ve doğru başlığı gösterir
+[42/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /hakkimizda açılır ve doğru başlığı gösterir
+[43/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /bilkent-holding açılır ve doğru başlığı gösterir
+[44/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /etik-politikamiz açılır ve doğru başlığı gösterir
+[45/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /insan-kaynaklari açılır ve doğru başlığı gösterir
+[46/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /kvkk-aydinlatma-metni açılır ve doğru başlığı gösterir
+[47/51] [chromium] › tests/08-static-pages.spec.ts:8:9 › 08 - Statik / kurumsal sayfalar › /privacy açılır ve doğru başlığı gösterir
+[48/51] [chromium] › tests/08-static-pages.spec.ts:21:7 › 08 - Statik / kurumsal sayfalar › statik sayfalarda kırık görsel yok
+  6) [chromium] › tests/08-static-pages.spec.ts:21:7 › 08 - Statik / kurumsal sayfalar › statik sayfalarda kırık görsel yok 
+
+    Expected to fail, but passed.
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/08-static-pages-08---Stati-9b2ef-sayfalarda-kırık-görsel-yok-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+[49/51] [chromium] › tests/09-forms.spec.ts:11:7 › 09 - Formlar (validasyon) › bülten aboneliği geçersiz e-postayı reddeder
+[50/51] [chromium] › tests/09-forms.spec.ts:26:7 › 09 - Formlar (validasyon) › iletişim sayfası formu render olur
+  7) [chromium] › tests/09-forms.spec.ts:26:7 › 09 - Formlar (validasyon) › iletişim sayfası formu render olur 
+
+    Error: iletişim formunda alan bulunamadı
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 1
+    Received:   1
+
+      30 |     await p.assertNotNotFound();
+      31 |     const inputs = await page.locator("input:visible, textarea:visible").count();
+    > 32 |     expect(inputs, "iletişim formunda alan bulunamadı").toBeGreaterThan(1);
+         |                                                         ^
+      33 |   });
+      34 |
+      35 |   /** BİLİNEN HATA HOMEE-003: boş gönderimde hiçbir geri bildirim yok */
+        at /Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts:32:57
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/09-forms-09---Formlar-vali-e9e3a-m-sayfası-formu-render-olur-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/09-forms-09---Formlar-vali-e9e3a-m-sayfası-formu-render-olur-chromium/error-context.md
+
+
+[51/51] [chromium] › tests/09-forms.spec.ts:36:7 › 09 - Formlar (validasyon) › iletişim formu boş gönderimde validasyon gösterir
+  7 failed
+    [chromium] › tests/02-navigation.spec.ts:100:7 › 02b - Domain sızması › test ortamı sayfaları prod domain'ine link vermiyor 
+    [chromium] › tests/03-category-listing.spec.ts:32:7 › 03 - Kategori / liste sayfası › filtre paneli açılır ve filtre grupları listelenir 
+    [chromium] › tests/04-search.spec.ts:6:7 › 04 - Arama › header aramasıyla sonuç sayfasına gidilir 
+    [chromium] › tests/04-search.spec.ts:36:7 › 04 - Arama › arama sonucundan ürün detayına gidilir 
+    [chromium] › tests/06-cart.spec.ts:78:7 › 06 - Sepet › sipariş özeti: ara toplam + teslimat = toplam 
+    [chromium] › tests/08-static-pages.spec.ts:21:7 › 08 - Statik / kurumsal sayfalar › statik sayfalarda kırık görsel yok 
+    [chromium] › tests/09-forms.spec.ts:26:7 › 09 - Formlar (validasyon) › iletişim sayfası formu render olur 
+  44 passed (17.5m)
+EXIT=1

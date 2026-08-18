@@ -19,6 +19,10 @@ npx playwright test tests/01-homepage.spec.ts --project=chromium --reporter=line
 `workers: 1` (paralel yok), timeout 45s (`TEST_TIMEOUT` ile değişir), `trace: on-first-retry`,
 `screenshot: only-on-failure`. Uzun rota süpürmeleri spec içinde `test.setTimeout()` ile arttırılır.
 
+⚠️ **İki koşumu aynı anda başlatma.** Playwright koşum başında `test-results/` dizinini
+temizliyor; paralel iki koşum birbirinin kanıtlarını ve `results.json`'ını siler.
+Sıralı koş, ya da ayrı `--output` dizini ver.
+
 ⚠️ **Bundled tarayıcı kurulu değil** — sistemdeki Chrome kullanılıyor (`channel: "chrome"`).
 Geçici script yazarken de `chromium.launch({ channel: "chrome" })` kullan.
 
@@ -86,8 +90,19 @@ e-postasının göründüğünü** de assert eder.
    `ProductPage.addToCart()` header badge'ini doğrular ve bir kez retry eder. Kendi başına
    `click` yapma.
 
-7. **Geçici script'i repo kökünde yaz** (`.probe.mjs`), scratchpad'de değil —
+7. **Hata mesajları kaybolan TOAST.** Yanlış şifre → "Lütfen e-posta adresinizi ya da şifrenizi
+   kontrol edin." mesajı ~1.2 sn sonra çıkıp kayboluyor. Sabit bekleyip gövdeye bakan test mesajı
+   KAÇIRIR — `LoginPage.submitAndCatchMessage()` gibi **poll eden** yardımcı kullan.
+
+8. **Geçici script'i repo kökünde yaz** (`.probe.mjs`), scratchpad'de değil —
    `@playwright/test` modül çözümlemesi dosya konumuna göre çalışır. İş bitince sil.
+
+## API katmanı (ileride API testi için)
+
+FE'nin konuştuğu backend: `https://ecom-api.test.tepehome.com.tr` —
+`POST /auth/login` yanlış kimlikle **401** döner. Kimlik token'ı FE tarafından
+`/api/auth/get-token` (Next.js route) üzerinden alınıyor; `auth_token` / `refresh_token`
+cookie olarak tutulur ve **refresh_token kullanımda rotate olur**.
 
 ## Repo konvansiyonları
 

@@ -68,11 +68,17 @@ export class BasePage {
     await this.dismissOverlays();
   }
 
-  /** Gecikmeli açılan kampanya/öneri modal'larını kapatır; yoksa sessizce geçer. */
+  /**
+   * Gecikmeli açılan kampanya/öneri modal'larını kapatır; yoksa sessizce geçer.
+   *
+   * ⚠️ Adres formu gibi drawer'ların BACKDROP'u da `button[aria-label="Kapat"]`
+   * (`class="absolute inset-0 bg-black/40"`). Ona basmak açık formu kapatır —
+   * bu yüzden `inset-0` sınıfı taşıyan kapatıcılar HARİÇ tutulur.
+   */
   async dismissOverlays() {
     const closers = [
-      'button[aria-label="Kapat"]:visible',
-      'button[aria-label="Close"]:visible',
+      'button[aria-label="Kapat"]:not([class*="inset-0"]):visible',
+      'button[aria-label="Close"]:not([class*="inset-0"]):visible',
       'button:visible:has-text("KAPAT")',
     ];
     for (const sel of closers) {
@@ -108,7 +114,7 @@ export class BasePage {
           as
             .map((a) => a.getAttribute("href") ?? "")
             .filter((h) => /^https?:\/\//.test(h))
-            .filter((h) => /(^|\.)prod\.tepehome\.com\.tr/.test(h)),
+            .filter((h) => /\/\/prod\.tepehome\.com\.tr/.test(h)),
         ),
       ].slice(0, 20),
     );

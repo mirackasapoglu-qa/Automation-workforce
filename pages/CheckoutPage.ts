@@ -41,8 +41,18 @@ export class CheckoutPage extends BasePage {
     this.payButton = page.locator('button:visible:has-text("ÖDEME YAP")').first();
   }
 
+  /**
+   * ⚠️ `/odeme` adresine DOĞRUDAN gidilemiyor — sepette ürün olsa bile uygulama
+   * `/sepet`e geri yönlendiriyor (checkout oturumu sepetteki butonla açılıyor).
+   * Bu yüzden giriş her zaman sepetten yapılır.
+   */
   async open() {
-    await this.goto("/odeme");
+    await this.goto("/sepet");
+    const cta = this.page.locator('button:visible:has-text("ÖDEME ADIMINA GEÇİN")').first();
+    await expect(cta, "sepet boş — ödeme adımına geçilemez").toBeVisible({ timeout: 20_000 });
+    await cta.click({ timeout: 15_000 });
+    await this.settle(3000);
+    expect(this.page.url(), "ödeme sayfasına geçilemedi").toContain("/odeme");
   }
 
   /** "₺4.200 - ÖDEME YAP" → 4200 */

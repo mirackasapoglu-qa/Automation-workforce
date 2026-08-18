@@ -18,6 +18,8 @@ export class FavoritesPage extends BasePage {
 
   async open() {
     await this.goto("/hesabim/favorilerim");
+    // Favori kartlari lazy yukleniyor — scroll etmeden sayim 0 doner
+    await this.loadLazyContent(3);
   }
 
   async count(): Promise<number> {

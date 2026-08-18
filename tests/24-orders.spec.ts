@@ -12,7 +12,7 @@ test.describe("24 - Siparişler ve iadeler", () => {
 
     const body = await memberPage.locator("body").innerText();
     expect(body, "ne sipariş listesi ne boş durum mesajı var").toMatch(
-      /siparişiniz bulunmuyor|Sipariş No|Sipariş Tarihi|TÜMÜNÜ GÖR/i,
+      /bulunmamaktadır|siparişiniz bulunmuyor|Sipariş No|Sipariş Tarihi|TÜMÜNÜ GÖR/i,
     );
   });
 

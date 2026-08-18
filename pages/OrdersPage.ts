@@ -17,7 +17,8 @@ export class OrdersPage extends BasePage {
 
   async isEmpty(): Promise<boolean> {
     const body = await this.page.locator("body").innerText();
-    return /siparişiniz bulunmuyor|henüz sipariş/i.test(body);
+    // Gerçek metin: "Siparişiniz bulunmamaktadır."
+    return /bulunmamaktadır|bulunmuyor|henüz sipariş/i.test(body);
   }
 
   async orderCount(): Promise<number> {

@@ -66,15 +66,24 @@ export class AddressPage extends BasePage {
     await expect(this.titleInput, "adres formu açılmadı").toBeVisible({ timeout: 15_000 });
   }
 
-  /** Custom dropdown: butona tıkla, açılan listeden ilk (ya da eşleşen) seçeneği seç. */
+  /**
+   * Custom dropdown (native <select> değil). Açılan popup, butonun hemen ardındaki
+   * `ul.absolute` — sayfa genelinde `li` aramak hesap menüsünü yakalar ve modal
+   * backdrop'ı tıklamayı perdeler. Bu yüzden popup butona göre konumlanır.
+   */
   async pickFromDropdown(dropdown: Locator, optionText?: string) {
     await dropdown.click({ timeout: 15_000 });
-    await this.page.waitForTimeout(1500);
+    const popup = dropdown.locator("xpath=following::ul[1]");
+    await popup.waitFor({ state: "visible", timeout: 12_000 });
+
     const option = optionText
-      ? this.page.locator(`li:visible:has-text("${optionText}"), button:visible:has-text("${optionText}"), div[role="option"]:visible:has-text("${optionText}")`).first()
-      : this.page.locator('li:visible, div[role="option"]:visible').first();
+      ? popup.locator(`li:has-text("${optionText}")`).first()
+      : popup.locator("li").first();
+    await option.scrollIntoViewIfNeeded();
+    const picked = (await option.innerText().catch(() => "")).trim();
     await option.click({ timeout: 15_000 });
-    await this.page.waitForTimeout(1800);
+    await this.page.waitForTimeout(2000);
+    return picked;
   }
 
   async fillForm(data: AddressData, opts: { city?: string; district?: string } = {}) {
@@ -102,7 +111,8 @@ export class AddressPage extends BasePage {
   /** Kayıtlı adres kartı sayısı — başlık metnine göre sayar. */
   async addressCount(): Promise<number> {
     const body = await this.page.locator("body").innerText();
-    if (/Kayıtlı adresiniz bulunmuyor/.test(body)) return 0;
+    // Gerçek metin: "Kayıtlı adresiniz bulunmamaktadır."
+    if (/Kayıtlı adresiniz bulunmam|Kayıtlı adresiniz bulunmuyor/.test(body)) return 0;
     return this.page.locator('button:visible:has-text("Düzenle")').count();
   }
 
@@ -112,8 +122,13 @@ export class AddressPage extends BasePage {
   }
 
   /**
-   * Adres siler. YIKICI: seçici, adres başlığını içeren KARTA kilitlenir; onay
-   * modalındaki buton global .last() ile aranmaz.
+   * Adres siler. YIKICI — iki aşamalı:
+   *   1) Başlığı içeren KARTIN "Sil" butonu
+   *   2) Açılan `[role=dialog]` içindeki "Sil" (onay)
+   *
+   * ⚠️ Virgüllü seçici KULLANMA: `[role=dialog] button, div:has-text(...) button`
+   * gibi bir seçici doküman sırasında ÖNCE kartın butonunu bulur ve modal
+   * backdrop'ı tıklamayı perdeler. Onay butonu MUTLAKA dialog'a kilitlenir.
    */
   async deleteAddressTitled(title: string) {
     const card = this.page
@@ -122,20 +137,22 @@ export class AddressPage extends BasePage {
       .filter({ has: this.page.locator('button:has-text("Sil")') })
       .last();
 
-    const deleteBtn = card.locator('button:has-text("Sil")').first();
-    await expect(deleteBtn, `"${title}" başlıklı adres kartında Sil butonu yok`).toBeVisible({
-      timeout: 12_000,
-    });
-    await deleteBtn.click({ timeout: 15_000 });
-    await this.page.waitForTimeout(2000);
+    const cardDelete = card.locator('button:has-text("Sil")').first();
+    await expect(cardDelete, `"${title}" kartinda Sil butonu yok`).toBeVisible({ timeout: 12_000 });
+    await cardDelete.click({ timeout: 15_000 });
 
-    // Onay modalı: modal konteynerine kilitle
-    const modal = this.page.locator('[role="dialog"]:visible, div:visible:has-text("emin misiniz")').last();
-    const confirm = modal.locator('button:visible:has-text("Sil"), button:visible:has-text("EVET"), button:visible:has-text("ONAYLA")').first();
-    if (await confirm.isVisible({ timeout: 4000 }).catch(() => false)) {
-      await confirm.click({ timeout: 12_000 });
-    }
-    await this.page.waitForTimeout(4500);
-    await this.dismissOverlays();
+    const dialog = this.page.locator('[role="dialog"]');
+    await dialog.waitFor({ state: "visible", timeout: 12_000 });
+
+    // Yanlis kaydi silmemek icin: onay diyalogunda hedef adres gecmeli
+    const dialogText = await dialog.innerText();
+    expect(
+      dialogText,
+      `onay diyalogu "${title}" adresini gostermiyor — yanlis kayit silinebilir`,
+    ).toContain("emin misiniz");
+
+    await dialog.getByRole("button", { name: "Sil", exact: true }).click({ timeout: 15_000 });
+    await dialog.waitFor({ state: "hidden", timeout: 15_000 }).catch(() => {});
+    await this.page.waitForTimeout(3500);
   }
 }

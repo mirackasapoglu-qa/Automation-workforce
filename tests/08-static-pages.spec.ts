@@ -1,7 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { BasePage } from "../pages/BasePage";
 import { STATIC_ROUTES } from "./routes";
-import { KNOWN_ISSUES } from "./known-issues";
 
 test.describe("08 - Statik / kurumsal sayfalar", () => {
   for (const route of STATIC_ROUTES) {
@@ -17,10 +16,13 @@ test.describe("08 - Statik / kurumsal sayfalar", () => {
     });
   }
 
-  /** BİLİNEN HATA HOMEE-002: /magazalar sayfasında kırık görsel */
+  /**
+   * HOMEE-002 ARALIKLI: /magazalar görseli bazı koşumlarda yükleniyor, bazılarında
+   * `naturalWidth===0` dönüyor (test CDN). Deterministik olmadığı için `test.fail()`
+   * KULLANILMIYOR — assertion doğrudan duruyor, kırık görsel çıkarsa test fail eder.
+   */
   test("statik sayfalarda kırık görsel yok", async ({ page }) => {
     test.setTimeout(180_000);
-    test.fail(true, `${KNOWN_ISSUES.storesBrokenImage.id}: ${KNOWN_ISSUES.storesBrokenImage.detail}`);
     const p = new BasePage(page);
     const problems: string[] = [];
 

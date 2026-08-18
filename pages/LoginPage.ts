@@ -35,6 +35,28 @@ export class LoginPage extends BasePage {
     await this.page.waitForTimeout(6000);
   }
 
+  /**
+   * Formu gönderir ve gövde metnini POLL EDEREK mesaj arar.
+   *
+   * ⚠️ Homee'nin hata mesajı ~1.2 sn sonra çıkan ve kaybolan bir TOAST
+   * ("Lütfen e-posta adresinizi ya da şifrenizi kontrol edin."). Sabit bekleyip
+   * sonra gövdeye bakan test mesajı KAÇIRIR.
+   */
+  async submitAndCatchMessage(pattern: RegExp, timeoutMs = 12_000): Promise<string | null> {
+    await this.submitButton.click({ timeout: 15_000 });
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      const body = await this.page.locator("body").innerText().catch(() => "");
+      const hit = body
+        .split("\n")
+        .map((l) => l.trim())
+        .find((l) => pattern.test(l));
+      if (hit) return hit;
+      await this.page.waitForTimeout(300);
+    }
+    return null;
+  }
+
   /** Görünen validasyon/hata metinleri. */
   async validationMessages(): Promise<string[]> {
     const body = await this.page.locator("body").innerText();

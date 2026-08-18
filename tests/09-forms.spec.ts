@@ -26,6 +26,7 @@ test.describe("09 - Formlar (validasyon)", () => {
   test("iletişim sayfası formu render olur", async ({ page }) => {
     const p = new BasePage(page);
     await p.goto("/iletisim");
+    await p.loadLazyContent(3); // form katlanmanın altında, scroll etmeden render olmuyor
 
     await p.assertNotNotFound();
     const inputs = await page.locator("input:visible, textarea:visible").count();
@@ -37,6 +38,7 @@ test.describe("09 - Formlar (validasyon)", () => {
     test.fail(true, `${KNOWN_ISSUES.contactFormNoValidation.id}: ${KNOWN_ISSUES.contactFormNoValidation.detail}`);
     const p = new BasePage(page);
     await p.goto("/iletisim");
+    await p.loadLazyContent(3);
 
     const submit = page
       .locator('form button[type="submit"]:visible, button:visible:has-text("GÖNDER")')

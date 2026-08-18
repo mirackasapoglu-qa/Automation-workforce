@@ -38,8 +38,21 @@ export class AccountPage extends BasePage {
     return !this.page.url().includes("/giris");
   }
 
+  /**
+   * Çıkış YAPMAK İÇİN ONAY GEREKİYOR: menüdeki "Çıkış Yap" butonu bir diyalog açar
+   * ("Çıkış yapmak istiyor musunuz? — Bu cihazdaki oturumunuz sonlandırılacak.")
+   * ve gerçek çıkış diyalogdaki "ÇIKIŞ YAP" butonuyla olur. Sadece ilk butona
+   * basan test oturumun kapanmadığını görür ve bunu ürün hatası sanır.
+   */
   async logout() {
     await this.logoutButton.click({ timeout: 15_000 });
+
+    const dialog = this.page.locator('[role="dialog"]');
+    if (await dialog.isVisible({ timeout: 4000 }).catch(() => false)) {
+      await dialog
+        .getByRole("button", { name: "ÇIKIŞ YAP", exact: true })
+        .click({ timeout: 15_000 });
+    }
     await this.page.waitForTimeout(5000);
   }
 }

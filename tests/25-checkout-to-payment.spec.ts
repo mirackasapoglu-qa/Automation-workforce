@@ -4,7 +4,6 @@ import { CartPage } from "../pages/CartPage";
 import { CheckoutPage } from "../pages/CheckoutPage";
 import { TEST_PRODUCTS } from "./routes";
 import { ORDERS_ALLOWED } from "../pages/authState";
-import { KNOWN_ISSUES } from "./known-issues";
 
 /**
  * ⚠️ KAPSAM SINIRI: Bu spec ÖDEME ADIMINA KADAR gider, siparişi TAMAMLAMAZ.
@@ -63,10 +62,13 @@ test.describe("25 - Ödeme adımı (sipariş tamamlanmaz)", () => {
     await checkout.assertNotNotFound();
   });
 
-  /** BİLİNEN HATA HOMEE-004 */
+  /**
+   * HOMEE-004 ARALIKLI: sözleşme metinleri bazı koşumlarda "yüklenemedi" diyor,
+   * bazılarında yükleniyor. Deterministik olmadığı için `test.fail()` yok —
+   * yüklenmezse test fail eder.
+   */
   test("sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme)", async ({ memberPage }) => {
     test.setTimeout(180_000);
-    test.fail(true, `${KNOWN_ISSUES.checkoutContractsNotLoading.id}: ${KNOWN_ISSUES.checkoutContractsNotLoading.detail}`);
     const product = new ProductPage(memberPage);
     await product.open(TEST_PRODUCTS.sapTest);
     await product.addToCart();

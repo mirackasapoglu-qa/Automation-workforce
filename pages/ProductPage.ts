@@ -19,7 +19,14 @@ export class ProductPage extends BasePage {
     this.skuButton = page.locator('button:visible:has-text("ÜRÜN KODU")').first();
     this.addToCartButton = page.locator('button:visible:has-text("SEPETE EKLE")').first();
     this.installmentButton = page.locator('button:visible:has-text("Taksit seçenekleri")').first();
-    this.favoriteButton = page.locator('button[aria-label="Favorilere ekle"]:visible').first();
+    // Ana urunun favori butonu DOM'daki İLK favori butonu; etiketi duruma gore
+    // degisiyor ("Favorilere ekle" ↔ "Favorilerden cikar"). Sonraki butonlar
+    // oneri kartlarina ait — onlara basmak yanlis urunu favoriler.
+    this.favoriteButton = page
+      .locator(
+        'button[aria-label="Favorilere ekle"]:visible, button[aria-label="Favorilerden çıkar"]:visible',
+      )
+      .first();
     this.detailsHeading = page.locator("#urun-detaylari-heading");
     this.descriptionTab = page.locator('button:visible:has-text("Açıklama")').first();
     this.dimensionsTab = page.locator('button:visible:has-text("Ölçüler")').first();
@@ -29,6 +36,19 @@ export class ProductPage extends BasePage {
 
   async open(slug: string) {
     await this.goto(slug.startsWith("/") ? slug : `/${slug}`);
+  }
+
+  /** Ana urun favorilerde mi (butonun aria-label'ina bakar). */
+  async isFavorited(): Promise<boolean> {
+    const label = await this.favoriteButton.getAttribute("aria-label").catch(() => "");
+    return (label ?? "").includes("çıkar");
+  }
+
+  /** Favori durumunu hedeflenen degere getirir; zaten oyleyse dokunmaz. */
+  async setFavorite(on: boolean) {
+    if ((await this.isFavorited()) === on) return;
+    await this.favoriteButton.click({ timeout: 15_000 });
+    await this.page.waitForTimeout(3500);
   }
 
   /** /xxx-p-1099765 → "1099765" */

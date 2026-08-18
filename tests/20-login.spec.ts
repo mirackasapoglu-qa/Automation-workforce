@@ -34,28 +34,31 @@ test.describe("20 - Giriş (pozitif / negatif)", () => {
   });
 
   test("yanlış şifre ile giriş reddedilir", async ({ page }) => {
+    test.setTimeout(90_000);
     const login = new LoginPage(page);
     await login.open();
 
-    await login.login(TEST_EMAIL || "qa-yok@example.com", "KesinlikleYanlisSifre123!");
-    await login.assertStillOnLogin();
+    await login.emailInput.fill(TEST_EMAIL || "qa-yok@example.com");
+    await login.passwordInput.fill("KesinlikleYanlisSifre123!");
 
-    const body = await page.locator("body").innerText();
-    expect(body, "hatalı giriş mesajı gösterilmedi").toMatch(
-      /hatalı|geçersiz|yanlış|bulunamadı|eşleşmiyor/i,
+    // Mesaj ~1.2 sn sonra çıkıp kaybolan bir toast → poll ederek yakala
+    const msg = await login.submitAndCatchMessage(
+      /kontrol edin|hatalı|geçersiz|yanlış|bulunamadı|eşleşmiyor/i,
     );
+
+    expect(msg, "hatalı giriş mesajı hiç gösterilmedi").not.toBeNull();
+    await login.assertStillOnLogin();
   });
 
   test("boş form gönderiminde zorunlu alan uyarısı", async ({ page }) => {
+    test.setTimeout(90_000);
     const login = new LoginPage(page);
     await login.open();
 
-    await login.submitButton.click({ timeout: 15_000 });
-    await page.waitForTimeout(2500);
-    await login.assertStillOnLogin();
+    const msg = await login.submitAndCatchMessage(/giriniz|zorunlu|gerekli|doldur/i);
 
-    const msgs = await login.validationMessages();
-    expect(msgs.length, "hiçbir validasyon mesajı çıkmadı").toBeGreaterThan(0);
+    expect(msg, "boş formda hiçbir validasyon mesajı çıkmadı").not.toBeNull();
+    await login.assertStillOnLogin();
   });
 
   test("doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir", async ({ page }) => {

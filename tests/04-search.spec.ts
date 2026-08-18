@@ -63,9 +63,12 @@ test.describe("04 - Arama", () => {
     ).toHaveLength(0);
   });
 
-  /** BİLİNEN HATA HOMEE-006: alaka sorunu */
+  /**
+   * HOMEE-006 ARALIKLI: PersonaClick kişiselleştirmesi nedeniyle aynı sorgu bazı
+   * koşumlarda alakasız sonuç döndürüyor (ölçüm: "koltuk" → kolonya). Deterministik
+   * olmadığı için `test.fail()` yok; alaka bozulursa test fail eder.
+   */
   test("arama sonuçları sorguyla alakalı", async ({ page }) => {
-    test.fail(true, `${KNOWN_ISSUES.searchRelevance.id}: ${KNOWN_ISSUES.searchRelevance.detail}`);
     const cat = new CategoryPage(page);
     await cat.open(`/arama?q=${SEARCH_TERMS.hit}`);
 

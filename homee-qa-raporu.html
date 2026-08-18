@@ -1,0 +1,654 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<title>Homee QA Otomasyon Raporu</title>
+<style>
+  @page { size: A4; margin: 15mm 13mm; }
+  :root {
+    --fg:#18181b; --mut:#6b7280; --line:#e4e4e7; --card:#f7f7f8;
+    --ok:#0f766e; --no:#b91c1c; --warn:#a16207; --acc:#b91c1c;
+  }
+  * { box-sizing:border-box }
+  body { margin:0; color:var(--fg); background:#fff;
+         font:10.5pt/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; }
+  h1 { font-size:23pt; margin:0 0 6px; letter-spacing:-.02em }
+  h2 { font-size:14pt; margin:24px 0 10px; padding-bottom:5px; border-bottom:2px solid var(--fg) }
+  h3 { font-size:11.5pt; margin:16px 0 7px }
+  h4 { font-size:10pt; margin:13px 0 5px }
+  p { margin:0 0 8px }
+  .lead { color:var(--mut); font-size:10pt }
+  .cover { border-bottom:3px solid var(--acc); padding-bottom:13px; margin-bottom:16px }
+  .kv { display:grid; grid-template-columns:120px 1fr; gap:2px 10px; font-size:9.5pt; margin-top:9px }
+  .kv dt { color:var(--mut) } .kv dd { margin:0 }
+  .cards { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin:13px 0 }
+  .c { border:1px solid var(--line); border-radius:7px; padding:8px 10px; background:var(--card) }
+  .c .n { font-size:18pt; font-weight:680; line-height:1.05 }
+  .c .l { font-size:8pt; color:var(--mut); margin-top:3px; text-transform:uppercase; letter-spacing:.05em }
+  table { width:100%; border-collapse:collapse; font-size:9pt; margin:6px 0 11px }
+  th,td { text-align:left; padding:4.5px 7px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { background:var(--card); font-size:8pt; text-transform:uppercase; letter-spacing:.05em; color:var(--mut) }
+  td.num { color:var(--mut); font-variant-numeric:tabular-nums }
+  .mono { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:8.5pt }
+  .muted { color:var(--mut) }
+  .cnt { font-size:8pt; color:var(--mut); font-weight:400 }
+  .tag { font-size:7.5pt; font-weight:650; padding:1px 5px; border-radius:4px; white-space:nowrap; border:1px solid }
+  .ti { color:var(--no); border-color:var(--no) }
+  .tm { color:var(--warn); border-color:var(--warn) }
+  .ts { color:var(--mut); border-color:var(--line) }
+  .tp { color:var(--ok); border-color:var(--ok) }
+  .tf { color:#fff; background:var(--no); border-color:var(--no) }
+  .spec { break-inside:avoid; page-break-inside:avoid }
+  .note { border-left:3px solid var(--acc); background:var(--card); padding:8px 11px; margin:9px 0; font-size:9.5pt }
+  .ok { color:var(--ok) } .no { color:var(--no) }
+  ul { margin:0 0 9px; padding-left:17px } li { margin-bottom:3px }
+  .two { display:grid; grid-template-columns:1fr 1fr; gap:0 20px }
+  .brk { page-break-before:always }
+  footer { margin-top:24px; padding-top:8px; border-top:1px solid var(--line); font-size:8pt; color:var(--mut) }
+</style></head><body>
+
+<div class="cover">
+  <h1>Homee QA Otomasyon Raporu</h1>
+  <p class="lead">Tepe Home redesign için Playwright E2E regresyon suite'i — kurulum, kapsam ve ilk tarama bulguları</p>
+  <dl class="kv">
+    <dt>Tarih</dt><dd>18 Ağustos 2026</dd>
+    <dt>Ortam</dt><dd class="mono">test — https://redesign-prod.test.tepehome.com.tr</dd>
+    <dt>Repo</dt><dd class="mono">~/Desktop/homee-tests</dd>
+    <dt>Mimari kaynak</dt><dd>NadirGold QA suite (taşındı ve Homee'ye uyarlandı)</dd>
+  </dl>
+</div>
+
+<div class="cards">
+  <div class="c"><div class="n">67</div><div class="l">test case</div></div>
+  <div class="c"><div class="n">15</div><div class="l">spec dosyası</div></div>
+  <div class="c"><div class="n">13</div><div class="l">page object</div></div>
+  <div class="c"><div class="n">7</div><div class="l">claude agent</div></div>
+</div>
+
+<h2>1. Ne yaptık</h2>
+
+<p>NadirGold QA suite'inin mimarisi Homee'ye taşındı. Homee'nin farklı davrandığı yerlerde mimari
+tahminle değil <b>ölçümle</b> değiştirildi. Sonuç: <b>67 test case</b>,
+10 misafir + 5 üye spec dosyası, 13 page object,
+yerel QA paneli, rapor üreticisi ve 7 Claude Code agent'ı.</p>
+
+<h3>1.1 NadirGold'dan aynen taşınanlar</h3>
+<ul>
+  <li><b>Ortam çözümü:</b> <span class="mono">HOMEE_ENV</span> → <span class="mono">BASE_URL_&lt;ENV&gt;</span>; tanımsızsa koşum başlamadan hata verir.</li>
+  <li><b>POM katmanı:</b> locator'lar <span class="mono">readonly</span>, method'lar <span class="mono">async</span>; ortak davranış <span class="mono">BasePage</span>'de toplanır.</li>
+  <li><b>Numaralı spec konvansiyonu:</b> <span class="mono">tests/NN-shortname.spec.ts</span>; her grup için <span class="mono">npm run test:&lt;kısaad&gt;</span> script'i.</li>
+  <li><b>Test hijyeni:</b> mutasyon yapan test başlangıç durumunu geri alır ve geri aldığını <b>ölçerek</b> doğrular; yıkıcı işlemde seçici konteynere kilitlenir.</li>
+  <li><b>Yıkıcı işlem guard'ı:</b> NadirGold'da <span class="mono">ALLOW_PROD_ORDERS</span>, Homee'de <span class="mono">ALLOW_HOMEE_ORDERS</span>.</li>
+  <li><b>QA Paneli:</b> whitelist'li koşum tetikleme + SSE canlı log + verdict/kanıt kaydı.</li>
+  <li><b>Agent seti:</b> explorer / planner / pom-generator / env-switcher / flaky-analyzer / report-builder.</li>
+</ul>
+
+<h3>1.2 Homee için değiştirilenler</h3>
+<table>
+  <tr><th style="width:34%">Homee'nin farkı</th><th>Çözüm</th></tr>
+  <tr><td><b>İki katmanlı kimlik:</b> tüm site Machinarium "Geçici Erişim" kapısının arkasında, onun arkasında ayrıca Tepe Home üye girişi var.</td>
+      <td>İki ayrı oturum: kapı state'i <span class="mono">&lt;env&gt;-gate.json</span> (misafir testlerinin varsayılanı) + üye oturumu fixture üzerinden.</td></tr>
+  <tr><td><b>Üye oturumu paylaşılamıyor:</b> refresh-token kullanımda rotate ediyor. Ölçüm: kaydedilmiş state'i 1. context kullanır, 2. ve 3. context <span class="mono">/giris</span>'e düşer.</td>
+      <td>NadirGold'un "tek state'i tüm testler paylaşır" deseni bırakıldı. <span class="mono">memberPage</span> fixture'ı her üye testi için UI login yapar (~8 sn).</td></tr>
+  <tr><td><b>Türkçe <span class="mono">İ</span> + regex <span class="mono">/i</span> eşleşmiyor</b> (U+0130 case-fold edilmiyor): <span class="mono">/KATEGORİLER/i</span>, aria-label <span class="mono">"Kategoriler"</span>'i bulamıyor.</td>
+      <td>Türkçe metinlerde tam string, <span class="mono">exact: true</span> ve <span class="mono">:has-text()</span> kullanıldı.</td></tr>
+  <tr><td><b>Header'ın görünmez ikizi:</b> her header öğesi DOM'da iki kez var, biri <span class="mono">display:none</span> — <span class="mono">.first()</span> görünmez olanı yakalıyor.</td>
+      <td>Tüm header seçicilerinde <span class="mono">:visible</span>.</td></tr>
+  <tr><td><b>404'te de HTTP 200</b> dönüyor — durum kodu yalan söylüyor.</td>
+      <td><span class="mono">BasePage.isNotFound()</span> DOM'dan "Sayfa Bulunamadı" arar.</td></tr>
+  <tr><td><b>Lazy içerik:</b> ürün karuselleri ve formlar scroll edilmeden DOM'a girmiyor.</td>
+      <td><span class="mono">loadLazyContent()</span> — kart/alan sayan her test önce bunu çağırır.</td></tr>
+  <tr><td><b>Sepete ekleme hydration yarışı:</b> ilk tıklama sessizce kaybolabiliyor.</td>
+      <td><span class="mono">addToCart()</span> header badge'ini doğrular, değişmezse bir kez tekrar dener.</td></tr>
+  <tr><td><b>Modal backdrop'ı da "Kapat" butonu</b> (<span class="mono">inset-0</span>) — overlay temizleyici açık adres formunu kapatıyordu.</td>
+      <td>Overlay temizleyici <span class="mono">inset-0</span> taşıyan kapatıcıları hariç tutar.</td></tr>
+  <tr><td><b>Arama ve öneri kartları prod domain'ine link veriyor.</b></td>
+      <td>Ürün sayımları site içi linklerle yapılır; sızma ayrı bir regresyon kontrolü olarak kayda alındı (HOMEE-005).</td></tr>
+  <tr><td><b>Şehir/İlçe/Mahalle native <span class="mono">select</span> değil</b> — açılan liste sayfa genelinde aranınca hesap menüsünü yakalıyor.</td>
+      <td>Dropdown popup'ı butona göre konumlanır (<span class="mono">following::ul[1]</span>).</td></tr>
+</table>
+
+<div class="note"><b>Bilinen hata deseni:</b> tespit edilen ürün hataları
+<span class="mono">tests/known-issues.ts</span>'e kaydedilir ve ilgili test <span class="mono">test.fail()</span>
+ile işaretlenir. Hata sürdükçe suite yeşil kalır; <b>hata düzeldiğinde test "beklenmedik şekilde geçti"</b>
+diye kırmızıya döner ve kaydın silinmesini zorunlu kılar. Böylece bilinen hatalar ne gürültü yapar ne unutulur.
+Bu mekanizma ilk koşumda işe yaradı: iki hatanın (kırık görsel, arama alakası) <b>aralıklı</b> olduğu
+bu şekilde ortaya çıktı ve ikisi de doğrudan assertion'a çevrildi.</div>
+
+<h2>2. Son koşum sonuçları</h2>
+<p class="muted">Bu rapor üretildiğinde koşum sonucu dosyası hazır değildi. Koşum bittikten sonra
+raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</span></p>
+
+<h2 class="brk">3. Test kapsamı — tüm case'ler</h2>
+<p class="lead"><b>67 case</b> · 16 tanesi veri değiştirir (hepsi kendini geri alır)
+· 5 tanesi bilinen ürün hatasını takip eder</p>
+
+<h3>3.1 Misafir seti — login gerektirmez (49 case)</h3>
+
+<div class="spec">
+  <h4><span class="mono">01-homepage.spec.ts</span> — 01 - Anasayfa <span class="cnt">5 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>anasayfa yüklenir, başlık ve bilgi şeridi görünür</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>ürün kartları render olur ve ürün detayına gider</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>header öğeleri mevcut (kategoriler, arama, sepet, giriş, mağazalar)</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>footer bülten alanı ve başa dön butonu çalışır</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>anasayfada uygulama kaynaklı konsol hatası yok</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">02-navigation.spec.ts</span> — 02 - Navigasyon ve rota sağlığı <span class="cnt">7 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>mega menü açılır ve kategori linkleri listelenir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>menüdeki tüm kategori rotaları açılır (404 yok)</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>bilinen kırık linkler kayıt altında (düzelen listeden çıkarılmalı)</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>header ana menü linkleri (MOBİLYA / EVDEKOR) 404 vermez</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>boş kategoriler kayıt altında (dolan listeden çıkarılmalı)</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">6</td>
+    <td>logo anasayfaya döner</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">7</td>
+    <td>test ortamı sayfaları prod domain'ine link vermiyor</td>
+    <td><span class="tag ti">HOMEE-005</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">03-category-listing.spec.ts</span> — 03 - Kategori / liste sayfası <span class="cnt">7 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>ürün listesi render olur, sayaç ve kartlar tutarlı</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>ürün kartından detay sayfasına gidilir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>filtre paneli açılır ve filtre grupları listelenir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>filtre grubu genişletilir, seçenek işaretlenip uygulanır</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>sıralama seçenekleri açılır</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">6</td>
+    <td>'DAHA FAZLA GÖSTER' listeyi büyütür</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">7</td>
+    <td>ürün dönen tüm kategori rotaları kart gösteriyor</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">04-search.spec.ts</span> — 04 - Arama <span class="cnt">5 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>header aramasıyla sonuç sayfasına gidilir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>arama sonucu başlığı sorguyu ve adedi gösterir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>sonuç dönmeyen arama boş durum mesajı gösterir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>arama sonuç kartları site içi link veriyor</td>
+    <td><span class="tag ti">HOMEE-005</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>arama sonuçları sorguyla alakalı</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">05-product-detail.spec.ts</span> — 05 - Ürün detay <span class="cnt">5 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>başlık, ürün kodu ve fiyat görünür</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>ürün detay sekmeleri açılır (Açıklama / Ölçüler / Teslimat)</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>taksit seçenekleri açılır</td>
+    <td><span class="tag ts">koşullu</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>SEPETE EKLE butonu aktif ve ürün görseli yüklü</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>ürün detayda uygulama kaynaklı konsol hatası yok</td>
+    <td><span class="tag ti">HOMEE-001</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">06-cart.spec.ts</span> — 06 - Sepet <span class="cnt">7 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>ürün sepete eklenir ve sepette doğru satır görünür</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>adet artırma ara toplamı doğru büyütür</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>adet azaltma ara toplamı geri düşürür</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>sipariş özeti: ara toplam + teslimat = toplam</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>ürün sepetten silinir ve sepet boşalır</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">6</td>
+    <td>boş sepette ödeme butonu yok, alışverişe devam bağlantısı var</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">7</td>
+    <td>iki farklı ürün sepette iki satır oluşturur</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">07-stores.spec.ts</span> — 07 - Mağazalar <span class="cnt">2 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>mağaza listesi yüklenir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>mağaza arama listeyi filtreler</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">08-static-pages.spec.ts</span> — 08 - Statik / kurumsal sayfalar <span class="cnt">2 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>&lt;rota&gt; açılır ve doğru başlığı gösterir <span class="cnt">(listedeki her rota icin ayri kosar)</span></td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>statik sayfalarda kırık görsel yok</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">09-forms.spec.ts</span> — 09 - Formlar (validasyon) <span class="cnt">3 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>bülten aboneliği geçersiz e-postayı reddeder</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>iletişim sayfası formu render olur</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>iletişim formu boş gönderimde validasyon gösterir</td>
+    <td><span class="tag ti">HOMEE-003</span> <span class="tag ts">koşullu</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">20-login.spec.ts</span> — 20 - Giriş (pozitif / negatif) <span class="cnt">6 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>giriş sayfası tüm yöntemleri sunar</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>e-posta formatı geçersizse uyarı verir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>yanlış şifre ile giriş reddedilir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>boş form gönderiminde zorunlu alan uyarısı</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir</td>
+    <td><span class="tag ts">koşullu</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">6</td>
+    <td>korumalı sayfa misafirken login'e yönlendirir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+
+<h3>3.2 Üye seti — her test kendi UI login'ini yapar (18 case)</h3>
+
+<div class="spec">
+  <h4><span class="mono">21-account-overview.spec.ts</span> — 21 - Hesabım özeti <span class="cnt">5 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>hesap özeti kullanıcı bilgilerini gösterir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>hesap menüsündeki tüm alt sayfalar açılır</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>siparişlerim sayfası liste veya boş durum gösterir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>favorilerim sayfası liste veya boş durum gösterir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">22-addresses.spec.ts</span> — 22 - Adres yönetimi <span class="cnt">3 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>adres listesi ve 'YENİ ADRES EKLE' formu açılır</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>boş form kaydedilmeye çalışılınca validasyon verir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>yeni adres eklenir, listede görünür ve sonra silinir</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">23-favorites.spec.ts</span> — 23 - Favoriler <span class="cnt">1 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>ürün favoriye eklenir, favorilerimde görünür, sonra kaldırılır</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">24-orders.spec.ts</span> — 24 - Siparişler ve iadeler <span class="cnt">3 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>siparişlerim sayfası hatasız yüklenir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>iadelerim sayfası hatasız yüklenir (API hata durumu yok)</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>sipariş özeti hesap ana sayfasında görünür</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+<div class="spec">
+  <h4><span class="mono">25-checkout-to-payment.spec.ts</span> — 25 - Ödeme adımı (sipariş tamamlanmaz) <span class="cnt">6 case</span></h4>
+  <table class="cases">
+    <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
+    <tr>
+    <td class="num">1</td>
+    <td>sepetten ödeme adımına geçilir ve tüm bölümler render olur</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>ödeme yöntemleri (kredi kartı / havale) seçilebilir</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">3</td>
+    <td>sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme)</td>
+    <td><span class="tag ti">HOMEE-004</span> <span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">4</td>
+    <td>sözleşme onayı olmadan ödeme butonu ilerletmez</td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">5</td>
+    <td>adres olmadan uyarı gösterilir</td>
+    <td><span class="tag tm">veri değiştirir</span> <span class="tag ts">koşullu</span></td>
+    <td><span class="muted">—</span></td>
+  </tr><tr>
+    <td class="num">6</td>
+    <td>sipariş tamamlama guard'ı aktif (ALLOW_HOMEE_ORDERS)</td>
+    <td><span class="tag ts">koşullu</span></td>
+    <td><span class="muted">—</span></td>
+  </tr>
+  </table>
+</div>
+
+<h2 class="brk">4. Bulgular</h2>
+
+<h3>4.1 Kırık rotalar — menüde/footer'da linki var, 404 dönüyor</h3>
+<table><tr><th style="width:38%">Rota</th><th>Not</th></tr>
+<tr><td class="mono">/oturma-odasi</td><td>kanonik karşılığı <span class="mono">/tum-urunler/&lt;slug&gt;</span> çalışıyor</td></tr><tr><td class="mono">/yasam</td><td>kanonik karşılığı <span class="mono">/tum-urunler/&lt;slug&gt;</span> çalışıyor</td></tr><tr><td class="mono">/yatak-odasi</td><td>kanonik karşılığı <span class="mono">/tum-urunler/&lt;slug&gt;</span> çalışıyor</td></tr><tr><td class="mono">/indirimli-urunler</td><td>kanonik karşılığı <span class="mono">/tum-urunler/&lt;slug&gt;</span> çalışıyor</td></tr><tr><td class="mono">/cerez-politikasi</td><td>kanonik karşılığı <span class="mono">/tum-urunler/&lt;slug&gt;</span> çalışıyor</td></tr><tr><td class="mono">/sozlesme-ve-bilgilendirme</td><td>kanonik karşılığı <span class="mono">/tum-urunler/&lt;slug&gt;</span> çalışıyor</td></tr>
+</table>
+
+<h3>4.2 Boş kategoriler — "0 ürün / Ürün bulunamadı"</h3>
+<table><tr><th>Rota</th></tr>
+<tr><td class="mono">/tum-urunler/dekoratif-obje-figur</td></tr><tr><td class="mono">/oturma-odasi/tamamlayici-mobilya</td></tr><tr><td class="mono">/mutfak</td></tr><tr><td class="mono">/banyo</td></tr><tr><td class="mono">/yeni-urunler</td></tr>
+</table>
+<p>Dikkat: header'ın iki ana menü linki de boş kategoriye gidiyor —
+<span class="mono">MOBİLYA → /oturma-odasi/tamamlayici-mobilya</span> ve
+<span class="mono">EVDEKOR → /tum-urunler/dekoratif-obje-figur</span>. Yani ana navigasyondan ürün
+listesine ulaşılamıyor. Ürün dönen rotalar:
+<span class="mono">/tum-urunler</span>, <span class="mono">/tum-urunler/oturma-odasi</span>, <span class="mono">/bahce</span>.</p>
+
+<h3>4.3 Kayıtlı ürün hataları</h3>
+<table><tr><th style="width:78px">Kod</th><th style="width:24%">Nerede</th><th>Belirti</th></tr>
+<tr><td class="mono">HOMEE-002<br><span class="tag ts">aralıklı</span></td><td class="mono">/magazalar</td><td>storage.googleapis.com/tepehome-test-cdn/uploads/images/images/1009341-2.jpg yüklenemiyor</td></tr><tr><td class="mono">HOMEE-003</td><td class="mono">/iletisim</td><td>Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor</td></tr><tr><td class="mono">HOMEE-005</td><td class="mono">/arama?q=&lt;herhangi&gt;</td><td>Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor</td></tr><tr><td class="mono">HOMEE-006<br><span class="tag ts">aralıklı</span></td><td class="mono">/arama?q=koltuk</td><td>koltuk aramasi 768 sonuc bildiriyor ama ilk sonuclar kolonya (the-tonka-ve-myrrh-kolonya) donuyor</td></tr>
+</table>
+<p class="lead">En kritik olan <b>HOMEE-005</b>: <span class="mono">/arama?q=koltuk</span>
+sonuçlarının tamamı (50/50, scroll sonrası 100/100) <span class="mono">prod.tepehome.com.tr</span>
+adresine link veriyor. Test ortamındaki kullanıcı sonuç kartına bastığında canlı siteye çıkıyor;
+test ürünleri aramada bulunamıyor.</p>
+
+<h2>5. Ne yapabiliyoruz</h2>
+
+<div class="two"><div>
+<h3>5.1 Koşum</h3>
+<table>
+  <tr><th>Komut</th><th>Ne yapar</th></tr>
+  <tr><td class="mono">npm test</td><td>tüm suite</td></tr>
+  <tr><td class="mono">npm run test:guest</td><td>misafir seti (01–09)</td></tr>
+  <tr><td class="mono">npm run test:member</td><td>üye seti (20–25)</td></tr>
+  <tr><td class="mono">npm run test:&lt;grup&gt;</td><td>tek grup, tarayıcı açık</td></tr>
+  <tr><td class="mono">npm run panel</td><td>QA paneli (port 4646)</td></tr>
+  <tr><td class="mono">npm run report:create</td><td>koşum raporu (HTML)</td></tr>
+</table>
+<h3>5.3 Otomatik takip</h3>
+<ul>
+  <li><b>Rota baseline'ı:</b> kırık rota düzelirse test fail eder, kaydın silinmesi zorunlu olur.</li>
+  <li><b>Boş kategori baseline'ı:</b> kategori dolarsa test fail eder.</li>
+  <li><b>Bilinen hata baseline'ı:</b> <span class="mono">test.fail()</span>; hata düzelince kırmızı.</li>
+  <li><b>Yeni bozulma:</b> baseline'da olmayan 404, kırık görsel veya konsol hatası suite'i kırmızıya çevirir.</li>
+</ul>
+</div><div>
+<h3>5.2 Agent'lar</h3>
+<table>
+  <tr><th>Agent</th><th>Ne zaman</th></tr>
+  <tr><td class="mono">homee-explorer</td><td>"nerede tanımlı", salt-okuma arama</td></tr>
+  <tr><td class="mono">homee-planner</td><td>yeni test / akış / refactor planı</td></tr>
+  <tr><td class="mono">homee-pom-generator</td><td>yeni sayfa için POM (sayfayı gerçekten açar)</td></tr>
+  <tr><td class="mono">homee-route-auditor</td><td>rota/link sağlığı, baseline hizalama</td></tr>
+  <tr><td class="mono">homee-env-switcher</td><td>ortam geçişi, oturum kurulumu</td></tr>
+  <tr><td class="mono">flaky-analyzer</td><td>kararsız test tespiti, N kez koşum</td></tr>
+  <tr><td class="mono">homee-report-builder</td><td>HTML / PDF koşum raporu</td></tr>
+</table>
+<h3>5.4 QA Paneli</h3>
+<ul>
+  <li>18 whitelist'li koşumu tek tıkla tetikleme — whitelist dışı komut <b>çalışmaz</b>.</li>
+  <li>SSE ile canlı log akışı; koşumu panelden durdurma.</li>
+  <li>Son koşum sonuçları, "bilinen hata" ile "gerçek başarısızlık" ayrımı yapılmış halde.</li>
+  <li>Verdict kaydı + kanıt görselleri, bilinen hata listesi, Playwright raporuna bağlantı.</li>
+</ul>
+</div></div>
+
+<h2>6. Kapsam dışı ve sonraki adımlar</h2>
+<table>
+  <tr><th style="width:32%">Konu</th><th>Durum</th></tr>
+  <tr><td>Sipariş tamamlama</td><td>Kasıtlı kapsam dışı. <span class="mono">25-checkout-to-payment</span> ödeme adımına kadar gider, "ÖDEME YAP" butonuna basmaz. Açmak için <span class="mono">ALLOW_HOMEE_ORDERS=1</span> ve test kartı bilgisi gerekir.</td></tr>
+  <tr><td>Sipariş sonrası akışlar (sipariş detayı, iade talebi)</td><td>Hesapta 0 sipariş var; sipariş açılmadan test edilemiyor.</td></tr>
+  <tr><td>Mobil viewport</td><td>Config'de <span class="mono">mobile</span> projesi hazır (Pixel 7 + Chrome); spec'ler henüz mobil için ayarlanmadı.</td></tr>
+  <tr><td>Staging / prod ortamı</td><td>Env iskeleti hazır, URL'ler tanımsız. Doldurulunca <span class="mono">HOMEE_ENV</span> ile geçilir.</td></tr>
+  <tr><td>Jira / Confluence entegrasyonu</td><td>Panelde kasıtlı olarak yok. İstenirse NadirGold panelindeki desenle eklenir (REST v3 + ADF gövde).</td></tr>
+  <tr><td>SMS / Google / Apple ile giriş</td><td>Butonların varlığı doğrulanıyor, akışları test edilmiyor (harici sağlayıcı + OTP).</td></tr>
+  <tr><td>Şifre değiştirme, hesap silme</td><td>Hesabı kalıcı bozan işlemler; kullanıcı onayı olmadan koşulmuyor. POM'da locator olarak var, tıklanmıyor.</td></tr>
+  <tr><td>CI entegrasyonu</td><td>Henüz yok. Suite <span class="mono">workers:1</span> ve sistem Chrome'u ile koşuyor; CI'da tarayıcı kurulumu gerekir.</td></tr>
+</table>
+
+<footer>
+Homee QA Otomasyon Raporu · 18 Ağustos 2026 · ortam test · 67 test case ·
+kaynak: <span class="mono">~/Desktop/homee-tests</span> — ayrıntı için CLAUDE.md, FINDINGS.md, README.md
+</footer>
+</body></html>

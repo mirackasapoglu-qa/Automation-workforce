@@ -60,11 +60,14 @@ test.describe("21 - Hesabım özeti", () => {
   });
 
   test("çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner", async ({ memberPage }) => {
+    test.setTimeout(120_000);
     const account = new AccountPage(memberPage);
     await account.open();
+
+    // logout() onay diyaloğunu da basar — sadece menü butonuna basmak yetmez
     await account.logout();
 
-    await account.goto("/hesabim");
-    expect(memberPage.url(), "çıkıştan sonra hesap sayfası hâlâ açılıyor").toContain("/giris");
+    await account.goto("/hesabim/siparislerim");
+    expect(memberPage.url(), "çıkıştan sonra korumalı sayfa hâlâ açılıyor").toContain("/giris");
   });
 });

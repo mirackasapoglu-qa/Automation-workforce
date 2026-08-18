@@ -34,7 +34,10 @@ test.describe("22 - Adres yönetimi", () => {
 
     await addr.save();
 
-    // Form kapanmamalı ve uyarı görünmeli
+    // Form kapanmamalı ve uyarı görünmeli.
+    // Gözlem (2026-08-18): boş formda yalnızca "Lütfen telefon numaranızı giriniz."
+    // uyarısı çıkıyor — diğer zorunlu alanlar için uyarı yok. Test en az bir
+    // validasyon mesajı bekler; alan bazlı eksiklik FINDINGS.md'de not edildi.
     await expect(addr.titleInput, "boş form kaydedildi (validasyon yok!)").toBeVisible();
     const body = await memberPage.locator("body").innerText();
     expect(body).toMatch(/zorunlu|gerekli|giriniz|boş bırak|doldur|seçiniz/i);
