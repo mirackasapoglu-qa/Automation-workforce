@@ -70,13 +70,33 @@
 
   <section>
     <div class="tabs">
-      <button data-tab="log" aria-selected="true">Canli log</button>
+      <button data-tab="site" aria-selected="true">Site (canli)</button>
+      <button data-tab="log" aria-selected="false">Canli log</button>
       <button data-tab="results" aria-selected="false">Son sonuclar</button>
       <button data-tab="verdict" aria-selected="false">Verdict</button>
       <button data-tab="jira" aria-selected="false">Jira</button>
     </div>
 
-    <div id="tab-log">
+    <div id="tab-site">
+      <div class="row">
+        <input id="siteUrl" placeholder="/tum-urunler" style="width:260px;margin:0">
+        <button style="width:auto" onclick="goSite()">Git</button>
+        <button style="width:auto" onclick="$('#siteFrame').src = $('#siteFrame').src">Yenile</button>
+        <button style="width:auto" onclick="window.open($('#siteFrame').src,'_blank')">Yeni sekmede</button>
+      </div>
+      <div class="row" id="siteShortcuts"></div>
+      <div class="row" style="justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
+        <span class="mono" id="siteNow">iframe yukleniyor...</span>
+        <span>
+          <span class="mono" id="siteMatch"></span>
+          <button id="siteRunBtn" style="width:auto;margin:0 0 0 8px" disabled onclick="runForCurrent()">Bu sayfayi test et</button>
+        </span>
+      </div>
+      <iframe id="siteFrame" title="Homee (canli)" style="width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+      <p class="mono">Proxy uzerinden servis ediliyor: <span id="proxyInfo"></span> — <code>x-frame-options</code> sokuluyor, gecici erisim cookie'si enjekte ediliyor.</p>
+    </div>
+
+    <div id="tab-log" hidden>
       <pre id="log">Bir kosum baslatin...</pre>
     </div>
 
@@ -122,7 +142,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&l
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-  for (const t of ['log','results','verdict','jira']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
+  for (const t of ['site','log','results','verdict','jira']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
   if (b.dataset.tab === 'jira') loadCards();
@@ -140,6 +160,21 @@ async function load() {
     `<div class="mono" style="margin:8px 0 4px">${esc(g)}</div>` +
     list.map(r => `<button onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')
   ).join('');
+
+  if (m.proxyUrl) {
+    PROXY = m.proxyUrl;
+    $('#proxyInfo').textContent = m.proxyUrl + ' → ' + m.baseURL;
+    const shortcuts = [
+      ['Anasayfa','/'], ['Tum urunler','/tum-urunler'], ['Urun','/tepe-sap-test-yeni-urun-p-1099765'],
+      ['Arama','/arama?q=koltuk'], ['Sepet','/sepet'], ['Giris','/giris'],
+      ['Hesabim','/hesabim'], ['Magazalar','/magazalar'], ['Iletisim','/iletisim'],
+    ];
+    $('#siteShortcuts').innerHTML = shortcuts.map(([l,p]) =>
+      `<button style="width:auto" onclick="goSite('${p}')">${esc(l)}</button>`).join('');
+    if (!$('#siteFrame').src) goSite('/');
+  } else {
+    $('#siteNow').textContent = 'Proxy kapali (BASE_URL tanimsiz)';
+  }
 
   if (m.jira?.available) {
     $('#jView').innerHTML = m.jira.views.map(v => `<option value="${v.id}">${esc(v.label)}</option>`).join('');
@@ -227,6 +262,48 @@ async function loadVerdicts() {
         <td>${esc(v.scope)}</td><td>${esc(v.note)}</td>
         <td class="mono">${esc((v.updatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
     : '<tr><td class="mono">Kayit yok</td></tr>';
+}
+
+// ---------------- Site (iframe) ----------------
+let PROXY = '';
+let CURRENT_PATH = null;   // '/' ile baslatilirsa ilk ping atlanir
+
+function goSite(path) {
+  const p = path ?? ($('#siteUrl').value.trim() || '/');
+  $('#siteUrl').value = p;
+  $('#siteFrame').src = PROXY + (p.startsWith('/') ? p : '/' + p);
+}
+
+// iframe icindeki her navigasyon proxy'nin enjekte ettigi script ile bildirilir
+addEventListener('message', async (e) => {
+  const d = e.data;
+  if (!d || d.type !== 'homee-nav') return;
+  const path = d.path || '/';
+  if (path === CURRENT_PATH) return;
+  CURRENT_PATH = path;
+  $('#siteUrl').value = path;
+  $('#siteNow').textContent = path + (d.title ? '  ·  ' + d.title.slice(0, 60) : '');
+  await matchRoute(path);
+});
+
+async function matchRoute(path) {
+  const r = await (await fetch('/api/site/match?path=' + encodeURIComponent(path))).json();
+  const btn = $('#siteRunBtn');
+  if (r && r.runId) {
+    btn.disabled = false;
+    btn.dataset.runId = r.runId;
+    $('#siteMatch').textContent = `${r.label}  ·  ${(r.cards||[]).join(', ')}`;
+  } else {
+    btn.disabled = true;
+    delete btn.dataset.runId;
+    $('#siteMatch').textContent = 'bu rota icin eslesen test yok';
+  }
+}
+
+function runForCurrent() {
+  const id = $('#siteRunBtn').dataset.runId;
+  if (!id) return;
+  startRun(id);
 }
 
 // ---------------- Jira ----------------

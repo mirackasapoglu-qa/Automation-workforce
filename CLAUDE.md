@@ -178,6 +178,31 @@ Playwright HTML raporuna bağlantı.
 NadirGold'daki Jira/Confluence katmanı **kasıtlı olarak yok**. Eklenecekse `/api/cards` ve
 `/api/comment` uçları NadirGold panelindeki desenle yazılır (REST v3, ADF gövde).
 
+## Panel içinde canlı site (iframe) ve rotadan tetikleme
+
+Site `x-frame-options: SAMEORIGIN` gönderdiği için panele doğrudan iframe olarak gömülemez.
+Bu yüzden panel kendi **proxy'sini** açar (`panel/proxy.mjs`, varsayılan port `PANEL_PORT + 1` = 4647):
+
+- frame engelleyen başlıkları söker (`x-frame-options`, `content-security-policy`)
+- "Geçici Erişim" cookie'sini enjekte eder → kapı ekranı çıkmaz
+- `Set-Cookie`'den `Domain=` ve `Secure` bayraklarını temizler → localhost/http'de tutunur
+- redirect `Location`'ını proxy'ye çevirir
+- HTML yanıtlarına küçük bir script enjekte eder: iframe içindeki her navigasyonu
+  `postMessage` ile panele bildirir (panel 4646 / proxy 4647 farklı origin olduğu için
+  `contentWindow.location` okunamaz)
+
+Sitenin API'si (`ecom-api.test.tepehome.com.tr`) `access-control-allow-origin: *` döndüğü için
+iframe içinden sepet/login çağrıları da çalışır — ölçüldü.
+
+**Rotadan tetikleme:** `panel/route-map.mjs` iframe'deki yolu bir whitelist koşumuna eşler
+(`/sepet` → `test-sepet`, `*-p-*` → `test-urun`, `/hesabim/adreslerim` → `test-adres` …) ve
+ilgili Jira kartlarını gösterir. "Bu sayfayı test et" butonu **yalnızca whitelist'teki**
+koşumu başlatır; serbest komut çalıştırılamaz.
+
+⚠️ iframe, **testin tarayıcısı değildir** — ayrı bir oturumdur. Koşum sırasında iframe testin
+adımlarını aynalamaz; testin kendi tarayıcısını görmek için `--headed` koşum (npm script'leri
+zaten headed) ya da CDP screencast aynası gerekir.
+
 ## Jira
 
 Kimlik: `~/.jira-credentials` (`JIRA_EMAIL`, `JIRA_TOKEN`). **Host NadirGold'dan farklı:**

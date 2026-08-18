@@ -29,6 +29,8 @@ import {
   createBug,
   whoami,
 } from "./jira.mjs";
+import { startProxy } from "./proxy.mjs";
+import { matchRoute } from "./route-map.mjs";
 
 dotenv.config();
 
@@ -46,6 +48,8 @@ for (const d of [DATA_DIR, VERDICT_DIR, EVIDENCE_DIR]) {
 }
 
 const RUNS = JSON.parse(fs.readFileSync(path.join(__dirname, "runs.json"), "utf8")).runs;
+const PROXY_PORT = Number(process.env.PANEL_PROXY_PORT || PORT + 1);
+let PROXY_URL = "";
 
 // ---------------- SSE ----------------
 const sseClients = new Set();
@@ -219,6 +223,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         env: ENV,
         baseURL: BASE_URL,
+        proxyUrl: PROXY_URL,
         jira: {
           available: JIRA.available,
           host: JIRA.host,
@@ -234,6 +239,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === "/api/results") return send(res, 200, lastResults() ?? { rows: [], counts: {} });
+
+    // ---------------- Site (iframe) ----------------
+    if (p === "/api/site/match") {
+      const rule = matchRoute(url.searchParams.get("path") ?? "/");
+      return send(res, 200, rule ?? { matched: url.searchParams.get("path"), runId: null });
+    }
 
     // ---------------- Jira: OKUMA ----------------
     if (p === "/api/jira/whoami") return send(res, 200, await whoami());
@@ -325,8 +336,14 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+if (BASE_URL) {
+  const { url } = await startProxy({ baseURL: BASE_URL, port: PROXY_PORT });
+  PROXY_URL = url;
+}
+
 server.listen(PORT, () => {
   console.log(`\nHomee QA Paneli → http://localhost:${PORT}`);
+  if (PROXY_URL) console.log(`  site proxy (iframe) → ${PROXY_URL}`);
   console.log(`  ortam: ${ENV} → ${BASE_URL}`);
   console.log(`  whitelist'li kosum sayisi: ${Object.keys(RUNS).length}`);
   console.log(`  siparis tamamlama: ${process.env.ALLOW_HOMEE_ORDERS === "1" ? "ACIK" : "KAPALI"}\n`);

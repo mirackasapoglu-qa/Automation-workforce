@@ -52,6 +52,14 @@ Koşum sonuçlarını işlemek için `--results a.json,b.json` (sonraki dosya ö
 
 ⚠️ `results.json` yazılması için `--reporter` flag'i VERMEDEN koş; CLI reporter'ı config'i ezer.
 
+## Panel
+
+`npm run panel` → http://localhost:4646 (site proxy'si 4647'de otomatik açılır)
+
+Sekmeler: **Site (canlı)** — siteyi panel içinde iframe olarak gezer, açık olan rotanın testini
+tek tıkla tetikler · **Canlı log** (SSE) · **Son sonuçlar** (bilinen hata ayrımıyla) ·
+**Verdict** · **Jira**
+
 ## Jira
 
 `machinarium.atlassian.net` → `MAC` projesi → `MAC-7035 "Tepe - Redesign"` epic'i.
