@@ -41,3 +41,69 @@ export function matchRoute(pathname = "/") {
   }
   return null;
 }
+
+/** Spec dosyası → whitelist koşum id'si. */
+export const SPEC_RUNS = {
+  "01-homepage.spec.ts": "test-anasayfa",
+  "02-navigation.spec.ts": "test-menu",
+  "03-category-listing.spec.ts": "test-liste",
+  "04-search.spec.ts": "test-arama",
+  "05-product-detail.spec.ts": "test-urun",
+  "06-cart.spec.ts": "test-sepet",
+  "07-stores.spec.ts": "test-magaza",
+  "08-static-pages.spec.ts": "test-statik",
+  "09-forms.spec.ts": "test-form",
+  "20-login.spec.ts": "test-login",
+  "21-account-overview.spec.ts": "test-hesabim",
+  "22-addresses.spec.ts": "test-adres",
+  "23-favorites.spec.ts": "test-favori",
+  "24-orders.spec.ts": "test-siparis",
+  "25-checkout-to-payment.spec.ts": "test-odeme",
+};
+
+/**
+ * Jira kartı → koşumlar. Kaynak: tests/jira-map.ts (CARD_MAP).
+ * Panel ESM olduğu için TS dosyası import edilmiyor; eşleme burada tutulur.
+ * jira-map.ts değişirse burayı da güncelle.
+ */
+export const CARD_SPECS = {
+  "MAC-7037": ["01-homepage.spec.ts"],
+  "MAC-7040": ["01-homepage.spec.ts", "02-navigation.spec.ts", "04-search.spec.ts"],
+  "MAC-7041": ["01-homepage.spec.ts", "08-static-pages.spec.ts", "09-forms.spec.ts"],
+  "MAC-7039": ["03-category-listing.spec.ts"],
+  "MAC-7072": ["03-category-listing.spec.ts", "02-navigation.spec.ts"],
+  "MAC-7073": ["05-product-detail.spec.ts"],
+  "MAC-7074": ["06-cart.spec.ts"],
+  "MAC-7075": ["25-checkout-to-payment.spec.ts"],
+  "MAC-7077": [
+    "21-account-overview.spec.ts",
+    "22-addresses.spec.ts",
+    "23-favorites.spec.ts",
+    "24-orders.spec.ts",
+  ],
+  "MAC-7078": ["07-stores.spec.ts"],
+  "MAC-7080": ["09-forms.spec.ts"],
+  "MAC-7071": ["08-static-pages.spec.ts"],
+  "MAC-7079": ["08-static-pages.spec.ts"],
+  "MAC-7116": ["08-static-pages.spec.ts"],
+  "MAC-7043": ["20-login.spec.ts"],
+  "MAC-7038": [],
+  "MAC-7053": [],
+  "MAC-7036": [],
+  "MAC-7076": [],
+};
+
+/** Bir kart için tetiklenebilir koşumları döner. */
+export function runsForCard(key) {
+  const specs = CARD_SPECS[key] ?? [];
+  const seen = new Set();
+  const runs = [];
+  for (const spec of specs) {
+    const runId = SPEC_RUNS[spec];
+    if (runId && !seen.has(runId)) {
+      seen.add(runId);
+      runs.push({ runId, spec });
+    }
+  }
+  return runs;
+}

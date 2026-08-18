@@ -338,6 +338,11 @@ async function openCard(key) {
     <p class="mono">${esc(c.status)} · ${esc(c.type)} · ${esc(c.assignee||'atanmamış')} ·
        ${esc((c.sprint||[]).join(', '))} · <a href="${c.url}" target="_blank">Jira'da aç</a></p>
     ${c.description ? `<pre>${esc(c.description.slice(0,1200))}</pre>` : ''}
+    <h2>Bu kartin testleri</h2>
+    ${(c.runs && c.runs.length)
+      ? `<div class="row">${c.runs.map(r => `<button style="width:auto" onclick="startRun('${r.runId}')">${esc(r.label)}</button>`).join('')}</div>
+         <p class="mono">spec: ${esc(c.runs.map(r=>r.spec).join(', '))}</p>`
+      : '<p class="mono">Bu kart icin otomatik test yok (tests/jira-map.ts icinde kapsam: none)</p>'}
     <h2>Yorumlar (${c.comments.length})</h2>
     ${c.comments.length ? c.comments.map(m => `<div class="issue"><div class="id">${esc(m.author)}
        <span class="w">${esc((m.created||'').slice(0,16).replace('T',' '))}</span></div>

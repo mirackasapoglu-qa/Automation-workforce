@@ -30,7 +30,7 @@ import {
   whoami,
 } from "./jira.mjs";
 import { startProxy } from "./proxy.mjs";
-import { matchRoute } from "./route-map.mjs";
+import { matchRoute, runsForCard } from "./route-map.mjs";
 
 dotenv.config();
 
@@ -256,7 +256,13 @@ const server = http.createServer(async (req, res) => {
 
     if (p.startsWith("/api/jira/card/")) {
       const key = p.split("/").pop();
-      return send(res, 200, await getCard(key));
+      const card = await getCard(key);
+      // Karti dogrulayan whitelist kosumlari — panelden tek tikla tetiklenir
+      card.runs = runsForCard(key).map((r) => ({
+        ...r,
+        label: RUNS[r.runId]?.label ?? r.runId,
+      }));
+      return send(res, 200, card);
     }
 
     // ---------------- Jira: YAZMA (yalnizca panelden tetiklenir) ----------------
