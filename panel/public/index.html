@@ -73,6 +73,7 @@
       <button data-tab="log" aria-selected="true">Canli log</button>
       <button data-tab="results" aria-selected="false">Son sonuclar</button>
       <button data-tab="verdict" aria-selected="false">Verdict</button>
+      <button data-tab="jira" aria-selected="false">Jira</button>
     </div>
 
     <div id="tab-log">
@@ -83,6 +84,16 @@
       <div class="cards" id="resCards"></div>
       <div class="scroll"><table id="resTable"></table></div>
       <p class="mono"><a href="/report" target="_blank">Playwright HTML raporu</a></p>
+    </div>
+
+    <div id="tab-jira" hidden>
+      <div class="row">
+        <select id="jView" style="width:auto;min-width:240px"></select>
+        <button style="width:auto" onclick="loadCards()">Yenile</button>
+        <span class="mono" id="jMeta"></span>
+      </div>
+      <div class="scroll"><table id="jTable"></table></div>
+      <div id="jCard" hidden style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"></div>
     </div>
 
     <div id="tab-verdict" hidden>
@@ -111,9 +122,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&l
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-  for (const t of ['log','results','verdict']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
+  for (const t of ['log','results','verdict','jira']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
+  if (b.dataset.tab === 'jira') loadCards();
 });
 
 async function load() {
@@ -128,6 +140,13 @@ async function load() {
     `<div class="mono" style="margin:8px 0 4px">${esc(g)}</div>` +
     list.map(r => `<button onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')
   ).join('');
+
+  if (m.jira?.available) {
+    $('#jView').innerHTML = m.jira.views.map(v => `<option value="${v.id}">${esc(v.label)}</option>`).join('');
+    $('#jMeta').textContent = `${m.jira.project} / ${m.jira.epic}`;
+  } else {
+    $('#jMeta').textContent = 'Jira kimliği yok (~/.jira-credentials)';
+  }
 
   $('#issues').innerHTML = m.knownIssues.length
     ? m.knownIssues.map(i => `<div class="issue"><div class="id">${esc(i.id)}</div>
@@ -209,6 +228,80 @@ async function loadVerdicts() {
         <td class="mono">${esc((v.updatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
     : '<tr><td class="mono">Kayit yok</td></tr>';
 }
+
+// ---------------- Jira ----------------
+const statusColor = (st) => /Failed|Blocked/i.test(st) ? 'no' : /Tamam|Release|Deploy/i.test(st) ? 'ok' : 'sk';
+
+async function loadCards() {
+  const view = $('#jView').value || 'test';
+  $('#jTable').innerHTML = '<tr><td class="mono">yükleniyor...</td></tr>';
+  try {
+    const d = await (await fetch('/api/jira/cards?view=' + encodeURIComponent(view))).json();
+    if (d.error) { $('#jTable').innerHTML = `<tr><td class="mono err">${esc(d.error)}</td></tr>`; return; }
+    $('#jMeta').textContent = `${d.cards.length} kart · ${d.jql}`;
+    $('#jTable').innerHTML = '<tr><th>Kart</th><th>Özet</th><th>Statü</th><th>Atanan</th><th>Sprint</th></tr>' +
+      d.cards.map(c => `<tr>
+        <td class="mono"><a href="${c.url}" target="_blank">${esc(c.key)}</a>
+          <button style="width:auto;padding:2px 6px;margin:4px 0 0" onclick="openCard('${c.key}')">aç</button></td>
+        <td>${esc(c.summary)}</td>
+        <td><span class="b ${statusColor(c.status)}">${esc(c.status)}</span></td>
+        <td>${esc(c.assignee || '—')}</td>
+        <td class="mono">${esc((c.sprint||[]).join(', '))}</td></tr>`).join('');
+  } catch (e) { $('#jTable').innerHTML = `<tr><td class="mono err">${esc(e.message)}</td></tr>`; }
+}
+
+async function openCard(key) {
+  const box = $('#jCard');
+  box.hidden = false;
+  box.innerHTML = '<p class="mono">yükleniyor...</p>';
+  const c = await (await fetch('/api/jira/card/' + key)).json();
+  if (c.error) { box.innerHTML = `<p class="mono err">${esc(c.error)}</p>`; return; }
+  box.innerHTML = `
+    <h2 style="margin-top:0">${esc(c.key)} — ${esc(c.summary)}</h2>
+    <p class="mono">${esc(c.status)} · ${esc(c.type)} · ${esc(c.assignee||'atanmamış')} ·
+       ${esc((c.sprint||[]).join(', '))} · <a href="${c.url}" target="_blank">Jira'da aç</a></p>
+    ${c.description ? `<pre>${esc(c.description.slice(0,1200))}</pre>` : ''}
+    <h2>Yorumlar (${c.comments.length})</h2>
+    ${c.comments.length ? c.comments.map(m => `<div class="issue"><div class="id">${esc(m.author)}
+       <span class="w">${esc((m.created||'').slice(0,16).replace('T',' '))}</span></div>
+       <div style="font-size:12.5px;white-space:pre-wrap">${esc(m.text)}</div></div>`).join('')
+      : '<p class="mono">yorum yok</p>'}
+    <h2>Yorum yaz</h2>
+    <textarea id="jComment" rows="5" placeholder="Test sonucu / adımlar / beklenen-gerçekleşen"></textarea>
+    <div class="row">
+      <button style="width:auto" onclick="sendComment('${c.key}')">Jira'ya gönder</button>
+    </div>
+    <h2>Statü geçişi</h2>
+    <div class="row">
+      <select id="jTrans" style="width:auto;min-width:200px">
+        ${c.transitions.map(t => `<option value="${t.id}">${esc(t.name)} → ${esc(t.to)}</option>`).join('')}
+      </select>
+      <button class="danger" style="width:auto" onclick="doTransition('${c.key}')">Statüyü değiştir</button>
+    </div>`;
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+async function sendComment(key) {
+  const text = $('#jComment').value.trim();
+  if (!text) return alert('Yorum boş');
+  if (!confirm(`${key} kartına yorum yazılacak. Onaylıyor musun?`)) return;
+  const r = await (await fetch('/api/jira/comment', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({key, text})})).json();
+  alert(r.ok ? 'Yorum yazıldı' : 'Hata: ' + (r.error||'?'));
+  if (r.ok) openCard(key);
+}
+
+async function doTransition(key) {
+  const id = $('#jTrans').value;
+  const label = $('#jTrans').selectedOptions[0].textContent;
+  if (!confirm(`${key} kartı "${label}" yapılacak. Onaylıyor musun?`)) return;
+  const r = await (await fetch('/api/jira/transition', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({key, transitionId:id})})).json();
+  alert(r.ok ? 'Statü değişti' : 'Hata: ' + (r.error||'?'));
+  if (r.ok) { openCard(key); loadCards(); }
+}
+
+$('#jView').onchange = loadCards;
 
 load();
 </script>

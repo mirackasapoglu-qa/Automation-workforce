@@ -52,6 +52,13 @@ Koşum sonuçlarını işlemek için `--results a.json,b.json` (sonraki dosya ö
 
 ⚠️ `results.json` yazılması için `--reporter` flag'i VERMEDEN koş; CLI reporter'ı config'i ezer.
 
+## Jira
+
+`machinarium.atlassian.net` → `MAC` projesi → `MAC-7035 "Tepe - Redesign"` epic'i.
+Panel'in **Jira** sekmesi: Test kolonu / Bloklu / Tüm epic / Redesign bug'ları görünümleri,
+kart detayı + yorumlar, onaylı yorum yazma ve statü geçişi.
+Kart ↔ spec eşlemesi: `tests/jira-map.ts`.
+
 ## Bulgular
 
 İlk regresyon taramasının ürün bulguları: **[FINDINGS.md](FINDINGS.md)**

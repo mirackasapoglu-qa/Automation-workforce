@@ -1,5 +1,8 @@
 # Homee — İlk regresyon taraması bulguları
 
+> Jira karşılığı: `MAC-7035 "Tepe - Redesign"` epic'i (machinarium.atlassian.net / MAC projesi).
+> Bulgu ↔ kart eşlemesi `tests/jira-map.ts` içinde.
+
 **Tarih:** 2026-08-18
 **Ortam:** `test` → `https://redesign-prod.test.tepehome.com.tr`
 **Yöntem:** Playwright (Chromium/Chrome), misafir + üye oturumu, DOM'dan doğrulama
@@ -23,6 +26,11 @@ Her bulgu, suite'te otomatik takip ediliyor — sütuna bak.
 
 Kanonik kategori yolu `/tum-urunler/<slug>` çalışıyor (örn. `/tum-urunler/oturma-odasi` → 200,
 h1 "Oturma Odası"). Yani menüdeki üst seviye kısa yollar eşlenmemiş.
+
+**Not:** `/kayit-ol` da 404 dönüyor ama bu bir hata **değil** — Jira'da
+[MAC-7038 "Tepe - Sign up"](https://machinarium.atlassian.net/browse/MAC-7038) kartı
+"Yapılacaklar" statüsünde, yani kayıt akışı henüz geliştirilmedi. Bu yüzden kırık rota
+listesine alınmadı.
 
 **Test:** `02-navigation.spec.ts` → "bilinen kırık linkler kayıt altında".
 Bir rota düzelirse test FAIL eder ve listeden çıkarılmasını zorunlu kılar.

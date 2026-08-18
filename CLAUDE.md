@@ -178,6 +178,28 @@ Playwright HTML raporuna bağlantı.
 NadirGold'daki Jira/Confluence katmanı **kasıtlı olarak yok**. Eklenecekse `/api/cards` ve
 `/api/comment` uçları NadirGold panelindeki desenle yazılır (REST v3, ADF gövde).
 
+## Jira
+
+Kimlik: `~/.jira-credentials` (`JIRA_EMAIL`, `JIRA_TOKEN`). **Host NadirGold'dan farklı:**
+`https://machinarium.atlassian.net` (nadirgold.atlassian.net'te Tepe projesi YOK).
+
+**Kapsam:** `MAC` projesi → **`MAC-7035 "Tepe - Redesign"`** epic'i, 19 alt kart.
+`TEP` (TepeHome) projesi ayrıca var ama redesign işleri MAC'te izleniyor.
+Kartlarda `Project` özel alanı (`customfield_10072`) = `TEPEHOME`, sprint alanı `customfield_10020`.
+
+- Issue okuma/yorum/geçiş: REST **v3**. Yorum gövdesi **ADF** olmalı (`panel/jira.mjs` → `textToAdf`).
+- **JQL'de issue type adı İNGİLİZCE**: `issuetype = Bug` çalışır, `issuetype = "Hata"` **0 sonuç döner**
+  (arayüz Türkçe gösteriyor: Görev / Hata / Epik).
+- Arama: `/rest/api/3/search/jql`, sayfalama `nextPageToken` (`isLast` bitişi belirtir); **`total` alanı yok**.
+- Statü geçiş id'leri projede ortak:
+  `11` Yapılacaklar · `21` Devam Ediyor · `31` Tamam · `41` Test · `51` Ready For Deploy ·
+  `61` Ready For Release · `71` Blocked · `81` Failed · `91` Test Blocked · `5` Move to Release for Stage
+- Bug isim kalıbı (ekibin kullandığı): **`TEPE - Redesign > <Alan> > <problem>`**
+- Kart ↔ spec eşlemesi: **`tests/jira-map.ts`** (`CARD_MAP`). Yeni kart geldiğinde buraya ekle.
+
+**Yazma kuralı:** `postComment`, `transition`, `createBug` uçları panelde **onay diyaloğu arkasında**;
+otomatik yazma yok. Bir koşum sonucunu Jira'ya yazmadan önce kullanıcıya göster.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |
@@ -189,6 +211,9 @@ NadirGold'daki Jira/Confluence katmanı **kasıtlı olarak yok**. Eklenecekse `/
 | `homee-env-switcher` | ortam geçişi, kapı/üye oturum kurulumu |
 | `flaky-analyzer` | kararsız test tespiti, N kez koşum |
 | `homee-report-builder` | HTML/PDF koşum raporu |
+
+Panel Jira uçları: `/api/jira/cards?view=test|blocked|epic|bugs`, `/api/jira/card/<KEY>`,
+`POST /api/jira/comment|transition|bug`.
 
 Agent dosyaları repo bilgisini prompt'a gömer — keşifle zaman harcamasınlar diye.
 Yeni bir konvansiyon eklersen ilgili agent'ı da güncelle.

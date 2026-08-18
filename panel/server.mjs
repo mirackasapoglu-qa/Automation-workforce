@@ -3,8 +3,12 @@
  * Homee QA Paneli — http://localhost:4646  (PANEL_PORT ile degisir)
  *
  * NadirGold panelinden tasinan mimari: whitelist'li kosum tetikleme + SSE canli log
- * + verdict/kanit kaydi + rapor gorunumu. JIRA KATMANI YOK (Homee icin istenmedi;
- * eklenirse /api/cards ve /api/comment uclari NadirGold'daki gibi yazilir).
+ * + verdict/kanit kaydi + rapor gorunumu + JIRA katmani.
+ *
+ * Jira: machinarium.atlassian.net / MAC projesi / MAC-7035 "Tepe - Redesign" epic'i.
+ * Kimlik ~/.jira-credentials'tan okunur (repoya yazilmaz). Yazma uclari
+ * (/api/jira/comment, /api/jira/transition, /api/jira/bug) SADECE kullanici
+ * panelden tetikleyince calisir; otomatik yazma YOK.
  *
  * Guvenlik notu: sadece panel/runs.json icindeki komutlar calisir. Istekten gelen
  * serbest komut ASLA exec edilmez.
@@ -15,6 +19,16 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import {
+  JIRA,
+  VIEWS,
+  getCards,
+  getCard,
+  postComment,
+  transition,
+  createBug,
+  whoami,
+} from "./jira.mjs";
 
 dotenv.config();
 
@@ -205,6 +219,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         env: ENV,
         baseURL: BASE_URL,
+        jira: {
+          available: JIRA.available,
+          host: JIRA.host,
+          project: JIRA.project,
+          epic: JIRA.epic,
+          views: Object.entries(VIEWS).map(([id, v]) => ({ id, label: v.label })),
+        },
         ordersAllowed: process.env.ALLOW_HOMEE_ORDERS === "1",
         runs: Object.entries(RUNS).map(([id, r]) => ({ id, label: r.label, group: r.group ?? "" })),
         active: active ? { id: active.id, label: active.label, startedAt: active.startedAt } : null,
@@ -213,6 +234,44 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === "/api/results") return send(res, 200, lastResults() ?? { rows: [], counts: {} });
+
+    // ---------------- Jira: OKUMA ----------------
+    if (p === "/api/jira/whoami") return send(res, 200, await whoami());
+
+    if (p === "/api/jira/cards") {
+      const view = url.searchParams.get("view") ?? "test";
+      return send(res, 200, await getCards(view));
+    }
+
+    if (p.startsWith("/api/jira/card/")) {
+      const key = p.split("/").pop();
+      return send(res, 200, await getCard(key));
+    }
+
+    // ---------------- Jira: YAZMA (yalnizca panelden tetiklenir) ----------------
+    if (p === "/api/jira/comment" && req.method === "POST") {
+      const { key, text } = await readBody(req);
+      if (!key || !text) return send(res, 400, { error: "key ve text zorunlu" });
+      await postComment(key, text);
+      broadcast("log", { stream: "out", line: `[jira] ${key} kartina yorum yazildi` });
+      return send(res, 200, { ok: true, key });
+    }
+
+    if (p === "/api/jira/transition" && req.method === "POST") {
+      const { key, transitionId, comment } = await readBody(req);
+      if (!key || !transitionId) return send(res, 400, { error: "key ve transitionId zorunlu" });
+      await transition(key, transitionId, comment);
+      broadcast("log", { stream: "out", line: `[jira] ${key} statusu degistirildi (${transitionId})` });
+      return send(res, 200, { ok: true, key });
+    }
+
+    if (p === "/api/jira/bug" && req.method === "POST") {
+      const { summary, description, parent, labels } = await readBody(req);
+      if (!summary) return send(res, 400, { error: "summary zorunlu" });
+      const created = await createBug({ summary, description: description ?? "", parent, labels });
+      broadcast("log", { stream: "out", line: `[jira] yeni bug: ${created.key}` });
+      return send(res, 200, { ok: true, key: created.key, url: `${JIRA.host}/browse/${created.key}` });
+    }
 
     if (p === "/api/verdicts") {
       if (req.method === "POST") return send(res, 200, saveVerdict(await readBody(req)));
