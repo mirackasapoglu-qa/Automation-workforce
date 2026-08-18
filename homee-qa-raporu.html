@@ -57,7 +57,7 @@
 </div>
 
 <div class="cards">
-  <div class="c"><div class="n">67</div><div class="l">test case</div></div>
+  <div class="c"><div class="n">68<span style="font-size:10pt;font-weight:400"> → 77</span></div><div class="l">case tanımı → koşan test</div></div>
   <div class="c"><div class="n">15</div><div class="l">spec dosyası</div></div>
   <div class="c"><div class="n">13</div><div class="l">page object</div></div>
   <div class="c"><div class="n">7</div><div class="l">claude agent</div></div>
@@ -66,7 +66,7 @@
 <h2>1. Ne yaptık</h2>
 
 <p>NadirGold QA suite'inin mimarisi Homee'ye taşındı. Homee'nin farklı davrandığı yerlerde mimari
-tahminle değil <b>ölçümle</b> değiştirildi. Sonuç: <b>67 test case</b>,
+tahminle değil <b>ölçümle</b> değiştirildi. Sonuç: <b>68 test case</b>,
 10 misafir + 5 üye spec dosyası, 13 page object,
 yerel QA paneli, rapor üreticisi ve 7 Claude Code agent'ı.</p>
 
@@ -114,12 +114,18 @@ Bu mekanizma ilk koşumda işe yaradı: iki hatanın (kırık görsel, arama ala
 bu şekilde ortaya çıktı ve ikisi de doğrudan assertion'a çevrildi.</div>
 
 <h2>2. Son koşum sonuçları</h2>
-<p class="muted">Bu rapor üretildiğinde koşum sonucu dosyası hazır değildi. Koşum bittikten sonra
-raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</span></p>
+<div class="cards">
+  <div class="c"><div class="n">77</div><div class="l">koşan test</div></div>
+  <div class="c"><div class="n ok">72</div><div class="l">geçti</div></div>
+  <div class="c"><div class="n no">1</div><div class="l">gerçek başarısız</div></div>
+  <div class="c"><div class="n">4</div><div class="l">bilinen hata</div></div>
+</div>
+<p class="lead">Toplam süre 19.2 dk · atlandı 0 · koşum 18.08.2026 16:18:14</p>
+<table><tr><th style="width:24%">Spec</th><th>Test</th><th style="width:32%">Hata</th></tr><tr><td class="mono">25-checkout-to-payment.spec.ts</td><td>sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme)</td><td class="mono">Error: sözleşme metinleri yüklenemedi:</td></tr></table>
 
 <h2 class="brk">3. Test kapsamı — tüm case'ler</h2>
-<p class="lead"><b>67 case</b> · 16 tanesi veri değiştirir (hepsi kendini geri alır)
-· 5 tanesi bilinen ürün hatasını takip eder</p>
+<p class="lead"><b>68 case tanımı</b> → koşumda <b>77 test</b> (statik sayfa testi listedeki her rota için tekrar ediyor) · 15 tanesi veri değiştirir (hepsi kendini geri alır)
+· 4 tanesi bilinen ürün hatasını <span class="mono">test.fail()</span> ile takip eder</p>
 
 <h3>3.1 Misafir seti — login gerektirmez (49 case)</h3>
 
@@ -131,27 +137,27 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>anasayfa yüklenir, başlık ve bilgi şeridi görünür</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>ürün kartları render olur ve ürün detayına gider</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>header öğeleri mevcut (kategoriler, arama, sepet, giriş, mağazalar)</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>footer bülten alanı ve başa dön butonu çalışır</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>anasayfada uygulama kaynaklı konsol hatası yok</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -163,37 +169,37 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>mega menü açılır ve kategori linkleri listelenir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>menüdeki tüm kategori rotaları açılır (404 yok)</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>bilinen kırık linkler kayıt altında (düzelen listeden çıkarılmalı)</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>header ana menü linkleri (MOBİLYA / EVDEKOR) 404 vermez</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>boş kategoriler kayıt altında (dolan listeden çıkarılmalı)</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">6</td>
     <td>logo anasayfaya döner</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">7</td>
     <td>test ortamı sayfaları prod domain'ine link vermiyor</td>
     <td><span class="tag ti">HOMEE-005</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag ti">bilinen hata</span></td>
   </tr>
   </table>
 </div>
@@ -205,37 +211,37 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>ürün listesi render olur, sayaç ve kartlar tutarlı</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>ürün kartından detay sayfasına gidilir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>filtre paneli açılır ve filtre grupları listelenir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>filtre grubu genişletilir, seçenek işaretlenip uygulanır</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>sıralama seçenekleri açılır</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">6</td>
     <td>'DAHA FAZLA GÖSTER' listeyi büyütür</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">7</td>
     <td>ürün dönen tüm kategori rotaları kart gösteriyor</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -247,27 +253,27 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>header aramasıyla sonuç sayfasına gidilir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>arama sonucu başlığı sorguyu ve adedi gösterir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>sonuç dönmeyen arama boş durum mesajı gösterir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>arama sonuç kartları site içi link veriyor</td>
     <td><span class="tag ti">HOMEE-005</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag ti">bilinen hata</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>arama sonuçları sorguyla alakalı</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -279,27 +285,27 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>başlık, ürün kodu ve fiyat görünür</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>ürün detay sekmeleri açılır (Açıklama / Ölçüler / Teslimat)</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>taksit seçenekleri açılır</td>
     <td><span class="tag ts">koşullu</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>SEPETE EKLE butonu aktif ve ürün görseli yüklü</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>ürün detayda uygulama kaynaklı konsol hatası yok</td>
     <td><span class="tag ti">HOMEE-001</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag ti">bilinen hata</span></td>
   </tr>
   </table>
 </div>
@@ -311,37 +317,37 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>ürün sepete eklenir ve sepette doğru satır görünür</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>adet artırma ara toplamı doğru büyütür</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>adet azaltma ara toplamı geri düşürür</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>sipariş özeti: ara toplam + teslimat = toplam</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>ürün sepetten silinir ve sepet boşalır</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">6</td>
     <td>boş sepette ödeme butonu yok, alışverişe devam bağlantısı var</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">7</td>
     <td>iki farklı ürün sepette iki satır oluşturur</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -353,12 +359,12 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>mağaza listesi yüklenir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>mağaza arama listeyi filtreler</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -370,12 +376,12 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>&lt;rota&gt; açılır ve doğru başlığı gösterir <span class="cnt">(listedeki her rota icin ayri kosar)</span></td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>statik sayfalarda kırık görsel yok</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -387,17 +393,17 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>bülten aboneliği geçersiz e-postayı reddeder</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>iletişim sayfası formu render olur</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>iletişim formu boş gönderimde validasyon gösterir</td>
     <td><span class="tag ti">HOMEE-003</span> <span class="tag ts">koşullu</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag ti">bilinen hata</span></td>
   </tr>
   </table>
 </div>
@@ -409,37 +415,37 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>giriş sayfası tüm yöntemleri sunar</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>e-posta formatı geçersizse uyarı verir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>yanlış şifre ile giriş reddedilir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>boş form gönderiminde zorunlu alan uyarısı</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir</td>
     <td><span class="tag ts">koşullu</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">6</td>
     <td>korumalı sayfa misafirken login'e yönlendirir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
 
-<h3>3.2 Üye seti — her test kendi UI login'ini yapar (18 case)</h3>
+<h3>3.2 Üye seti — her test kendi UI login'ini yapar (19 case)</h3>
 
 <div class="spec">
   <h4><span class="mono">21-account-overview.spec.ts</span> — 21 - Hesabım özeti <span class="cnt">5 case</span></h4>
@@ -449,27 +455,27 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>hesap özeti kullanıcı bilgilerini gösterir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>hesap menüsündeki tüm alt sayfalar açılır</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>siparişlerim sayfası liste veya boş durum gösterir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>favorilerim sayfası liste veya boş durum gösterir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -481,29 +487,34 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>adres listesi ve 'YENİ ADRES EKLE' formu açılır</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>boş form kaydedilmeye çalışılınca validasyon verir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>yeni adres eklenir, listede görünür ve sonra silinir</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
 <div class="spec">
-  <h4><span class="mono">23-favorites.spec.ts</span> — 23 - Favoriler <span class="cnt">1 case</span></h4>
+  <h4><span class="mono">23-favorites.spec.ts</span> — 23 - Favoriler <span class="cnt">2 case</span></h4>
   <table class="cases">
     <tr><th style="width:34px">#</th><th>Test case</th><th style="width:190px">İşaret</th><th style="width:92px">Son koşum</th></tr>
     <tr>
     <td class="num">1</td>
     <td>ürün favoriye eklenir, favorilerimde görünür, sonra kaldırılır</td>
-    <td><span class="tag tm">veri değiştirir</span></td>
     <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
+  </tr><tr>
+    <td class="num">2</td>
+    <td>favorilerim sayfası liste veya boş durum gösterir</td>
+    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -515,17 +526,17 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>siparişlerim sayfası hatasız yüklenir</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>iadelerim sayfası hatasız yüklenir (API hata durumu yok)</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>sipariş özeti hesap ana sayfasında görünür</td>
     <td><span class="muted">—</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -537,32 +548,32 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
     <td class="num">1</td>
     <td>sepetten ödeme adımına geçilir ve tüm bölümler render olur</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">2</td>
     <td>ödeme yöntemleri (kredi kartı / havale) seçilebilir</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">3</td>
     <td>sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme)</td>
-    <td><span class="tag ti">HOMEE-004</span> <span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tm">veri değiştirir</span></td>
+    <td><span class="tag tf">başarısız</span></td>
   </tr><tr>
     <td class="num">4</td>
     <td>sözleşme onayı olmadan ödeme butonu ilerletmez</td>
     <td><span class="tag tm">veri değiştirir</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">5</td>
     <td>adres olmadan uyarı gösterilir</td>
     <td><span class="tag tm">veri değiştirir</span> <span class="tag ts">koşullu</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr><tr>
     <td class="num">6</td>
     <td>sipariş tamamlama guard'ı aktif (ALLOW_HOMEE_ORDERS)</td>
     <td><span class="tag ts">koşullu</span></td>
-    <td><span class="muted">—</span></td>
+    <td><span class="tag tp">geçti</span></td>
   </tr>
   </table>
 </div>
@@ -586,12 +597,31 @@ listesine ulaşılamıyor. Ürün dönen rotalar:
 
 <h3>4.3 Kayıtlı ürün hataları</h3>
 <table><tr><th style="width:78px">Kod</th><th style="width:24%">Nerede</th><th>Belirti</th></tr>
-<tr><td class="mono">HOMEE-002<br><span class="tag ts">aralıklı</span></td><td class="mono">/magazalar</td><td>storage.googleapis.com/tepehome-test-cdn/uploads/images/images/1009341-2.jpg yüklenemiyor</td></tr><tr><td class="mono">HOMEE-003</td><td class="mono">/iletisim</td><td>Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor</td></tr><tr><td class="mono">HOMEE-005</td><td class="mono">/arama?q=&lt;herhangi&gt;</td><td>Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor</td></tr><tr><td class="mono">HOMEE-006<br><span class="tag ts">aralıklı</span></td><td class="mono">/arama?q=koltuk</td><td>koltuk aramasi 768 sonuc bildiriyor ama ilk sonuclar kolonya (the-tonka-ve-myrrh-kolonya) donuyor</td></tr>
+<tr><td class="mono">HOMEE-002<br><span class="tag ts">aralıklı</span></td><td class="mono">/magazalar</td><td>storage.googleapis.com/tepehome-test-cdn/uploads/images/images/1009341-2.jpg yüklenemiyor</td></tr><tr><td class="mono">HOMEE-003</td><td class="mono">/iletisim</td><td>Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor</td></tr><tr><td class="mono">HOMEE-005</td><td class="mono">/arama?q=&lt;herhangi&gt;</td><td>Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor</td></tr><tr><td class="mono">HOMEE-006<br><span class="tag ts">aralıklı</span></td><td class="mono">/arama?q=koltuk</td><td>koltuk aramasi 768 sonuc bildiriyor ama ilk sonuclar kolonya (the-tonka-ve-myrrh-kolonya) donuyor</td></tr><tr><td class="mono">HOMEE-007<br><span class="tag ts">aralıklı</span></td><td class="mono">/tepe-sap-test-yeni-urun-p-1099765 (oneri kartlari)</td><td>5 gorsel naturalWidth=0 donuyor, ornek: tepehome-cdn/product/41/images/1001728-1_400x400.jpg</td></tr>
 </table>
 <p class="lead">En kritik olan <b>HOMEE-005</b>: <span class="mono">/arama?q=koltuk</span>
 sonuçlarının tamamı (50/50, scroll sonrası 100/100) <span class="mono">prod.tepehome.com.tr</span>
 adresine link veriyor. Test ortamındaki kullanıcı sonuç kartına bastığında canlı siteye çıkıyor;
 test ürünleri aramada bulunamıyor.</p>
+
+<h3>4.4 Ürün hatası sanılan ama olmayan davranışlar</h3>
+<p class="lead">İlk koşumlarda hata gibi görünen, keşifle doğrulandığında doğru çalıştığı anlaşılan
+davranışlar. Ekip bunları boşuna kovalamasın diye kayda geçirildi.</p>
+<table>
+  <tr><th style="width:36%">Görünen</th><th>Gerçek</th></tr>
+  <tr><td>"Çıkış Yap oturumu kapatmıyor"</td>
+      <td>Buton bir <b>onay diyaloğu</b> açıyor ("Bu cihazdaki oturumunuz sonlandırılacak"). Onay basıldığında <span class="mono">auth_token</span>/<span class="mono">refresh_token</span> siliniyor ve korumalı sayfa <span class="mono">/giris</span>'e yönleniyor.</td></tr>
+  <tr><td>"Yanlış şifrede / boş formda hata mesajı yok"</td>
+      <td>Mesaj var ("Lütfen e-posta adresinizi ya da şifrenizi kontrol edin.") ama ~1.2 sn sonra çıkıp <b>kaybolan bir toast</b>. Sabit bekleyip gövdeye bakan test kaçırıyor.</td></tr>
+  <tr><td>"Ödeme yöntemleri render olmuyor"</td>
+      <td><span class="mono">/odeme</span> adresine <b>doğrudan gidilemiyor</b>; sepette ürün olsa bile <span class="mono">/sepet</span>'e yönlendiriyor. Checkout oturumu "ÖDEME ADIMINA GEÇİN" ile açılıyor.</td></tr>
+  <tr><td>"Adres silinemiyor"</td>
+      <td>Silme iki aşamalı: kartın "Sil" butonu → <span class="mono">[role=dialog]</span> onayı. Doğru çalışıyor.</td></tr>
+  <tr><td>"Favori eklenmiyor"</td>
+      <td>Favori butonu <b>toggle</b>; ürün zaten favorideyse etiket "Favorilerden çıkar" oluyor. Favori listesi ayrıca lazy yükleniyor.</td></tr>
+  <tr><td>"Sipariş sayfasında boş durum mesajı yok"</td>
+      <td>Mesaj var: "Siparişiniz bulunmamaktadır." — beklenen metin farklı yazılmıştı.</td></tr>
+</table>
 
 <h2>5. Ne yapabiliyoruz</h2>
 
@@ -648,7 +678,7 @@ test ürünleri aramada bulunamıyor.</p>
 </table>
 
 <footer>
-Homee QA Otomasyon Raporu · 18 Ağustos 2026 · ortam test · 67 test case ·
+Homee QA Otomasyon Raporu · 18 Ağustos 2026 · ortam test · 68 test case ·
 kaynak: <span class="mono">~/Desktop/homee-tests</span> — ayrıntı için CLAUDE.md, FINDINGS.md, README.md
 </footer>
 </body></html>

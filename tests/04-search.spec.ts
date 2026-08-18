@@ -36,11 +36,17 @@ test.describe("04 - Arama", () => {
     await cat.open(`/arama?q=${SEARCH_TERMS.miss}`);
 
     await cat.assertNotNotFound();
+
+    // Mesaj ("Arama Sonucu Bulunamadı.") client-render sonrası geliyor —
+    // gövdeyi tek seferde okumak yerine görünmesini BEKLE.
+    await expect(
+      page.getByText(/Bulunamadı|sonuç yok|0 ürün/).first(),
+      "boş sonuç mesajı gösterilmiyor",
+    ).toBeVisible({ timeout: 25_000 });
+
     expect(await cat.uniqueProductSlugs(), "boş sonuçta site içi ürün kartı olmamalı").toHaveLength(
       0,
     );
-    const body = await page.locator("body").innerText();
-    expect(body, "boş sonuç mesajı gösterilmiyor").toMatch(/bulunamadı|sonuç yok|0 ürün/i);
   });
 
   /** BİLİNEN HATA HOMEE-005: sonuç kartları prod domain'ine gidiyor */

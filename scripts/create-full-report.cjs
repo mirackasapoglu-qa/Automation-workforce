@@ -90,7 +90,9 @@ function parseSpecs() {
 
 // ---------------------------------------------------------------- koşum sonuçları
 function parseResults(files) {
-  const rows = [];
+  // Aynı test birden fazla dosyada varsa SONRAKİ kazanır (düzeltme sonrası
+  // tekrar koşulan spec'ler eski sonucu ezsin diye).
+  const byKey = new Map();
   let startedAt = null;
   for (const f of files) {
     const p = path.isAbsolute(f) ? f : path.join(ROOT, f);
@@ -109,20 +111,22 @@ function parseResults(files) {
       for (const spec of suite.specs ?? []) {
         for (const t of spec.tests ?? []) {
           const last = t.results?.[t.results.length - 1] ?? {};
-          rows.push({
+          const row = {
             file: (fp || "").replace(/^tests\//, ""),
             title: spec.title,
             status: last.status ?? "unknown",
             expected: t.expectedStatus,
             duration: last.duration ?? 0,
             error: (last.error?.message ?? "").replace(/\[[0-9;]*m/g, "").split("\n")[0],
-          });
+          };
+          byKey.set(`${row.file}||${row.title}`, row);
         }
       }
       for (const c of suite.suites ?? []) walk(c, fp);
     };
     for (const s of raw.suites ?? []) walk(s, s.file);
   }
+  const rows = [...byKey.values()];
   if (!rows.length) return null;
 
   const expectedFail = rows.filter((r) => r.expected === "failed" && r.status === "failed");
@@ -317,7 +321,7 @@ const html = `<!doctype html>
 </div>
 
 <div class="cards">
-  <div class="c"><div class="n">${totalCases}</div><div class="l">test case</div></div>
+  <div class="c"><div class="n">${totalCases}${results ? `<span style="font-size:10pt;font-weight:400"> → ${results.total}</span>` : ""}</div><div class="l">case tanımı${results ? " → koşan test" : ""}</div></div>
   <div class="c"><div class="n">${specs.length}</div><div class="l">spec dosyası</div></div>
   <div class="c"><div class="n">${pomCount}</div><div class="l">page object</div></div>
   <div class="c"><div class="n">${agentCount}</div><div class="l">claude agent</div></div>
@@ -401,8 +405,12 @@ raporu yeniden üretin: <span class="mono">node scripts/create-full-report.cjs</
 }
 
 <h2 class="brk">3. Test kapsamı — tüm case'ler</h2>
-<p class="lead"><b>${totalCases} case</b> · ${mutatingCases} tanesi veri değiştirir (hepsi kendini geri alır)
-· ${knownIssueCases} tanesi bilinen ürün hatasını takip eder</p>
+<p class="lead"><b>${totalCases} case tanımı</b>${
+  results
+    ? ` → koşumda <b>${results.total} test</b> (statik sayfa testi listedeki her rota için tekrar ediyor)`
+    : ""
+} · ${mutatingCases} tanesi veri değiştirir (hepsi kendini geri alır)
+· ${knownIssueCases} tanesi bilinen ürün hatasını <span class="mono">test.fail()</span> ile takip eder</p>
 
 <h3>3.1 Misafir seti — login gerektirmez (${sum(guestSpecs)} case)</h3>
 ${guestSpecs.map(specBlock).join("")}
@@ -445,6 +453,25 @@ ${issues
 sonuçlarının tamamı (50/50, scroll sonrası 100/100) <span class="mono">prod.tepehome.com.tr</span>
 adresine link veriyor. Test ortamındaki kullanıcı sonuç kartına bastığında canlı siteye çıkıyor;
 test ürünleri aramada bulunamıyor.</p>
+
+<h3>4.4 Ürün hatası sanılan ama olmayan davranışlar</h3>
+<p class="lead">İlk koşumlarda hata gibi görünen, keşifle doğrulandığında doğru çalıştığı anlaşılan
+davranışlar. Ekip bunları boşuna kovalamasın diye kayda geçirildi.</p>
+<table>
+  <tr><th style="width:36%">Görünen</th><th>Gerçek</th></tr>
+  <tr><td>"Çıkış Yap oturumu kapatmıyor"</td>
+      <td>Buton bir <b>onay diyaloğu</b> açıyor ("Bu cihazdaki oturumunuz sonlandırılacak"). Onay basıldığında <span class="mono">auth_token</span>/<span class="mono">refresh_token</span> siliniyor ve korumalı sayfa <span class="mono">/giris</span>'e yönleniyor.</td></tr>
+  <tr><td>"Yanlış şifrede / boş formda hata mesajı yok"</td>
+      <td>Mesaj var ("Lütfen e-posta adresinizi ya da şifrenizi kontrol edin.") ama ~1.2 sn sonra çıkıp <b>kaybolan bir toast</b>. Sabit bekleyip gövdeye bakan test kaçırıyor.</td></tr>
+  <tr><td>"Ödeme yöntemleri render olmuyor"</td>
+      <td><span class="mono">/odeme</span> adresine <b>doğrudan gidilemiyor</b>; sepette ürün olsa bile <span class="mono">/sepet</span>'e yönlendiriyor. Checkout oturumu "ÖDEME ADIMINA GEÇİN" ile açılıyor.</td></tr>
+  <tr><td>"Adres silinemiyor"</td>
+      <td>Silme iki aşamalı: kartın "Sil" butonu → <span class="mono">[role=dialog]</span> onayı. Doğru çalışıyor.</td></tr>
+  <tr><td>"Favori eklenmiyor"</td>
+      <td>Favori butonu <b>toggle</b>; ürün zaten favorideyse etiket "Favorilerden çıkar" oluyor. Favori listesi ayrıca lazy yükleniyor.</td></tr>
+  <tr><td>"Sipariş sayfasında boş durum mesajı yok"</td>
+      <td>Mesaj var: "Siparişiniz bulunmamaktadır." — beklenen metin farklı yazılmıştı.</td></tr>
+</table>
 
 <h2>5. Ne yapabiliyoruz</h2>
 

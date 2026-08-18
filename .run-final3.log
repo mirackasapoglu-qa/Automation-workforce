@@ -1,0 +1,223 @@
+
+🔐 Homee auth kurulumu — env=test → https://redesign-prod.test.tepehome.com.tr
+  ✓ Mevcut kapı state'i geçerli
+  ↻ Üye oturumu geçersiz, yeniden login
+  ✓ Üye state yazıldı → playwright/.auth/test-user.json
+
+
+Running 77 tests using 1 worker
+
+  ✓   1 [chromium] › tests/01-homepage.spec.ts:6:7 › 01 - Anasayfa › anasayfa yüklenir, başlık ve bilgi şeridi görünür (6.9s)
+  ✓   2 [chromium] › tests/01-homepage.spec.ts:15:7 › 01 - Anasayfa › ürün kartları render olur ve ürün detayına gider (9.3s)
+  ✓   3 [chromium] › tests/01-homepage.spec.ts:31:7 › 01 - Anasayfa › header öğeleri mevcut (kategoriler, arama, sepet, giriş, mağazalar) (3.4s)
+  ✓   4 [chromium] › tests/01-homepage.spec.ts:42:7 › 01 - Anasayfa › footer bülten alanı ve başa dön butonu çalışır (4.5s)
+  ✓   5 [chromium] › tests/01-homepage.spec.ts:55:7 › 01 - Anasayfa › anasayfada uygulama kaynaklı konsol hatası yok (7.2s)
+  ✓   6 [chromium] › tests/02-navigation.spec.ts:8:7 › 02 - Navigasyon ve rota sağlığı › mega menü açılır ve kategori linkleri listelenir (5.1s)
+  ✓   7 [chromium] › tests/02-navigation.spec.ts:17:7 › 02 - Navigasyon ve rota sağlığı › menüdeki tüm kategori rotaları açılır (404 yok) (14.5s)
+  ✓   8 [chromium] › tests/02-navigation.spec.ts:35:7 › 02 - Navigasyon ve rota sağlığı › bilinen kırık linkler kayıt altında (düzelen listeden çıkarılmalı) (8.3s)
+  ✓   9 [chromium] › tests/02-navigation.spec.ts:51:7 › 02 - Navigasyon ve rota sağlığı › header ana menü linkleri (MOBİLYA / EVDEKOR) 404 vermez (6.8s)
+  ✓  10 [chromium] › tests/02-navigation.spec.ts:69:7 › 02 - Navigasyon ve rota sağlığı › boş kategoriler kayıt altında (dolan listeden çıkarılmalı) (8.6s)
+  ✓  11 [chromium] › tests/02-navigation.spec.ts:85:7 › 02 - Navigasyon ve rota sağlığı › logo anasayfaya döner (7.4s)
+  ✘  12 [chromium] › tests/02-navigation.spec.ts:100:7 › 02b - Domain sızması › test ortamı sayfaları prod domain'ine link vermiyor (9.2s)
+  ✓  13 [chromium] › tests/03-category-listing.spec.ts:8:7 › 03 - Kategori / liste sayfası › ürün listesi render olur, sayaç ve kartlar tutarlı (6.1s)
+  ✓  14 [chromium] › tests/03-category-listing.spec.ts:21:7 › 03 - Kategori / liste sayfası › ürün kartından detay sayfasına gidilir (9.5s)
+  ✓  15 [chromium] › tests/03-category-listing.spec.ts:32:7 › 03 - Kategori / liste sayfası › filtre paneli açılır ve filtre grupları listelenir (7.2s)
+  filtre: 12 → 1 ürün | seçenekler: BEYAZ, GRİ, KAHVERENGİ, SİYAH
+  ✓  16 [chromium] › tests/03-category-listing.spec.ts:53:7 › 03 - Kategori / liste sayfası › filtre grubu genişletilir, seçenek işaretlenip uygulanır (12.0s)
+  sıralama seçenekleri: Fiyat | Sırala: Önerilen | Önerilen | Alfabetik A-Z | En Düşük Fiyat | En Yüksek Fiyat | En Yüksek İndirim | En Düşük İndirim | En çok satanlar
+  ✓  17 [chromium] › tests/03-category-listing.spec.ts:80:7 › 03 - Kategori / liste sayfası › sıralama seçenekleri açılır (11.2s)
+  ✓  18 [chromium] › tests/03-category-listing.spec.ts:89:7 › 03 - Kategori / liste sayfası › 'DAHA FAZLA GÖSTER' listeyi büyütür (30.0s)
+  ✓  19 [chromium] › tests/03-category-listing.spec.ts:99:7 › 03 - Kategori / liste sayfası › ürün dönen tüm kategori rotaları kart gösteriyor (7.3s)
+  ✓  20 [chromium] › tests/04-search.spec.ts:12:7 › 04 - Arama › header aramasıyla sonuç sayfasına gidilir (7.1s)
+  ✓  21 [chromium] › tests/04-search.spec.ts:25:7 › 04 - Arama › arama sonucu başlığı sorguyu ve adedi gösterir (6.0s)
+  ✘  22 [chromium] › tests/04-search.spec.ts:34:7 › 04 - Arama › sonuç dönmeyen arama boş durum mesajı gösterir (8.9s)
+  ✘  23 [chromium] › tests/04-search.spec.ts:47:7 › 04 - Arama › arama sonuç kartları site içi link veriyor (10.7s)
+  ✓  24 [chromium] › tests/04-search.spec.ts:71:7 › 04 - Arama › arama sonuçları sorguyla alakalı (10.4s)
+  ✓  25 [chromium] › tests/05-product-detail.spec.ts:8:7 › 05 - Ürün detay › başlık, ürün kodu ve fiyat görünür (9.3s)
+  ✓  26 [chromium] › tests/05-product-detail.spec.ts:25:7 › 05 - Ürün detay › ürün detay sekmeleri açılır (Açıklama / Ölçüler / Teslimat) (9.1s)
+  ✓  27 [chromium] › tests/05-product-detail.spec.ts:35:7 › 05 - Ürün detay › taksit seçenekleri açılır (9.2s)
+  ✓  28 [chromium] › tests/05-product-detail.spec.ts:49:7 › 05 - Ürün detay › SEPETE EKLE butonu aktif ve ürün görseli yüklü (21.4s)
+  ✘  29 [chromium] › tests/05-product-detail.spec.ts:67:7 › 05 - Ürün detay › ürün detayda uygulama kaynaklı konsol hatası yok (20.4s)
+  ✓  30 [chromium] › tests/06-cart.spec.ts:19:7 › 06 - Sepet › ürün sepete eklenir ve sepette doğru satır görünür (21.4s)
+  ✓  31 [chromium] › tests/06-cart.spec.ts:41:7 › 06 - Sepet › adet artırma ara toplamı doğru büyütür (46.7s)
+  ✓  32 [chromium] › tests/06-cart.spec.ts:62:7 › 06 - Sepet › adet azaltma ara toplamı geri düşürür (33.0s)
+  ✓  33 [chromium] › tests/06-cart.spec.ts:78:7 › 06 - Sepet › sipariş özeti: ara toplam + teslimat = toplam (17.7s)
+  ✓  34 [chromium] › tests/06-cart.spec.ts:96:7 › 06 - Sepet › ürün sepetten silinir ve sepet boşalır (28.7s)
+  ✓  35 [chromium] › tests/06-cart.spec.ts:112:7 › 06 - Sepet › boş sepette ödeme butonu yok, alışverişe devam bağlantısı var (7.4s)
+  ✓  36 [chromium] › tests/06-cart.spec.ts:122:7 › 06 - Sepet › iki farklı ürün sepette iki satır oluşturur (21.0s)
+  ✘  37 [chromium] › tests/07-stores.spec.ts:5:7 › 07 - Mağazalar › mağaza listesi yüklenir (18.4s)
+  ✓  38 [chromium] › tests/07-stores.spec.ts:16:7 › 07 - Mağazalar › mağaza arama listeyi filtreler (13.6s)
+  ✓  39 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /magazalar açılır ve doğru başlığı gösterir (10.6s)
+  ✓  40 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /iletisim açılır ve doğru başlığı gösterir (6.7s)
+  ✓  41 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /blogs açılır ve doğru başlığı gösterir (8.3s)
+  ✓  42 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /sikca-sorulan-sorular açılır ve doğru başlığı gösterir (8.3s)
+  ✓  43 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /hakkimizda açılır ve doğru başlığı gösterir (8.0s)
+  ✓  44 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /bilkent-holding açılır ve doğru başlığı gösterir (8.9s)
+  ✓  45 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /etik-politikamiz açılır ve doğru başlığı gösterir (9.1s)
+  ✓  46 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /insan-kaynaklari açılır ve doğru başlığı gösterir (11.2s)
+  ✓  47 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /kvkk-aydinlatma-metni açılır ve doğru başlığı gösterir (9.7s)
+  ✓  48 [chromium] › tests/08-static-pages.spec.ts:7:9 › 08 - Statik / kurumsal sayfalar › /privacy açılır ve doğru başlığı gösterir (12.3s)
+  ✓  49 [chromium] › tests/08-static-pages.spec.ts:24:7 › 08 - Statik / kurumsal sayfalar › statik sayfalarda kırık görsel yok (23.9s)
+  ✓  50 [chromium] › tests/09-forms.spec.ts:11:7 › 09 - Formlar (validasyon) › bülten aboneliği geçersiz e-postayı reddeder (11.8s)
+  ✓  51 [chromium] › tests/09-forms.spec.ts:26:7 › 09 - Formlar (validasyon) › iletişim sayfası formu render olur (8.0s)
+  ✘  52 [chromium] › tests/09-forms.spec.ts:37:7 › 09 - Formlar (validasyon) › iletişim formu boş gönderimde validasyon gösterir (13.4s)
+  ✓  53 [chromium] › tests/20-login.spec.ts:10:7 › 20 - Giriş (pozitif / negatif) › giriş sayfası tüm yöntemleri sunar (37.7s)
+  ✘  54 [chromium] › tests/20-login.spec.ts:23:7 › 20 - Giriş (pozitif / negatif) › e-posta formatı geçersizse uyarı verir (45.3s)
+  ✓  55 [chromium] › tests/20-login.spec.ts:36:7 › 20 - Giriş (pozitif / negatif) › yanlış şifre ile giriş reddedilir (40.7s)
+  ✓  56 [chromium] › tests/20-login.spec.ts:53:7 › 20 - Giriş (pozitif / negatif) › boş form gönderiminde zorunlu alan uyarısı (35.1s)
+  ✓  57 [chromium] › tests/20-login.spec.ts:64:7 › 20 - Giriş (pozitif / negatif) › doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir (40.3s)
+  ✓  58 [chromium] › tests/20-login.spec.ts:78:7 › 20 - Giriş (pozitif / negatif) › korumalı sayfa misafirken login'e yönlendirir (4.5s)
+  ✓  59 [chromium] › tests/21-account-overview.spec.ts:9:7 › 21 - Hesabım özeti › hesap özeti kullanıcı bilgilerini gösterir (13.2s)
+  ✓  60 [chromium] › tests/21-account-overview.spec.ts:19:7 › 21 - Hesabım özeti › hesap menüsündeki tüm alt sayfalar açılır (18.0s)
+  ✓  61 [chromium] › tests/21-account-overview.spec.ts:43:7 › 21 - Hesabım özeti › siparişlerim sayfası liste veya boş durum gösterir (12.8s)
+  ✓  62 [chromium] › tests/21-account-overview.spec.ts:54:7 › 21 - Hesabım özeti › favorilerim sayfası liste veya boş durum gösterir (15.0s)
+  ✓  63 [chromium] › tests/21-account-overview.spec.ts:62:7 › 21 - Hesabım özeti › çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner (16.6s)
+  ✓  64 [chromium] › tests/22-addresses.spec.ts:13:7 › 22 - Adres yönetimi › adres listesi ve 'YENİ ADRES EKLE' formu açılır (14.6s)
+  ✓  65 [chromium] › tests/22-addresses.spec.ts:30:7 › 22 - Adres yönetimi › boş form kaydedilmeye çalışılınca validasyon verir (20.3s)
+  ✓  66 [chromium] › tests/22-addresses.spec.ts:46:7 › 22 - Adres yönetimi › yeni adres eklenir, listede görünür ve sonra silinir (34.8s)
+  ✓  67 [chromium] › tests/23-favorites.spec.ts:12:7 › 23 - Favoriler › ürün favoriye eklenir, favorilerimde görünür, sonra kaldırılır (33.6s)
+  ✓  68 [chromium] › tests/23-favorites.spec.ts:47:7 › 23 - Favoriler › favorilerim sayfası liste veya boş durum gösterir (17.1s)
+  ✓  69 [chromium] › tests/24-orders.spec.ts:6:7 › 24 - Siparişler ve iadeler › siparişlerim sayfası hatasız yüklenir (12.6s)
+  ✓  70 [chromium] › tests/24-orders.spec.ts:19:7 › 24 - Siparişler ve iadeler › iadelerim sayfası hatasız yüklenir (API hata durumu yok) (12.5s)
+  ✓  71 [chromium] › tests/24-orders.spec.ts:28:7 › 24 - Siparişler ve iadeler › sipariş özeti hesap ana sayfasında görünür (11.9s)
+  ✓  72 [chromium] › tests/25-checkout-to-payment.spec.ts:22:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sepetten ödeme adımına geçilir ve tüm bölümler render olur (22.3s)
+  ✓  73 [chromium] › tests/25-checkout-to-payment.spec.ts:47:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › ödeme yöntemleri (kredi kartı / havale) seçilebilir (29.2s)
+  ✘  74 [chromium] › tests/25-checkout-to-payment.spec.ts:70:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme) (23.8s)
+  ✓  75 [chromium] › tests/25-checkout-to-payment.spec.ts:83:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme onayı olmadan ödeme butonu ilerletmez (28.8s)
+  ✓  76 [chromium] › tests/25-checkout-to-payment.spec.ts:99:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › adres olmadan uyarı gösterilir (23.6s)
+  ✓  77 [chromium] › tests/25-checkout-to-payment.spec.ts:116:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sipariş tamamlama guard'ı aktif (ALLOW_HOMEE_ORDERS) (12.9s)
+
+
+  1) [chromium] › tests/04-search.spec.ts:34:7 › 04 - Arama › sonuç dönmeyen arama boş durum mesajı gösterir 
+
+    Error: boş sonuç mesajı gösterilmiyor
+
+    expect(received).toMatch(expected)
+
+    Expected pattern: /bulunamadı|sonuç yok|0 ürün/i
+    Received string:  "Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·
+    Detaylar
+    KATEGORİLER
+    PEŞİN FİYATINA TAKSİT
+    HIZLI TESLİMAT
+    ÜCRETSİZ KURULUM
+    GÜVENLİ ALIŞVERİŞ
+    KOLAY İADE·
+    TEPE HOME JOURNAL·
+    #TepeHomeTarzi·
+    Evinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·
+    YARDIM MERKEZİ
+    0850 255 47 47·
+    Tepe Home Mobil Uygulama·
+    Kampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·
+    Google Play
+    'den indir
+    App Store
+    'dan indir
+    E-posta adresiniz
+    ABONE OL·
+    Tepe Home bir Bilkent Holding Şirketidir·
+    Mesafeli Satış Sözleşmesi
+    İade Politikası
+    Gizlilik Politikası
+    KVKK
+    İletişim·
+    © 2026 Tepe Home. Tüm hakları saklıdır·
+    Powered by"
+
+      41 |     );
+      42 |     const body = await page.locator("body").innerText();
+    > 43 |     expect(body, "boş sonuç mesajı gösterilmiyor").toMatch(/bulunamadı|sonuç yok|0 ürün/i);
+         |                                                    ^
+      44 |   });
+      45 |
+      46 |   /** BİLİNEN HATA HOMEE-005: sonuç kartları prod domain'ine gidiyor */
+        at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:43:52
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/04-search-04---Arama-sonuç-f3328-a-boş-durum-mesajı-gösterir-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/04-search-04---Arama-sonuç-f3328-a-boş-durum-mesajı-gösterir-chromium/error-context.md
+
+  2) [chromium] › tests/07-stores.spec.ts:5:7 › 07 - Mağazalar › mağaza listesi yüklenir ───────────
+
+    Error: mağaza kartı bulunamadı
+
+    expect(received).toBeGreaterThan(expected)
+
+    Expected: > 0
+    Received:   0
+
+       8 |
+       9 |     await expect(stores.heading).toBeVisible();
+    > 10 |     expect(await stores.storeCount(), "mağaza kartı bulunamadı").toBeGreaterThan(0);
+         |                                                                  ^
+      11 |     const names = await stores.storeNames();
+      12 |     expect(names.length, "mağaza adı okunamadı").toBeGreaterThan(0);
+      13 |     console.log(`  ${await stores.storeCount()} mağaza: ${names.join(", ")}`);
+        at /Users/macbookair/Desktop/homee-tests/tests/07-stores.spec.ts:10:66
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/07-stores-07---Mağazalar-mağaza-listesi-yüklenir-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/07-stores-07---Mağazalar-mağaza-listesi-yüklenir-chromium/error-context.md
+
+  3) [chromium] › tests/20-login.spec.ts:23:7 › 20 - Giriş (pozitif / negatif) › e-posta formatı geçersizse uyarı verir 
+
+    Test timeout of 45000ms exceeded.
+
+    Error: page.waitForTimeout: Test timeout of 45000ms exceeded.
+
+       at ../pages/LoginPage.ts:35
+
+      33 |     await this.passwordInput.fill(password);
+      34 |     await this.submitButton.click({ timeout: 15_000 });
+    > 35 |     await this.page.waitForTimeout(6000);
+         |                     ^
+      36 |   }
+      37 |
+      38 |   /**
+        at LoginPage.login (/Users/macbookair/Desktop/homee-tests/pages/LoginPage.ts:35:21)
+        at /Users/macbookair/Desktop/homee-tests/tests/20-login.spec.ts:27:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/20-login-20---Giriş-poziti-61616-matı-geçersizse-uyarı-verir-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/20-login-20---Giriş-poziti-61616-matı-geçersizse-uyarı-verir-chromium/error-context.md
+
+  4) [chromium] › tests/25-checkout-to-payment.spec.ts:70:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme) 
+
+    Error: sözleşme metinleri yüklenemedi:
+    Mesafeli satış sözleşmesi yüklenemedi.
+    Ön bilgilendirme formu yüklenemedi.
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      78 |
+      79 |     const { ok, errors } = await checkout.contractsLoaded();
+    > 80 |     expect(ok, `sözleşme metinleri yüklenemedi:\n${errors.join("\n")}`).toBe(true);
+         |                                                                         ^
+      81 |   });
+      82 |
+      83 |   test("sözleşme onayı olmadan ödeme butonu ilerletmez", async ({ memberPage }) => {
+        at /Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts:80:73
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/25-checkout-to-payment-25--a9537-eli-Satış-Ön-Bilgilendirme--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/25-checkout-to-payment-25--a9537-eli-Satış-Ön-Bilgilendirme--chromium/error-context.md
+
+  4 failed
+    [chromium] › tests/04-search.spec.ts:34:7 › 04 - Arama › sonuç dönmeyen arama boş durum mesajı gösterir 
+    [chromium] › tests/07-stores.spec.ts:5:7 › 07 - Mağazalar › mağaza listesi yüklenir ────────────
+    [chromium] › tests/20-login.spec.ts:23:7 › 20 - Giriş (pozitif / negatif) › e-posta formatı geçersizse uyarı verir 
+    [chromium] › tests/25-checkout-to-payment.spec.ts:70:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme) 
+  73 passed (21.6m)
+EXIT=1

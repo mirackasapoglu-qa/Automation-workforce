@@ -3,13 +3,13 @@
     "guest-all": {
       "label": "Misafir seti (01-09, headless)",
       "cmd": "npx",
-      "args": ["playwright", "test", "tests/0", "--project=chromium", "--reporter=line"],
+      "args": ["playwright", "test", "tests/0", "--project=chromium", "--reporter=line,json"],
       "group": "misafir"
     },
     "member-all": {
       "label": "Uye seti (20-25, headless)",
       "cmd": "npx",
-      "args": ["playwright", "test", "tests/2", "--project=chromium", "--reporter=line"],
+      "args": ["playwright", "test", "tests/2", "--project=chromium", "--reporter=line,json"],
       "group": "uye"
     },
     "test-anasayfa": {

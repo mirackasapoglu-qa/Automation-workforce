@@ -1,0 +1,25 @@
+
+🔐 Homee auth kurulumu — env=test → https://redesign-prod.test.tepehome.com.tr
+  ✓ Mevcut kapı state'i geçerli
+  ✓ Mevcut üye oturumu geçerli (e-posta doğrulandı)
+
+
+Running 13 tests using 1 worker
+
+  ✓   1 [chromium] › tests/04-search.spec.ts:12:7 › 04 - Arama › header aramasıyla sonuç sayfasına gidilir (6.4s)
+  ✓   2 [chromium] › tests/04-search.spec.ts:25:7 › 04 - Arama › arama sonucu başlığı sorguyu ve adedi gösterir (3.9s)
+  ✓   3 [chromium] › tests/04-search.spec.ts:34:7 › 04 - Arama › sonuç dönmeyen arama boş durum mesajı gösterir (3.0s)
+  ✘   4 [chromium] › tests/04-search.spec.ts:53:7 › 04 - Arama › arama sonuç kartları site içi link veriyor (5.0s)
+  ✓   5 [chromium] › tests/04-search.spec.ts:77:7 › 04 - Arama › arama sonuçları sorguyla alakalı (2.8s)
+  4 mağaza: Lefkoşa, Ana Lokasyon, tuğçe 1 aş, Ankara Depo
+  ✓   6 [chromium] › tests/07-stores.spec.ts:5:7 › 07 - Mağazalar › mağaza listesi yüklenir (2.7s)
+  ✓   7 [chromium] › tests/07-stores.spec.ts:16:7 › 07 - Mağazalar › mağaza arama listeyi filtreler (7.8s)
+  ✓   8 [chromium] › tests/20-login.spec.ts:10:7 › 20 - Giriş (pozitif / negatif) › giriş sayfası tüm yöntemleri sunar (32.9s)
+  ✓   9 [chromium] › tests/20-login.spec.ts:23:7 › 20 - Giriş (pozitif / negatif) › e-posta formatı geçersizse uyarı verir (33.5s)
+  ✓  10 [chromium] › tests/20-login.spec.ts:37:7 › 20 - Giriş (pozitif / negatif) › yanlış şifre ile giriş reddedilir (34.1s)
+  ✓  11 [chromium] › tests/20-login.spec.ts:54:7 › 20 - Giriş (pozitif / negatif) › boş form gönderiminde zorunlu alan uyarısı (33.8s)
+  ✓  12 [chromium] › tests/20-login.spec.ts:65:7 › 20 - Giriş (pozitif / negatif) › doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir (39.3s)
+  ✓  13 [chromium] › tests/20-login.spec.ts:79:7 › 20 - Giriş (pozitif / negatif) › korumalı sayfa misafirken login'e yönlendirir (3.8s)
+
+  13 passed (3.8m)
+EXIT=0

@@ -1,0 +1,651 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "/Users/macbookair/Desktop/homee-tests/node_modules/.bin/playwright",
+      "test",
+      "tests/04-search.spec.ts",
+      "tests/07-stores.spec.ts",
+      "tests/20-login.spec.ts",
+      "--project=chromium"
+    ],
+    "configFile": "/Users/macbookair/Desktop/homee-tests/playwright.config.ts",
+    "rootDir": "/Users/macbookair/Desktop/homee-tests/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/Users/macbookair/Desktop/homee-tests/global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/macbookair/Desktop/homee-tests/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/macbookair/Desktop/homee-tests/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/Users/macbookair/Desktop/homee-tests/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile",
+        "name": "mobile",
+        "testDir": "/Users/macbookair/Desktop/homee-tests/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "04-search.spec.ts",
+      "file": "04-search.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "04 - Arama",
+          "file": "04-search.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "header aramasıyla sonuç sayfasına gidilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6443,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:29.750Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-c9f2ca1d365c9f4305a9",
+              "file": "04-search.spec.ts",
+              "line": 12,
+              "column": 7
+            },
+            {
+              "title": "arama sonucu başlığı sorguyu ve adedi gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3894,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:37.770Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-f48b0f830dc90d75b1bd",
+              "file": "04-search.spec.ts",
+              "line": 25,
+              "column": 7
+            },
+            {
+              "title": "sonuç dönmeyen arama boş durum mesajı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3007,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:41.691Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-895bd5ce5818d2506f62",
+              "file": "04-search.spec.ts",
+              "line": 34,
+              "column": 7
+            },
+            {
+              "title": "arama sonuç kartları site içi link veriyor",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "HOMEE-005: Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+                      "location": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                        "line": 54,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 5029,
+                      "error": {
+                        "message": "Error: 100/100 sonuç kartı dış domain'e gidiyor, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m100\u001b[39m\nReceived array:  \u001b[31m[\"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-100ml-p-2051269?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-100ml-p-2051268?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/galvaniz-metal-siyah-s-saklama-kutusu-p-2058587?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-ledli-gri-beton-efekt-kck-p-2058737?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/ambrette-kolonya-50ml-p-2051274?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-50ml-p-2051272?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/beyaz-erguvan-kolonya-50ml-p-2051271?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/jut-tekne-buketi-p-2058546?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-cam-ledli-silindir-kucuk-p-2058739?recommended_by=full_search&recommended_code=koltuk\", …]\u001b[39m",
+                        "stack": "Error: 100/100 sonuç kartı dış domain'e gidiyor, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m100\u001b[39m\nReceived array:  \u001b[31m[\"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-100ml-p-2051269?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-100ml-p-2051268?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/galvaniz-metal-siyah-s-saklama-kutusu-p-2058587?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-ledli-gri-beton-efekt-kck-p-2058737?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/ambrette-kolonya-50ml-p-2051274?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-50ml-p-2051272?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/beyaz-erguvan-kolonya-50ml-p-2051271?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/jut-tekne-buketi-p-2058546?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-cam-ledli-silindir-kucuk-p-2058739?recommended_by=full_search&recommended_code=koltuk\", …]\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:69:7",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                          "column": 7,
+                          "line": 69
+                        },
+                        "snippet": "  67 |       external,\n  68 |       `${external.length}/${all.length} sonuç kartı dış domain'e gidiyor, örn: ${external[0]}`,\n> 69 |     ).toHaveLength(0);\n     |       ^\n  70 |   });\n  71 |\n  72 |   /**"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                            "column": 7,
+                            "line": 69
+                          },
+                          "message": "Error: 100/100 sonuç kartı dış domain'e gidiyor, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m100\u001b[39m\nReceived array:  \u001b[31m[\"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-100ml-p-2051269?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-100ml-p-2051268?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/galvaniz-metal-siyah-s-saklama-kutusu-p-2058587?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-ledli-gri-beton-efekt-kck-p-2058737?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/ambrette-kolonya-50ml-p-2051274?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-50ml-p-2051272?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/beyaz-erguvan-kolonya-50ml-p-2051271?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/jut-tekne-buketi-p-2058546?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-cam-ledli-silindir-kucuk-p-2058739?recommended_by=full_search&recommended_code=koltuk\", …]\u001b[39m\n\n  67 |       external,\n  68 |       `${external.length}/${all.length} sonuç kartı dış domain'e gidiyor, örn: ${external[0]}`,\n> 69 |     ).toHaveLength(0);\n     |       ^\n  70 |   });\n  71 |\n  72 |   /**\n    at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:69:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:44.714Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "HOMEE-005: Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                            "line": 54,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/04-search-04---Arama-arama-1990b-tları-site-içi-link-veriyor-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                        "column": 7,
+                        "line": 69
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-2cd93f96c2cee3099f64",
+              "file": "04-search.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "arama sonuçları sorguyla alakalı",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2826,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:49.759Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-b4774cda51a77d682e71",
+              "file": "04-search.spec.ts",
+              "line": 77,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "07-stores.spec.ts",
+      "file": "07-stores.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "07 - Mağazalar",
+          "file": "07-stores.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "mağaza listesi yüklenir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 2696,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "  4 mağaza: Lefkoşa, Ana Lokasyon, tuğçe 1 aş, Ankara Depo\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:52.627Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6082ea52a8324ce953ea-00e1c3614dd488265c28",
+              "file": "07-stores.spec.ts",
+              "line": 5,
+              "column": 7
+            },
+            {
+              "title": "mağaza arama listeyi filtreler",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7762,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:18:55.333Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6082ea52a8324ce953ea-6db2de1e7433b625760c",
+              "file": "07-stores.spec.ts",
+              "line": 16,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "20-login.spec.ts",
+      "file": "20-login.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "20 - Giriş (pozitif / negatif)",
+          "file": "20-login.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "giriş sayfası tüm yöntemleri sunar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 32909,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:19:03.142Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-410942bb4e6c8d2d04ee",
+              "file": "20-login.spec.ts",
+              "line": 10,
+              "column": 7
+            },
+            {
+              "title": "e-posta formatı geçersizse uyarı verir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 33485,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:19:36.062Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-7a7a8459e04e770019d0",
+              "file": "20-login.spec.ts",
+              "line": 23,
+              "column": 7
+            },
+            {
+              "title": "yanlış şifre ile giriş reddedilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 34104,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:20:09.557Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-ecab2eaf594fdb5fea10",
+              "file": "20-login.spec.ts",
+              "line": 37,
+              "column": 7
+            },
+            {
+              "title": "boş form gönderiminde zorunlu alan uyarısı",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 33818,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:20:43.685Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-92ecec2f8054f9fcd479",
+              "file": "20-login.spec.ts",
+              "line": 54,
+              "column": 7
+            },
+            {
+              "title": "doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 39339,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:21:17.511Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-3606fb36afa2870966df",
+              "file": "20-login.spec.ts",
+              "line": 65,
+              "column": 7
+            },
+            {
+              "title": "korumalı sayfa misafirken login'e yönlendirir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3803,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:21:56.863Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-27959fb7a8dda0c304b0",
+              "file": "20-login.spec.ts",
+              "line": 79,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-08-18T13:18:14.546Z",
+    "duration": 226330.777,
+    "expected": 13,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

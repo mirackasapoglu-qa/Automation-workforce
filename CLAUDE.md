@@ -19,6 +19,12 @@ npx playwright test tests/01-homepage.spec.ts --project=chromium --reporter=line
 `workers: 1` (paralel yok), timeout 45s (`TEST_TIMEOUT` ile değişir), `trace: on-first-retry`,
 `screenshot: only-on-failure`. Uzun rota süpürmeleri spec içinde `test.setTimeout()` ile arttırılır.
 
+⚠️ **Rapor alacaksan `--reporter` FLAG'İ VERME.** CLI'dan verilen reporter listesi config'i ezer;
+`--reporter=json` da `outputFile`'ı yoksayıp JSON'u **stdout'a** basar (line çıktısıyla karışır ve
+bozulur). `test-results/results.json` isteyen her şey (rapor üreticileri, panel) config'in
+reporter'larına ihtiyaç duyar → sadece `npx playwright test --project=chromium` koş.
+Zorunlu hâlde: `PLAYWRIGHT_JSON_OUTPUT_NAME=test-results/results.json` env'i ile ver.
+
 ⚠️ **İki koşumu aynı anda başlatma.** Playwright koşum başında `test-results/` dizinini
 temizliyor; paralel iki koşum birbirinin kanıtlarını ve `results.json`'ını siler.
 Sıralı koş, ya da ayrı `--output` dizini ver.
@@ -90,11 +96,14 @@ e-postasının göründüğünü** de assert eder.
    `ProductPage.addToCart()` header badge'ini doğrular ve bir kez retry eder. Kendi başına
    `click` yapma.
 
-7. **Hata mesajları kaybolan TOAST.** Yanlış şifre → "Lütfen e-posta adresinizi ya da şifrenizi
+7. **Sepet bazen bayat render dönüyor** — header badge'inde ürün varken liste boş geliyor.
+   `CartPage.open()` çelişkiyi görürse bir kez reload eder; kendi başına `/sepet`e gitme.
+
+8. **Hata mesajları kaybolan TOAST.** Yanlış şifre → "Lütfen e-posta adresinizi ya da şifrenizi
    kontrol edin." mesajı ~1.2 sn sonra çıkıp kayboluyor. Sabit bekleyip gövdeye bakan test mesajı
    KAÇIRIR — `LoginPage.submitAndCatchMessage()` gibi **poll eden** yardımcı kullan.
 
-8. **Geçici script'i repo kökünde yaz** (`.probe.mjs`), scratchpad'de değil —
+9. **Geçici script'i repo kökünde yaz** (`.probe.mjs`), scratchpad'de değil —
    `@playwright/test` modül çözümlemesi dosya konumuna göre çalışır. İş bitince sil.
 
 ## API katmanı (ileride API testi için)

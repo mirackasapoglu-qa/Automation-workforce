@@ -27,8 +27,18 @@ export class CartPage extends BasePage {
     this.couponApplyButton = page.locator('button:visible:has-text("Uygula")').first();
   }
 
+  /**
+   * Sepet sayfası bazen BAYAT render dönüyor: header badge'inde ürün görünürken
+   * liste boş geliyor (ölçüldü: sepete ekleme doğrulandıktan hemen sonra /sepet
+   * 0 satır gösterdi). Badge ile liste çelişirse bir kez reload eder.
+   */
   async open() {
     await this.goto("/sepet");
+    const badge = (await this.cartBadgeCount()) ?? 0;
+    if (badge > 0 && (await this.removeButtons.count()) === 0) {
+      await this.page.reload({ waitUntil: "domcontentloaded" });
+      await this.settle(2500);
+    }
   }
 
   async isEmpty(): Promise<boolean> {

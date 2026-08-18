@@ -13,8 +13,16 @@ export class StoresPage extends BasePage {
     this.directionsButtons = page.locator('button:visible:has-text("Yol tarifi")');
   }
 
+  /**
+   * Mağaza kartları client-render sonrası geliyor (yavaş makinede 3+ sn).
+   * Sabit bekleme yerine ilk "Yol tarifi" butonunu bekler.
+   */
   async open() {
     await this.goto("/magazalar");
+    await this.directionsButtons
+      .first()
+      .waitFor({ state: "visible", timeout: 30_000 })
+      .catch(() => {});
   }
 
   async searchStore(term: string) {

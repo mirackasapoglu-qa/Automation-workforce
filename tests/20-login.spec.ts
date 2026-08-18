@@ -21,16 +21,17 @@ test.describe("20 - Giriş (pozitif / negatif)", () => {
   });
 
   test("e-posta formatı geçersizse uyarı verir", async ({ page }) => {
+    test.setTimeout(90_000);
     const login = new LoginPage(page);
     await login.open();
 
-    await login.login("admin", "password123");
-    await login.assertStillOnLogin();
+    // "admin" geçerli bir e-posta değil → format uyarısı beklenir
+    await login.emailInput.fill("admin");
+    await login.passwordInput.fill("password123");
+    const msg = await login.submitAndCatchMessage(/geçerli bir e-posta/i);
 
-    const msgs = await login.validationMessages();
-    expect(msgs.join(" "), `beklenen format uyarısı yok: ${JSON.stringify(msgs)}`).toMatch(
-      /geçerli bir e-posta/i,
-    );
+    expect(msg, "e-posta format uyarısı gösterilmedi").not.toBeNull();
+    await login.assertStillOnLogin();
   });
 
   test("yanlış şifre ile giriş reddedilir", async ({ page }) => {

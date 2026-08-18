@@ -38,10 +38,26 @@ sıralama, daha fazla göster) · `04` arama · `05` ürün detay · `06` sepet 
 ⚠️ **Sipariş tamamlanmaz.** `25` ödeme adımına kadar gider; `ÖDEME YAP` butonuna basılmaz.
 Tam sipariş için `ALLOW_HOMEE_ORDERS=1` gerekir.
 
+## Raporlar
+
+```bash
+node scripts/create-full-report.cjs                 # kapsamlı proje raporu (HTML)
+node .pdf-gen.mjs homee-qa-raporu.html rapor.pdf    # HTML → PDF
+npm run report:create                                # sadece koşum özeti (HTML)
+```
+
+`create-full-report.cjs` case envanterini `tests/*.spec.ts`'den **parse eder**, bulguları
+`known-issues.ts` ve `routes.ts`'ten okur — elle liste tutulmaz, kod değiştikçe rapor güncellenir.
+Koşum sonuçlarını işlemek için `--results a.json,b.json` (sonraki dosya öncekini ezer).
+
+⚠️ `results.json` yazılması için `--reporter` flag'i VERMEDEN koş; CLI reporter'ı config'i ezer.
+
 ## Bulgular
 
 İlk regresyon taramasının ürün bulguları: **[FINDINGS.md](FINDINGS.md)**
-(6 kırık rota, 5 boş kategori, HOMEE-001…005).
+(6 kırık rota, 5 boş kategori, HOMEE-001…007).
+
+Son tam koşum: **77 test — 72 geçti, 1 gerçek başarısız (HOMEE-004), 4 bilinen hata.**
 
 Bilinen hatalar `tests/known-issues.ts`'te kayıtlı ve ilgili testlerde `test.fail()` ile
 işaretli — hata düzeldiğinde test "beklenmedik geçti" diye kırmızı olur ve kaydın silinmesini zorlar.

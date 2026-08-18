@@ -66,4 +66,15 @@ export const KNOWN_ISSUES = {
     detail:
       "koltuk aramasi 768 sonuc bildiriyor ama ilk sonuclar kolonya (the-tonka-ve-myrrh-kolonya) donuyor",
   },
+  /**
+   * Ürün detay sayfasında öneri kartlarının görselleri kırık geliyor
+   * (prod CDN: storage.googleapis.com/tepehome-cdn/product/...).
+   * ⚠️ ARALIKLI — CDN kaynaklı; test.fail() ile işaretlenmez.
+   */
+  productImagesBroken: {
+    id: "HOMEE-007",
+    where: "/tepe-sap-test-yeni-urun-p-1099765 (oneri kartlari)",
+    detail:
+      "5 gorsel naturalWidth=0 donuyor, ornek: tepehome-cdn/product/41/images/1001728-1_400x400.jpg",
+  },
 } as const;

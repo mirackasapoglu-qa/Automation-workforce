@@ -62,11 +62,14 @@ FE tarafında incelenmeli.
 
 ---
 
-## HOMEE-002 — `/magazalar` sayfasında kırık görsel
+## HOMEE-002 — `/magazalar` sayfasında kırık görsel · ARALIKLI
 
 **Belirti:** `storage.googleapis.com/tepehome-test-cdn/uploads/images/images/1009341-2.jpg`
 yükleniyor gibi görünüyor ama `naturalWidth === 0`.
-**Test:** `08-static-pages.spec.ts` → "kırık görsel yok" (`test.fail`)
+**Aralıklı:** ilk koşumda kırıktı, sonraki koşumda yüklendi → test CDN'i kararsız.
+Bu yüzden `test.fail()` ile işaretlenmedi; test doğrudan assert ediyor, kırık görsel
+görüldüğü koşumda fail eder.
+**Test:** `08-static-pages.spec.ts` → "statik sayfalarda kırık görsel yok"
 
 ---
 
@@ -81,12 +84,17 @@ Form alanlarında `required` niteliği de yok (`adınız`, `soyadınız`, `e-pos
 
 ---
 
-## HOMEE-004 — Ödeme sayfasında sözleşme metinleri yüklenmiyor
+## HOMEE-004 — Ödeme sayfasında sözleşme metinleri yüklenmiyor (AÇIK — suite'te kırmızı)
 
 **Nerede:** `/odeme`
 **Belirti:** "Mesafeli satış sözleşmesi yüklenemedi." + "Ön bilgilendirme formu yüklenemedi."
-**Etki:** Kullanıcı onaylamak zorunda olduğu sözleşmeleri okuyamıyor — mevzuat açısından da riskli.
-**Test:** `25-checkout-to-payment.spec.ts` → "sözleşme metinleri yüklenir" (`test.fail`)
+**Etki:** Kullanıcı onaylamak zorunda olduğu sözleşmeleri okuyamıyor — mevzuat açısından riskli.
+**Yan etki:** Sözleşmeler yüklenemediğinde onay checkbox'ı
+`name="checkout-contracts-accepted"` niteliğini de **kaybediyor** (DOM'da isimsiz checkbox
+olarak kalıyor). Otomasyon ve erişilebilirlik açısından ayrıca sorunlu.
+**Sıklık:** 3 koşumun 2'sinde tekrarlandı (bir koşumda yüklendi).
+**Test:** `25-checkout-to-payment.spec.ts` → "sözleşme metinleri yüklenir" —
+`test.fail()` ile susturulmadı; **açık hata olduğu için suite'te kırmızı duruyor.**
 
 ---
 
@@ -115,15 +123,41 @@ ve `02-navigation.spec.ts → 02b` (`test.fail`)
 
 ---
 
-## HOMEE-006 — Arama alaka sorunu
+## HOMEE-006 — Arama alaka sorunu · ARALIKLI
 
 **Nerede:** `/arama?q=koltuk`
-**Belirti:** h1 "KOLTUK (768)" diyor ama ilk sonuçlar kolonya ürünleri
-(`the-tonka-ve-myrrh-kolonya-kolonya-50ml`, `...-100ml`). Sorgu ile sonuç kümesi alakasız.
-**Not:** HOMEE-005 ile aynı kökten (PersonaClick full_search) geliyor olabilir.
-**Test:** `04-search.spec.ts` → "arama sonuçları sorguyla alakalı" (`test.fail`)
+**Belirti:** h1 "KOLTUK (768)" diyor ama bir koşumda ilk sonuçlar kolonya ürünleri döndü
+(`the-tonka-ve-myrrh-kolonya-kolonya-50ml`, `...-100ml`). Sonraki koşumda sonuçlar alakalıydı.
+**Yorum:** PersonaClick kişiselleştirmesi sonuç sırasını değiştiriyor; HOMEE-005 ile aynı kökten.
+**Test:** `04-search.spec.ts` → "arama sonuçları sorguyla alakalı" (deterministik olmadığı için
+`test.fail()` yok; alaka bozulduğu koşumda fail eder)
 
 ---
+
+## HOMEE-007 — Ürün detayda öneri kartlarının görselleri kırık · ARALIKLI
+
+**Nerede:** ürün detay sayfası, "Diğerleri de sevdi" / "Daha Önce Sepete Ekledikleriniz" bölümleri
+**Belirti:** 5 görsel `naturalWidth === 0` dönüyor. Örnek:
+`storage.googleapis.com/tepehome-cdn/product/41/images/1001728-1_400x400.jpg`
+**Not:** Bu görseller **prod CDN'inden** (`tepehome-cdn`) geliyor, test CDN'inden
+(`tepehome-test-cdn`) değil — HOMEE-005 ile aynı desen: öneri bileşeni prod verisine bağlı.
+**Test:** `05-product-detail.spec.ts` → "SEPETE EKLE butonu aktif ve ürün görseli yüklü"
+
+---
+
+## Ürün hatası SANILAN ama olmayan davranışlar
+
+İlk koşumlarda hata gibi görünen, keşifle doğrulandığında **doğru çalıştığı** anlaşılan davranışlar.
+Not ediliyor ki ekip bunları boşuna kovalamasın:
+
+| Görünen | Gerçek |
+|---|---|
+| "Çıkış Yap oturumu kapatmıyor" | Buton bir **onay diyaloğu** açıyor ("Çıkış yapmak istiyor musunuz? — Bu cihazdaki oturumunuz sonlandırılacak."). Onay basıldığında `auth_token`/`refresh_token` siliniyor, korumalı sayfa `/giris`'e yönleniyor. Doğru çalışıyor. |
+| "Yanlış şifrede hata mesajı yok" | Mesaj var: "Lütfen e-posta adresinizi ya da şifrenizi kontrol edin." — ~1.2 sn sonra çıkıp **kaybolan toast**. Sabit bekleyip bakan test kaçırıyor. |
+| "Boş formda validasyon yok" (giriş) | Var: "Lütfen e-posta adresinizi giriniz." + "Lütfen şifrenizi giriniz." Aynı toast davranışı. |
+| "Ödeme yöntemleri render olmuyor" | `/odeme` adresine **doğrudan gidilemiyor**; sepette ürün olsa bile `/sepet`e yönlendiriyor. Checkout oturumu "ÖDEME ADIMINA GEÇİN" butonuyla açılıyor. Tasarım gereği. |
+| "Adres silinemiyor" | Silme iki aşamalı: kartın "Sil" butonu → `[role=dialog]` onayı ("Bu adresi silmek istediğinize emin misiniz? Bu işlem geri alınamaz."). Doğru çalışıyor. |
+| "Favori eklenmiyor" | Favori butonu **toggle**; ürün zaten favorideyse etiketi "Favorilerden çıkar" oluyor. Ayrıca favori listesi lazy yükleniyor. Doğru çalışıyor. |
 
 ## Gözlemler (hata sayılmayan, ama not edilmesi gerekenler)
 
@@ -136,3 +170,9 @@ ve `02-navigation.spec.ts → 02b` (`test.fail`)
    her testin yeniden login olmasını gerektiriyor; suite buna göre kuruldu.
 4. **Kampanya sayfaları** (`/kucuk-mekanlar-1`, `/Tepe-Home-Bahce`) ürün listelemiyor —
    içerik sayfası oldukları için beklenen davranış kabul edildi (`CONTENT_PAGES`).
+5. **Adres formunda validasyon kısmi:** boş form kaydedilmeye çalışıldığında yalnızca
+   "Lütfen telefon numaranızı giriniz." uyarısı çıkıyor; adres başlığı, ad/soyad, şehir ve
+   adres detayı için uyarı yok (form da kaydedilmiyor). Kullanıcı hangi alanın eksik olduğunu
+   göremiyor.
+6. **Backend:** FE'nin konuştuğu API `https://ecom-api.test.tepehome.com.tr`
+   (`POST /auth/login` yanlış kimlikte 401). İleride API seviyesinde test yazılabilir.

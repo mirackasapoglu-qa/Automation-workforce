@@ -1,0 +1,3322 @@
+{
+  "config": {
+    "argv": [
+      "/usr/local/bin/node",
+      "/Users/macbookair/Desktop/homee-tests/node_modules/.bin/playwright",
+      "test",
+      "--project=chromium"
+    ],
+    "configFile": "/Users/macbookair/Desktop/homee-tests/playwright.config.ts",
+    "rootDir": "/Users/macbookair/Desktop/homee-tests/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/Users/macbookair/Desktop/homee-tests/global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/macbookair/Desktop/homee-tests/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/macbookair/Desktop/homee-tests/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/Users/macbookair/Desktop/homee-tests/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "mobile",
+        "name": "mobile",
+        "testDir": "/Users/macbookair/Desktop/homee-tests/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "playwright-report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "01-homepage.spec.ts",
+      "file": "01-homepage.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "01 - Anasayfa",
+          "file": "01-homepage.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "anasayfa yüklenir, başlık ve bilgi şeridi görünür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6902,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:54:43.089Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9992779f7716d889cb78-1c910ff9b4e38a4bc06f",
+              "file": "01-homepage.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "ürün kartları render olur ve ürün detayına gider",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9341,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:54:51.949Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9992779f7716d889cb78-35b13e35f51a58a0d771",
+              "file": "01-homepage.spec.ts",
+              "line": 15,
+              "column": 7
+            },
+            {
+              "title": "header öğeleri mevcut (kategoriler, arama, sepet, giriş, mağazalar)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 3400,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:01.335Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9992779f7716d889cb78-15fa83469d22ea67d950",
+              "file": "01-homepage.spec.ts",
+              "line": 31,
+              "column": 7
+            },
+            {
+              "title": "footer bülten alanı ve başa dön butonu çalışır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4473,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:04.757Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9992779f7716d889cb78-ebd9beaf50bf9f61a680",
+              "file": "01-homepage.spec.ts",
+              "line": 42,
+              "column": 7
+            },
+            {
+              "title": "anasayfada uygulama kaynaklı konsol hatası yok",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7169,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:09.244Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "9992779f7716d889cb78-e2aa94c81aceea9f657e",
+              "file": "01-homepage.spec.ts",
+              "line": 55,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "02-navigation.spec.ts",
+      "file": "02-navigation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "02 - Navigasyon ve rota sağlığı",
+          "file": "02-navigation.spec.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "mega menü açılır ve kategori linkleri listelenir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5108,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:16.455Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-fc77b300dc3a05789606",
+              "file": "02-navigation.spec.ts",
+              "line": 8,
+              "column": 7
+            },
+            {
+              "title": "menüdeki tüm kategori rotaları açılır (404 yok)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 14545,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:21.592Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-0f4bb01441e90e2c24fb",
+              "file": "02-navigation.spec.ts",
+              "line": 17,
+              "column": 7
+            },
+            {
+              "title": "bilinen kırık linkler kayıt altında (düzelen listeden çıkarılmalı)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8290,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:36.156Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-1375eb5fb1fe721be793",
+              "file": "02-navigation.spec.ts",
+              "line": 35,
+              "column": 7
+            },
+            {
+              "title": "header ana menü linkleri (MOBİLYA / EVDEKOR) 404 vermez",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6764,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:44.466Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-96b824a517de52d759e2",
+              "file": "02-navigation.spec.ts",
+              "line": 51,
+              "column": 7
+            },
+            {
+              "title": "boş kategoriler kayıt altında (dolan listeden çıkarılmalı)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8573,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:51.254Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-16925f4bc0be58bdb6b5",
+              "file": "02-navigation.spec.ts",
+              "line": 69,
+              "column": 7
+            },
+            {
+              "title": "logo anasayfaya döner",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7390,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:55:59.856Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-d4b0a2adf699f7c51095",
+              "file": "02-navigation.spec.ts",
+              "line": 85,
+              "column": 7
+            }
+          ]
+        },
+        {
+          "title": "02b - Domain sızması",
+          "file": "02-navigation.spec.ts",
+          "line": 94,
+          "column": 6,
+          "specs": [
+            {
+              "title": "test ortamı sayfaları prod domain'ine link vermiyor",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 150000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "HOMEE-005: Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+                      "location": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts",
+                        "line": 102,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 9159,
+                      "error": {
+                        "message": "Error: prod domain'ine sızan linkler:\n/arama?q=koltuk → 20 link, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n/arama?q=zzzqwertyyok → 8 link, örn: https://prod.tepehome.com.tr/vegas-sandalye-p-1009610?recommended_by=dynamic&recommended_code=5b4ba183f20fe44109f5562c79f52d2e\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m2\u001b[39m\nReceived array:  \u001b[31m[\"/arama?q=koltuk → 20 link, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"/arama?q=zzzqwertyyok → 8 link, örn: https://prod.tepehome.com.tr/vegas-sandalye-p-1009610?recommended_by=dynamic&recommended_code=5b4ba183f20fe44109f5562c79f52d2e\"]\u001b[39m",
+                        "stack": "Error: prod domain'ine sızan linkler:\n/arama?q=koltuk → 20 link, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n/arama?q=zzzqwertyyok → 8 link, örn: https://prod.tepehome.com.tr/vegas-sandalye-p-1009610?recommended_by=dynamic&recommended_code=5b4ba183f20fe44109f5562c79f52d2e\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m2\u001b[39m\nReceived array:  \u001b[31m[\"/arama?q=koltuk → 20 link, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"/arama?q=zzzqwertyyok → 8 link, örn: https://prod.tepehome.com.tr/vegas-sandalye-p-1009610?recommended_by=dynamic&recommended_code=5b4ba183f20fe44109f5562c79f52d2e\"]\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts:115:74",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts",
+                          "column": 74,
+                          "line": 115
+                        },
+                        "snippet": "  113 |     }\n  114 |\n> 115 |     expect(leaks, `prod domain'ine sızan linkler:\\n${leaks.join(\"\\n\")}`).toHaveLength(0);\n      |                                                                          ^\n  116 |   });\n  117 | });\n  118 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts",
+                            "column": 74,
+                            "line": 115
+                          },
+                          "message": "Error: prod domain'ine sızan linkler:\n/arama?q=koltuk → 20 link, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n/arama?q=zzzqwertyyok → 8 link, örn: https://prod.tepehome.com.tr/vegas-sandalye-p-1009610?recommended_by=dynamic&recommended_code=5b4ba183f20fe44109f5562c79f52d2e\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m2\u001b[39m\nReceived array:  \u001b[31m[\"/arama?q=koltuk → 20 link, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"/arama?q=zzzqwertyyok → 8 link, örn: https://prod.tepehome.com.tr/vegas-sandalye-p-1009610?recommended_by=dynamic&recommended_code=5b4ba183f20fe44109f5562c79f52d2e\"]\u001b[39m\n\n  113 |     }\n  114 |\n> 115 |     expect(leaks, `prod domain'ine sızan linkler:\\n${leaks.join(\"\\n\")}`).toHaveLength(0);\n      |                                                                          ^\n  116 |   });\n  117 | });\n  118 |\n    at /Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts:115:74"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:56:07.269Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "HOMEE-005: Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts",
+                            "line": 102,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/02-navigation-02b---Domain-ee374-od-domain-ine-link-vermiyor-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/02-navigation.spec.ts",
+                        "column": 74,
+                        "line": 115
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "693a0a9757374728c9b4-8137ae0bbf75c642edab",
+              "file": "02-navigation.spec.ts",
+              "line": 100,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "03-category-listing.spec.ts",
+      "file": "03-category-listing.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "03 - Kategori / liste sayfası",
+          "file": "03-category-listing.spec.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "ürün listesi render olur, sayaç ve kartlar tutarlı",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6137,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:56:16.479Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-ca9ae7ef584a588c879d",
+              "file": "03-category-listing.spec.ts",
+              "line": 8,
+              "column": 7
+            },
+            {
+              "title": "ürün kartından detay sayfasına gidilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9549,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:56:22.653Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-4461d637a11f5ec28af7",
+              "file": "03-category-listing.spec.ts",
+              "line": 21,
+              "column": 7
+            },
+            {
+              "title": "filtre paneli açılır ve filtre grupları listelenir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7236,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:56:32.281Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-28858d68a7e3bab0fed5",
+              "file": "03-category-listing.spec.ts",
+              "line": 32,
+              "column": 7
+            },
+            {
+              "title": "filtre grubu genişletilir, seçenek işaretlenip uygulanır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 150000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12033,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "  filtre: 12 → 1 ürün | seçenekler: BEYAZ, GRİ, KAHVERENGİ, SİYAH\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:56:39.597Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-f10a9fae4dedc0c64469",
+              "file": "03-category-listing.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "sıralama seçenekleri açılır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11176,
+                      "errors": [],
+                      "stdout": [
+                        {
+                          "text": "  sıralama seçenekleri: Fiyat | Sırala: Önerilen | Önerilen | Alfabetik A-Z | En Düşük Fiyat | En Yüksek Fiyat | En Yüksek İndirim | En Düşük İndirim | En çok satanlar\n"
+                        }
+                      ],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:56:51.663Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-69c55d9f9265fe07416b",
+              "file": "03-category-listing.spec.ts",
+              "line": 80,
+              "column": 7
+            },
+            {
+              "title": "'DAHA FAZLA GÖSTER' listeyi büyütür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 29954,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:57:02.892Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-91cfbf5e763a93a84b20",
+              "file": "03-category-listing.spec.ts",
+              "line": 89,
+              "column": 7
+            },
+            {
+              "title": "ürün dönen tüm kategori rotaları kart gösteriyor",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7330,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:57:33.052Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "79f25b2753778acb53b2-71cb676542f19f0a83cf",
+              "file": "03-category-listing.spec.ts",
+              "line": 99,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "04-search.spec.ts",
+      "file": "04-search.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "04 - Arama",
+          "file": "04-search.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "header aramasıyla sonuç sayfasına gidilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7120,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:57:40.447Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-c9f2ca1d365c9f4305a9",
+              "file": "04-search.spec.ts",
+              "line": 12,
+              "column": 7
+            },
+            {
+              "title": "arama sonucu başlığı sorguyu ve adedi gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 5991,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:57:47.583Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-f48b0f830dc90d75b1bd",
+              "file": "04-search.spec.ts",
+              "line": 25,
+              "column": 7
+            },
+            {
+              "title": "sonuç dönmeyen arama boş durum mesajı gösterir",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 0,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 8910,
+                      "error": {
+                        "message": "Error: boş sonuç mesajı gösterilmiyor\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/bulunamadı|sonuç yok|0 ürün/i\u001b[39m\nReceived string:  \u001b[31m\"Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·\u001b[39m\n\u001b[31mDetaylar\u001b[39m\n\u001b[31mKATEGORİLER\u001b[39m\n\u001b[31mPEŞİN FİYATINA TAKSİT\u001b[39m\n\u001b[31mHIZLI TESLİMAT\u001b[39m\n\u001b[31mÜCRETSİZ KURULUM\u001b[39m\n\u001b[31mGÜVENLİ ALIŞVERİŞ\u001b[39m\n\u001b[31mKOLAY İADE·\u001b[39m\n\u001b[31mTEPE HOME JOURNAL·\u001b[39m\n\u001b[31m#TepeHomeTarzi·\u001b[39m\n\u001b[31mEvinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·\u001b[39m\n\u001b[31mYARDIM MERKEZİ\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mTepe Home Mobil Uygulama·\u001b[39m\n\u001b[31mKampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·\u001b[39m\n\u001b[31mGoogle Play\u001b[39m\n\u001b[31m'den indir\u001b[39m\n\u001b[31mApp Store\u001b[39m\n\u001b[31m'dan indir\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mABONE OL·\u001b[39m\n\u001b[31mTepe Home bir Bilkent Holding Şirketidir·\u001b[39m\n\u001b[31mMesafeli Satış Sözleşmesi\u001b[39m\n\u001b[31mİade Politikası\u001b[39m\n\u001b[31mGizlilik Politikası\u001b[39m\n\u001b[31mKVKK\u001b[39m\n\u001b[31mİletişim·\u001b[39m\n\u001b[31m© 2026 Tepe Home. Tüm hakları saklıdır·\u001b[39m\n\u001b[31mPowered by\"\u001b[39m",
+                        "stack": "Error: boş sonuç mesajı gösterilmiyor\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/bulunamadı|sonuç yok|0 ürün/i\u001b[39m\nReceived string:  \u001b[31m\"Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·\u001b[39m\n\u001b[31mDetaylar\u001b[39m\n\u001b[31mKATEGORİLER\u001b[39m\n\u001b[31mPEŞİN FİYATINA TAKSİT\u001b[39m\n\u001b[31mHIZLI TESLİMAT\u001b[39m\n\u001b[31mÜCRETSİZ KURULUM\u001b[39m\n\u001b[31mGÜVENLİ ALIŞVERİŞ\u001b[39m\n\u001b[31mKOLAY İADE·\u001b[39m\n\u001b[31mTEPE HOME JOURNAL·\u001b[39m\n\u001b[31m#TepeHomeTarzi·\u001b[39m\n\u001b[31mEvinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·\u001b[39m\n\u001b[31mYARDIM MERKEZİ\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mTepe Home Mobil Uygulama·\u001b[39m\n\u001b[31mKampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·\u001b[39m\n\u001b[31mGoogle Play\u001b[39m\n\u001b[31m'den indir\u001b[39m\n\u001b[31mApp Store\u001b[39m\n\u001b[31m'dan indir\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mABONE OL·\u001b[39m\n\u001b[31mTepe Home bir Bilkent Holding Şirketidir·\u001b[39m\n\u001b[31mMesafeli Satış Sözleşmesi\u001b[39m\n\u001b[31mİade Politikası\u001b[39m\n\u001b[31mGizlilik Politikası\u001b[39m\n\u001b[31mKVKK\u001b[39m\n\u001b[31mİletişim·\u001b[39m\n\u001b[31m© 2026 Tepe Home. Tüm hakları saklıdır·\u001b[39m\n\u001b[31mPowered by\"\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:43:52",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                          "column": 52,
+                          "line": 43
+                        },
+                        "snippet": "  41 |     );\n  42 |     const body = await page.locator(\"body\").innerText();\n> 43 |     expect(body, \"boş sonuç mesajı gösterilmiyor\").toMatch(/bulunamadı|sonuç yok|0 ürün/i);\n     |                                                    ^\n  44 |   });\n  45 |\n  46 |   /** BİLİNEN HATA HOMEE-005: sonuç kartları prod domain'ine gidiyor */"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                            "column": 52,
+                            "line": 43
+                          },
+                          "message": "Error: boş sonuç mesajı gösterilmiyor\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/bulunamadı|sonuç yok|0 ürün/i\u001b[39m\nReceived string:  \u001b[31m\"Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·\u001b[39m\n\u001b[31mDetaylar\u001b[39m\n\u001b[31mKATEGORİLER\u001b[39m\n\u001b[31mPEŞİN FİYATINA TAKSİT\u001b[39m\n\u001b[31mHIZLI TESLİMAT\u001b[39m\n\u001b[31mÜCRETSİZ KURULUM\u001b[39m\n\u001b[31mGÜVENLİ ALIŞVERİŞ\u001b[39m\n\u001b[31mKOLAY İADE·\u001b[39m\n\u001b[31mTEPE HOME JOURNAL·\u001b[39m\n\u001b[31m#TepeHomeTarzi·\u001b[39m\n\u001b[31mEvinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·\u001b[39m\n\u001b[31mYARDIM MERKEZİ\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mTepe Home Mobil Uygulama·\u001b[39m\n\u001b[31mKampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·\u001b[39m\n\u001b[31mGoogle Play\u001b[39m\n\u001b[31m'den indir\u001b[39m\n\u001b[31mApp Store\u001b[39m\n\u001b[31m'dan indir\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mABONE OL·\u001b[39m\n\u001b[31mTepe Home bir Bilkent Holding Şirketidir·\u001b[39m\n\u001b[31mMesafeli Satış Sözleşmesi\u001b[39m\n\u001b[31mİade Politikası\u001b[39m\n\u001b[31mGizlilik Politikası\u001b[39m\n\u001b[31mKVKK\u001b[39m\n\u001b[31mİletişim·\u001b[39m\n\u001b[31m© 2026 Tepe Home. Tüm hakları saklıdır·\u001b[39m\n\u001b[31mPowered by\"\u001b[39m\n\n  41 |     );\n  42 |     const body = await page.locator(\"body\").innerText();\n> 43 |     expect(body, \"boş sonuç mesajı gösterilmiyor\").toMatch(/bulunamadı|sonuç yok|0 ürün/i);\n     |                                                    ^\n  44 |   });\n  45 |\n  46 |   /** BİLİNEN HATA HOMEE-005: sonuç kartları prod domain'ine gidiyor */\n    at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:43:52"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:57:53.608Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/04-search-04---Arama-sonuç-f3328-a-boş-durum-mesajı-gösterir-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/04-search-04---Arama-sonuç-f3328-a-boş-durum-mesajı-gösterir-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                        "column": 52,
+                        "line": 43
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-895bd5ce5818d2506f62",
+              "file": "04-search.spec.ts",
+              "line": 34,
+              "column": 7
+            },
+            {
+              "title": "arama sonuç kartları site içi link veriyor",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "HOMEE-005: Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+                      "location": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                        "line": 48,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 10746,
+                      "error": {
+                        "message": "Error: 50/50 sonuç kartı dış domain'e gidiyor, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m50\u001b[39m\nReceived array:  \u001b[31m[\"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-100ml-p-2051269?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-100ml-p-2051268?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/galvaniz-metal-siyah-s-saklama-kutusu-p-2058587?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-ledli-gri-beton-efekt-kck-p-2058737?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/ambrette-kolonya-50ml-p-2051274?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-50ml-p-2051272?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/beyaz-erguvan-kolonya-50ml-p-2051271?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/jut-tekne-buketi-p-2058546?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-cam-ledli-silindir-kucuk-p-2058739?recommended_by=full_search&recommended_code=koltuk\", …]\u001b[39m",
+                        "stack": "Error: 50/50 sonuç kartı dış domain'e gidiyor, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m50\u001b[39m\nReceived array:  \u001b[31m[\"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-100ml-p-2051269?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-100ml-p-2051268?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/galvaniz-metal-siyah-s-saklama-kutusu-p-2058587?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-ledli-gri-beton-efekt-kck-p-2058737?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/ambrette-kolonya-50ml-p-2051274?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-50ml-p-2051272?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/beyaz-erguvan-kolonya-50ml-p-2051271?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/jut-tekne-buketi-p-2058546?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-cam-ledli-silindir-kucuk-p-2058739?recommended_by=full_search&recommended_code=koltuk\", …]\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:63:7",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                          "column": 7,
+                          "line": 63
+                        },
+                        "snippet": "  61 |       external,\n  62 |       `${external.length}/${all.length} sonuç kartı dış domain'e gidiyor, örn: ${external[0]}`,\n> 63 |     ).toHaveLength(0);\n     |       ^\n  64 |   });\n  65 |\n  66 |   /**"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                            "column": 7,
+                            "line": 63
+                          },
+                          "message": "Error: 50/50 sonuç kartı dış domain'e gidiyor, örn: https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m50\u001b[39m\nReceived array:  \u001b[31m[\"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-50ml-p-2051273?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/the-tonka-ve-myrrh-kolonya-kolonya-100ml-p-2051269?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-100ml-p-2051268?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/galvaniz-metal-siyah-s-saklama-kutusu-p-2058587?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-ledli-gri-beton-efekt-kck-p-2058737?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/ambrette-kolonya-50ml-p-2051274?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/bergamot-kolonya-50ml-p-2051272?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/beyaz-erguvan-kolonya-50ml-p-2051271?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/jut-tekne-buketi-p-2058546?recommended_by=full_search&recommended_code=koltuk\", \"https://prod.tepehome.com.tr/dekoratif-mum-cam-ledli-silindir-kucuk-p-2058739?recommended_by=full_search&recommended_code=koltuk\", …]\u001b[39m\n\n  61 |       external,\n  62 |       `${external.length}/${all.length} sonuç kartı dış domain'e gidiyor, örn: ${external[0]}`,\n> 63 |     ).toHaveLength(0);\n     |       ^\n  64 |   });\n  65 |\n  66 |   /**\n    at /Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts:63:7"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:58:04.272Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "HOMEE-005: Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                            "line": 48,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/04-search-04---Arama-arama-1990b-tları-site-içi-link-veriyor-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/04-search.spec.ts",
+                        "column": 7,
+                        "line": 63
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-2cd93f96c2cee3099f64",
+              "file": "04-search.spec.ts",
+              "line": 47,
+              "column": 7
+            },
+            {
+              "title": "arama sonuçları sorguyla alakalı",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10379,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:58:17.641Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "2e9bfd3348bbeba6f7e3-b4774cda51a77d682e71",
+              "file": "04-search.spec.ts",
+              "line": 71,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "05-product-detail.spec.ts",
+      "file": "05-product-detail.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "05 - Ürün detay",
+          "file": "05-product-detail.spec.ts",
+          "line": 7,
+          "column": 6,
+          "specs": [
+            {
+              "title": "başlık, ürün kodu ve fiyat görünür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9256,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:58:28.179Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "14ec8158cd9acd7f089b-379138a3379232ee1f9f",
+              "file": "05-product-detail.spec.ts",
+              "line": 8,
+              "column": 7
+            },
+            {
+              "title": "ürün detay sekmeleri açılır (Açıklama / Ölçüler / Teslimat)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9062,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:58:37.486Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "14ec8158cd9acd7f089b-8c8f8854f4a46faa3aab",
+              "file": "05-product-detail.spec.ts",
+              "line": 25,
+              "column": 7
+            },
+            {
+              "title": "taksit seçenekleri açılır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9226,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:58:46.598Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "14ec8158cd9acd7f089b-9f58783085ee8985a3c9",
+              "file": "05-product-detail.spec.ts",
+              "line": 35,
+              "column": 7
+            },
+            {
+              "title": "SEPETE EKLE butonu aktif ve ürün görseli yüklü",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 21351,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:58:55.878Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "14ec8158cd9acd7f089b-64df2b91d94c45375ceb",
+              "file": "05-product-detail.spec.ts",
+              "line": 49,
+              "column": 7
+            },
+            {
+              "title": "ürün detayda uygulama kaynaklı konsol hatası yok",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "HOMEE-001: pageerror: \"parameters is not iterable\"",
+                      "location": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts",
+                        "line": 68,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 20449,
+                      "error": {
+                        "message": "Error: Konsol hataları:\npageerror: parameters is not iterable\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"pageerror: parameters is not iterable\"]\u001b[39m",
+                        "stack": "Error: Konsol hataları:\npageerror: parameters is not iterable\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"pageerror: parameters is not iterable\"]\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts:75:68",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts",
+                          "column": 68,
+                          "line": 75
+                        },
+                        "snippet": "  73 |\n  74 |     const appErrors = BasePage.appErrorsOnly(errors);\n> 75 |     expect(appErrors, `Konsol hataları:\\n${appErrors.join(\"\\n\")}`).toHaveLength(0);\n     |                                                                    ^\n  76 |   });\n  77 | });\n  78 |"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts",
+                            "column": 68,
+                            "line": 75
+                          },
+                          "message": "Error: Konsol hataları:\npageerror: parameters is not iterable\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoHaveLength\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected length: \u001b[32m0\u001b[39m\nReceived length: \u001b[31m1\u001b[39m\nReceived array:  \u001b[31m[\"pageerror: parameters is not iterable\"]\u001b[39m\n\n  73 |\n  74 |     const appErrors = BasePage.appErrorsOnly(errors);\n> 75 |     expect(appErrors, `Konsol hataları:\\n${appErrors.join(\"\\n\")}`).toHaveLength(0);\n     |                                                                    ^\n  76 |   });\n  77 | });\n  78 |\n    at /Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts:75:68"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:59:17.413Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "HOMEE-001: pageerror: \"parameters is not iterable\"",
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts",
+                            "line": 68,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/05-product-detail-05---Ürü-7a33a--kaynaklı-konsol-hatası-yok-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/05-product-detail.spec.ts",
+                        "column": 68,
+                        "line": 75
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "14ec8158cd9acd7f089b-7f70338cdd44059c203e",
+              "file": "05-product-detail.spec.ts",
+              "line": 67,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "06-cart.spec.ts",
+      "file": "06-cart.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "06 - Sepet",
+          "file": "06-cart.spec.ts",
+          "line": 12,
+          "column": 6,
+          "specs": [
+            {
+              "title": "ürün sepete eklenir ve sepette doğru satır görünür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 21360,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:59:38.102Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-7c7b25043a1c3b1ee34e",
+              "file": "06-cart.spec.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "adet artırma ara toplamı doğru büyütür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 46698,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T12:59:59.536Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-6eab8238773d21cb0afe",
+              "file": "06-cart.spec.ts",
+              "line": 41,
+              "column": 7
+            },
+            {
+              "title": "adet azaltma ara toplamı geri düşürür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 150000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 32956,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:00:46.402Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-96643b5deba72167cc58",
+              "file": "06-cart.spec.ts",
+              "line": 62,
+              "column": 7
+            },
+            {
+              "title": "sipariş özeti: ara toplam + teslimat = toplam",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 17659,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:01:19.508Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-778e79759bcefcbfde69",
+              "file": "06-cart.spec.ts",
+              "line": 78,
+              "column": 7
+            },
+            {
+              "title": "ürün sepetten silinir ve sepet boşalır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 28745,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:01:37.283Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-931648b1f8d6bda0566c",
+              "file": "06-cart.spec.ts",
+              "line": 96,
+              "column": 7
+            },
+            {
+              "title": "boş sepette ödeme butonu yok, alışverişe devam bağlantısı var",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 7379,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:02:06.086Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-5ad1ed5f6ee2caac5c95",
+              "file": "06-cart.spec.ts",
+              "line": 112,
+              "column": 7
+            },
+            {
+              "title": "iki farklı ürün sepette iki satır oluşturur",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 21003,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:02:13.544Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "4339bd5ad7de146a535f-50dcf65f3b78a8d12ede",
+              "file": "06-cart.spec.ts",
+              "line": 122,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "07-stores.spec.ts",
+      "file": "07-stores.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "07 - Mağazalar",
+          "file": "07-stores.spec.ts",
+          "line": 4,
+          "column": 6,
+          "specs": [
+            {
+              "title": "mağaza listesi yüklenir",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 1,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 18421,
+                      "error": {
+                        "message": "Error: mağaza kartı bulunamadı\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m",
+                        "stack": "Error: mağaza kartı bulunamadı\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/07-stores.spec.ts:10:66",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/07-stores.spec.ts",
+                          "column": 66,
+                          "line": 10
+                        },
+                        "snippet": "   8 |\n   9 |     await expect(stores.heading).toBeVisible();\n> 10 |     expect(await stores.storeCount(), \"mağaza kartı bulunamadı\").toBeGreaterThan(0);\n     |                                                                  ^\n  11 |     const names = await stores.storeNames();\n  12 |     expect(names.length, \"mağaza adı okunamadı\").toBeGreaterThan(0);\n  13 |     console.log(`  ${await stores.storeCount()} mağaza: ${names.join(\", \")}`);"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/07-stores.spec.ts",
+                            "column": 66,
+                            "line": 10
+                          },
+                          "message": "Error: mağaza kartı bulunamadı\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\n   8 |\n   9 |     await expect(stores.heading).toBeVisible();\n> 10 |     expect(await stores.storeCount(), \"mağaza kartı bulunamadı\").toBeGreaterThan(0);\n     |                                                                  ^\n  11 |     const names = await stores.storeNames();\n  12 |     expect(names.length, \"mağaza adı okunamadı\").toBeGreaterThan(0);\n  13 |     console.log(`  ${await stores.storeCount()} mağaza: ${names.join(\", \")}`);\n    at /Users/macbookair/Desktop/homee-tests/tests/07-stores.spec.ts:10:66"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:02:34.723Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/07-stores-07---Mağazalar-mağaza-listesi-yüklenir-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/07-stores-07---Mağazalar-mağaza-listesi-yüklenir-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/07-stores.spec.ts",
+                        "column": 66,
+                        "line": 10
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "6082ea52a8324ce953ea-00e1c3614dd488265c28",
+              "file": "07-stores.spec.ts",
+              "line": 5,
+              "column": 7
+            },
+            {
+              "title": "mağaza arama listeyi filtreler",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13627,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:03:05.235Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "6082ea52a8324ce953ea-6db2de1e7433b625760c",
+              "file": "07-stores.spec.ts",
+              "line": 16,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "08-static-pages.spec.ts",
+      "file": "08-static-pages.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "08 - Statik / kurumsal sayfalar",
+          "file": "08-static-pages.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "/magazalar açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 10598,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:03:27.317Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-4f183499f644d764421a",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/iletisim açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 6655,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:03:38.032Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-5e55f8307ae74693d88f",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/blogs açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8300,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:03:44.789Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-4b1dbf2e2ff20009c81c",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/sikca-sorulan-sorular açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8324,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:03:53.168Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-0e012ba33b3f955d680b",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/hakkimizda açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8024,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:04:01.556Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-60ea4dfa36f55f220ff1",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/bilkent-holding açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8919,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:04:09.637Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-59869bf81e1eea8e787f",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/etik-politikamiz açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9061,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:04:18.610Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-5827422b44279f002f2f",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/insan-kaynaklari açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11243,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:04:27.738Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-a3c3be675a257eba55a6",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/kvkk-aydinlatma-metni açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 9656,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:04:39.090Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-ba21957c2b5b8ad8ff62",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "/privacy açılır ve doğru başlığı gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12345,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:04:48.844Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-2e6c8f16d7e93fb7cead",
+              "file": "08-static-pages.spec.ts",
+              "line": 7,
+              "column": 9
+            },
+            {
+              "title": "statik sayfalarda kırık görsel yok",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 23900,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:05:01.245Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "32e191e32f16f1815ca3-0a5a439f1bcd82f80526",
+              "file": "08-static-pages.spec.ts",
+              "line": 24,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "09-forms.spec.ts",
+      "file": "09-forms.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "09 - Formlar (validasyon)",
+          "file": "09-forms.spec.ts",
+          "line": 10,
+          "column": 6,
+          "specs": [
+            {
+              "title": "bülten aboneliği geçersiz e-postayı reddeder",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11757,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:05:25.493Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f5575cb3331f502dded0-fa62fbb45dbdf580ab71",
+              "file": "09-forms.spec.ts",
+              "line": 11,
+              "column": 7
+            },
+            {
+              "title": "iletişim sayfası formu render olur",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 8005,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:05:37.289Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f5575cb3331f502dded0-7100035fd0465eea6e05",
+              "file": "09-forms.spec.ts",
+              "line": 26,
+              "column": 7
+            },
+            {
+              "title": "iletişim formu boş gönderimde validasyon gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [
+                    {
+                      "type": "fail",
+                      "description": "HOMEE-003: Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor",
+                      "location": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts",
+                        "line": 38,
+                        "column": 10
+                      }
+                    }
+                  ],
+                  "expectedStatus": "failed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 13423,
+                      "error": {
+                        "message": "Error: boş gönderimde validasyon çıkmadı\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/zorunlu|gerekli|giriniz|boş bırak|doldur/i\u001b[39m\nReceived string:  \u001b[31m\"Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·\u001b[39m\n\u001b[31mDetaylar\u001b[39m\n\u001b[31mKATEGORİLER\u001b[39m\n\u001b[31mMOBİLYA\u001b[39m\n\u001b[31mEVDEKOR\u001b[39m\n\u001b[31mANA SAYFA\u001b[39m\n\u001b[31m/\u001b[39m\n\u001b[31mİLETİŞİM\u001b[39m\n\u001b[31mSizden Haber Almak İsteriz·\u001b[39m\n\u001b[31mSorularınız, önerileriniz veya iş birliği talepleriniz için bize aşağıdaki iletişim kanallarımızdan ulaşabilirsiniz.·\u001b[39m\n\u001b[31mBize Yazın\u001b[39m\n\u001b[31mKonu *\u001b[39m\n\u001b[31mGenel Soru\u001b[39m\n\u001b[31mAdınız\u001b[39m\n\u001b[31mSoyadınız\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mMesajınız\u001b[39m\n\u001b[31mGizlilik Politikasını Okudum ve Kabul Ediyorum.·\u001b[39m\n\u001b[31mGizlilik politikasını kabul etmelisiniz.·\u001b[39m\n\u001b[31mGÖNDER·\u001b[39m\n\u001b[31mFİRMA ÜNVANI·\u001b[39m\n\u001b[31mTEPE HOME MOBİLYA VE DEKORASYON ÜRÜNLERİ SAN. TİC. A.Ş.·\u001b[39m\n\u001b[31mBeytepe Köyü Yolu No:5 06800 Bilkent-Çankaya/ANKARA·\u001b[39m\n\u001b[31mMÜŞTERİ HİZMETLERİ·\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mE-POSTA·\u001b[39m\n\u001b[31miletisim@tepehome.com.tr·\u001b[39m\n\u001b[31mYARDIMCI BAĞLANTILAR·\u001b[39m\n\u001b[31mMağazalarımız\u001b[39m\n\u001b[31m·\u001b[39m\n\u001b[31mSSS\u001b[39m\n\u001b[31m·\u001b[39m\n\u001b[31mSipariş Takip·\u001b[39m\n\u001b[31mPEŞİN FİYATINA TAKSİT\u001b[39m\n\u001b[31mHIZLI TESLİMAT\u001b[39m\n\u001b[31mÜCRETSİZ KURULUM\u001b[39m\n\u001b[31mGÜVENLİ ALIŞVERİŞ\u001b[39m\n\u001b[31mKOLAY İADE·\u001b[39m\n\u001b[31mTEPE HOME JOURNAL·\u001b[39m\n\u001b[31m#TepeHomeTarzi·\u001b[39m\n\u001b[31mEvinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·\u001b[39m\n\u001b[31mKURUMSAL\u001b[39m\n\u001b[31mHakkımızda\u001b[39m\n\u001b[31mBilkent Holding\u001b[39m\n\u001b[31mÇerez Politikası\u001b[39m\n\u001b[31mEtik Politikamız\u001b[39m\n\u001b[31mİnsan Kaynakları\u001b[39m\n\u001b[31mSözleşmeler\u001b[39m\n\u001b[31mKVKK Aydınlatma Metni\u001b[39m\n\u001b[31mİLETİŞİM\u001b[39m\n\u001b[31mBize Ulaşın\u001b[39m\n\u001b[31mKampanyalar\u001b[39m\n\u001b[31mSipariş & Teslimat\u001b[39m\n\u001b[31mİade\u001b[39m\n\u001b[31mSSS\u001b[39m\n\u001b[31mBLOG\u001b[39m\n\u001b[31mKüçük Mekanlar\u001b[39m\n\u001b[31mBahçe Mobilyaları\u001b[39m\n\u001b[31mYARDIM MERKEZİ\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mTepe Home Mobil Uygulama·\u001b[39m\n\u001b[31mKampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·\u001b[39m\n\u001b[31mGoogle Play\u001b[39m\n\u001b[31m'den indir\u001b[39m\n\u001b[31mApp Store\u001b[39m\n\u001b[31m'dan indir\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mABONE OL·\u001b[39m\n\u001b[31mTepe Home bir Bilkent Holding Şirketidir·\u001b[39m\n\u001b[31mMesafeli Satış Sözleşmesi\u001b[39m\n\u001b[31mİade Politikası\u001b[39m\n\u001b[31mGizlilik Politikası\u001b[39m\n\u001b[31mKVKK\u001b[39m\n\u001b[31mİletişim·\u001b[39m\n\u001b[31m© 2026 Tepe Home. Tüm hakları saklıdır·\u001b[39m\n\u001b[31mPowered by\"\u001b[39m",
+                        "stack": "Error: boş gönderimde validasyon çıkmadı\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/zorunlu|gerekli|giriniz|boş bırak|doldur/i\u001b[39m\nReceived string:  \u001b[31m\"Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·\u001b[39m\n\u001b[31mDetaylar\u001b[39m\n\u001b[31mKATEGORİLER\u001b[39m\n\u001b[31mMOBİLYA\u001b[39m\n\u001b[31mEVDEKOR\u001b[39m\n\u001b[31mANA SAYFA\u001b[39m\n\u001b[31m/\u001b[39m\n\u001b[31mİLETİŞİM\u001b[39m\n\u001b[31mSizden Haber Almak İsteriz·\u001b[39m\n\u001b[31mSorularınız, önerileriniz veya iş birliği talepleriniz için bize aşağıdaki iletişim kanallarımızdan ulaşabilirsiniz.·\u001b[39m\n\u001b[31mBize Yazın\u001b[39m\n\u001b[31mKonu *\u001b[39m\n\u001b[31mGenel Soru\u001b[39m\n\u001b[31mAdınız\u001b[39m\n\u001b[31mSoyadınız\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mMesajınız\u001b[39m\n\u001b[31mGizlilik Politikasını Okudum ve Kabul Ediyorum.·\u001b[39m\n\u001b[31mGizlilik politikasını kabul etmelisiniz.·\u001b[39m\n\u001b[31mGÖNDER·\u001b[39m\n\u001b[31mFİRMA ÜNVANI·\u001b[39m\n\u001b[31mTEPE HOME MOBİLYA VE DEKORASYON ÜRÜNLERİ SAN. TİC. A.Ş.·\u001b[39m\n\u001b[31mBeytepe Köyü Yolu No:5 06800 Bilkent-Çankaya/ANKARA·\u001b[39m\n\u001b[31mMÜŞTERİ HİZMETLERİ·\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mE-POSTA·\u001b[39m\n\u001b[31miletisim@tepehome.com.tr·\u001b[39m\n\u001b[31mYARDIMCI BAĞLANTILAR·\u001b[39m\n\u001b[31mMağazalarımız\u001b[39m\n\u001b[31m·\u001b[39m\n\u001b[31mSSS\u001b[39m\n\u001b[31m·\u001b[39m\n\u001b[31mSipariş Takip·\u001b[39m\n\u001b[31mPEŞİN FİYATINA TAKSİT\u001b[39m\n\u001b[31mHIZLI TESLİMAT\u001b[39m\n\u001b[31mÜCRETSİZ KURULUM\u001b[39m\n\u001b[31mGÜVENLİ ALIŞVERİŞ\u001b[39m\n\u001b[31mKOLAY İADE·\u001b[39m\n\u001b[31mTEPE HOME JOURNAL·\u001b[39m\n\u001b[31m#TepeHomeTarzi·\u001b[39m\n\u001b[31mEvinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·\u001b[39m\n\u001b[31mKURUMSAL\u001b[39m\n\u001b[31mHakkımızda\u001b[39m\n\u001b[31mBilkent Holding\u001b[39m\n\u001b[31mÇerez Politikası\u001b[39m\n\u001b[31mEtik Politikamız\u001b[39m\n\u001b[31mİnsan Kaynakları\u001b[39m\n\u001b[31mSözleşmeler\u001b[39m\n\u001b[31mKVKK Aydınlatma Metni\u001b[39m\n\u001b[31mİLETİŞİM\u001b[39m\n\u001b[31mBize Ulaşın\u001b[39m\n\u001b[31mKampanyalar\u001b[39m\n\u001b[31mSipariş & Teslimat\u001b[39m\n\u001b[31mİade\u001b[39m\n\u001b[31mSSS\u001b[39m\n\u001b[31mBLOG\u001b[39m\n\u001b[31mKüçük Mekanlar\u001b[39m\n\u001b[31mBahçe Mobilyaları\u001b[39m\n\u001b[31mYARDIM MERKEZİ\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mTepe Home Mobil Uygulama·\u001b[39m\n\u001b[31mKampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·\u001b[39m\n\u001b[31mGoogle Play\u001b[39m\n\u001b[31m'den indir\u001b[39m\n\u001b[31mApp Store\u001b[39m\n\u001b[31m'dan indir\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mABONE OL·\u001b[39m\n\u001b[31mTepe Home bir Bilkent Holding Şirketidir·\u001b[39m\n\u001b[31mMesafeli Satış Sözleşmesi\u001b[39m\n\u001b[31mİade Politikası\u001b[39m\n\u001b[31mGizlilik Politikası\u001b[39m\n\u001b[31mKVKK\u001b[39m\n\u001b[31mİletişim·\u001b[39m\n\u001b[31m© 2026 Tepe Home. Tüm hakları saklıdır·\u001b[39m\n\u001b[31mPowered by\"\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts:53:55",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts",
+                          "column": 55,
+                          "line": 53
+                        },
+                        "snippet": "  51 |\n  52 |     const body = await page.locator(\"body\").innerText();\n> 53 |     expect(body, \"boş gönderimde validasyon çıkmadı\").toMatch(\n     |                                                       ^\n  54 |       /zorunlu|gerekli|giriniz|boş bırak|doldur/i,\n  55 |     );\n  56 |   });"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts",
+                            "column": 55,
+                            "line": 53
+                          },
+                          "message": "Error: boş gönderimde validasyon çıkmadı\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoMatch\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected pattern: \u001b[32m/zorunlu|gerekli|giriniz|boş bırak|doldur/i\u001b[39m\nReceived string:  \u001b[31m\"Ücretsiz teslimat   •   Mağaza randevusu   •   30 gün kolay iade·\u001b[39m\n\u001b[31mDetaylar\u001b[39m\n\u001b[31mKATEGORİLER\u001b[39m\n\u001b[31mMOBİLYA\u001b[39m\n\u001b[31mEVDEKOR\u001b[39m\n\u001b[31mANA SAYFA\u001b[39m\n\u001b[31m/\u001b[39m\n\u001b[31mİLETİŞİM\u001b[39m\n\u001b[31mSizden Haber Almak İsteriz·\u001b[39m\n\u001b[31mSorularınız, önerileriniz veya iş birliği talepleriniz için bize aşağıdaki iletişim kanallarımızdan ulaşabilirsiniz.·\u001b[39m\n\u001b[31mBize Yazın\u001b[39m\n\u001b[31mKonu *\u001b[39m\n\u001b[31mGenel Soru\u001b[39m\n\u001b[31mAdınız\u001b[39m\n\u001b[31mSoyadınız\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mMesajınız\u001b[39m\n\u001b[31mGizlilik Politikasını Okudum ve Kabul Ediyorum.·\u001b[39m\n\u001b[31mGizlilik politikasını kabul etmelisiniz.·\u001b[39m\n\u001b[31mGÖNDER·\u001b[39m\n\u001b[31mFİRMA ÜNVANI·\u001b[39m\n\u001b[31mTEPE HOME MOBİLYA VE DEKORASYON ÜRÜNLERİ SAN. TİC. A.Ş.·\u001b[39m\n\u001b[31mBeytepe Köyü Yolu No:5 06800 Bilkent-Çankaya/ANKARA·\u001b[39m\n\u001b[31mMÜŞTERİ HİZMETLERİ·\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mE-POSTA·\u001b[39m\n\u001b[31miletisim@tepehome.com.tr·\u001b[39m\n\u001b[31mYARDIMCI BAĞLANTILAR·\u001b[39m\n\u001b[31mMağazalarımız\u001b[39m\n\u001b[31m·\u001b[39m\n\u001b[31mSSS\u001b[39m\n\u001b[31m·\u001b[39m\n\u001b[31mSipariş Takip·\u001b[39m\n\u001b[31mPEŞİN FİYATINA TAKSİT\u001b[39m\n\u001b[31mHIZLI TESLİMAT\u001b[39m\n\u001b[31mÜCRETSİZ KURULUM\u001b[39m\n\u001b[31mGÜVENLİ ALIŞVERİŞ\u001b[39m\n\u001b[31mKOLAY İADE·\u001b[39m\n\u001b[31mTEPE HOME JOURNAL·\u001b[39m\n\u001b[31m#TepeHomeTarzi·\u001b[39m\n\u001b[31mEvinizden kareleri bizimle paylaşın; sakin, zamansız ve yaşanabilir alanlara ilham verin.·\u001b[39m\n\u001b[31mKURUMSAL\u001b[39m\n\u001b[31mHakkımızda\u001b[39m\n\u001b[31mBilkent Holding\u001b[39m\n\u001b[31mÇerez Politikası\u001b[39m\n\u001b[31mEtik Politikamız\u001b[39m\n\u001b[31mİnsan Kaynakları\u001b[39m\n\u001b[31mSözleşmeler\u001b[39m\n\u001b[31mKVKK Aydınlatma Metni\u001b[39m\n\u001b[31mİLETİŞİM\u001b[39m\n\u001b[31mBize Ulaşın\u001b[39m\n\u001b[31mKampanyalar\u001b[39m\n\u001b[31mSipariş & Teslimat\u001b[39m\n\u001b[31mİade\u001b[39m\n\u001b[31mSSS\u001b[39m\n\u001b[31mBLOG\u001b[39m\n\u001b[31mKüçük Mekanlar\u001b[39m\n\u001b[31mBahçe Mobilyaları\u001b[39m\n\u001b[31mYARDIM MERKEZİ\u001b[39m\n\u001b[31m0850 255 47 47·\u001b[39m\n\u001b[31mTepe Home Mobil Uygulama·\u001b[39m\n\u001b[31mKampanyalardan ilk siz haberdar olun, siparişlerinizi kolayca takip edin.·\u001b[39m\n\u001b[31mGoogle Play\u001b[39m\n\u001b[31m'den indir\u001b[39m\n\u001b[31mApp Store\u001b[39m\n\u001b[31m'dan indir\u001b[39m\n\u001b[31mE-posta adresiniz\u001b[39m\n\u001b[31mABONE OL·\u001b[39m\n\u001b[31mTepe Home bir Bilkent Holding Şirketidir·\u001b[39m\n\u001b[31mMesafeli Satış Sözleşmesi\u001b[39m\n\u001b[31mİade Politikası\u001b[39m\n\u001b[31mGizlilik Politikası\u001b[39m\n\u001b[31mKVKK\u001b[39m\n\u001b[31mİletişim·\u001b[39m\n\u001b[31m© 2026 Tepe Home. Tüm hakları saklıdır·\u001b[39m\n\u001b[31mPowered by\"\u001b[39m\n\n  51 |\n  52 |     const body = await page.locator(\"body\").innerText();\n> 53 |     expect(body, \"boş gönderimde validasyon çıkmadı\").toMatch(\n     |                                                       ^\n  54 |       /zorunlu|gerekli|giriniz|boş bırak|doldur/i,\n  55 |     );\n  56 |   });\n    at /Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts:53:55"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:05:45.331Z",
+                      "annotations": [
+                        {
+                          "type": "fail",
+                          "description": "HOMEE-003: Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor",
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts",
+                            "line": 38,
+                            "column": 10
+                          }
+                        }
+                      ],
+                      "attachments": [
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/09-forms-09---Formlar-vali-03df7-derimde-validasyon-gösterir-chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/09-forms.spec.ts",
+                        "column": 55,
+                        "line": 53
+                      }
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "f5575cb3331f502dded0-06e9d2f7e75a4f901d82",
+              "file": "09-forms.spec.ts",
+              "line": 37,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "20-login.spec.ts",
+      "file": "20-login.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "20 - Giriş (pozitif / negatif)",
+          "file": "20-login.spec.ts",
+          "line": 9,
+          "column": 6,
+          "specs": [
+            {
+              "title": "giriş sayfası tüm yöntemleri sunar",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 37656,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:05:58.823Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-410942bb4e6c8d2d04ee",
+              "file": "20-login.spec.ts",
+              "line": 10,
+              "column": 7
+            },
+            {
+              "title": "e-posta formatı geçersizse uyarı verir",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 2,
+                      "parallelIndex": 0,
+                      "status": "timedOut",
+                      "duration": 45321,
+                      "error": {
+                        "message": "\u001b[31mTest timeout of 45000ms exceeded.\u001b[39m",
+                        "stack": "\u001b[31mTest timeout of 45000ms exceeded.\u001b[39m"
+                      },
+                      "errors": [
+                        {
+                          "message": "\u001b[31mTest timeout of 45000ms exceeded.\u001b[39m"
+                        },
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/pages/LoginPage.ts",
+                            "column": 21,
+                            "line": 35
+                          },
+                          "message": "Error: page.waitForTimeout: Test timeout of 45000ms exceeded.\n\n   at ../pages/LoginPage.ts:35\n\n  33 |     await this.passwordInput.fill(password);\n  34 |     await this.submitButton.click({ timeout: 15_000 });\n> 35 |     await this.page.waitForTimeout(6000);\n     |                     ^\n  36 |   }\n  37 |\n  38 |   /**\n    at LoginPage.login (/Users/macbookair/Desktop/homee-tests/pages/LoginPage.ts:35:21)\n    at /Users/macbookair/Desktop/homee-tests/tests/20-login.spec.ts:27:5"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:06:36.507Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/20-login-20---Giriş-poziti-61616-matı-geçersizse-uyarı-verir-chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/20-login-20---Giriş-poziti-61616-matı-geçersizse-uyarı-verir-chromium/error-context.md"
+                        }
+                      ]
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-7a7a8459e04e770019d0",
+              "file": "20-login.spec.ts",
+              "line": 23,
+              "column": 7
+            },
+            {
+              "title": "yanlış şifre ile giriş reddedilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 40721,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:07:22.752Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-ecab2eaf594fdb5fea10",
+              "file": "20-login.spec.ts",
+              "line": 36,
+              "column": 7
+            },
+            {
+              "title": "boş form gönderiminde zorunlu alan uyarısı",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 90000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 35099,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:08:06.041Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-92ecec2f8054f9fcd479",
+              "file": "20-login.spec.ts",
+              "line": 53,
+              "column": 7
+            },
+            {
+              "title": "doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 40255,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:08:41.251Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-3606fb36afa2870966df",
+              "file": "20-login.spec.ts",
+              "line": 64,
+              "column": 7
+            },
+            {
+              "title": "korumalı sayfa misafirken login'e yönlendirir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 4490,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:09:21.528Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "64a8bc863b46cf316967-27959fb7a8dda0c304b0",
+              "file": "20-login.spec.ts",
+              "line": 78,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "21-account-overview.spec.ts",
+      "file": "21-account-overview.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "21 - Hesabım özeti",
+          "file": "21-account-overview.spec.ts",
+          "line": 8,
+          "column": 6,
+          "specs": [
+            {
+              "title": "hesap özeti kullanıcı bilgilerini gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 13176,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:09:26.095Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "33a4b38f352bae3061c3-f658d4117453b15a440e",
+              "file": "21-account-overview.spec.ts",
+              "line": 9,
+              "column": 7
+            },
+            {
+              "title": "hesap menüsündeki tüm alt sayfalar açılır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 17959,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:09:39.280Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "33a4b38f352bae3061c3-8156d1e85472e92a24d1",
+              "file": "21-account-overview.spec.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "siparişlerim sayfası liste veya boş durum gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12777,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:09:57.252Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "33a4b38f352bae3061c3-b497dd9b08fb9a7b85c1",
+              "file": "21-account-overview.spec.ts",
+              "line": 43,
+              "column": 7
+            },
+            {
+              "title": "favorilerim sayfası liste veya boş durum gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 14992,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:10:10.050Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "33a4b38f352bae3061c3-7eff03ce652d3d401b76",
+              "file": "21-account-overview.spec.ts",
+              "line": 54,
+              "column": 7
+            },
+            {
+              "title": "çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 16643,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:10:25.061Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "33a4b38f352bae3061c3-78f7b789bf8047b330f5",
+              "file": "21-account-overview.spec.ts",
+              "line": 62,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "22-addresses.spec.ts",
+      "file": "22-addresses.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "22 - Adres yönetimi",
+          "file": "22-addresses.spec.ts",
+          "line": 12,
+          "column": 6,
+          "specs": [
+            {
+              "title": "adres listesi ve 'YENİ ADRES EKLE' formu açılır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 14602,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:10:41.749Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c6033e54100d4235f0c5-b1c34b7ea6906a1430e9",
+              "file": "22-addresses.spec.ts",
+              "line": 13,
+              "column": 7
+            },
+            {
+              "title": "boş form kaydedilmeye çalışılınca validasyon verir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 20265,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:10:56.360Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c6033e54100d4235f0c5-869ebc1b20c651ce74c4",
+              "file": "22-addresses.spec.ts",
+              "line": 30,
+              "column": 7
+            },
+            {
+              "title": "yeni adres eklenir, listede görünür ve sonra silinir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 34847,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:11:16.645Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "c6033e54100d4235f0c5-82290fd061d8ea7534fc",
+              "file": "22-addresses.spec.ts",
+              "line": 46,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "23-favorites.spec.ts",
+      "file": "23-favorites.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "23 - Favoriler",
+          "file": "23-favorites.spec.ts",
+          "line": 11,
+          "column": 6,
+          "specs": [
+            {
+              "title": "ürün favoriye eklenir, favorilerimde görünür, sonra kaldırılır",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 240000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 33586,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:11:51.519Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab2ce3be93bceda3a400-54458f2ddb634602f2b3",
+              "file": "23-favorites.spec.ts",
+              "line": 12,
+              "column": 7
+            },
+            {
+              "title": "favorilerim sayfası liste veya boş durum gösterir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 17124,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:12:25.148Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ab2ce3be93bceda3a400-fcc9b037fd011226f1c6",
+              "file": "23-favorites.spec.ts",
+              "line": 47,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "24-orders.spec.ts",
+      "file": "24-orders.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "24 - Siparişler ve iadeler",
+          "file": "24-orders.spec.ts",
+          "line": 5,
+          "column": 6,
+          "specs": [
+            {
+              "title": "siparişlerim sayfası hatasız yüklenir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12552,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:12:42.323Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ba5da72a012225598704-4bb0c2fb5608bb4f228d",
+              "file": "24-orders.spec.ts",
+              "line": 6,
+              "column": 7
+            },
+            {
+              "title": "iadelerim sayfası hatasız yüklenir (API hata durumu yok)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12487,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:12:54.886Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ba5da72a012225598704-731c43e5a387b0539135",
+              "file": "24-orders.spec.ts",
+              "line": 19,
+              "column": 7
+            },
+            {
+              "title": "sipariş özeti hesap ana sayfasında görünür",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 11905,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:13:07.392Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "ba5da72a012225598704-7227fcbcd48bde38617c",
+              "file": "24-orders.spec.ts",
+              "line": 28,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "25-checkout-to-payment.spec.ts",
+      "file": "25-checkout-to-payment.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "25 - Ödeme adımı (sipariş tamamlanmaz)",
+          "file": "25-checkout-to-payment.spec.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "sepetten ödeme adımına geçilir ve tüm bölümler render olur",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 22298,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:13:19.332Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a751a6c03510cb126c57-10bfc09e61685a50de5e",
+              "file": "25-checkout-to-payment.spec.ts",
+              "line": 22,
+              "column": 7
+            },
+            {
+              "title": "ödeme yöntemleri (kredi kartı / havale) seçilebilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 29197,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:13:41.640Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a751a6c03510cb126c57-7ff5af4d1233a20ba531",
+              "file": "25-checkout-to-payment.spec.ts",
+              "line": 47,
+              "column": 7
+            },
+            {
+              "title": "sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme)",
+              "ok": false,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 3,
+                      "parallelIndex": 0,
+                      "status": "failed",
+                      "duration": 23791,
+                      "error": {
+                        "message": "Error: sözleşme metinleri yüklenemedi:\nMesafeli satış sözleşmesi yüklenemedi.\nÖn bilgilendirme formu yüklenemedi.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m",
+                        "stack": "Error: sözleşme metinleri yüklenemedi:\nMesafeli satış sözleşmesi yüklenemedi.\nÖn bilgilendirme formu yüklenemedi.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n    at /Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts:80:73",
+                        "location": {
+                          "file": "/Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts",
+                          "column": 73,
+                          "line": 80
+                        },
+                        "snippet": "  78 |\n  79 |     const { ok, errors } = await checkout.contractsLoaded();\n> 80 |     expect(ok, `sözleşme metinleri yüklenemedi:\\n${errors.join(\"\\n\")}`).toBe(true);\n     |                                                                         ^\n  81 |   });\n  82 |\n  83 |   test(\"sözleşme onayı olmadan ödeme butonu ilerletmez\", async ({ memberPage }) => {"
+                      },
+                      "errors": [
+                        {
+                          "location": {
+                            "file": "/Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts",
+                            "column": 73,
+                            "line": 80
+                          },
+                          "message": "Error: sözleşme metinleri yüklenemedi:\nMesafeli satış sözleşmesi yüklenemedi.\nÖn bilgilendirme formu yüklenemedi.\n\n\u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32mtrue\u001b[39m\nReceived: \u001b[31mfalse\u001b[39m\n\n  78 |\n  79 |     const { ok, errors } = await checkout.contractsLoaded();\n> 80 |     expect(ok, `sözleşme metinleri yüklenemedi:\\n${errors.join(\"\\n\")}`).toBe(true);\n     |                                                                         ^\n  81 |   });\n  82 |\n  83 |   test(\"sözleşme onayı olmadan ödeme butonu ilerletmez\", async ({ memberPage }) => {\n    at /Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts:80:73"
+                        }
+                      ],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:14:10.853Z",
+                      "annotations": [],
+                      "attachments": [
+                        {
+                          "name": "screenshot",
+                          "contentType": "image/png",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/25-checkout-to-payment-25--a9537-eli-Satış-Ön-Bilgilendirme--chromium/test-failed-1.png"
+                        },
+                        {
+                          "name": "error-context",
+                          "contentType": "text/markdown",
+                          "path": "/Users/macbookair/Desktop/homee-tests/test-results/25-checkout-to-payment-25--a9537-eli-Satış-Ön-Bilgilendirme--chromium/error-context.md"
+                        }
+                      ],
+                      "errorLocation": {
+                        "file": "/Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts",
+                        "column": 73,
+                        "line": 80
+                      }
+                    }
+                  ],
+                  "status": "unexpected"
+                }
+              ],
+              "id": "a751a6c03510cb126c57-42f92a376d09e2887583",
+              "file": "25-checkout-to-payment.spec.ts",
+              "line": 70,
+              "column": 7
+            },
+            {
+              "title": "sözleşme onayı olmadan ödeme butonu ilerletmez",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 28811,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:14:35.463Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a751a6c03510cb126c57-1c5ab7bdb1e1cb9493d5",
+              "file": "25-checkout-to-payment.spec.ts",
+              "line": 83,
+              "column": 7
+            },
+            {
+              "title": "adres olmadan uyarı gösterilir",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 180000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 23598,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:15:06.579Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a751a6c03510cb126c57-8787c5a49aa9c74897f4",
+              "file": "25-checkout-to-payment.spec.ts",
+              "line": 99,
+              "column": 7
+            },
+            {
+              "title": "sipariş tamamlama guard'ı aktif (ALLOW_HOMEE_ORDERS)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 45000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [
+                    {
+                      "workerIndex": 4,
+                      "parallelIndex": 0,
+                      "status": "passed",
+                      "duration": 12948,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-08-18T13:15:30.211Z",
+                      "annotations": [],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "a751a6c03510cb126c57-c7a9d480f647cc3ac610",
+              "file": "25-checkout-to-payment.spec.ts",
+              "line": 116,
+              "column": 7
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-08-18T12:54:10.060Z",
+    "duration": 1293402.529,
+    "expected": 73,
+    "skipped": 0,
+    "unexpected": 4,
+    "flaky": 0
+  }
+}
