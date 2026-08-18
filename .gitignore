@@ -7,3 +7,11 @@ panel-data/
 *.pdf
 .recon-*
 .*.mjs
+# geçici keşif/rapor artifactları
+.probe-*
+.triage-*
+.cartprobe*
+.shot-*
+.run-*.log
+.results-*.json
+homee-qa-raporu.html
