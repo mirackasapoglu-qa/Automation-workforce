@@ -1,0 +1,114 @@
+
+🔐 Homee auth kurulumu — env=test → https://redesign-prod.test.tepehome.com.tr
+  ✓ Mevcut kapı state'i geçerli
+  ✓ Mevcut üye oturumu geçerli (e-posta doğrulandı)
+
+
+Running 25 tests using 1 worker
+
+[1/25] [chromium] › tests/20-login.spec.ts:10:7 › 20 - Giriş (pozitif / negatif) › giriş sayfası tüm yöntemleri sunar
+[2/25] [chromium] › tests/20-login.spec.ts:23:7 › 20 - Giriş (pozitif / negatif) › e-posta formatı geçersizse uyarı verir
+[3/25] [chromium] › tests/20-login.spec.ts:36:7 › 20 - Giriş (pozitif / negatif) › yanlış şifre ile giriş reddedilir
+[4/25] [chromium] › tests/20-login.spec.ts:53:7 › 20 - Giriş (pozitif / negatif) › boş form gönderiminde zorunlu alan uyarısı
+[5/25] [chromium] › tests/20-login.spec.ts:64:7 › 20 - Giriş (pozitif / negatif) › doğru bilgilerle giriş yapılır ve hesap sayfasına yönlenir
+[6/25] [chromium] › tests/20-login.spec.ts:78:7 › 20 - Giriş (pozitif / negatif) › korumalı sayfa misafirken login'e yönlendirir
+[7/25] [chromium] › tests/21-account-overview.spec.ts:9:7 › 21 - Hesabım özeti › hesap özeti kullanıcı bilgilerini gösterir
+[8/25] [chromium] › tests/21-account-overview.spec.ts:19:7 › 21 - Hesabım özeti › hesap menüsündeki tüm alt sayfalar açılır
+[9/25] [chromium] › tests/21-account-overview.spec.ts:43:7 › 21 - Hesabım özeti › siparişlerim sayfası liste veya boş durum gösterir
+[10/25] [chromium] › tests/21-account-overview.spec.ts:54:7 › 21 - Hesabım özeti › favorilerim sayfası liste veya boş durum gösterir
+[11/25] [chromium] › tests/21-account-overview.spec.ts:62:7 › 21 - Hesabım özeti › çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner
+  1) [chromium] › tests/21-account-overview.spec.ts:62:7 › 21 - Hesabım özeti › çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner 
+
+    Error: çıkıştan sonra korumalı sayfa hâlâ açılıyor
+
+    expect(received).toContain(expected) // indexOf
+
+    Expected substring: "/giris"
+    Received string:    "https://redesign-prod.test.tepehome.com.tr/hesabim/siparislerim"
+
+      69 |
+      70 |     await account.goto("/hesabim/siparislerim");
+    > 71 |     expect(memberPage.url(), "çıkıştan sonra korumalı sayfa hâlâ açılıyor").toContain("/giris");
+         |                                                                             ^
+      72 |   });
+      73 | });
+      74 |
+        at /Users/macbookair/Desktop/homee-tests/tests/21-account-overview.spec.ts:71:77
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/21-account-overview-21---H-83a0a-orumalı-sayfa-login-e-döner-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/21-account-overview-21---H-83a0a-orumalı-sayfa-login-e-döner-chromium/error-context.md
+
+
+[12/25] [chromium] › tests/22-addresses.spec.ts:13:7 › 22 - Adres yönetimi › adres listesi ve 'YENİ ADRES EKLE' formu açılır
+[13/25] [chromium] › tests/22-addresses.spec.ts:30:7 › 22 - Adres yönetimi › boş form kaydedilmeye çalışılınca validasyon verir
+[14/25] [chromium] › tests/22-addresses.spec.ts:46:7 › 22 - Adres yönetimi › yeni adres eklenir, listede görünür ve sonra silinir
+[15/25] [chromium] › tests/23-favorites.spec.ts:12:7 › 23 - Favoriler › ürün favoriye eklenir, favorilerimde görünür, sonra kaldırılır
+[16/25] [chromium] › tests/23-favorites.spec.ts:47:7 › 23 - Favoriler › favorilerim sayfası liste veya boş durum gösterir
+[17/25] [chromium] › tests/24-orders.spec.ts:6:7 › 24 - Siparişler ve iadeler › siparişlerim sayfası hatasız yüklenir
+[18/25] [chromium] › tests/24-orders.spec.ts:19:7 › 24 - Siparişler ve iadeler › iadelerim sayfası hatasız yüklenir (API hata durumu yok)
+[19/25] [chromium] › tests/24-orders.spec.ts:28:7 › 24 - Siparişler ve iadeler › sipariş özeti hesap ana sayfasında görünür
+[20/25] [chromium] › tests/25-checkout-to-payment.spec.ts:22:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sepetten ödeme adımına geçilir ve tüm bölümler render olur
+[21/25] [chromium] › tests/25-checkout-to-payment.spec.ts:47:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › ödeme yöntemleri (kredi kartı / havale) seçilebilir
+[22/25] [chromium] › tests/25-checkout-to-payment.spec.ts:70:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme)
+  2) [chromium] › tests/25-checkout-to-payment.spec.ts:70:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme) 
+
+    Error: sözleşme metinleri yüklenemedi:
+    Mesafeli satış sözleşmesi yüklenemedi.
+    Ön bilgilendirme formu yüklenemedi.
+
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      78 |
+      79 |     const { ok, errors } = await checkout.contractsLoaded();
+    > 80 |     expect(ok, `sözleşme metinleri yüklenemedi:\n${errors.join("\n")}`).toBe(true);
+         |                                                                         ^
+      81 |   });
+      82 |
+      83 |   test("sözleşme onayı olmadan ödeme butonu ilerletmez", async ({ memberPage }) => {
+        at /Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts:80:73
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/25-checkout-to-payment-25--a9537-eli-Satış-Ön-Bilgilendirme--chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/25-checkout-to-payment-25--a9537-eli-Satış-Ön-Bilgilendirme--chromium/error-context.md
+
+
+[23/25] [chromium] › tests/25-checkout-to-payment.spec.ts:83:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme onayı olmadan ödeme butonu ilerletmez
+  3) [chromium] › tests/25-checkout-to-payment.spec.ts:83:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme onayı olmadan ödeme butonu ilerletmez 
+
+    TimeoutError: locator.isChecked: Timeout 20000ms exceeded.
+    Call log:
+      - waiting for locator('input[name="checkout-contracts-accepted"]').first()
+
+
+      90 |     await checkout.open();
+      91 |
+    > 92 |     expect(await checkout.contractsCheckbox.isChecked(), "sözleşme baştan onaylı gelmemeli").toBe(
+         |                                             ^
+      93 |       false,
+      94 |     );
+      95 |     // Buton görünür ama sipariş açmadığımız için TIKLAMIYORUZ
+        at /Users/macbookair/Desktop/homee-tests/tests/25-checkout-to-payment.spec.ts:92:45
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/25-checkout-to-payment-25--f2bf4-dan-ödeme-butonu-ilerletmez-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/25-checkout-to-payment-25--f2bf4-dan-ödeme-butonu-ilerletmez-chromium/error-context.md
+
+
+[24/25] [chromium] › tests/25-checkout-to-payment.spec.ts:99:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › adres olmadan uyarı gösterilir
+[25/25] [chromium] › tests/25-checkout-to-payment.spec.ts:116:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sipariş tamamlama guard'ı aktif (ALLOW_HOMEE_ORDERS)
+  3 failed
+    [chromium] › tests/21-account-overview.spec.ts:62:7 › 21 - Hesabım özeti › çıkış yapınca oturum kapanır ve korumalı sayfa login'e döner 
+    [chromium] › tests/25-checkout-to-payment.spec.ts:70:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme metinleri yüklenir (Mesafeli Satış / Ön Bilgilendirme) 
+    [chromium] › tests/25-checkout-to-payment.spec.ts:83:7 › 25 - Ödeme adımı (sipariş tamamlanmaz) › sözleşme onayı olmadan ödeme butonu ilerletmez 
+  22 passed (10.3m)
+EXIT=1

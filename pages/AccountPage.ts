@@ -47,12 +47,18 @@ export class AccountPage extends BasePage {
   async logout() {
     await this.logoutButton.click({ timeout: 15_000 });
 
-    const dialog = this.page.locator('[role="dialog"]');
-    if (await dialog.isVisible({ timeout: 4000 }).catch(() => false)) {
-      await dialog
-        .getByRole("button", { name: "ÇIKIŞ YAP", exact: true })
-        .click({ timeout: 15_000 });
-    }
-    await this.page.waitForTimeout(5000);
+    // `.first()` şart: sayfada birden fazla [role=dialog] olabiliyor ve strict-mode
+    // hatası `.catch(() => false)` içinde sessizce yutulup onay ATLANIYORDU.
+    const dialog = this.page.locator('[role="dialog"]').first();
+    await dialog.waitFor({ state: "visible", timeout: 15_000 });
+
+    const confirm = dialog.locator("button", { hasText: "ÇIKIŞ YAP" }).first();
+    await confirm.click({ timeout: 15_000 });
+
+    // Çıkış tamamlanınca uygulama anasayfaya döner
+    await this.page
+      .waitForURL((u) => !u.pathname.startsWith("/hesabim"), { timeout: 20_000 })
+      .catch(() => {});
+    await this.page.waitForTimeout(3000);
   }
 }

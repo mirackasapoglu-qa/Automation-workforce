@@ -33,7 +33,12 @@ export class CheckoutPage extends BasePage {
     this.newAddressButton = page.locator('button:visible:has-text("YENİ ADRES EKLE")').first();
     this.creditCardOption = page.locator('button:visible:has-text("KREDİ KARTI")').first();
     this.transferOption = page.locator('button:visible:has-text("HAVALE / EFT")').first();
-    this.contractsCheckbox = page.locator('input[name="checkout-contracts-accepted"]').first();
+    // ⚠️ Sözleşme metinleri yüklenemediğinde (HOMEE-004) bu input `name` niteliğini
+    // KAYBEDİYOR — bu yüzden isimsiz checkbox'a da düşen bir seçici gerekiyor.
+    // /odeme sayfasında görünür tek checkbox sözleşme onayıdır.
+    this.contractsCheckbox = page
+      .locator('input[name="checkout-contracts-accepted"], input[type="checkbox"]')
+      .first();
     this.distanceSalesContract = page
       .locator('button:visible:has-text("Mesafeli Satış Sözleşmesi")')
       .first();
