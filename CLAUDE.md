@@ -278,6 +278,18 @@ frame ondan çözülür, yeni çağrı yapılmaz.
 2. `files?ids=f1,f2,…,f10` → yalnızca gereken frame'lerin ağacı (toplu)
 3. `images?ids=f1,…,f10` → 10 render tek istekte
 
+⚠️ **Rate limit HESAP başına, token başına değil** (ölçüldü: aynı hesabın ikinci token'ı da
+aynı `retry-after` ile 429 verdi). Aynı hesapta yeni token üretmek işe yaramaz; **başka bir
+Figma hesabından** token gerekir.
+
+**API'siz çare — elle export:** bütçe tükendiğinde yan yana görünümü PNG ile besle:
+```bash
+node scripts/figma-import-render.mjs --list                                # rotalar ve durum
+node scripts/figma-import-render.mjs --route /sepet --png ~/Downloads/x.png
+```
+Figma arayüzünde frame'i seç → Export → PNG 1x. `figma-render` API'den önce bu PNG'ye bakar.
+Sınır: yalnızca **görsel** karşılaştırmayı açar; spec/metin diff'i düğüm ağacı gerektirir.
+
 **Bütçe açıldığında tek seferde hazırla:**
 ```bash
 node scripts/figma-prewarm.mjs                    # tüm rotalar, 6 sn aralıkla

@@ -93,6 +93,21 @@ export async function renderForRoute(routePath) {
   const map = figmaForRoute(routePath ?? "/");
   if (!map) return { error: `Bu rota icin Figma eslesmesi yok: ${routePath}` };
 
+  // Elle export edilmis PNG varsa API'ye hic gitme (bütce tükendiginde tek yol)
+  const manualPng = keyPath(`manual_${map.node}`, "png");
+  const manualMeta = keyPath(`manual_${map.node}`, "json");
+  if (fs.existsSync(manualPng)) {
+    let meta = {};
+    try { meta = JSON.parse(fs.readFileSync(manualMeta, "utf8")); } catch {}
+    return {
+      buf: fs.readFileSync(manualPng),
+      frame: { id: "manual", name: `${map.page} (elle export)`, w: meta.w ?? 0, h: meta.h ?? 0 },
+      map,
+      cached: true,
+      manual: true,
+    };
+  }
+
   let frame;
   try {
     frame = await resolveFrame(map.node, map.frame);
