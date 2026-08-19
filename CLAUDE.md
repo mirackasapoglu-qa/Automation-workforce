@@ -170,6 +170,16 @@ olan test "BİLİNEN HATA"dır. `scripts/create-test-report.cjs` bu ayrımı yap
 
 `npm run panel` → `http://localhost:4646` (`PANEL_PORT` ile değişir).
 
+**"Case'ler" sekmesi:** 15 spec, her biri açılır kapanır dropdown; içinde case başlıkları,
+son bilinen durumu (geçti / bilinen hata / başarısız / koşulmadı), hata mesajının ilk satırı,
+işaretler (veri değiştirir · HOMEE-00X · koşullu · parametrik), spec'in Jira kartları ve her
+case'in yanında **"kos"** butonu (parametreli koşumu `-g "<başlık>"` ile o tek case'e kilitler).
+Arama kutusu başlık/spec/HOMEE kodu/kart üzerinden filtreler; durum filtresi de var.
+
+Case durumları `panel-data/case-history.json`'da **birleşerek** tutulur — tek bir case'i koşmak
+diğerlerinin durumunu silmez (`results.json` her koşumda sıfırlanır, geçmiş sıfırlanmaz).
+Envanter `tests/*.spec.ts` dosyalarından parse edilir; elle liste tutulmaz.
+
 Her butonun yanında bir **ⓘ** var: tıklanınca butonun ne yaptığını, yan etkisini
 (veri değiştirir mi, sipariş açar mı) ve tahmini süresini gösterir. Koşum açıklamaları
 `panel/runs.json` içindeki `tip` alanından gelir — komutun yanında dursun diye orada tutulur;

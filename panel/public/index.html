@@ -70,6 +70,27 @@
      display:none ile calisir). Bu yuzden display kurali burada, hidden'i da geciyoruz. */
   #dShots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
   #dShots[hidden]{display:none}
+  /* Case'ler sekmesi: spec basina dropdown */
+  details.spec{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--card)}
+  details.spec>summary{cursor:pointer;padding:8px 11px;font-size:13px;display:flex;gap:8px;
+    align-items:center;flex-wrap:wrap;list-style:none}
+  details.spec>summary::-webkit-details-marker{display:none}
+  details.spec>summary::before{content:"▸";color:var(--mut);font-size:11px}
+  details.spec[open]>summary::before{content:"▾"}
+  details.spec>summary .fname{font-family:ui-monospace,monospace;font-size:12px}
+  details.spec>summary .cnt{color:var(--mut);font-size:11.5px}
+  details.spec .body{padding:0 11px 10px;background:var(--bg);border-radius:0 0 8px 8px}
+  .caserow{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)}
+  .caserow .idx{color:var(--mut);font-family:ui-monospace,monospace;font-size:11px;min-width:20px}
+  .caserow .ttl{flex:1;font-size:13px}
+  .caserow .flags{display:flex;gap:4px;flex-wrap:wrap}
+  .caserow button.run{width:auto;padding:2px 8px;margin:0;font-size:11px}
+  .st{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;border:1px solid}
+  .st.passed{color:var(--ok);border-color:var(--ok)}
+  .st.failed{color:#fff;background:#e11d48;border-color:#e11d48}
+  .st.known{color:#e11d48;border-color:#e11d48}
+  .st.skipped{color:var(--sk);border-color:var(--sk)}
+  .st.none{color:var(--mut);border-color:var(--line)}
 </style>
 </head>
 <body>
@@ -114,6 +135,7 @@
       <button data-tab="results" aria-selected="false">Son sonuclar</button>
       <button data-tab="verdict" aria-selected="false">Verdict</button>
       <button data-tab="jira" aria-selected="false">Jira</button>
+      <button data-tab="cases" aria-selected="false">Case'ler</button>
       <button data-tab="diff" aria-selected="false">Tasarim diff</button>
     </div>
 
@@ -165,6 +187,25 @@
       </div>
       <div class="scroll"><table id="jTable"></table></div>
       <div id="jCard" hidden style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"></div>
+    </div>
+
+    <div id="tab-cases" hidden>
+      <div class="row">
+        <input id="qCase" placeholder="Case ara (baslik, spec, HOMEE-00X)" style="width:280px;margin:0">
+        <select id="qFilter" style="width:auto;margin:0">
+          <option value="">tum durumlar</option>
+          <option value="failed">basarisiz</option>
+          <option value="known">bilinen hata</option>
+          <option value="passed">gecti</option>
+          <option value="none">hic kosulmadi</option>
+          <option value="mutates">veri degistiren</option>
+        </select>
+        <button style="width:auto" onclick="loadCases()">Yenile</button>
+        <button style="width:auto" onclick="toggleAllCases(true)">Hepsini ac</button>
+        <button style="width:auto" onclick="toggleAllCases(false)">Hepsini kapat</button>
+        <span class="mono" id="caseMeta"></span>
+      </div>
+      <div id="caseList"></div>
     </div>
 
     <div id="tab-diff" hidden>
@@ -320,10 +361,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&l
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-  for (const t of ['site','log','results','verdict','jira','diff']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
+  for (const t of ['site','log','results','verdict','jira','diff','cases']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
   if (b.dataset.tab === 'jira') loadCards();
+  if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'diff') { $('#dPath').value = CURRENT_PATH || '/'; matchFigma($('#dPath').value); loadDiffReports(); }
 });
 
@@ -447,6 +489,91 @@ async function loadVerdicts() {
         <td class="mono">${esc((v.updatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
     : '<tr><td class="mono">Kayit yok</td></tr>';
 }
+
+// ---------------- Case'ler (spec basina dropdown) ----------------
+let SPECS = [];
+
+async function loadCases() {
+  SPECS = await (await fetch('/api/specs')).json();
+  renderCases();
+}
+
+function caseMatches(sp, c, q, f) {
+  const st = c.last?.status || 'none';
+  if (f === 'mutates' && !c.mutates) return false;
+  if (f && f !== 'mutates' && st !== f) return false;
+  if (!q) return true;
+  const hay = (sp.file + ' ' + sp.describe + ' ' + c.title + ' ' + (c.issue || '') + ' ' + (sp.cards || []).join(' ')).toLocaleLowerCase('tr');
+  return hay.includes(q.toLocaleLowerCase('tr'));
+}
+
+function renderCases() {
+  const q = $('#qCase').value.trim();
+  const f = $('#qFilter').value;
+  let shown = 0, total = 0;
+
+  const html = SPECS.map(sp => {
+    total += sp.list.length;
+    const rows = sp.list.filter(c => caseMatches(sp, c, q, f));
+    if (!rows.length) return '';
+    shown += rows.length;
+    const counts = {};
+    for (const c of sp.list) { const k = c.last?.status || 'none'; counts[k] = (counts[k] || 0) + 1; }
+    const badge = Object.entries(counts).map(([k, v]) => `<span class="st ${k}">${v}</span>`).join(' ');
+    return `<details class="spec" ${q || f ? 'open' : ''}>
+      <summary>
+        <span class="fname">${esc(sp.file)}</span>
+        <b>${esc(sp.describe)}</b>
+        <span class="cnt">${sp.list.length} case${sp.member ? ' · uye' : ''}${(sp.cards||[]).length ? ' · ' + sp.cards.join(', ') : ''}</span>
+        ${badge}
+      </summary>
+      <div class="body">
+        ${rows.map(c => {
+          const st = c.last?.status || 'none';
+          const when = c.last?.at ? c.last.at.slice(5, 16).replace('T', ' ') : '';
+          const flags = [
+            c.mutates ? '<span class="tag tm">veri degistirir</span>' : '',
+            c.known ? `<span class="tag ti">${esc(c.issue || 'bilinen hata')}</span>` : '',
+            c.conditional ? '<span class="tag ts">kosullu</span>' : '',
+            c.parametric ? '<span class="tag ts">parametrik</span>' : '',
+          ].filter(Boolean).join(' ');
+          const idx = sp.list.indexOf(c) + 1;
+          return `<div class="caserow">
+            <span class="idx">${idx}</span>
+            <span class="st ${st}" title="${esc(when)}">${st === 'none' ? 'kosulmadi' : st}</span>
+            <span class="ttl">${esc(c.title.replace(/\$\{[^}]+\}/g, '<rota>'))}
+              ${c.last?.error ? `<div class="mono err" style="font-size:11px">${esc(c.last.error.slice(0,120))}</div>` : ''}</span>
+            <span class="flags">${flags}</span>
+            <button class="run" ${c.parametric ? 'disabled title="parametrik case: -g ile tek tek kosulamaz"' : ''}
+              onclick="runCase('${esc(sp.file)}', this.dataset.t)" data-t="${esc(c.title)}">kos</button>
+          </div>`;
+        }).join('')}
+      </div>
+    </details>`;
+  }).join('');
+
+  $('#caseList').innerHTML = html || '<p class="mono">Eslesen case yok</p>';
+  $('#caseMeta').textContent = `${shown}/${total} case`;
+}
+
+function toggleAllCases(open) {
+  document.querySelectorAll('details.spec').forEach(d => { d.open = open; });
+}
+
+/** Tek case'i parametreli kosumla calistirir: -g "<baslik>" */
+async function runCase(file, title) {
+  const params = { specs: [file], grep: title.slice(0, 80), repeatEach: 1, headed: false };
+  document.querySelector('.tabs button[data-tab=log]').click();
+  $('#log').textContent = '';
+  const r = await post('/api/run', { id: 'custom', params });
+  if (!r.ok) appendLog('PANEL: ' + r.error, true);
+}
+
+$('#qCase').addEventListener('input', renderCases);
+$('#qFilter').addEventListener('change', renderCases);
+
+// kosum bitince durumlar guncellenir
+es.addEventListener('run-end', () => { if (!$('#tab-cases').hidden) loadCases(); });
 
 // ---------------- parametreli kosum ----------------
 async function loadSpecs() {

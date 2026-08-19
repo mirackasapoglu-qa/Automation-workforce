@@ -31,7 +31,7 @@ import {
   whoami,
 } from "./jira.mjs";
 import { startProxy } from "./proxy.mjs";
-import { matchRoute, runsForCard } from "./route-map.mjs";
+import { matchRoute, runsForCard, CARD_SPECS } from "./route-map.mjs";
 import { figmaForRoute } from "./figma-map.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 
@@ -90,24 +90,58 @@ function audit(entry) {
 }
 
 // ---------------- parametreli kosum ----------------
-/** tests/ altindaki spec dosyalari — parametre dogrulamasinin tek kaynagi. */
+/**
+ * tests/ altindaki spec dosyalari + case envanteri.
+ * Parametre dogrulamasinin ve panelin "Case'ler" sekmesinin tek kaynagi —
+ * elle liste tutulmaz, spec dosyalari parse edilir.
+ */
 function listSpecs() {
   const dir = path.join(ROOT, "tests");
+  const history = readHistory();
+  const statusOf = (file, title) => history[`${file}||${title}`] ?? null;
+
   return fs
     .readdirSync(dir)
     .filter((f) => /^[\w.-]+\.spec\.ts$/.test(f))
     .sort()
     .map((file) => {
       const src = fs.readFileSync(path.join(dir, file), "utf8");
-      const titles = [...src.matchAll(/\n\s*test\(\s*(?:"([^"]+)"|`([^`]+)`)/g)].map(
-        (m) => m[1] ?? m[2],
-      );
-      return {
-        file,
-        member: /from "\.\/fixtures"/.test(src),
-        cases: titles.length,
-        titles,
-      };
+      const member = /from "\.\/fixtures"/.test(src);
+      const describe = src.match(/test\.describe\(\s*"([^"]+)"/)?.[1] ?? file;
+
+      const pos = [...src.matchAll(/\n\s*test\(\s*(?:"([^"]+)"|`([^`]+)`)/g)].map((m) => ({
+        i: m.index,
+        title: m[1] ?? m[2],
+      }));
+
+      const cases = pos.map((cur, idx) => {
+        let end = idx + 1 < pos.length ? pos[idx + 1].i : src.length;
+        if (idx + 1 < pos.length) {
+          const from = Math.max(cur.i, end - 700);
+          const cut = src.slice(from, end).lastIndexOf("/**");
+          if (cut > -1) end = from + cut;
+        }
+        const body = src.slice(cur.i, end);
+        return {
+          title: cur.title,
+          parametric: cur.title.includes("${"),
+          mutates:
+            /addToCart|removeLine|\.clear\(\)|fillForm|deleteAddress|favoriteButton|setFavorite|togglePermission|logout\(/.test(
+              body,
+            ),
+          known: /test\.fail\(/.test(body),
+          issue: body.match(/HOMEE-\d+/)?.[0] ?? null,
+          conditional: /test\.skip\(/.test(body),
+          last: statusOf(file, cur.title),
+        };
+      });
+
+      // Bu spec'i kullanan Jira kartlari (CARD_SPECS ters haritasi)
+      const cards = Object.entries(CARD_SPECS)
+        .filter(([, specs]) => specs.includes(file))
+        .map(([key]) => key);
+
+      return { file, describe, member, cases: cases.length, cards, list: cases };
     });
 }
 
@@ -278,6 +312,11 @@ function startRun(runId, params) {
   child.stderr.on("data", (c) => push(c, "err"));
 
   child.on("close", (code) => {
+    try {
+      mergeHistory();
+    } catch {
+      /* rapor yoksa sessiz gec */
+    }
     const summary = active.lines.slice(-40).join("\n");
     broadcast("run-end", {
       id: runId,
@@ -330,6 +369,45 @@ function saveVerdict(body) {
   };
   fs.writeFileSync(verdictPath(key), JSON.stringify(rec, null, 2));
   return rec;
+}
+
+// ---------------- case gecmisi ----------------
+/**
+ * Her kosum sonunda results.json'dan okunup BIRLESTIRILIR. Boylece tek bir case'i
+ * kosmak digerlerinin durumunu silmez; panelin "Case'ler" sekmesi her zaman
+ * her case icin en son bilinen sonucu gosterir.
+ */
+const HISTORY = path.join(DATA_DIR, "case-history.json");
+
+function readHistory() {
+  try {
+    return JSON.parse(fs.readFileSync(HISTORY, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+function mergeHistory() {
+  const res = lastResults();
+  if (!res?.rows?.length) return;
+  const h = readHistory();
+  for (const r of res.rows) {
+    const status =
+      r.status === "passed"
+        ? "passed"
+        : r.status === "skipped"
+          ? "skipped"
+          : r.expected === "failed"
+            ? "known"
+            : "failed";
+    h[`${r.file}||${r.title}`] = {
+      status,
+      at: new Date().toISOString(),
+      durationMs: r.duration ?? 0,
+      error: r.error ? String(r.error).slice(0, 200) : "",
+    };
+  }
+  fs.writeFileSync(HISTORY, JSON.stringify(h, null, 2));
 }
 
 // ---------------- son kosum sonuclari ----------------
