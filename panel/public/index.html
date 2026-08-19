@@ -52,6 +52,23 @@
   tr.rowspec td{background:color-mix(in srgb,#a16207 8%,transparent)}
   .dexp{color:var(--ok)} .dgot{color:#e11d48;font-weight:600}
   #dCards .c .n.no{color:#e11d48}
+  /* her butonun yanindaki bilgi butonu */
+  .tipwrap{display:inline-flex;align-items:center;gap:4px;position:relative;max-width:100%}
+  button.tip{width:18px;min-width:18px;height:18px;padding:0;margin:0;border-radius:50%;
+    border:1px solid var(--line);background:var(--bg);color:var(--mut);
+    font:700 11px/1 -apple-system,sans-serif;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  button.tip:hover{border-color:var(--acc);color:var(--acc)}
+  button.tip[aria-expanded=true]{background:var(--acc);color:#fff;border-color:var(--acc)}
+  .tipbox{position:absolute;z-index:50;left:0;top:calc(100% + 6px);width:330px;max-width:80vw;
+    background:var(--bg);border:1px solid var(--acc);border-radius:8px;padding:9px 11px;
+    box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:12.5px;line-height:1.5;white-space:normal}
+  .tipbox .cmd{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);
+    font-family:ui-monospace,monospace;font-size:11px;color:var(--mut);word-break:break-all}
+  aside .tipbox{left:auto;right:0}
+  /* NOT: inline "display:grid" verilirse hidden bayragi EZILIR (hidden UA stilindeki
+     display:none ile calisir). Bu yuzden display kurali burada, hidden'i da geciyoruz. */
+  #dShots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  #dShots[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -145,7 +162,7 @@
       <pre id="dLog" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;
         max-height:150px;overflow:auto;font:11.5px/1.4 ui-monospace,monospace;margin:0 0 10px;white-space:pre-wrap">Bir rota icin diff alin...</pre>
       <p class="mono err" id="dShotsErr"></p>
-      <div id="dShots" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div id="dShots" hidden>
         <figure style="margin:0">
           <figcaption class="mono" style="margin-bottom:4px">Tasarim — <b style="color:#e11d48">kirmizi: canlida bulunamayan metinler</b></figcaption>
           <div style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
@@ -184,6 +201,94 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
+
+// ---------------- her butona bilgi (ⓘ) ----------------
+// Anahtar: buton id'si ya da buton metni. Kosum butonlarinin metni runs.json'daki
+// `tip` alanindan gelir (komutun yaninda dursun diye).
+const TIPS = {
+  '#stopBtn': 'Calisan kosumu durdurur (SIGTERM). Tarayici kapanir, o kosumun sonucu yazilmaz.',
+  '#siteRunBtn': "iframe'de acik olan rotanin testini baslatir. Yalnizca whitelist'teki kosum calisir; serbest komut calistirilamaz.",
+  '#siteDesignBtn': 'Sagda o rotanin Figma frame\'ini acar. Kaydirma senkronludur; rota degisince tasarim da degisir. Render onbellekten gelir, Figma\'ya cagri yapmaz.',
+  '#siteDiffBtn': 'Acik rota icin tasarim diff\'i kosar (~45 sn) ve Tasarim diff sekmesine gecer.',
+  'Git': 'URL cubugundaki yolu iframe\'de acar (panelin proxy\'si uzerinden, x-frame-options sokulur).',
+  'Yeni sekmede': 'Acik sayfayi proxy adresiyle yeni tarayici sekmesinde acar.',
+  'Diff al': 'Yol alanindaki rota icin Figma ↔ canli karsilastirmasi kosar. Metin varligi + spec (font/boyut/kalinlik/renk) + isaretli snapshot uretir. Figma agaci onbellekten okunur.',
+  'Kayitli raporlar': 'Daha once uretilmis diff raporlarini listeler; satira tiklayarak raporu acar.',
+  'Kaydet': "Verdict'i panel-data/verdicts/<anahtar>.json dosyasina yazar. Jira'ya GONDERMEZ.",
+  "Jira'ya gonder": "Yazdigin yorumu karta ekler. Onay ister; gonderildikten sonra geri alinamaz.",
+  'Statuyu degistir': 'Kartin statusunu degistirir. Onay ister ve ekibin sprint akisini dogrudan etkiler.',
+  'Anasayfa': 'Bu rotayi iframe\'de acar.',
+  'Tum urunler': 'Bu rotayi iframe\'de acar.',
+  'Urun': 'SAP test urununu iframe\'de acar.',
+  'Arama': '"koltuk" aramasini iframe\'de acar.',
+  'Sepet': 'Sepet sayfasini iframe\'de acar.',
+  'Giris': 'Giris sayfasini iframe\'de acar.',
+  'Hesabim': 'Hesabim sayfasini acar; oturum yoksa /giris\'e yonlenir.',
+  'Magazalar': 'Magazalar sayfasini iframe\'de acar.',
+  'Iletisim': 'Iletisim sayfasini iframe\'de acar.',
+  'ac': 'Kartin detayini, yorumlarini, sprint bilgisini ve mevcut statu gecislerini getirir.',
+};
+
+let RUN_TIPS = {};   // load() icinde runs.json'dan doldurulur
+let openTip = null;
+
+function tipFor(btn) {
+  if (btn.dataset.tip) return { text: btn.dataset.tip, cmd: btn.dataset.tipCmd || '' };
+  if (btn.id && TIPS['#' + btn.id]) return { text: TIPS['#' + btn.id], cmd: '' };
+  const runId = btn.dataset.runId || btn.getAttribute('data-run');
+  if (runId && RUN_TIPS[runId]) return RUN_TIPS[runId];
+  const label = (btn.textContent || '').trim();
+  if (TIPS[label]) return { text: TIPS[label], cmd: '' };
+  return null;
+}
+
+function closeTip() {
+  if (!openTip) return;
+  openTip.box.remove();
+  openTip.btn.setAttribute('aria-expanded', 'false');
+  openTip = null;
+}
+
+function showTip(btn, tip) {
+  closeTip();
+  const box = document.createElement('div');
+  box.className = 'tipbox';
+  box.innerHTML = esc(tip.text) + (tip.cmd ? `<div class="cmd">${esc(tip.cmd)}</div>` : '');
+  btn.parentElement.appendChild(box);
+  btn.setAttribute('aria-expanded', 'true');
+  openTip = { btn, box };
+}
+
+/** Tum butonlari tarar, aciklamasi olanlarin yanina ⓘ ekler (bir kez). */
+function decorateTips(root = document) {
+  for (const btn of root.querySelectorAll('button:not(.tip)')) {
+    if (btn.dataset.tipDone) continue;
+    const tip = tipFor(btn);
+    if (!tip) continue;
+    btn.dataset.tipDone = '1';
+
+    const wrap = document.createElement('span');
+    wrap.className = 'tipwrap';
+    btn.parentElement.insertBefore(wrap, btn);
+    wrap.appendChild(btn);
+
+    const info = document.createElement('button');
+    info.className = 'tip';
+    info.type = 'button';
+    info.textContent = 'i';
+    info.title = 'Ne ise yarar?';
+    info.setAttribute('aria-expanded', 'false');
+    info.onclick = (e) => {
+      e.stopPropagation();
+      if (openTip && openTip.btn === info) return closeTip();
+      showTip(info, tipFor(btn));
+    };
+    wrap.appendChild(info);
+  }
+}
+
+addEventListener('click', (e) => { if (!e.target.closest('.tipbox') && !e.target.closest('button.tip')) closeTip(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') closeTip(); });
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
@@ -201,11 +306,14 @@ async function load() {
   $('#orderPill').textContent = `siparis tamamlama: ${m.ordersAllowed ? 'ACIK' : 'kapali'}`;
   $('#activePill').textContent = m.active ? `kosuyor: ${m.active.label}` : '';
 
+  RUN_TIPS = {};
+  for (const r of m.runs) if (r.tip) RUN_TIPS[r.id] = { text: r.tip, cmd: r.cmd || '' };
+
   const groups = {};
   for (const r of m.runs) (groups[r.group || 'diger'] ??= []).push(r);
   $('#runs').innerHTML = Object.entries(groups).map(([g, list]) =>
     `<div class="mono" style="margin:8px 0 4px">${esc(g)}</div>` +
-    list.map(r => `<button onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')
+    list.map(r => `<button data-run-id="${r.id}" onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')
   ).join('');
 
   if (m.proxyUrl) {
@@ -229,6 +337,8 @@ async function load() {
   } else {
     $('#jMeta').textContent = 'Jira kimliği yok (~/.jira-credentials)';
   }
+
+  decorateTips();
 
   $('#issues').innerHTML = m.knownIssues.length
     ? m.knownIssues.map(i => `<div class="issue"><div class="id">${esc(i.id)}</div>
@@ -470,6 +580,7 @@ function renderDiffSummary(s, reportUrl) {
         <td class="mono">${exp}</td><td class="mono">${got}</td>
         <td class="mono">${esc(r.layer||'-')}</td></tr>`;
     }).join('');
+  decorateTips();
   if (reportUrl) {
     const f = $('#dFrame'); f.src = reportUrl; f.hidden = false;
     // isaretli snapshot'lar (rapor adiyla ayni kok)
@@ -525,6 +636,7 @@ async function loadCards() {
         <td><span class="b ${statusColor(c.status)}">${esc(c.status)}</span></td>
         <td>${esc(c.assignee || '—')}</td>
         <td class="mono">${esc((c.sprint||[]).join(', '))}</td></tr>`).join('');
+    decorateTips($('#jTable'));
   } catch (e) { $('#jTable').innerHTML = `<tr><td class="mono err">${esc(e.message)}</td></tr>`; }
 }
 
@@ -561,6 +673,7 @@ async function openCard(key) {
       </select>
       <button class="danger" style="width:auto" onclick="doTransition('${c.key}')">Statüyü değiştir</button>
     </div>`;
+  decorateTips(box);
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 

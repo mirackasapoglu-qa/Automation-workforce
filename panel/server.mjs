@@ -290,7 +290,13 @@ const server = http.createServer(async (req, res) => {
           views: Object.entries(VIEWS).map(([id, v]) => ({ id, label: v.label })),
         },
         ordersAllowed: process.env.ALLOW_HOMEE_ORDERS === "1",
-        runs: Object.entries(RUNS).map(([id, r]) => ({ id, label: r.label, group: r.group ?? "" })),
+        runs: Object.entries(RUNS).map(([id, r]) => ({
+          id,
+          label: r.label,
+          group: r.group ?? "",
+          tip: r.tip ?? "",
+          cmd: [r.cmd, ...(r.args ?? [])].join(" "),
+        })),
         active: active ? { id: active.id, label: active.label, startedAt: active.startedAt } : null,
         knownIssues: knownIssues(),
       });

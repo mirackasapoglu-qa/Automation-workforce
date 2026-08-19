@@ -170,6 +170,15 @@ olan test "BİLİNEN HATA"dır. `scripts/create-test-report.cjs` bu ayrımı yap
 
 `npm run panel` → `http://localhost:4646` (`PANEL_PORT` ile değişir).
 
+Her butonun yanında bir **ⓘ** var: tıklanınca butonun ne yaptığını, yan etkisini
+(veri değiştirir mi, sipariş açar mı) ve tahmini süresini gösterir. Koşum açıklamaları
+`panel/runs.json` içindeki `tip` alanından gelir — komutun yanında dursun diye orada tutulur;
+statik butonların açıklamaları `panel/public/index.html` içindeki `TIPS` sözlüğünde.
+
+⚠️ Arayüzde `hidden` bayrağı kullanan bir öğeye **inline `display:` verme** — `hidden`
+UA stilindeki `display:none` ile çalışır, inline stil onu ezer ve öğe gizlenmez
+(`#dShots` bu yüzden boş görsel kolonları gösteriyordu; kural CSS'e taşındı).
+
 Sağladıkları: whitelist'li koşum tetikleme (`panel/runs.json` — whitelist dışı komut çalışmaz),
 SSE canlı log, son koşum sonuçları (bilinen hata ayrımıyla), verdict kaydı
 (`panel-data/verdicts/<anahtar>.json`), kanıt görselleri, bilinen hata listesi,
