@@ -46,6 +46,12 @@
   .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
   .tabs button{width:auto;border:0;border-bottom:2px solid transparent;background:none;border-radius:0;margin:0;padding:8px 12px}
   .tabs button[aria-selected=true]{border-bottom-color:var(--acc);color:var(--acc);font-weight:600}
+  /* tasarim diff: farklar kirmizi vurgulu */
+  td.num{color:#e11d48;font-weight:700}
+  tr.rowmiss td{background:color-mix(in srgb,#e11d48 8%,transparent)}
+  tr.rowspec td{background:color-mix(in srgb,#a16207 8%,transparent)}
+  .dexp{color:var(--ok)} .dgot{color:#e11d48;font-weight:600}
+  #dCards .c .n.no{color:#e11d48}
 </style>
 </head>
 <body>
@@ -138,6 +144,7 @@
       <div class="cards" id="dCards"></div>
       <pre id="dLog" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;
         max-height:150px;overflow:auto;font:11.5px/1.4 ui-monospace,monospace;margin:0 0 10px;white-space:pre-wrap">Bir rota icin diff alin...</pre>
+      <p class="mono err" id="dShotsErr"></p>
       <div id="dShots" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
         <figure style="margin:0">
           <figcaption class="mono" style="margin-bottom:4px">Tasarim — <b style="color:#e11d48">kirmizi: canlida bulunamayan metinler</b></figcaption>
@@ -401,6 +408,10 @@ async function runDiff(path) {
   document.querySelector('.tabs button[data-tab=diff]').click();
   $('#dLog').textContent = '';
   $('#dFrame').hidden = true;
+  $('#dShots').hidden = true;                 // eski kosumun gorselleri kalmasin
+  $('#dShotDesign').removeAttribute('src');
+  $('#dShotLive').removeAttribute('src');
+  $('#dShotsErr').textContent = '';
   const r = await (await fetch('/api/figma/diff', {method:'POST', headers:{'content-type':'application/json'},
     body: JSON.stringify({ path: p })})).json();
   if (!r.ok) appendDiffLog('PANEL: ' + r.error, true);
@@ -427,18 +438,49 @@ function renderDiffSummary(s, reportUrl) {
     <div class="c"><div class="n no">${c.missing}</div><div class="l">sayfada yok</div></div>
     <div class="c"><div class="n">${c.needsInteraction}</div><div class="l">etkilesim gerektiren</div></div>
     <div class="c"><div class="n">${c.dynamicSkipped}</div><div class="l">dinamik (gurultu)</div></div>`;
+  // Farklar: "beklenen (tasarim) → gerceklesen (canli)" biciminde, kirmizi vurgulu
+  const splitDiff = (d) => {
+    const m = String(d).match(/^(.*?)\s*→\s*(.*)$/);
+    return m ? { exp: m[1], got: m[2] } : { exp: d, got: '' };
+  };
   const rows = [
-    ...(s.mismatches||[]).map(m => ({ t: m.text, d: (m.diffs||[]).join(' · '), k: 'spec farki', cls: 'sk' })),
-    ...(s.missingTexts||[]).map(m => ({ t: m.text, d: 'sayfada bulunamadi', k: m.layer, cls: 'no' })),
+    ...(s.mismatches||[]).map((m, i) => ({
+      n: i + 1, t: m.text, layer: m.layer, kind: 'spec farki',
+      parts: (m.diffs||[]).map(splitDiff),
+    })),
+    ...(s.missingTexts||[]).map((m, i) => ({
+      n: i + 1, t: m.text, layer: m.layer, kind: 'canlida yok', parts: null,
+    })),
   ];
-  $('#dTable').innerHTML = '<tr><th style="width:34%">Metin</th><th>Fark</th><th style="width:20%">Katman</th></tr>' +
-    rows.map(r => `<tr><td>${esc(r.t)}</td><td class="mono ${r.cls}">${esc(r.d)}</td><td class="mono">${esc(r.k)}</td></tr>`).join('');
+  $('#dTable').innerHTML =
+    '<tr><th style="width:34px">#</th><th style="width:28%">Metin</th><th style="width:15%">Tur</th>' +
+    '<th>Tasarim (beklenen)</th><th>Canli (gerceklesen)</th><th style="width:14%">Katman</th></tr>' +
+    rows.map(r => {
+      const kindCell = r.parts
+        ? '<span class="b sk">spec farki</span>'
+        : '<span class="b no">canlida yok</span>';
+      const exp = r.parts
+        ? r.parts.map(p => `<span class="dexp">${esc(p.exp)}</span>`).join('<br>')
+        : `<span class="dexp">${esc(r.t)}</span>`;
+      const got = r.parts
+        ? r.parts.map(p => `<span class="dgot">${esc(p.got)}</span>`).join('<br>')
+        : '<span class="dgot">— (DOM\'da bulunamadi)</span>';
+      return `<tr class="${r.parts ? 'rowspec' : 'rowmiss'}">
+        <td class="num">${r.n}</td><td>${esc(r.t)}</td><td>${kindCell}</td>
+        <td class="mono">${exp}</td><td class="mono">${got}</td>
+        <td class="mono">${esc(r.layer||'-')}</td></tr>`;
+    }).join('');
   if (reportUrl) {
     const f = $('#dFrame'); f.src = reportUrl; f.hidden = false;
     // isaretli snapshot'lar (rapor adiyla ayni kok)
     const base = reportUrl.replace(/\.html$/, '');
-    $('#dShotDesign').src = base + '-tasarim-isaretli.png?t=' + Date.now();
-    $('#dShotLive').src = base + '-canli-isaretli.png?t=' + Date.now();
+    const t = Date.now();
+    for (const [id, suffix] of [['#dShotDesign','-tasarim-isaretli.png'], ['#dShotLive','-canli-isaretli.png']]) {
+      const el = $(id);
+      el.onerror = () => { $('#dShotsErr').textContent =
+        'Isaretli snapshot bulunamadi: ' + base + suffix + ' (fark yoksa uretilmez)'; };
+      el.src = base + suffix + '?t=' + t;
+    }
     $('#dShots').hidden = false;
   }
 }
