@@ -179,6 +179,26 @@ statik butonların açıklamaları `panel/public/index.html` içindeki `TIPS` s�
 UA stilindeki `display:none` ile çalışır, inline stil onu ezer ve öğe gizlenmez
 (`#dShots` bu yüzden boş görsel kolonları gösteriyordu; kural CSS'e taşındı).
 
+### Güvenlik modeli (panel yerel bir HTTP sunucusu — gezdiğin her sayfa ona istek atabilir)
+
+- **Serbest komut YOK.** Ya `panel/runs.json` whitelist'indeki koşum, ya da **parametreli koşum**:
+  spec adları `tests/` altındaki dosyalarla doğrulanır, `-g` filtresi ayrı argv elemanı olarak
+  geçer, `--repeat-each` 1–10, `--timeout` 10.000–300.000 ms ile sınırlı, `workers=1` sabit.
+  `spawn(..., { shell: false })` → kabuk hiç devreye girmez, `;` `&&` `$( )` etkisiz
+  (ölçüldü: `shell:false` → `"$(whoami)"` literal kalır, `shell:true` → `macbookair`).
+- **Yazma uçları token'lı.** Panel açılışta oturum token'ı üretip `index.html`'e enjekte eder;
+  `/api/run`, `/api/stop`, `/api/verdicts`, `/api/jira/*`, `/api/figma/diff` `x-panel-token` ister.
+  Başka origin token'ı okuyamaz (HTML'i okuyamaz) → CSRF kapanır. `Origin` verilmişse
+  `localhost:<port>` olmak zorunda.
+- **Denetim kaydı:** her koşum/durdurma ve her Jira yazması `panel-data/command-log.jsonl`'a
+  tam argv ile yazılır.
+- **Önizleme:** parametreli koşum, çalıştırmadan önce üretilecek tam komutu gösterir
+  (`POST /api/run/preview`, token gerektirmez çünkü yan etkisi yok).
+
+⚠️ **Koşum argümanlarına `--reporter` EKLEME** (ne `runs.json`'da ne parametreli koşumda):
+CLI reporter'ı config'i ezer ve `test-results/results.json` yazılmaz → "Son sonuçlar" sekmesi
+ve rapor üreticileri boş kalır.
+
 Sağladıkları: whitelist'li koşum tetikleme (`panel/runs.json` — whitelist dışı komut çalışmaz),
 SSE canlı log, son koşum sonuçları (bilinen hata ayrımıyla), verdict kaydı
 (`panel-data/verdicts/<anahtar>.json`), kanıt görselleri, bilinen hata listesi,

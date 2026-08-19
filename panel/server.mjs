@@ -14,6 +14,7 @@
  * serbest komut ASLA exec edilmez.
  */
 import http from "node:http";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
@@ -50,6 +51,112 @@ for (const d of [DATA_DIR, VERDICT_DIR, EVIDENCE_DIR]) {
 }
 
 const RUNS = JSON.parse(fs.readFileSync(path.join(__dirname, "runs.json"), "utf8")).runs;
+
+// ---------------- guvenlik ----------------
+/**
+ * Panel localhost'ta dinleyen bir HTTP sunucusu: gezdigin HERHANGI bir sayfa ona
+ * istek atabilir (CSRF) ve makinedeki her surec uclari cagirabilir. Bu yuzden:
+ *  - acilista oturum token'i uretilir, index.html'e enjekte edilir (baska origin
+ *    HTML'i okuyamaz, dolayisiyla token'i alamaz)
+ *  - TUM yazma uclari `x-panel-token` ister
+ *  - Origin verilmisse localhost olmak zorunda
+ */
+const PANEL_TOKEN = process.env.PANEL_TOKEN || crypto.randomBytes(16).toString("hex");
+const ALLOWED_ORIGINS = new Set([
+  `http://localhost:${PORT}`,
+  `http://127.0.0.1:${PORT}`,
+]);
+
+function requireAuth(req, res) {
+  if (req.headers["x-panel-token"] !== PANEL_TOKEN) {
+    send(res, 403, {
+      error:
+        "Panel token gerekli. Bu uc yazma islemi yapar; sadece panel arayuzunden cagrilabilir.",
+    });
+    return false;
+  }
+  const origin = req.headers.origin;
+  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+    send(res, 403, { error: `Origin reddedildi: ${origin}` });
+    return false;
+  }
+  return true;
+}
+
+// ---------------- denetim kaydi ----------------
+const AUDIT = path.join(DATA_DIR, "command-log.jsonl");
+function audit(entry) {
+  fs.appendFileSync(AUDIT, JSON.stringify({ at: new Date().toISOString(), ...entry }) + "\n");
+}
+
+// ---------------- parametreli kosum ----------------
+/** tests/ altindaki spec dosyalari — parametre dogrulamasinin tek kaynagi. */
+function listSpecs() {
+  const dir = path.join(ROOT, "tests");
+  return fs
+    .readdirSync(dir)
+    .filter((f) => /^[\w.-]+\.spec\.ts$/.test(f))
+    .sort()
+    .map((file) => {
+      const src = fs.readFileSync(path.join(dir, file), "utf8");
+      const titles = [...src.matchAll(/\n\s*test\(\s*(?:"([^"]+)"|`([^`]+)`)/g)].map(
+        (m) => m[1] ?? m[2],
+      );
+      return {
+        file,
+        member: /from "\.\/fixtures"/.test(src),
+        cases: titles.length,
+        titles,
+      };
+    });
+}
+
+/**
+ * Serbest komut YOK. Kullanicidan gelen parametreler tek tek dogrulanir ve
+ * argv dizisi olarak spawn edilir (shell: false) — kabuk hic devreye girmez,
+ * yani `;`, `&&`, backtick gibi seyler etkisiz.
+ */
+function buildCustomArgs(params = {}) {
+  const errors = [];
+  const args = ["playwright", "test"];
+
+  const available = new Set(listSpecs().map((s) => s.file));
+  const specs = Array.isArray(params.specs) ? params.specs : [];
+  for (const sp of specs) {
+    if (!available.has(sp)) errors.push(`Bilinmeyen spec: ${sp}`);
+  }
+  if (!specs.length) errors.push("En az bir spec secilmeli");
+  args.push(...specs.map((sp) => `tests/${sp}`));
+
+  args.push("--project=chromium");
+
+  if (params.grep != null && String(params.grep).trim()) {
+    const g = String(params.grep);
+    if (g.length > 80) errors.push("grep en fazla 80 karakter");
+    // eslint-disable-next-line no-control-regex
+    else if (/[\u0000-\u001f]/.test(g)) errors.push("grep kontrol karakteri iceremez");
+    else args.push("-g", g);
+  }
+
+  const rep = Number(params.repeatEach ?? 1);
+  if (!Number.isInteger(rep) || rep < 1 || rep > 10) errors.push("tekrar 1–10 arasinda olmali");
+  else if (rep > 1) args.push(`--repeat-each=${rep}`);
+
+  const to = Number(params.timeout ?? 0);
+  if (to) {
+    if (!Number.isInteger(to) || to < 10_000 || to > 300_000)
+      errors.push("timeout 10000–300000 ms arasinda olmali");
+    else args.push(`--timeout=${to}`);
+  }
+
+  if (params.headed === true) args.push("--headed");
+  args.push("--workers=1"); // suite paralel kosmaya gore tasarlanmadi
+  // ⚠️ --reporter VERILMEZ: CLI'dan verilen reporter listesi config'i ezer ve
+  // test-results/results.json yazilmaz (JSON stdout'a basilir). Config zaten
+  // list+html+json veriyor; "Son sonuclar" sekmesi bu dosyaya bagli.
+
+  return { args, errors };
+}
 const PROXY_PORT = Number(process.env.PANEL_PROXY_PORT || PORT + 1);
 let PROXY_URL = "";
 
@@ -125,18 +232,39 @@ function broadcast(event, data) {
 // ---------------- kosum ----------------
 let active = null; // { id, child, startedAt, lines: [] }
 
-function startRun(runId) {
+function startRun(runId, params) {
   if (active) return { ok: false, error: `Zaten kosuyor: ${active.id}` };
-  const run = RUNS[runId];
-  if (!run) return { ok: false, error: `Whitelist'te yok: ${runId}` };
 
-  const child = spawn(run.cmd, run.args, {
+  let cmd;
+  let args;
+  let label;
+
+  if (runId === "custom") {
+    const built = buildCustomArgs(params);
+    if (built.errors.length) return { ok: false, error: built.errors.join(" · ") };
+    cmd = "npx";
+    args = built.args;
+    label = `Parametreli: ${(params.specs ?? []).join(", ")}${params.grep ? ` -g "${params.grep}"` : ""}${
+      params.repeatEach > 1 ? ` ×${params.repeatEach}` : ""
+    }${params.headed ? " (headed)" : ""}`;
+  } else {
+    const run = RUNS[runId];
+    if (!run) return { ok: false, error: `Whitelist'te yok: ${runId}` };
+    cmd = run.cmd;
+    args = run.args;
+    label = run.label;
+  }
+
+  const child = spawn(cmd, args, {
     cwd: ROOT,
     env: { ...process.env, FORCE_COLOR: "0" },
+    shell: false, // kabuk YOK — argv olarak gecirilir
   });
 
-  active = { id: runId, label: run.label, child, startedAt: Date.now(), lines: [] };
-  broadcast("run-start", { id: runId, label: run.label, startedAt: active.startedAt });
+  audit({ event: "run", id: runId, label, argv: [cmd, ...args], params: params ?? null });
+
+  active = { id: runId, label, child, startedAt: Date.now(), lines: [] };
+  broadcast("run-start", { id: runId, label, startedAt: active.startedAt, argv: [cmd, ...args].join(" ") });
 
   const push = (chunk, stream) => {
     for (const line of chunk.toString().split("\n")) {
@@ -269,12 +397,10 @@ const server = http.createServer(async (req, res) => {
 
   try {
     if (p === "/" || p === "/index.html") {
-      return send(
-        res,
-        200,
-        fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8"),
-        "text/html; charset=utf-8",
-      );
+      const html = fs
+        .readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
+        .replace("__PANEL_TOKEN__", PANEL_TOKEN);
+      return send(res, 200, html, "text/html; charset=utf-8");
     }
 
     if (p === "/api/meta") {
@@ -329,6 +455,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === "/api/figma/diff" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
       const body = await readBody(req);
       return send(res, 200, startDiff(body));
     }
@@ -383,40 +510,67 @@ const server = http.createServer(async (req, res) => {
 
     // ---------------- Jira: YAZMA (yalnizca panelden tetiklenir) ----------------
     if (p === "/api/jira/comment" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
       const { key, text } = await readBody(req);
       if (!key || !text) return send(res, 400, { error: "key ve text zorunlu" });
+      audit({ event: "jira-comment", key, chars: text.length });
       await postComment(key, text);
       broadcast("log", { stream: "out", line: `[jira] ${key} kartina yorum yazildi` });
       return send(res, 200, { ok: true, key });
     }
 
     if (p === "/api/jira/transition" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
       const { key, transitionId, comment } = await readBody(req);
       if (!key || !transitionId) return send(res, 400, { error: "key ve transitionId zorunlu" });
+      audit({ event: "jira-transition", key, transitionId });
       await transition(key, transitionId, comment);
       broadcast("log", { stream: "out", line: `[jira] ${key} statusu degistirildi (${transitionId})` });
       return send(res, 200, { ok: true, key });
     }
 
     if (p === "/api/jira/bug" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
       const { summary, description, parent, labels } = await readBody(req);
       if (!summary) return send(res, 400, { error: "summary zorunlu" });
+      audit({ event: "jira-bug", summary });
       const created = await createBug({ summary, description: description ?? "", parent, labels });
       broadcast("log", { stream: "out", line: `[jira] yeni bug: ${created.key}` });
       return send(res, 200, { ok: true, key: created.key, url: `${JIRA.host}/browse/${created.key}` });
     }
 
     if (p === "/api/verdicts") {
-      if (req.method === "POST") return send(res, 200, saveVerdict(await readBody(req)));
+      if (req.method === "POST") {
+        if (!requireAuth(req, res)) return;
+        return send(res, 200, saveVerdict(await readBody(req)));
+      }
       return send(res, 200, allVerdicts());
     }
 
-    if (p === "/api/run" && req.method === "POST") {
-      const { id } = await readBody(req);
-      return send(res, 200, startRun(id));
+    if (p === "/api/specs") return send(res, 200, listSpecs());
+
+    // Parametreli kosumun uretecegi komutu ONCE gosterir (calistirmaz)
+    if (p === "/api/run/preview" && req.method === "POST") {
+      const body = await readBody(req);
+      const built = buildCustomArgs(body.params ?? {});
+      return send(res, 200, {
+        ok: !built.errors.length,
+        errors: built.errors,
+        command: ["npx", ...built.args].join(" "),
+      });
     }
 
-    if (p === "/api/stop" && req.method === "POST") return send(res, 200, stopRun());
+    if (p === "/api/run" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { id, params } = await readBody(req);
+      return send(res, 200, startRun(id, params));
+    }
+
+    if (p === "/api/stop" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      audit({ event: "stop", id: active?.id ?? null });
+      return send(res, 200, stopRun());
+    }
 
     if (p === "/api/events") {
       res.writeHead(200, {
@@ -468,5 +622,6 @@ server.listen(PORT, () => {
   if (PROXY_URL) console.log(`  site proxy (iframe) → ${PROXY_URL}`);
   console.log(`  ortam: ${ENV} → ${BASE_URL}`);
   console.log(`  whitelist'li kosum sayisi: ${Object.keys(RUNS).length}`);
-  console.log(`  siparis tamamlama: ${process.env.ALLOW_HOMEE_ORDERS === "1" ? "ACIK" : "KAPALI"}\n`);
+  console.log(`  siparis tamamlama: ${process.env.ALLOW_HOMEE_ORDERS === "1" ? "ACIK" : "KAPALI"}`);
+  console.log(`  yazma uclari token korumali (denetim: panel-data/command-log.jsonl)\n`);
 });

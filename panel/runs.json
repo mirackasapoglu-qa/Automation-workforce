@@ -7,8 +7,7 @@
         "playwright",
         "test",
         "tests/0",
-        "--project=chromium",
-        "--reporter=line,json"
+        "--project=chromium"
       ],
       "group": "misafir",
       "tip": "Misafir seti: 01–09 spec'leri, login gerektirmeyen 49 case. Headless (pencere açılmaz), ~12 dk. Sepet testleri kendi verisini temizler."
@@ -20,8 +19,7 @@
         "playwright",
         "test",
         "tests/2",
-        "--project=chromium",
-        "--reporter=line,json"
+        "--project=chromium"
       ],
       "group": "uye",
       "tip": "Üye seti: 20–25, 18 case. Her test kendi UI login'ini yapar (~8 sn/test), çünkü Homee üye oturumu paylaşılamıyor. Adres ve favori oluşturur, sonunda siler. ~10 dk."

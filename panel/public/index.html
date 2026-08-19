@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="panel-token" content="__PANEL_TOKEN__">
 <title>Homee QA Paneli</title>
 <style>
   :root{--bg:#fff;--fg:#18181b;--mut:#71717a;--line:#e4e4e7;--card:#fafafa;--ok:#0f766e;--no:#b91c1c;--sk:#a16207;--acc:#b91c1c}
@@ -87,6 +88,21 @@
       <button id="stopBtn" class="danger" style="width:auto">Durdur</button>
       <button onclick="load()" style="width:auto">Yenile</button>
     </div>
+    <h2>Parametreli kosum</h2>
+    <div id="customRun">
+      <select id="cSpec" multiple size="6" style="margin-bottom:6px"></select>
+      <input id="cGrep" placeholder='Baslik filtresi (-g), örn: silinir' style="margin-bottom:6px">
+      <div class="row" style="gap:6px">
+        <label class="mono" style="font-size:11px">tekrar
+          <input id="cRepeat" type="number" min="1" max="10" value="1" style="width:56px;margin:0 0 0 4px"></label>
+        <label class="mono" style="font-size:11px">
+          <input id="cHeaded" type="checkbox" style="width:auto;margin:0 4px 0 0">headed</label>
+      </div>
+      <p class="mono" id="cPreview" style="background:var(--card);border:1px solid var(--line);
+         border-radius:6px;padding:6px 8px;word-break:break-all;margin:0 0 6px">komut...</p>
+      <button id="cRunBtn" onclick="runCustom()">Parametreli kosum baslat</button>
+    </div>
+
     <h2>Bilinen hatalar</h2>
     <div id="issues"></div>
   </aside>
@@ -201,6 +217,17 @@
 
 <script>
 const $ = (s) => document.querySelector(s);
+const PANEL_TOKEN = document.querySelector('meta[name=panel-token]')?.content || '';
+
+/** Yazma istekleri: token zorunlu (CSRF ve yerel surec riskini kapatir). */
+async function post(url, body) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-panel-token': PANEL_TOKEN },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return res.json().catch(() => ({ ok: false, error: 'yanit okunamadi' }));
+}
 
 // ---------------- her butona bilgi (ⓘ) ----------------
 // Anahtar: buton id'si ya da buton metni. Kosum butonlarinin metni runs.json'daki
@@ -349,13 +376,12 @@ async function load() {
 async function startRun(id) {
   $('#log').textContent = '';
   document.querySelector('.tabs button[data-tab=log]').click();
-  const r = await (await fetch('/api/run', {method:'POST', headers:{'content-type':'application/json'},
-    body: JSON.stringify({id})})).json();
+  const r = await post('/api/run', { id });
   if (!r.ok) appendLog('PANEL HATASI: ' + r.error, true);
 }
 
 $('#stopBtn').onclick = async () => {
-  const r = await (await fetch('/api/stop', {method:'POST'})).json();
+  const r = await post('/api/stop');
   appendLog(r.ok ? '-- durduruldu --' : 'PANEL: ' + r.error, !r.ok);
 };
 
@@ -373,6 +399,7 @@ es.addEventListener('run-start', e => {
   const d = JSON.parse(e.data);
   $('#activePill').textContent = 'kosuyor: ' + d.label;
   appendLog(`=== ${d.label} basladi ===`);
+  if (d.argv) appendLog(`$ ${d.argv}`);
 });
 es.addEventListener('log', e => { const d = JSON.parse(e.data); appendLog(d.line, d.stream === 'err'); });
 es.addEventListener('run-end', e => {
@@ -406,7 +433,7 @@ async function saveVerdict() {
   const body = { key: $('#vKey').value.trim(), scope: $('#vScope').value.trim(),
                  status: $('#vStatus').value, note: $('#vNote').value };
   if (!body.key) return alert('Kayit anahtari zorunlu');
-  await fetch('/api/verdicts', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body)});
+  await post('/api/verdicts', body);
   $('#vNote').value = '';
   loadVerdicts();
 }
@@ -419,6 +446,52 @@ async function loadVerdicts() {
         <td>${esc(v.scope)}</td><td>${esc(v.note)}</td>
         <td class="mono">${esc((v.updatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
     : '<tr><td class="mono">Kayit yok</td></tr>';
+}
+
+// ---------------- parametreli kosum ----------------
+async function loadSpecs() {
+  const specs = await (await fetch('/api/specs')).json();
+  $('#cSpec').innerHTML = specs.map(s =>
+    `<option value="${esc(s.file)}">${esc(s.file)} (${s.cases}${s.member ? ', uye' : ''})</option>`).join('');
+}
+
+function customParams() {
+  return {
+    specs: [...$('#cSpec').selectedOptions].map(o => o.value),
+    grep: $('#cGrep').value.trim(),
+    repeatEach: Number($('#cRepeat').value || 1),
+    headed: $('#cHeaded').checked,
+  };
+}
+
+/** Calistirmadan once uretilecek komutu gosterir — ne kosacagi gizli kalmasin. */
+async function previewCustom() {
+  const r = await (await fetch('/api/run/preview', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ params: customParams() }),
+  })).json();
+  const el = $('#cPreview');
+  el.textContent = r.ok ? r.command : (r.errors || []).join(' · ');
+  el.style.color = r.ok ? '' : 'var(--no)';
+  $('#cRunBtn').disabled = !r.ok;
+  const btn = $('#cRunBtn');
+  btn.dataset.tip = r.ok
+    ? 'Secilen spec ve parametrelerle Playwright kosar. Serbest komut DEGIL: spec adlari tests/ altindaki dosyalarla dogrulanir, kabuk devreye girmez (shell:false), workers=1 sabittir.'
+    : 'Parametreler gecersiz — onizlemedeki hatalari duzelt.';
+  btn.dataset.tipCmd = r.ok ? r.command : '';
+}
+
+for (const id of ['#cSpec', '#cGrep', '#cRepeat', '#cHeaded'])
+  document.addEventListener('change', (e) => { if (e.target.closest(id)) previewCustom(); });
+document.addEventListener('input', (e) => { if (e.target.closest('#cGrep') || e.target.closest('#cRepeat')) previewCustom(); });
+
+async function runCustom() {
+  const params = customParams();
+  if (!params.specs.length) return alert('En az bir spec sec');
+  document.querySelector('.tabs button[data-tab=log]').click();
+  $('#log').textContent = '';
+  const r = await post('/api/run', { id: 'custom', params });
+  if (!r.ok) appendLog('PANEL: ' + r.error, true);
 }
 
 // ---------------- Site (iframe) ----------------
@@ -522,8 +595,7 @@ async function runDiff(path) {
   $('#dShotDesign').removeAttribute('src');
   $('#dShotLive').removeAttribute('src');
   $('#dShotsErr').textContent = '';
-  const r = await (await fetch('/api/figma/diff', {method:'POST', headers:{'content-type':'application/json'},
-    body: JSON.stringify({ path: p })})).json();
+  const r = await post('/api/figma/diff', { path: p });
   if (!r.ok) appendDiffLog('PANEL: ' + r.error, true);
 }
 
@@ -681,8 +753,7 @@ async function sendComment(key) {
   const text = $('#jComment').value.trim();
   if (!text) return alert('Yorum boş');
   if (!confirm(`${key} kartına yorum yazılacak. Onaylıyor musun?`)) return;
-  const r = await (await fetch('/api/jira/comment', {method:'POST', headers:{'content-type':'application/json'},
-    body: JSON.stringify({key, text})})).json();
+  const r = await post('/api/jira/comment', { key, text });
   alert(r.ok ? 'Yorum yazıldı' : 'Hata: ' + (r.error||'?'));
   if (r.ok) openCard(key);
 }
@@ -691,14 +762,14 @@ async function doTransition(key) {
   const id = $('#jTrans').value;
   const label = $('#jTrans').selectedOptions[0].textContent;
   if (!confirm(`${key} kartı "${label}" yapılacak. Onaylıyor musun?`)) return;
-  const r = await (await fetch('/api/jira/transition', {method:'POST', headers:{'content-type':'application/json'},
-    body: JSON.stringify({key, transitionId:id})})).json();
+  const r = await post('/api/jira/transition', { key, transitionId: id });
   alert(r.ok ? 'Statü değişti' : 'Hata: ' + (r.error||'?'));
   if (r.ok) { openCard(key); loadCards(); }
 }
 
 $('#jView').onchange = loadCards;
 
+loadSpecs().then(previewCustom);
 load();
 </script>
 </body>
