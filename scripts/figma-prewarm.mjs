@@ -51,100 +51,105 @@ async function api(url) {
 const findNode = (n, id, d = 0) =>
   !n || d > 40 ? null : n.id === id ? n : (n.children ?? []).reduce((a, c) => a ?? findNode(c, id, d + 1), null);
 
-let fetched = 0;
+try {
+let calls = 0;
 let skipped = 0;
 
-try {
-for (const route of FIGMA_ROUTES) {
-  if (ONLY.length && !ONLY.includes(route.page)) continue;
-  console.log(`\n▸ ${route.page}  (node ${route.node}, kart ${route.cards.join(", ")})`);
+/**
+ * MALIYET NOTU (2026-08-19'da bütçe bu yüzden yandı):
+ * Figma limiti istek SAYISINA değil dönen düğüm HACMİNE bakıyor. Rota rota
+ * `?ids=<canvas>` çekmek en pahalı yol — bir sayfanın TÜM frame'lerini getirir
+ * (Main Page = 7,2 MB / 17 frame, oysa tek frame gerekiyordu).
+ *
+ * Bu script 3 çağrıda bitirir:
+ *   1) files?depth=2            → tüm dosya sığ (~70 KB), frame kimlikleri
+ *   2) files?ids=f1,f2,…        → yalnızca gereken frame'lerin ağacı (toplu)
+ *   3) images?ids=f1,f2,…       → tüm render'lar tek istekte
+ * `ids` virgülle çoklu id kabul ediyor; tek tek çağırmak gereksiz.
+ */
+const routes = FIGMA_ROUTES.filter((r) => !ONLY.length || ONLY.includes(r.page));
 
-  // 1) sığ ağaç
-  let tree;
-  const shallowKey = `shallow_${FIGMA_FILE}_${route.node}`;
-  const deepKey = `filetree_${FIGMA_FILE}_${route.node}`;
-  if (fs.existsSync(kp(deepKey, "json"))) {
-    tree = JSON.parse(fs.readFileSync(kp(deepKey, "json"), "utf8"));
-    console.log("   sığ ağaç: (tam ağaç önbellekte)");
-    skipped++;
-  } else if (fs.existsSync(kp(shallowKey, "json"))) {
-    tree = JSON.parse(fs.readFileSync(kp(shallowKey, "json"), "utf8"));
-    console.log("   sığ ağaç: önbellekten");
-    skipped++;
-  } else {
-    const res = await api(
-      `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(route.node)}&depth=2`,
-    );
-    tree = await res.json();
-    fs.writeFileSync(kp(shallowKey, "json"), JSON.stringify(tree));
-    console.log(`   sığ ağaç: çekildi (${Math.round(JSON.stringify(tree).length / 1024)} KB)`);
-    fetched++;
-    await sleep(DELAY);
-  }
+// ---- 1) sığ ağaç: tüm dosya, tek çağrı
+const shallowKey = `shallowfile_${FIGMA_FILE}_depth2`;
+let fileTree;
+if (fs.existsSync(kp(shallowKey, "json"))) {
+  fileTree = JSON.parse(fs.readFileSync(kp(shallowKey, "json"), "utf8"));
+  console.log("1) sığ dosya ağacı: önbellekten");
+  skipped++;
+} else {
+  const res = await api(`https://api.figma.com/v1/files/${FIGMA_FILE}?depth=2`);
+  fileTree = await res.json();
+  fs.writeFileSync(kp(shallowKey, "json"), JSON.stringify(fileTree));
+  calls++;
+  console.log(`1) sığ dosya ağacı: çekildi (${Math.round(JSON.stringify(fileTree).length / 1024)} KB, 1 çağrı)`);
+  await sleep(DELAY);
+}
 
-  // frame'i çöz
-  const canvas = findNode(tree.document, route.node);
+// ---- frame'leri çöz (ağ çağrısı YOK)
+const targets = [];
+for (const r of routes) {
+  const canvas = findNode(fileTree.document, r.node);
   if (!canvas) {
-    console.log("   ⚠️ düğüm ağaçta yok, atlanıyor");
+    console.log(`   ⚠️  ${r.page}: düğüm ${r.node} sığ ağaçta yok, atlanıyor`);
     continue;
   }
   let frame = canvas;
   if (canvas.type === "CANVAS") {
     const frames = (canvas.children ?? []).filter((c) => c.type === "FRAME");
     frame =
-      (route.frame && frames.find((f) => f.name === route.frame)) ??
+      (r.frame && frames.find((f) => f.name === r.frame)) ??
       frames.slice().sort((a, b) => (b.absoluteBoundingBox?.width ?? 0) - (a.absoluteBoundingBox?.width ?? 0))[0];
   }
   if (!frame) {
-    console.log("   ⚠️ FRAME bulunamadı, atlanıyor");
+    console.log(`   ⚠️  ${r.page}: FRAME bulunamadı`);
     continue;
   }
   const bb = frame.absoluteBoundingBox ?? {};
-  console.log(`   frame: "${frame.name}" ${Math.round(bb.width)}x${Math.round(bb.height)} (${frame.id})`);
-
-  // 2) frame ağacı (metin katmanları — diff için)
-  const frameKey = `frametree_${FIGMA_FILE}_${frame.id}`;
-  if (fs.existsSync(kp(frameKey, "json"))) {
-    console.log("   frame ağacı: önbellekten");
-    skipped++;
-  } else {
-    const res = await api(
-      `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(frame.id)}`,
-    );
-    const ft = await res.json();
-    fs.writeFileSync(kp(frameKey, "json"), JSON.stringify(ft));
-    console.log(`   frame ağacı: çekildi (${Math.round(JSON.stringify(ft).length / 1024)} KB)`);
-    fetched++;
-    await sleep(DELAY);
-  }
-
-  // 3) render
-  const renderKey = `render_${FIGMA_FILE}_${frame.id}`;
-  if (fs.existsSync(kp(renderKey, "png"))) {
-    console.log("   render: önbellekten");
-    skipped++;
-  } else {
-    const res = await api(
-      `https://api.figma.com/v1/images/${FIGMA_FILE}?ids=${encodeURIComponent(frame.id)}&format=png&scale=1`,
-    );
-    const url = Object.values((await res.json()).images ?? {})[0];
-    if (!url) {
-      console.log("   ⚠️ render URL'i yok");
-      continue;
-    }
-    const buf = Buffer.from(await (await fetch(url)).arrayBuffer());
-    fs.writeFileSync(kp(renderKey, "png"), buf);
-    console.log(`   render: çekildi (${Math.round(buf.length / 1024)} KB)`);
-    fetched++;
-    await sleep(DELAY);
-  }
+  targets.push({ ...r, frameId: frame.id, frameName: frame.name, w: Math.round(bb.width ?? 0), h: Math.round(bb.height ?? 0) });
+  console.log(`   ${r.page.padEnd(26)} → "${frame.name}" ${Math.round(bb.width)}x${Math.round(bb.height)} (${frame.id})`);
 }
 
-console.log(`\nBitti — ${fetched} çağrı yapıldı, ${skipped} adım önbellekten karşılandı.`);
+// ---- 2) frame ağaçları: eksik olanları TEK çağrıda
+const needTree = targets.filter((t) => !fs.existsSync(kp(`frametree_${FIGMA_FILE}_${t.frameId}`, "json")));
+if (!needTree.length) {
+  console.log("2) frame ağaçları: hepsi önbellekte");
+  skipped++;
+} else {
+  const ids = needTree.map((t) => t.frameId).join(",");
+  const res = await api(`https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(ids)}`);
+  const tree = await res.json();
+  calls++;
+  for (const t of needTree) {
+    const sub = findNode(tree.document, t.frameId);
+    if (sub) fs.writeFileSync(kp(`frametree_${FIGMA_FILE}_${t.frameId}`, "json"), JSON.stringify({ document: sub }));
+  }
+  console.log(`2) frame ağaçları: ${needTree.length} frame tek çağrıda çekildi (${Math.round(JSON.stringify(tree).length / 1024)} KB)`);
+  await sleep(DELAY);
+}
+
+// ---- 3) render'lar: eksik olanları TEK çağrıda
+const needRender = targets.filter((t) => !fs.existsSync(kp(`render_${FIGMA_FILE}_${t.frameId}`, "png")));
+if (!needRender.length) {
+  console.log("3) render'lar: hepsi önbellekte");
+  skipped++;
+} else {
+  const ids = needRender.map((t) => t.frameId).join(",");
+  const res = await api(`https://api.figma.com/v1/images/${FIGMA_FILE}?ids=${encodeURIComponent(ids)}&format=png&scale=1`);
+  const images = (await res.json()).images ?? {};
+  calls++;
+  for (const [id, url] of Object.entries(images)) {
+    if (!url) continue;
+    const buf = Buffer.from(await (await fetch(url)).arrayBuffer());
+    fs.writeFileSync(kp(`render_${FIGMA_FILE}_${id}`, "png"), buf);
+    console.log(`   render ${id}: ${Math.round(buf.length / 1024)} KB`);
+  }
+  console.log(`3) render'lar: ${needRender.length} frame tek çağrıda`);
+}
+
+console.log(`\nBitti — ${targets.length} rota hazır, Figma'ya ${calls} çağrı yapıldı.`);
 } catch (e) {
   if (e instanceof RateLimited) {
     console.log(`\n⏸  DURDURULDU: ${e.message}`);
-    console.log(`   ${fetched} çağrı yapılmıştı, ${skipped} adım önbellekten geldi.`);
     console.log("   Bütçe açıldığında aynı komutu tekrar çalıştır — tamamlananları atlar.");
     process.exit(2);
   }

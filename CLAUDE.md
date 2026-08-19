@@ -272,6 +272,12 @@ ve `retry-after` **~109 saat** dönüyor (ölçüldü 2026-08-19).
 Hepsi `panel-data/figma-cache/` içinde **7 gün** önbellekte. Tam ağaç zaten önbellekteyse
 frame ondan çözülür, yeni çağrı yapılmaz.
 
+**`ids` VİRGÜLLE ÇOKLU ID KABUL EDİYOR** — bunu baştan kullanmadığım için bütçe yandı.
+10 rotanın tamamı **3 çağrıda** hazırlanabiliyor:
+1. `files?depth=2` → tüm dosya sığ (~70 KB), 26 sayfanın frame kimlikleri
+2. `files?ids=f1,f2,…,f10` → yalnızca gereken frame'lerin ağacı (toplu)
+3. `images?ids=f1,…,f10` → 10 render tek istekte
+
 **Bütçe açıldığında tek seferde hazırla:**
 ```bash
 node scripts/figma-prewarm.mjs                    # tüm rotalar, 6 sn aralıkla
