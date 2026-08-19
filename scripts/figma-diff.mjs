@@ -54,7 +54,7 @@ const TOKEN = figmaToken();
  * tekrar çekmesin diye disk önbelleği zorunlu. `--refresh` ile atlanır.
  */
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
-const CACHE_TTL_MS = Number(process.env.FIGMA_CACHE_TTL_MS ?? 6 * 60 * 60 * 1000);
+const CACHE_TTL_MS = Number(process.env.FIGMA_CACHE_TTL_MS ?? 7 * 24 * 60 * 60 * 1000);
 const REFRESH = process.argv.includes("--refresh");
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 
@@ -194,15 +194,23 @@ function findNode(node, id, depth = 0) {
 }
 
 /**
- * ⚠️ `/v1/files/:key/nodes` ucu maliyet tabanlı rate-limit'e takılıyor
- * (429, retry-after günler sürebiliyor). `/v1/files/:key?ids=` ucu aynı ağacı
- * TAM DERİNLİKTE döndürüyor ve ayrı kovada — bu yüzden TEK çağrı + disk önbelleği.
+ * ⚠️ FIGMA MALİYET TABANLI RATE LIMIT — çekim stratejisi buna göre kurulu:
+ *  - `/v1/files/:key/nodes` tam ağaç için 429 veriyor, retry-after GÜNLER sürüyor
+ *  - `/v1/files/:key?ids=<canvas>` tam ağacı verir ama PAHALI: sayfadaki TÜM frame'leri
+ *    getirir (Main Page = 7,2 MB, 17 frame). Bütçeyi bu tüketti.
+ *  - Doğrusu iki adım: (a) `?ids=<canvas>&depth=2` ile SIĞ sorgu → frame id'leri öğren,
+ *    (b) `?ids=<frameId>` ile yalnızca hedef frame'in ağacını çek.
+ * İkisi de 7 gün disk önbelleğinde tutulur.
  */
-const fileTree = await figma(
-  `/v1/files/${FILE_KEY}?ids=${encodeURIComponent(NODE_ID)}`,
-  `filetree_${FILE_KEY}_${NODE_ID}`,
-);
-const canvasDoc = findNode(fileTree.document, NODE_ID);
+// Tam ağaç zaten önbellekteyse (eski koşumlardan) onu kullan — yeni çağrı yapma.
+const cachedDeep = cacheRead(`filetree_${FILE_KEY}_${NODE_ID}`);
+const shallow =
+  cachedDeep ??
+  (await figma(
+    `/v1/files/${FILE_KEY}?ids=${encodeURIComponent(NODE_ID)}&depth=2`,
+    `shallow_${FILE_KEY}_${NODE_ID}`,
+  ));
+const canvasDoc = findNode(shallow.document, NODE_ID);
 if (!canvasDoc) throw new Error(`${NODE_ID} düğümü ağaçta bulunamadı`);
 
 let target = canvasDoc;
@@ -222,8 +230,17 @@ if (canvasDoc.type === "CANVAS") {
 }
 
 const frameId = target.id;
-// Ağaç tam derinlikte geldiği için ikinci çağrı YOK
-const frameDoc = target;
+// Sığ sorgudan sadece frame kimliğini öğrendik; metin katmanları için o frame'in
+// ağacını ayrıca çekiyoruz (tüm sayfayı çekmekten çok daha ucuz).
+// Tam ağaçtan geldiysek frame'in metin katmanları elimizde — ek çağrı GEREKMEZ.
+let frameDoc = target;
+if (!(target.children ?? []).length) {
+  const frameTree = await figma(
+    `/v1/files/${FILE_KEY}?ids=${encodeURIComponent(frameId)}`,
+    `frametree_${FILE_KEY}_${frameId}`,
+  );
+  frameDoc = findNode(frameTree.document, frameId) ?? target;
+}
 const frameW = Math.round(frameDoc.absoluteBoundingBox?.width ?? 1440);
 const frameH = Math.round(frameDoc.absoluteBoundingBox?.height ?? 0);
 console.log(`  frame boyutu: ${frameW} x ${frameH}`);

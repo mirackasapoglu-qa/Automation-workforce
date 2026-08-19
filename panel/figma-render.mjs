@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { figmaForRoute, FIGMA_FILE } from "./figma-map.mjs";
+import { figmaForRoute, FIGMA_FILE, FIGMA_ROUTES } from "./figma-map.mjs";
 
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
 
@@ -30,11 +30,43 @@ function findNode(node, id, depth = 0) {
   return null;
 }
 
-/** Cache'teki ağaçtan hedef frame'i çözer: {id, name, w, h} */
-function resolveFrame(nodeId, frameName) {
-  const f = keyPath(`filetree_${FIGMA_FILE}_${nodeId}`, "json");
-  if (!fs.existsSync(f)) return null;
-  const tree = JSON.parse(fs.readFileSync(f, "utf8"));
+/**
+ * Düğüm ağacını getirir: önce disk önbelleği, yoksa `/v1/files/:key?ids=` (bu uç
+ * rate-limit bakımından `/nodes`'tan farklı kovada; `/nodes` tam ağaç için 429 verip
+ * günler süren retry-after döndürüyor). Bir kez çekilir, sonra önbellekten okunur.
+ */
+async function fetchTree(nodeId) {
+  // Once tam agac onbellegi (diff kosmussa oradan), sonra sig sorgu onbellegi
+  for (const key of [`filetree_${FIGMA_FILE}_${nodeId}`, `shallow_${FIGMA_FILE}_${nodeId}`]) {
+    const f = keyPath(key, "json");
+    if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, "utf8"));
+  }
+  const f = keyPath(`shallow_${FIGMA_FILE}_${nodeId}`, "json");
+
+  const t = token();
+  if (!t) throw new Error("~/.figma-credentials yok");
+  // SIG sorgu: frame id/ad/boyut icin yeterli, tam agactan cok daha ucuz
+  const res = await fetch(
+    `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(nodeId)}&depth=2`,
+    { headers: { "X-Figma-Token": t } },
+  );
+  if (res.status === 429) {
+    const ra = res.headers.get("retry-after");
+    throw new Error(
+      `Figma rate limit (429)${ra ? ` — ${Math.round(Number(ra) / 3600)} saat sonra` : ""}. ` +
+        `Onbellekte olan rotalar calisiyor.`,
+    );
+  }
+  if (!res.ok) throw new Error(`Figma files ${res.status}`);
+  const tree = await res.json();
+  fs.mkdirSync(CACHE_DIR, { recursive: true });
+  fs.writeFileSync(f, JSON.stringify(tree));
+  return tree;
+}
+
+/** Ağaçtan hedef frame'i çözer: {id, name, w, h} */
+async function resolveFrame(nodeId, frameName) {
+  const tree = await fetchTree(nodeId);
   const canvas = findNode(tree.document, nodeId);
   if (!canvas) return null;
   let target = canvas;
@@ -61,15 +93,13 @@ export async function renderForRoute(routePath) {
   const map = figmaForRoute(routePath ?? "/");
   if (!map) return { error: `Bu rota icin Figma eslesmesi yok: ${routePath}` };
 
-  const frame = resolveFrame(map.node, map.frame);
-  if (!frame) {
-    return {
-      error:
-        `Bu frame'in agaci onbellekte yok (${map.page}). Once bir kez diff kos: ` +
-        `node scripts/figma-diff.mjs --node ${map.node} --route ${map.matched}`,
-      map,
-    };
+  let frame;
+  try {
+    frame = await resolveFrame(map.node, map.frame);
+  } catch (e) {
+    return { error: `${map.page}: ${e.message}`, map };
   }
+  if (!frame) return { error: `${map.page}: CANVAS altinda FRAME bulunamadi`, map };
 
   const pngPath = keyPath(`render_${FIGMA_FILE}_${frame.id}`, "png");
   if (fs.existsSync(pngPath)) {
@@ -89,4 +119,47 @@ export async function renderForRoute(routePath) {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   fs.writeFileSync(pngPath, buf);
   return { buf, frame, map, cached: false };
+}
+
+/** Onbellekten calisabilen rotalari listeler (rate limit sirasinda ne mumkun?). */
+export function cachedRoutes() {
+  const files = fs.existsSync(CACHE_DIR) ? fs.readdirSync(CACHE_DIR) : [];
+  const has = (prefix, id) => files.includes(`${prefix}_${FIGMA_FILE}_${id.replace(":", "_")}.json`) ||
+                              files.includes(`${prefix}_${FIGMA_FILE}_${id.replace(":", "_")}.png`);
+  return FIGMA_ROUTES.map((r) => {
+    const tree = has("filetree", r.node) || has("shallow", r.node);
+    let render = false;
+    if (tree) {
+      try {
+        const fr = resolveFrameSync(r.node, r.frame);
+        render = fr ? has("render", fr.id) : false;
+      } catch {
+        render = false;
+      }
+    }
+    return { page: r.page, node: r.node, cards: r.cards, tree, render, ready: tree && render };
+  });
+}
+
+/** cachedRoutes icin senkron frame cozumu (yalnizca onbellekten). */
+function resolveFrameSync(nodeId, frameName) {
+  for (const key of [`filetree_${FIGMA_FILE}_${nodeId}`, `shallow_${FIGMA_FILE}_${nodeId}`]) {
+    const f = keyPath(key, "json");
+    if (!fs.existsSync(f)) continue;
+    const tree = JSON.parse(fs.readFileSync(f, "utf8"));
+    const canvas = findNode(tree.document, nodeId);
+    if (!canvas) continue;
+    let target = canvas;
+    if (canvas.type === "CANVAS") {
+      const frames = (canvas.children ?? []).filter((c) => c.type === "FRAME");
+      target =
+        (frameName && frames.find((x) => x.name === frameName)) ??
+        frames.slice().sort((a, b) => (b.absoluteBoundingBox?.width ?? 0) - (a.absoluteBoundingBox?.width ?? 0))[0];
+    }
+    if (target) {
+      const bb = target.absoluteBoundingBox ?? {};
+      return { id: target.id, name: target.name, w: Math.round(bb.width ?? 0), h: Math.round(bb.height ?? 0) };
+    }
+  }
+  return null;
 }

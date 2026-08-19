@@ -520,7 +520,14 @@ async function loadDesign(path) {
   info.textContent = 'tasarim yukleniyor...';
   const r = await (await fetch('/api/figma/frame?path=' + encodeURIComponent(path))).json();
   if (r.error) {
-    info.textContent = r.error.slice(0, 120);
+    // Rate limit / onbellek eksigi: hangi rotalarin hazir oldugunu soyle
+    let ready = '';
+    try {
+      const c = await (await fetch('/api/figma/cache')).json();
+      const ok = c.filter(x => x.ready).map(x => x.page);
+      if (ok.length) ready = '  ·  onbellekten hazir: ' + ok.join(', ');
+    } catch {}
+    info.textContent = r.error.slice(0, 160) + ready;
     $('#designImg').removeAttribute('src');
     return;
   }

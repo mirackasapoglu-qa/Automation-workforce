@@ -248,6 +248,28 @@ Panelden: **Tasarım diff** sekmesi ya da **Site (canlı)** sekmesindeki "Tasari
 **Piksel diff YAPILMIYOR** (tasarım↔kod arasında gürültü: font hinting, gerçek ürün görselleri,
 dinamik fiyat). Üç ölçüm: metin varlığı · spec (font/boyut/kalınlık/renk) · yan yana + saydamlık.
 
+### Figma çekim maliyeti (yanmış bir bütçenin dersi)
+
+**Yapılmaması gereken:** `?ids=<canvas>` ile tam sayfa ağacını çekmek. Sayfadaki TÜM
+frame'leri getirir — Main Page = **7,2 MB / 17 frame**. İki-üç böyle çağrı bütçeyi bitiriyor
+ve `retry-after` **~109 saat** dönüyor (ölçüldü 2026-08-19).
+
+**Doğru sıra (maliyetten ucuza):**
+1. `?ids=<canvas>&depth=2` → sığ, sadece frame kimlik/ad/boyut (~70 KB)
+2. `?ids=<frameId>` → yalnızca hedef frame'in ağacı (metin katmanları)
+3. `/v1/images?ids=<frameId>` → PNG render
+
+Hepsi `panel-data/figma-cache/` içinde **7 gün** önbellekte. Tam ağaç zaten önbellekteyse
+frame ondan çözülür, yeni çağrı yapılmaz.
+
+**Bütçe açıldığında tek seferde hazırla:**
+```bash
+node scripts/figma-prewarm.mjs                    # tüm rotalar, 6 sn aralıkla
+node scripts/figma-prewarm.mjs --only "My Cart"   # tek sayfa
+```
+Tamamlananı atlar, 429 görünce durur ve kaldığı yerden devam edebilir.
+`GET /api/figma/cache` hangi rotanın hazır olduğunu söyler; panel hata mesajında da listeler.
+
 ⚠️ **Figma rate limit maliyet tabanlı.** `/v1/files/:key/nodes` ucu tam ağaç için 429 veriyor ve
 `retry-after` **günler** sürebiliyor (ölçüldü: 396.900 sn). Bu yüzden:
 - `/v1/files/:key?ids=<node>` ucu kullanılıyor (aynı ağacı tam derinlikte döner, farklı kovada)

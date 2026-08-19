@@ -33,7 +33,7 @@ import {
 import { startProxy } from "./proxy.mjs";
 import { matchRoute, runsForCard } from "./route-map.mjs";
 import { figmaForRoute } from "./figma-map.mjs";
-import { renderForRoute } from "./figma-render.mjs";
+import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 
 dotenv.config();
 
@@ -448,6 +448,8 @@ const server = http.createServer(async (req, res) => {
       });
       return res.end(r.buf);
     }
+
+    if (p === "/api/figma/cache") return send(res, 200, cachedRoutes());
 
     if (p === "/api/figma/frame") {
       const r = await renderForRoute(url.searchParams.get("path") ?? "/");
