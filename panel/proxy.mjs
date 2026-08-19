@@ -106,6 +106,16 @@ export function startProxy({ baseURL, port, gateCookie = "temporary_auth_verifie
   history.pushState=function(){ var r=ps.apply(this,arguments); setTimeout(ping,60); return r; };
   history.replaceState=function(){ var r=rs.apply(this,arguments); setTimeout(ping,60); return r; };
   setInterval(ping, 1500);
+  // kaydirma bildirimi (yan yana tasarim gorunumu icin senkron)
+  var lastY = -1, t = 0;
+  function pingScroll(){
+    var y = window.scrollY || document.documentElement.scrollTop || 0;
+    if (Math.abs(y - lastY) < 4) return;
+    lastY = y;
+    try { parent.postMessage({ type:"homee-scroll", y: y,
+      h: document.documentElement.scrollHeight, vh: window.innerHeight }, "*"); } catch(e){}
+  }
+  addEventListener("scroll", function(){ var n = Date.now(); if (n - t > 80) { t = n; pingScroll(); } }, { passive: true });
 })();</script></head>`,
         );
         res.writeHead(upstreamRes.status, out);

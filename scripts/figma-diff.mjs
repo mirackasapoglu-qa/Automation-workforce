@@ -334,9 +334,6 @@ const menuTexts = await collectOpenedMenuTexts();
 console.log(`  mega menü açıkken toplanan metin: ${menuTexts.length}`);
 
 const liveBuf = await page.screenshot({ fullPage: true });
-const design = shrink(renderBuf, "design");
-const live = shrink(liveBuf, "live");
-console.log(`  görseller küçültüldü: tasarım ${design.kb} KB, canlı ${live.kb} KB`);
 console.log(`  canlı ekran görüntüsü: ${(liveBuf.length / 1024).toFixed(0)} KB (viewport ${viewport.width}px)`);
 
 // 4) metin + spec karşılaştırması
@@ -366,6 +363,12 @@ for (const t of candidates) {
       out.push({
         text: txt,
         top: Math.round(r.top + window.scrollY),
+        rect: {
+          x: Math.round(r.left + window.scrollX),
+          y: Math.round(r.top + window.scrollY),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        },
         visible: !!(r.width || r.height),
         fontFamily: cs.fontFamily,
         fontSize: parseFloat(cs.fontSize),
@@ -427,7 +430,6 @@ for (const t of candidates) {
   });
 }
 
-await browser.close();
 
 const mismatched = results.filter((r) => r.found && r.diffs.length);
 const clean = results.filter((r) => r.found && !r.diffs.length);
@@ -443,6 +445,110 @@ console.log(
     `  ${needsInteraction.length} etkileşim gerektiriyor (menü/drawer kapalıyken görünmez)\n` +
     `  ${dynamicSkipped.length} dinamik/temsili içerik (fiyat, ürün adı, örnek metin) — gürültü`,
 );
+
+// ---------------------------------------------------------------- ANNOTATE
+/**
+ * Farkları KIRMIZI KUTU + NUMARA ile işaretli snapshot üretir (Jira'ya eklenebilir).
+ *  - canlı sayfa: spec farkı olan öğelerin üstüne kutu (DOM rect'leri)
+ *  - tasarım render'ı: canlıda BULUNAMAYAN metinlerin yerine kutu (Figma koordinatları)
+ */
+const frameX = frameDoc.absoluteBoundingBox?.x ?? 0;
+const frameY = frameDoc.absoluteBoundingBox?.y ?? 0;
+
+const liveBoxes = mismatched
+  .map((r, i) => ({ n: i + 1, ...(r.found?.rect ?? {}), label: r.diffs.join(" · ").slice(0, 60) }))
+  .filter((b) => b.w);
+
+const designBoxes = missing
+  .map((r, i) => {
+    const b = r.fig.box;
+    if (!b) return null;
+    return {
+      n: i + 1,
+      x: Math.round(b.x - frameX),
+      y: Math.round(b.y - frameY),
+      w: Math.round(b.width),
+      h: Math.round(b.height),
+      label: r.expected.slice(0, 40),
+    };
+  })
+  .filter(Boolean);
+
+const BOX_CSS = `
+  .hd-box{position:absolute;border:2px solid #e11d48;box-shadow:0 0 0 2px rgba(225,29,72,.25);
+          border-radius:2px;pointer-events:none;z-index:2147483000}
+  .hd-num{position:absolute;top:-11px;left:-2px;background:#e11d48;color:#fff;font:700 11px/1.5
+          -apple-system,sans-serif;padding:0 5px;border-radius:3px;white-space:nowrap}`;
+
+async function annotateLive() {
+  if (!liveBoxes.length) return liveBuf;
+  await page.evaluate(
+    ({ boxes, css }) => {
+      const st = document.createElement("style");
+      st.textContent = css;
+      document.head.appendChild(st);
+      for (const b of boxes) {
+        const d = document.createElement("div");
+        d.className = "hd-box";
+        d.style.left = b.x - 2 + "px";
+        d.style.top = b.y - 2 + "px";
+        d.style.width = b.w + 4 + "px";
+        d.style.height = b.h + 4 + "px";
+        d.innerHTML = `<span class="hd-num">${b.n}</span>`;
+        document.body.appendChild(d);
+      }
+    },
+    { boxes: liveBoxes, css: BOX_CSS },
+  );
+  await page.waitForTimeout(400);
+  return page.screenshot({ fullPage: true });
+}
+
+/** Tasarım PNG'sini kutularla birlikte yeni bir sayfada render edip snapshot alır. */
+async function annotateDesign() {
+  if (!designBoxes.length) return renderBuf;
+  const p2 = await context.newPage();
+  await p2.setViewportSize({ width: Math.min(frameW, 1920), height: 900 });
+  const html = `<!doctype html><meta charset="utf-8"><style>
+    html,body{margin:0;padding:0;background:#fff}
+    #wrap{position:relative;width:${frameW}px}
+    #wrap img{width:${frameW}px;display:block}
+    ${BOX_CSS}</style>
+    <div id="wrap"><img src="data:image/png;base64,${renderBuf.toString("base64")}">
+    ${designBoxes
+      .map(
+        (b) =>
+          `<div class="hd-box" style="left:${b.x - 2}px;top:${b.y - 2}px;width:${b.w + 4}px;height:${
+            b.h + 4
+          }px"><span class="hd-num">${b.n}</span></div>`,
+      )
+      .join("")}</div>`;
+  await p2.setContent(html, { waitUntil: "load" });
+  await p2.waitForTimeout(600);
+  const shot = await p2.locator("#wrap").screenshot();
+  await p2.close();
+  return shot;
+}
+
+const liveAnnotated = await annotateLive();
+const designAnnotated = await annotateDesign();
+console.log(
+  `  işaretleme: canlıda ${liveBoxes.length} kutu (spec farkı), tasarımda ${designBoxes.length} kutu (eksik metin)`,
+);
+
+// annotate edilmiş PNG'leri diske de yaz (Jira'ya eklenebilir kanıt)
+const annDir = path.dirname(path.join(process.cwd(), OUT));
+const slugBase = path.basename(OUT).replace(/\.html$/, "");
+fs.writeFileSync(path.join(annDir, `${slugBase}-canli-isaretli.png`), liveAnnotated);
+fs.writeFileSync(path.join(annDir, `${slugBase}-tasarim-isaretli.png`), designAnnotated);
+console.log(`  işaretli snapshot'lar: ${slugBase}-canli-isaretli.png / -tasarim-isaretli.png`);
+
+const design = shrink(designAnnotated, "design");
+const live = shrink(liveAnnotated, "live");
+console.log(`  görseller küçültüldü: tasarım ${design.kb} KB, canlı ${live.kb} KB`);
+
+await browser.close();
+
 
 // 5) rapor
 const html = `<!doctype html>
@@ -487,10 +593,10 @@ frame ${frameW}×${frameH} · canlı ${esc(BASE_URL + ROUTE)} (viewport ${viewpo
 <h2>1. Spec farkları (metin eşleşti, stil farklı)</h2>
 ${
   mismatched.length
-    ? `<div class="scroll"><table><tr><th style="width:26%">Metin</th><th>Fark</th><th style="width:20%">Figma katmanı</th></tr>
+    ? `<div class="scroll"><table><tr><th style="width:34px">#</th><th style="width:26%">Metin</th><th>Fark</th><th style="width:20%">Figma katmanı</th></tr>
 ${mismatched
   .map(
-    (r) => `<tr><td>${esc(r.expected.slice(0, 50))}</td>
+    (r, i) => `<tr><td class="num">${i + 1}</td><td>${esc(r.expected.slice(0, 50))}</td>
   <td class="mono no">${r.diffs.map(esc).join("<br>")}</td>
   <td class="mono">${esc(r.fig.name.slice(0, 30))}</td></tr>`,
   )
@@ -504,10 +610,10 @@ ${mismatched
 ekranlarındaki metinler burada normal olarak görünür — hepsi hata değildir.</p>
 ${
   missing.length
-    ? `<div class="scroll"><table><tr><th style="width:44%">Beklenen metin</th><th style="width:22%">Figma katmanı</th><th>Stil</th></tr>
+    ? `<div class="scroll"><table><tr><th style="width:34px">#</th><th style="width:44%">Beklenen metin</th><th style="width:22%">Figma katmanı</th><th>Stil</th></tr>
 ${missing
   .map(
-    (r) => `<tr><td>${esc(r.expected.slice(0, 60))}</td><td class="mono">${esc(r.fig.name.slice(0, 30))}</td>
+    (r, i) => `<tr><td class="num">${i + 1}</td><td>${esc(r.expected.slice(0, 60))}</td><td class="mono">${esc(r.fig.name.slice(0, 30))}</td>
   <td class="mono">${r.fig.fontSize ?? "?"}px/${r.fig.fontWeight ?? "?"} ${
     r.fig.color ? `<span class="sw" style="background:${r.fig.color}"></span>${r.fig.color}` : ""
   }</td></tr>`,
@@ -554,9 +660,9 @@ ${Object.entries(figFills)
 
 <h2>5. Görsel karşılaştırma</h2>
 <div class="side">
-  <figure><figcaption>Figma — ${esc(target.name)}</figcaption>
+  <figure><figcaption>Figma — ${esc(target.name)} · <b style="color:#e11d48">kırmızı kutular: canlıda bulunamayan metinler</b> (numaralar 2. tablo)</figcaption>
     <img src="data:${design.mime};base64,${design.b64}" alt="Figma tasarımı"></figure>
-  <figure><figcaption>Canlı — ${esc(ROUTE)}</figcaption>
+  <figure><figcaption>Canlı — ${esc(ROUTE)} · <b style="color:#e11d48">kırmızı kutular: spec farkı olan öğeler</b> (numaralar 1. tablo)</figcaption>
     <img src="data:${live.mime};base64,${live.b64}" alt="Canlı sayfa"></figure>
 </div>
 

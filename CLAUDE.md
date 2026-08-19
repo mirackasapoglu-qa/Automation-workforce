@@ -225,6 +225,12 @@ dinamik fiyat). Üç ölçüm: metin varlığı · spec (font/boyut/kalınlık/r
 - yanıt + PNG render `panel-data/figma-cache/` içinde **6 saat** önbellekte (`FIGMA_CACHE_TTL_MS`)
 - `--refresh` önbelleği atlar — **kotayı yakabilir, dikkatli kullan**
 
+**İşaretli snapshot (kırmızı kutu):** diff, farkları kutulayıp numaralandırarak iki PNG üretir —
+`<slug>-tasarim-isaretli.png` (canlıda **bulunamayan** metinlerin Figma'daki yeri) ve
+`<slug>-canli-isaretli.png` (spec farkı olan öğelerin canlıdaki yeri). Numaralar rapordaki
+1. ve 2. tablonun `#` kolonuyla eşleşir. Doğrudan Jira'ya kanıt olarak eklenebilir.
+Panelde **Tasarım diff** sekmesinde yan yana, kaydırılabilir kolonlarda gösterilir.
+
 Eşleştirme tuzakları ve çözümleri:
 - Aynı metin sayfada birden çok yerde geçiyor → **göreli dikey konuma en yakın** eşleşme seçilir
   (yoksa mega menüdeki "SALON" ile hero'daki karışıyordu)

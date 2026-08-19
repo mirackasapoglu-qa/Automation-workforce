@@ -91,10 +91,20 @@
         <span>
           <span class="mono" id="siteMatch"></span>
           <button id="siteRunBtn" style="width:auto;margin:0 0 0 8px" disabled onclick="runForCurrent()">Bu sayfayi test et</button>
+          <button id="siteDesignBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleDesign()">Yan yana tasarim</button>
           <button id="siteDiffBtn" style="width:auto;margin:0 0 0 6px" onclick="diffForCurrent()">Tasarim diff</button>
         </span>
       </div>
-      <iframe id="siteFrame" title="Homee (canli)" style="width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+      <div id="siteSplit" style="display:flex;gap:10px;align-items:stretch">
+        <iframe id="siteFrame" title="Homee (canli)"
+          style="flex:1;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+        <div id="designCol" hidden style="flex:1;height:640px;overflow:auto;border:1px solid var(--line);
+             border-radius:8px;background:#fff;position:relative">
+          <div style="position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);
+               padding:4px 8px;font:11px ui-monospace,monospace;color:var(--mut);z-index:2" id="designInfo">tasarim</div>
+          <img id="designImg" alt="Figma tasarimi" style="width:100%;display:block">
+        </div>
+      </div>
       <p class="mono">Proxy uzerinden servis ediliyor: <span id="proxyInfo"></span> — <code>x-frame-options</code> sokuluyor, gecici erisim cookie'si enjekte ediliyor.</p>
     </div>
 
@@ -128,6 +138,18 @@
       <div class="cards" id="dCards"></div>
       <pre id="dLog" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;
         max-height:150px;overflow:auto;font:11.5px/1.4 ui-monospace,monospace;margin:0 0 10px;white-space:pre-wrap">Bir rota icin diff alin...</pre>
+      <div id="dShots" hidden style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <figure style="margin:0">
+          <figcaption class="mono" style="margin-bottom:4px">Tasarim — <b style="color:#e11d48">kirmizi: canlida bulunamayan metinler</b></figcaption>
+          <div style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
+            <img id="dShotDesign" style="width:100%;display:block" alt="isaretli tasarim"></div>
+        </figure>
+        <figure style="margin:0">
+          <figcaption class="mono" style="margin-bottom:4px">Canli — <b style="color:#e11d48">kirmizi: spec farki olan ogeler</b></figcaption>
+          <div style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
+            <img id="dShotLive" style="width:100%;display:block" alt="isaretli canli"></div>
+        </figure>
+      </div>
       <div class="scroll"><table id="dTable"></table></div>
       <iframe id="dFrame" title="Tasarim diff raporu" hidden
         style="width:100%;height:700px;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px"></iframe>
@@ -292,6 +314,41 @@ function goSite(path) {
   $('#siteFrame').src = PROXY + (p.startsWith('/') ? p : '/' + p);
 }
 
+// ---- yan yana tasarim ----
+let DESIGN_ON = false;
+
+async function toggleDesign() {
+  DESIGN_ON = !DESIGN_ON;
+  $('#designCol').hidden = !DESIGN_ON;
+  $('#siteDesignBtn').textContent = DESIGN_ON ? 'Tasarimi kapat' : 'Yan yana tasarim';
+  if (DESIGN_ON) await loadDesign(CURRENT_PATH || '/');
+}
+
+async function loadDesign(path) {
+  if (!DESIGN_ON) return;
+  const info = $('#designInfo');
+  info.textContent = 'tasarim yukleniyor...';
+  const r = await (await fetch('/api/figma/frame?path=' + encodeURIComponent(path))).json();
+  if (r.error) {
+    info.textContent = r.error.slice(0, 120);
+    $('#designImg').removeAttribute('src');
+    return;
+  }
+  info.textContent = `${r.page} · ${r.frame.name} · ${r.frame.w}x${r.frame.h} · ${(r.cards||[]).join(', ')}${r.cached ? ' · onbellek' : ''}`;
+  $('#designImg').src = '/api/figma/render?path=' + encodeURIComponent(path);
+}
+
+// iframe kaydirmasini tasarim kolonuna oranlayarak yansit
+addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || d.type !== 'homee-scroll' || !DESIGN_ON) return;
+  const col = $('#designCol'), img = $('#designImg');
+  if (!img.naturalHeight) return;
+  const liveScrollable = Math.max(1, d.h - d.vh);
+  const ratio = Math.min(1, Math.max(0, d.y / liveScrollable));
+  col.scrollTop = ratio * Math.max(0, img.clientHeight - col.clientHeight);
+});
+
 // iframe icindeki her navigasyon proxy'nin enjekte ettigi script ile bildirilir
 addEventListener('message', async (e) => {
   const d = e.data;
@@ -302,6 +359,7 @@ addEventListener('message', async (e) => {
   $('#siteUrl').value = path;
   $('#siteNow').textContent = path + (d.title ? '  ·  ' + d.title.slice(0, 60) : '');
   await matchRoute(path);
+  await loadDesign(path);
 });
 
 async function matchRoute(path) {
@@ -375,7 +433,14 @@ function renderDiffSummary(s, reportUrl) {
   ];
   $('#dTable').innerHTML = '<tr><th style="width:34%">Metin</th><th>Fark</th><th style="width:20%">Katman</th></tr>' +
     rows.map(r => `<tr><td>${esc(r.t)}</td><td class="mono ${r.cls}">${esc(r.d)}</td><td class="mono">${esc(r.k)}</td></tr>`).join('');
-  if (reportUrl) { const f = $('#dFrame'); f.src = reportUrl; f.hidden = false; }
+  if (reportUrl) {
+    const f = $('#dFrame'); f.src = reportUrl; f.hidden = false;
+    // isaretli snapshot'lar (rapor adiyla ayni kok)
+    const base = reportUrl.replace(/\.html$/, '');
+    $('#dShotDesign').src = base + '-tasarim-isaretli.png?t=' + Date.now();
+    $('#dShotLive').src = base + '-canli-isaretli.png?t=' + Date.now();
+    $('#dShots').hidden = false;
+  }
 }
 
 async function loadDiffReports() {

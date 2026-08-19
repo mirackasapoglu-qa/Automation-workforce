@@ -153,6 +153,31 @@ ve `02-navigation.spec.ts → 02b` (`test.fail`)
 
 ---
 
+## HOMEE-008 — Banner metinleri ve CTA'ları görsele gömülü (tasarım diff'inden)
+
+**Nerede:** anasayfa hero ve multi-banner bölümleri
+**Belirti:** Figma'da metin katmanı olan içerikler canlıda **DOM'da hiç yok**, banner
+görsellerinin içine basılmış. Ölçüm (2026-08-19, `document.body.innerText` taraması):
+
+| Metin | DOM'da |
+|---|---|
+| `YENİ KOLEKSİYON` | yok |
+| `Evde daha sessiz, daha rafine bir mevsim.` | yok |
+| `KEŞFET` (hero CTA) | yok |
+| `Sakin Salon Kompozisyonu` | yok |
+| `LOOK'U KEŞFET` (CTA) | yok |
+| `Mekânı yerinde deneyimleyin` / `MAĞAZALAR` | yok |
+
+Görseller `alt="Anasayfa Multi Banner - Salon"` gibi genel alt metinlerle geliyor.
+
+**Etki:** arama motoru bu başlıkları ve çağrıları göremiyor; ekran okuyucu okuyamıyor;
+metin değişikliği için görselin yeniden üretilmesi gerekiyor (CMS'den düzenlenemiyor).
+**Not:** Kampanya banner'larının CMS'ten görsel olarak yönetilmesi kasıtlı olabilir —
+ama en azından hero başlığı ve CTA'nın metin olarak var olması beklenir.
+**Kaynak:** `node scripts/figma-diff.mjs --node 140:2705 --route /` → 31 "sayfada yok" bulgusu
+
+---
+
 ## Ürün hatası SANILAN ama olmayan davranışlar
 
 İlk koşumlarda hata gibi görünen, keşifle doğrulandığında **doğru çalıştığı** anlaşılan davranışlar.

@@ -32,6 +32,7 @@ import {
 import { startProxy } from "./proxy.mjs";
 import { matchRoute, runsForCard } from "./route-map.mjs";
 import { figmaForRoute } from "./figma-map.mjs";
+import { renderForRoute } from "./figma-render.mjs";
 
 dotenv.config();
 
@@ -303,6 +304,24 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, m ?? { matched: url.searchParams.get("path"), node: null });
     }
 
+    // Rota icin tasarim render'i (yan yana gorunum) — onbellekten, aninda
+    if (p === "/api/figma/render") {
+      const r = await renderForRoute(url.searchParams.get("path") ?? "/");
+      if (r.error) return send(res, 404, { error: r.error, map: r.map ?? null });
+      res.writeHead(200, {
+        "content-type": "image/png",
+        "cache-control": "public, max-age=600",
+        "x-figma-frame": encodeURIComponent(r.frame.name),
+        "x-figma-size": `${r.frame.w}x${r.frame.h}`,
+      });
+      return res.end(r.buf);
+    }
+
+    if (p === "/api/figma/frame") {
+      const r = await renderForRoute(url.searchParams.get("path") ?? "/");
+      return send(res, r.error ? 404 : 200, r.error ? { error: r.error } : { frame: r.frame, page: r.map.page, cards: r.map.cards, cached: r.cached });
+    }
+
     if (p === "/api/figma/diff" && req.method === "POST") {
       const body = await readBody(req);
       return send(res, 200, startDiff(body));
@@ -324,7 +343,11 @@ const server = http.createServer(async (req, res) => {
 
     if (p.startsWith("/figma/")) {
       const f = path.join(FIGMA_OUT_DIR, path.basename(p));
-      if (!fs.existsSync(f)) return send(res, 404, { error: "rapor yok" });
+      if (!fs.existsSync(f)) return send(res, 404, { error: "dosya yok" });
+      if (f.endsWith(".png")) {
+        res.writeHead(200, { "content-type": "image/png", "cache-control": "no-store" });
+        return res.end(fs.readFileSync(f));
+      }
       return send(res, 200, fs.readFileSync(f, "utf8"), "text/html; charset=utf-8");
     }
 
