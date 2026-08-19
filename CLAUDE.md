@@ -203,6 +203,35 @@ koşumu başlatır; serbest komut çalıştırılamaz.
 adımlarını aynalamaz; testin kendi tarayıcısını görmek için `--headed` koşum (npm script'leri
 zaten headed) ya da CDP screencast aynası gerekir.
 
+## Tasarım diff (Figma)
+
+Kimlik: `~/.figma-credentials` → `FIGMA_TOKEN`. Dosya: **Tepe Home UI/UX Design**
+(`WRyAE2K87JyYZHJlH18OfD`). Kart→frame `node-id`'leri Jira açıklamalarından çıkarıldı,
+rota eşlemesi `panel/figma-map.mjs`.
+
+```bash
+node scripts/figma-diff.mjs --node 140:2705 --route / --frame "Home"   --out figma-diff-main.html --json figma-diff-main.json
+```
+
+Panelden: **Tasarım diff** sekmesi ya da **Site (canlı)** sekmesindeki "Tasarim diff" butonu
+(açık rotanın frame'ini kullanır). Koşum ~45 sn; canlı log SSE ile akar, rapor panelde gömülü açılır.
+
+**Piksel diff YAPILMIYOR** (tasarım↔kod arasında gürültü: font hinting, gerçek ürün görselleri,
+dinamik fiyat). Üç ölçüm: metin varlığı · spec (font/boyut/kalınlık/renk) · yan yana + saydamlık.
+
+⚠️ **Figma rate limit maliyet tabanlı.** `/v1/files/:key/nodes` ucu tam ağaç için 429 veriyor ve
+`retry-after` **günler** sürebiliyor (ölçüldü: 396.900 sn). Bu yüzden:
+- `/v1/files/:key?ids=<node>` ucu kullanılıyor (aynı ağacı tam derinlikte döner, farklı kovada)
+- yanıt + PNG render `panel-data/figma-cache/` içinde **6 saat** önbellekte (`FIGMA_CACHE_TTL_MS`)
+- `--refresh` önbelleği atlar — **kotayı yakabilir, dikkatli kullan**
+
+Eşleştirme tuzakları ve çözümleri:
+- Aynı metin sayfada birden çok yerde geçiyor → **göreli dikey konuma en yakın** eşleşme seçilir
+  (yoksa mega menüdeki "SALON" ile hero'daki karışıyordu)
+- Mega menü/drawer içeriği kapalıyken DOM'da yok → menü **gerçekten açılıp** metinleri toplanır
+- Dinamik/temsili içerik (fiyat, ürün adı, "Hint message goes here") katman adı ve metin
+  kalıbıyla ayıklanır ve "gürültü" kovasına konur
+
 ## Jira
 
 Kimlik: `~/.jira-credentials` (`JIRA_EMAIL`, `JIRA_TOKEN`). **Host NadirGold'dan farklı:**

@@ -31,6 +31,7 @@ import {
 } from "./jira.mjs";
 import { startProxy } from "./proxy.mjs";
 import { matchRoute, runsForCard } from "./route-map.mjs";
+import { figmaForRoute } from "./figma-map.mjs";
 
 dotenv.config();
 
@@ -50,6 +51,62 @@ for (const d of [DATA_DIR, VERDICT_DIR, EVIDENCE_DIR]) {
 const RUNS = JSON.parse(fs.readFileSync(path.join(__dirname, "runs.json"), "utf8")).runs;
 const PROXY_PORT = Number(process.env.PANEL_PROXY_PORT || PORT + 1);
 let PROXY_URL = "";
+
+// ---------------- tasarim diff ----------------
+const FIGMA_OUT_DIR = path.join(DATA_DIR, "figma");
+fs.mkdirSync(FIGMA_OUT_DIR, { recursive: true });
+let activeDiff = null; // { slug, child, startedAt }
+
+function startDiff({ path: routePath }) {
+  if (activeDiff) return { ok: false, error: `Diff zaten kosuyor: ${activeDiff.slug}` };
+  const map = figmaForRoute(routePath ?? "/");
+  if (!map) return { ok: false, error: `Bu rota icin Figma eslesmesi yok: ${routePath}` };
+
+  const slug = (map.matched === "/" ? "anasayfa" : map.matched.replace(/[^a-zA-Z0-9]+/g, "-")).replace(/^-|-$/g, "");
+  const htmlOut = path.join("panel-data", "figma", `${slug}.html`);
+  const jsonOut = path.join("panel-data", "figma", `${slug}.json`);
+
+  const args = [
+    "scripts/figma-diff.mjs",
+    "--file", map.file,
+    "--node", map.node,
+    "--route", map.matched,
+    "--out", htmlOut,
+    "--json", jsonOut,
+  ];
+  if (map.frame) args.push("--frame", map.frame);
+
+  const child = spawn("node", args, { cwd: ROOT, env: { ...process.env, FORCE_COLOR: "0" } });
+  activeDiff = { slug, child, startedAt: Date.now(), map };
+  broadcast("diff-start", { slug, route: map.matched, page: map.page, cards: map.cards });
+
+  const push = (chunk, stream) => {
+    for (const line of chunk.toString().split("\n")) {
+      if (line.trim()) broadcast("diff-log", { stream, line });
+    }
+  };
+  child.stdout.on("data", (c) => push(c, "out"));
+  child.stderr.on("data", (c) => push(c, "err"));
+
+  child.on("close", (code) => {
+    let summary = null;
+    try {
+      summary = JSON.parse(fs.readFileSync(path.join(ROOT, jsonOut), "utf8"));
+    } catch {
+      /* rapor uretilemedi */
+    }
+    broadcast("diff-end", {
+      slug,
+      code,
+      durationMs: Date.now() - activeDiff.startedAt,
+      summary,
+      reportUrl: `/figma/${slug}.html`,
+    });
+    activeDiff = null;
+  });
+
+  return { ok: true, slug, reportUrl: `/figma/${slug}.html` };
+}
 
 // ---------------- SSE ----------------
 const sseClients = new Set();
@@ -241,6 +298,36 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/results") return send(res, 200, lastResults() ?? { rows: [], counts: {} });
 
     // ---------------- Site (iframe) ----------------
+    if (p === "/api/figma/match") {
+      const m = figmaForRoute(url.searchParams.get("path") ?? "/");
+      return send(res, 200, m ?? { matched: url.searchParams.get("path"), node: null });
+    }
+
+    if (p === "/api/figma/diff" && req.method === "POST") {
+      const body = await readBody(req);
+      return send(res, 200, startDiff(body));
+    }
+
+    if (p === "/api/figma/reports") {
+      const files = fs.existsSync(FIGMA_OUT_DIR)
+        ? fs.readdirSync(FIGMA_OUT_DIR).filter((f) => f.endsWith(".json"))
+        : [];
+      return send(
+        res,
+        200,
+        files.map((f) => {
+          const j = JSON.parse(fs.readFileSync(path.join(FIGMA_OUT_DIR, f), "utf8"));
+          return { slug: f.replace(/\.json$/, ""), ...j, reportUrl: `/figma/${f.replace(/\.json$/, "")}.html` };
+        }),
+      );
+    }
+
+    if (p.startsWith("/figma/")) {
+      const f = path.join(FIGMA_OUT_DIR, path.basename(p));
+      if (!fs.existsSync(f)) return send(res, 404, { error: "rapor yok" });
+      return send(res, 200, fs.readFileSync(f, "utf8"), "text/html; charset=utf-8");
+    }
+
     if (p === "/api/site/match") {
       const rule = matchRoute(url.searchParams.get("path") ?? "/");
       return send(res, 200, rule ?? { matched: url.searchParams.get("path"), runId: null });

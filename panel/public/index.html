@@ -75,6 +75,7 @@
       <button data-tab="results" aria-selected="false">Son sonuclar</button>
       <button data-tab="verdict" aria-selected="false">Verdict</button>
       <button data-tab="jira" aria-selected="false">Jira</button>
+      <button data-tab="diff" aria-selected="false">Tasarim diff</button>
     </div>
 
     <div id="tab-site">
@@ -90,6 +91,7 @@
         <span>
           <span class="mono" id="siteMatch"></span>
           <button id="siteRunBtn" style="width:auto;margin:0 0 0 8px" disabled onclick="runForCurrent()">Bu sayfayi test et</button>
+          <button id="siteDiffBtn" style="width:auto;margin:0 0 0 6px" onclick="diffForCurrent()">Tasarim diff</button>
         </span>
       </div>
       <iframe id="siteFrame" title="Homee (canli)" style="width:100%;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
@@ -114,6 +116,21 @@
       </div>
       <div class="scroll"><table id="jTable"></table></div>
       <div id="jCard" hidden style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"></div>
+    </div>
+
+    <div id="tab-diff" hidden>
+      <div class="row">
+        <input id="dPath" placeholder="/" style="width:220px;margin:0">
+        <button style="width:auto" onclick="runDiff()">Diff al</button>
+        <button style="width:auto" onclick="loadDiffReports()">Kayitli raporlar</button>
+        <span class="mono" id="dMatch"></span>
+      </div>
+      <div class="cards" id="dCards"></div>
+      <pre id="dLog" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;
+        max-height:150px;overflow:auto;font:11.5px/1.4 ui-monospace,monospace;margin:0 0 10px;white-space:pre-wrap">Bir rota icin diff alin...</pre>
+      <div class="scroll"><table id="dTable"></table></div>
+      <iframe id="dFrame" title="Tasarim diff raporu" hidden
+        style="width:100%;height:700px;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px"></iframe>
     </div>
 
     <div id="tab-verdict" hidden>
@@ -142,10 +159,11 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&l
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-  for (const t of ['site','log','results','verdict','jira']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
+  for (const t of ['site','log','results','verdict','jira','diff']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
   if (b.dataset.tab === 'jira') loadCards();
+  if (b.dataset.tab === 'diff') { $('#dPath').value = CURRENT_PATH || '/'; matchFigma($('#dPath').value); loadDiffReports(); }
 });
 
 async function load() {
@@ -305,6 +323,82 @@ function runForCurrent() {
   if (!id) return;
   startRun(id);
 }
+
+// ---------------- Tasarim diff ----------------
+async function matchFigma(path) {
+  const m = await (await fetch('/api/figma/match?path=' + encodeURIComponent(path || '/'))).json();
+  $('#dMatch').textContent = m && m.node
+    ? `${m.page}  ·  node ${m.node}  ·  ${(m.cards||[]).join(', ')}`
+    : 'bu rota icin Figma eslesmesi yok';
+  return m;
+}
+
+$('#dPath').addEventListener('change', () => matchFigma($('#dPath').value));
+
+async function runDiff(path) {
+  const p = path ?? ($('#dPath').value.trim() || '/');
+  $('#dPath').value = p;
+  const m = await matchFigma(p);
+  if (!m || !m.node) return alert('Bu rota icin Figma frame eslesmesi yok');
+  document.querySelector('.tabs button[data-tab=diff]').click();
+  $('#dLog').textContent = '';
+  $('#dFrame').hidden = true;
+  const r = await (await fetch('/api/figma/diff', {method:'POST', headers:{'content-type':'application/json'},
+    body: JSON.stringify({ path: p })})).json();
+  if (!r.ok) appendDiffLog('PANEL: ' + r.error, true);
+}
+
+function diffForCurrent() { runDiff(CURRENT_PATH || '/'); }
+
+function appendDiffLog(line, isErr) {
+  const el = $('#dLog');
+  const span = document.createElement('span');
+  if (isErr) span.className = 'err';
+  span.textContent = line + '\n';
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+}
+
+function renderDiffSummary(s, reportUrl) {
+  if (!s) { $('#dCards').innerHTML = '<p class="mono err">Rapor uretilemedi</p>'; return; }
+  const c = s.counts;
+  $('#dCards').innerHTML = `
+    <div class="c"><div class="n">${c.compared}</div><div class="l">karsilastirilan metin</div></div>
+    <div class="c"><div class="n ok">${c.clean}</div><div class="l">birebir</div></div>
+    <div class="c"><div class="n sk">${c.mismatched}</div><div class="l">spec farki</div></div>
+    <div class="c"><div class="n no">${c.missing}</div><div class="l">sayfada yok</div></div>
+    <div class="c"><div class="n">${c.needsInteraction}</div><div class="l">etkilesim gerektiren</div></div>
+    <div class="c"><div class="n">${c.dynamicSkipped}</div><div class="l">dinamik (gurultu)</div></div>`;
+  const rows = [
+    ...(s.mismatches||[]).map(m => ({ t: m.text, d: (m.diffs||[]).join(' · '), k: 'spec farki', cls: 'sk' })),
+    ...(s.missingTexts||[]).map(m => ({ t: m.text, d: 'sayfada bulunamadi', k: m.layer, cls: 'no' })),
+  ];
+  $('#dTable').innerHTML = '<tr><th style="width:34%">Metin</th><th>Fark</th><th style="width:20%">Katman</th></tr>' +
+    rows.map(r => `<tr><td>${esc(r.t)}</td><td class="mono ${r.cls}">${esc(r.d)}</td><td class="mono">${esc(r.k)}</td></tr>`).join('');
+  if (reportUrl) { const f = $('#dFrame'); f.src = reportUrl; f.hidden = false; }
+}
+
+async function loadDiffReports() {
+  const list = await (await fetch('/api/figma/reports')).json();
+  if (!list.length) { $('#dTable').innerHTML = '<tr><td class="mono">Kayitli rapor yok</td></tr>'; return; }
+  $('#dTable').innerHTML = '<tr><th>Rota</th><th>Frame</th><th>Ozet</th><th>Tarih</th></tr>' +
+    list.map(r => `<tr>
+      <td class="mono"><a href="${r.reportUrl}" target="_blank">${esc(r.route||r.slug)}</a></td>
+      <td>${esc(r.frame||'-')}</td>
+      <td class="mono">${r.counts ? `${r.counts.clean} birebir · ${r.counts.mismatched} spec · ${r.counts.missing} eksik` : '-'}</td>
+      <td class="mono">${esc((r.generatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('');
+}
+
+es.addEventListener('diff-start', e => {
+  const d = JSON.parse(e.data);
+  appendDiffLog(`=== ${d.page} (${d.route}) diff basladi ===`);
+});
+es.addEventListener('diff-log', e => { const d = JSON.parse(e.data); appendDiffLog(d.line, d.stream === 'err'); });
+es.addEventListener('diff-end', e => {
+  const d = JSON.parse(e.data);
+  appendDiffLog(`=== bitti (${(d.durationMs/1000).toFixed(0)} sn, cikis ${d.code}) ===`, d.code !== 0);
+  renderDiffSummary(d.summary, d.reportUrl);
+});
 
 // ---------------- Jira ----------------
 const statusColor = (st) => /Failed|Blocked/i.test(st) ? 'no' : /Tamam|Release|Deploy/i.test(st) ? 'ok' : 'sk';

@@ -15,3 +15,5 @@ panel-data/
 .run-*.log
 .results-*.json
 homee-qa-raporu.html
+figma-diff-*.html
+figma-diff-*.json
