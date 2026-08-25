@@ -710,6 +710,16 @@ const html = `<!doctype html>
   .side{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
   .side figure{margin:0} .side img{width:100%;border:1px solid var(--line);border-radius:8px;display:block}
   figcaption{font-size:11.5px;color:var(--mut);margin-bottom:6px}
+  /* Bindirme kolu, bolum boyunca YAPISKAN: uzun goruntude asagi inerken
+     saydamligi ayarlamak icin basa donmek gerekiyordu.
+     UYARI: sticky, ust ogelerden birinde overflow:hidden varsa CALISMAZ —
+     bu yuzden kol .overlay'in DISINDA, bolum kabugunun dogrudan cocugu.
+     (Bu blok bir template literal icinde: yoruma backtick YAZILMAZ.) */
+  .ovsec{position:relative}
+  .ovbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:12px;
+    background:#fff;padding:10px 0 12px;margin:0;border-bottom:1px solid var(--line)}
+  .ovbar output{font:600 12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--fg);min-width:42px}
+  .ovhint{font-size:11.5px;color:var(--mut)}
   .overlay{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-top:10px}
   .overlay img{width:100%;display:block} .overlay img.top{position:absolute;inset:0;opacity:.5}
   input[type=range]{width:280px}
@@ -803,11 +813,20 @@ ${Object.entries(figFills)
 </div>
 
 <h2>6. Üst üste bindirme</h2>
-<p><label>Saydamlık <input type="range" min="0" max="100" value="50" oninput="document.getElementById('ov').style.opacity=this.value/100"></label></p>
+<section class="ovsec">
+<div class="ovbar">
+  <label>Saydamlık
+    <input id="ovRange" type="range" min="0" max="100" value="50"
+           oninput="document.getElementById('ov').style.opacity=this.value/100;document.getElementById('ovVal').textContent=this.value+'%'">
+  </label>
+  <output id="ovVal">50%</output>
+  <span class="ovhint">yalnızca tasarım ↔ yalnızca canlı arasında gezinir</span>
+</div>
 <div class="overlay">
   <img src="data:${live.mime};base64,${live.b64}" alt="Canlı">
   <img id="ov" class="top" src="data:${design.mime};base64,${design.b64}" alt="Tasarım">
 </div>
+</section>
 <p class="sub">Üst üste bindirme kaba bir hizalama verir — frame yüksekliği ile sayfa yüksekliği
 farklı olduğu için tam çakışma beklenmez; bölüm sıralaması ve genel ritim için kullanılır.</p>
 </div></body></html>`;
