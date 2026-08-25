@@ -704,6 +704,38 @@
   .nav-ic svg{width:100%;height:100%}
   aside .tabs button[aria-selected=true] .nav-ic{opacity:1;color:var(--acc)}
 
+
+  /* =========================================================================
+     DARALTILABILIR YAN PANEL
+     ========================================================================= */
+  aside{position:relative}
+  #sbToggle{position:absolute;top:12px;right:12px;width:26px;height:26px;padding:0;margin:0;
+    display:inline-flex;align-items:center;justify-content:center;border-radius:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--mut);z-index:5}
+  #sbToggle svg{width:14px;height:14px;transition:transform var(--t)}
+  #sbToggle:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
+  aside .tabs{margin-top:26px}
+
+  /* --- daraltilmis durum --- */
+  body.sb-collapsed main{grid-template-columns:64px minmax(0,1fr)}
+  body.sb-collapsed aside{padding:16px 10px;overflow:visible}
+  body.sb-collapsed #sbToggle{right:50%;transform:translateX(50%)}
+  body.sb-collapsed #sbToggle svg{transform:rotate(180deg)}
+  /* Etiketler, sayaclar ve yardimci bloklar gizlenir; ikon kalir. */
+  /* ⚠️ Etiket bir METIN DUGUMU (element degil): `> :not(.nav-ic){display:none}`
+     onu yakalamiyordu ve 64px seride tasiyordu. font-size:0 metin dugumunu de
+     kapatir; ikon SVG oldugu icin etkilenmez, sayac rozeti ayrica gizleniyor. */
+  body.sb-collapsed aside .tabs button{justify-content:center;padding:9px 0;font-size:0;gap:0}
+  body.sb-collapsed aside .tabs button .tc{display:none}
+  body.sb-collapsed #todayWrap,
+  body.sb-collapsed aside h2,
+  body.sb-collapsed aside .side-label{display:none}
+  body.sb-collapsed #startRunBtn{padding:12px 0;font-size:0}
+  body.sb-collapsed #startRunBtn::before{content:"\25B7";font-size:15px;color:inherit}
+  /* Gecis: genislik akarak degissin (hareket azaltmada kapali). */
+  main{transition:grid-template-columns var(--t)}
+  @media (prefers-reduced-motion:reduce){main{transition:none}}
+
 </style>
 
 <style id="nc-motion">
@@ -800,6 +832,14 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
 <main>
   <aside>
+    <!-- Daraltma: gizlemek yerine IKON SERIDINE iner — gezinme kaybolmaz,
+         icerik ~230px genisler (Site sekmesindeki iki iframe icin onemli). -->
+    <button id="sbToggle" type="button" onclick="toggleSidebar()"
+            title="Yan paneli daralt/genislet ( [ )" aria-label="Yan paneli daralt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 6l-6 6 6 6"/>
+      </svg>
+    </button>
     <!-- Tasarim: sekmeler sol menude, dikey nav olarak. -->
     <div class="tabs" role="tablist" aria-label="Panel bolumleri">
       <button data-tab="overview" aria-selected="true" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Genel bakis</button>
@@ -2795,6 +2835,51 @@ function renderKnownIssues() {
 }
 
 
+
+
+// ---------------- yan panel daraltma ----------------
+/**
+ * Yan paneli ikon seridine indirir. Tercih localStorage'da tutulur; sayfa
+ * acilirken FLASH olmasin diye asagida, DOM hazir olur olmaz uygulaniyor.
+ * Daraltilmisken etiketler gizlendigi icin her nav ogesine `title` yaziliyor —
+ * aksi halde serit okunamaz hale gelir.
+ */
+const SB_KEY = 'qa-panel-sidebar';
+
+function applySidebar(daralt) {
+  document.body.classList.toggle('sb-collapsed', daralt);
+  const b = document.getElementById('sbToggle');
+  if (b) {
+    b.setAttribute('aria-label', daralt ? 'Yan paneli genislet' : 'Yan paneli daralt');
+    b.setAttribute('aria-expanded', String(!daralt));
+  }
+  for (const nb of document.querySelectorAll('aside .tabs button')) {
+    const k = nb.cloneNode(true);
+    k.querySelector('.tc')?.remove();
+    k.querySelector('.nav-ic')?.remove();
+    nb.title = k.textContent.trim();
+  }
+}
+
+function toggleSidebar() {
+  const yeni = !document.body.classList.contains('sb-collapsed');
+  try { localStorage.setItem(SB_KEY, yeni ? '1' : '0'); } catch { /* depolama kapali */ }
+  applySidebar(yeni);
+}
+
+(function initSidebar() {
+  let daralt = false;
+  try { daralt = localStorage.getItem(SB_KEY) === '1'; } catch { /* depolama kapali */ }
+  applySidebar(daralt);
+  // `[` kisayolu — yazi alanindayken devre disi.
+  document.addEventListener('keydown', e => {
+    if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+    e.preventDefault();
+    toggleSidebar();
+  });
+})();
 
 // ---------------- komut kutusu (⌘K) ----------------
 /**
