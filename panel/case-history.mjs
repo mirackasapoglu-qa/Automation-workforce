@@ -169,6 +169,12 @@ export function lastResults() {
   for (const s of raw.suites ?? []) walk(s, s.file);
   return {
     startedAt: raw.stats?.startTime ?? null,
+    /**
+     * Kosum HIC test calistirmadan dustuyse (ornek: global-setup hatasi)
+     * `rows` bos kalir ve tek ipucu burada durur. Cagiran taraf bunu
+     * gostermezse kullanici "hicbir sey olmadi" saniyor.
+     */
+    errors: (raw.errors ?? []).map((e) => String(e.message ?? "").split("\n").slice(0, 3).join(" ")),
     rows,
     counts: {
       total: rows.length,

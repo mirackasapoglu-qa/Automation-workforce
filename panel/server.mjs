@@ -67,7 +67,7 @@ import {
 import { analyze as analyzePerf } from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker } from "./connectors/index.mjs";
-import { readTree, writeTree, countNodes } from "./scope.mjs";
+import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
@@ -444,6 +444,12 @@ function broadcast(event, data) {
 let active = null; // { id, child, startedAt, lines: [] }
 
 /**
+ * Kapsam agacindan tetiklenen kosum. Kosum bitince sonuc bu dugumun
+ * otomatik test case'ine yazilir. Ayni anda tek kosum oldugu icin tek slot yeterli.
+ */
+let scopeRun = null; // { nodeId, runId, specs }
+
+/**
  * @param headless true ise koşumdan `--headed` cikarilir ve npm script'i olan
  *   kosumlar dogrudan `npx playwright test`e cevrilir.
  *
@@ -560,12 +566,39 @@ function startRun(runId, params, headless = false) {
       /* rapor yoksa sessiz gec */
     }
     const summary = active.lines.slice(-40).join("\n");
+    const durationMs = Date.now() - active.startedAt;
     broadcast("run-end", {
       id: runId,
       code,
-      durationMs: Date.now() - active.startedAt,
+      durationMs,
       summary,
     });
+
+    /* Kapsam agacindan tetiklendiyse sonucu dugume yaz. `mergeHistory()`
+     * yukarida cagrildi, yani results.json guncel. Hata YUTULMAZ: yazma
+     * basarisiz olursa log'a dusulur, sessizce kaybolmaz. */
+    if (scopeRun && scopeRun.runId === runId) {
+      const bekleyen = scopeRun;
+      scopeRun = null;
+      try {
+        const out = applyRunResults({
+          nodeId: bekleyen.nodeId,
+          specs: bekleyen.specs,
+          results: lastResults(),
+          durationMs,
+          code,
+        });
+        audit({ event: "scope-run-write", nodeId: bekleyen.nodeId, written: out.written });
+        broadcast("scope-run-end", { nodeId: bekleyen.nodeId, ...out });
+        broadcast("log", {
+          stream: "out",
+          line: `[kapsam] ${bekleyen.nodeId}: ${out.perSpec.map((p) => `${p.spec} ${p.status ?? "?"}`).join(", ")}`,
+        });
+      } catch (e) {
+        broadcast("log", { stream: "err", line: `[kapsam] sonuc yazilamadi: ${e.message}` });
+        broadcast("scope-run-end", { nodeId: bekleyen.nodeId, error: e.message });
+      }
+    }
     active = null;
   });
 
@@ -697,6 +730,47 @@ const server = http.createServer(async (req, res) => {
       const info = writeTree(body.tree);
       audit({ event: "scope-tree-save", nodes: info.nodes });
       return send(res, 200, { ok: true, ...info });
+    }
+
+    /**
+     * Kapsam agacindaki bir dugumden GERCEK kosum tetikler.
+     *
+     * Dugumdeki `runRef.runId` whitelist'te olmak ZORUNDA — panelin kosum
+     * guvenligi (whitelist disi komut calismaz) burada da gecerli.
+     */
+    if (p === "/api/scope/run" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { nodeId, headless = true } = await readBody(req);
+      const { tree } = readTree();
+      const node = findScopeNode(tree, nodeId);
+      if (!node) return send(res, 404, { ok: false, error: "Dugum bulunamadi." });
+      const ref = node.runRef ?? {};
+      if (!ref.runId) {
+        return send(res, 400, {
+          ok: false,
+          error: "Bu dugume bagli bir kosum yok (runRef bos).",
+        });
+      }
+      if (!RUNS[ref.runId]) {
+        return send(res, 400, {
+          ok: false,
+          error: `Kosum whitelist'te yok: ${ref.runId}`,
+        });
+      }
+      const started = startRun(ref.runId, null, Boolean(headless));
+      if (!started.ok) return send(res, 200, started);
+      scopeRun = { nodeId, runId: ref.runId, specs: ref.specs ?? [] };
+      audit({ event: "scope-run-start", nodeId, runId: ref.runId });
+      return send(res, 200, { ok: true, runId: ref.runId, specs: scopeRun.specs });
+    }
+
+    /** Dugumden tetiklenen kosum suruyor mu (arayuz butonu bunu izler). */
+    if (p === "/api/scope/run-state") {
+      return send(res, 200, {
+        running: Boolean(active),
+        activeRunId: active?.id ?? null,
+        scopeNodeId: scopeRun?.nodeId ?? null,
+      });
     }
 
     /* ---------------- Tarama (URL → kapsam agaci) ----------------

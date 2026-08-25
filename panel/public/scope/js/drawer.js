@@ -2,7 +2,7 @@
 // (Durum/Bağlantılar/Jira) birleştirilmesi. "Notlar" sekmesinin içeriği notes.js'te.
 import { state } from './state.js';
 import { ICON, TYPE_META, STATUS_META } from './constants.js';
-import { flattenWithPath, isStale, daysSince, persist, DEFAULT_STALE_DAYS, effectiveStatus, effectiveTestCaseStatus } from './data.js';
+import { flattenWithPath, isStale, daysSince, persist, DEFAULT_STALE_DAYS, effectiveStatus, effectiveTestCaseStatus, loadPersisted, findNode } from './data.js';
 import { buildStatusChip } from './chips.js';
 import { renderDrawerLinksSection } from './links.js';
 import { renderDrawerResourcesSection } from './resources.js';
@@ -388,6 +388,12 @@ export function renderDrawer() {
     aiSection.appendChild(aiActions);
     body.appendChild(aiSection);
 
+    // Otomatik koşum köprüsü: düğüm gerçek bir Playwright koşumuna bağlıysa
+    // burada tetiklenir ve sonuç düğümün otomatik test case'ine yazılır.
+    if (drawerNode.runRef && drawerNode.runRef.runId) {
+      body.appendChild(renderAutomatedRunSection(drawerNode));
+    }
+
     const statusSection = document.createElement('div');
     statusSection.className = 'drawer-section';
     const statusLabel = document.createElement('div');
@@ -466,4 +472,80 @@ export function attachDrawerOpener(el, node) {
     if (e.target.closest('button, input')) return;
     openDrawer(node);
   });
+}
+
+
+/**
+ * "Otomatik test" bölümü.
+ *
+ * Flowscope'un kendi "Test Case İste/Koştur" düğmesi Claude Code'a yapıştırmak
+ * üzere PROMPT üretir (kaynak tasarımda API bağlantısı kasıtlı olarak yok).
+ * Bu bölüm ondan farklı ve onu değiştirmiyor: düğüme bağlı GERÇEK Playwright
+ * koşumunu panelin whitelist'li motorunda başlatır, biten koşumun sonucu
+ * `runs[]` kaydına yazılır.
+ */
+function renderAutomatedRunSection(node) {
+  const sec = document.createElement('div');
+  sec.className = 'drawer-section';
+
+  const label = document.createElement('div');
+  label.className = 'drawer-section-label';
+  label.textContent = 'Otomatik test';
+  sec.appendChild(label);
+
+  const info = document.createElement('div');
+  info.className = 'sitemap-field-hint';
+  info.textContent = `${node.runRef.runId} · ${(node.runRef.specs || []).join(', ') || 'spec yok'}`;
+  sec.appendChild(info);
+
+  // Son koşum: bu düğümün otomatik case'lerindeki en yeni kayıt.
+  const runs = (node.testCases || [])
+    .filter(tc => tc.automated)
+    .flatMap(tc => (tc.runs || []).map(r => ({ ...r, spec: tc.spec })));
+  runs.sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const son = document.createElement('div');
+  son.className = 'sitemap-field-hint';
+  son.style.whiteSpace = 'pre-line';
+  son.textContent = runs.length
+    ? `Son koşum: ${runs[0].status} ${new Date(runs[0].at).toLocaleString('tr-TR')}\n${runs[0].note}`
+    : 'Henüz koşum kaydı yok.';
+  sec.appendChild(son);
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn btn-primary';
+  btn.textContent = 'Testi Koştur';
+  btn.onclick = async () => {
+    btn.disabled = true;
+    btn.textContent = 'Başlatılıyor…';
+    try {
+      const res = await fetch('/api/scope/run', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
+        body: JSON.stringify({ nodeId: node.id }),
+      });
+      const data = await res.json();
+      if (!data.ok) { son.textContent = `Başlatılamadı: ${data.error}`; btn.disabled = false; btn.textContent = 'Testi Koştur'; return; }
+      btn.textContent = 'Koşuyor…';
+      // Koşum bitince ağacı sunucudan tazeleyip drawer'ı yeniden çiz.
+      const bekle = setInterval(async () => {
+        try {
+          const st = await (await fetch('/api/scope/run-state')).json();
+          if (st.running) return;
+          clearInterval(bekle);
+          await loadPersisted();
+          const taze = findNode(state.tree, node.id);
+          if (taze) state.drawerNode = taze;
+          renderContent();
+          renderDrawer();
+        } catch { /* gecici hata: bir sonraki turda tekrar denenir */ }
+      }, 2000);
+    } catch (e) {
+      son.textContent = `Panel sunucusuna ulaşılamadı: ${e.message}`;
+      btn.disabled = false;
+      btn.textContent = 'Testi Koştur';
+    }
+  };
+  sec.appendChild(btn);
+  return sec;
 }
