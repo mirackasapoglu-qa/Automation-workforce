@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
 
 /**
  * Ortak tasarım katmanı — panelin (/) ve kapsam ekranının (/scope) TEK renk kaynağı.
@@ -7,8 +7,10 @@
  * `--accent/--surface/--text`). Aynı ürünün iki yüzü farklı renk konuşuyordu ve
  * bir rengi değiştirmek iki dosyada iki kez düzeltme demekti.
  *
- * KARAR: renk/yuvarlaklık/gölge KAPSAM ekranından alındı (görsel referans o),
- * tipografi PANELDEN (Fira — aracın karakteri, zaten yüklüydü). Panel kendi
+ * KAYNAK: paletin tamamı kullanıcının verdiği "Nocturne" tasarımından
+ * (~/Downloads/index.html — OLED gece + gündüz varyantı, mor accent, Inter).
+ * Kapsam ekranı da aynı katmandan beslendiği için tasarım iki yüze birden
+ * uygulanır. Panel kendi
  * token adlarını buradaki adlara BAĞLAR, kendi değerlerini taşımaz; kapsam
  * ekranının adları da bilerek bu adlarla aynı, o yüzden doğrudan miras alır.
  *
@@ -21,39 +23,39 @@
   color-scheme: dark light;
 
   /* --- yüzeyler (koyu, varsayılan) --- */
-  --bg: #0a0e17;
-  --canvas-bg: #0d1220;
-  --surface: #121a2b;
-  --surface-raised: #182236;
-  --border: #232e46;
-  --border-strong: #303e5c;
-  --grid-dot: rgba(63, 208, 255, .07);
+  --bg: #08090f;
+  --canvas-bg: #151725;
+  --surface: #0e1018;
+  --surface-raised: #1b1e2e;
+  --border: #20222f;
+  --border-strong: #2d3040;
+  --grid-dot: rgba(145, 132, 217, .07);
 
   /* --- metin --- */
-  --text: #e9edf6;
-  --text-muted: #8793ab;
-  --text-faint: #5b6578;
+  --text: #e9e9ed;
+  --text-muted: #8b8d9c;
+  --text-faint: #5f6172;
 
   /* --- anlam renkleri --- */
-  --accent: #3fd0ff;
-  --accent-dim: rgba(63, 208, 255, .14);
-  /** Accent ZEMİN üzerindeki yazı. Koyu temada koyu, açıkta beyaz. */
-  --accent-on: #04141c;
-  --good: #34d399;
-  --good-dim: rgba(52, 211, 153, .13);
-  --warn: #fbbf24;
-  --warn-dim: rgba(251, 191, 36, .13);
-  --fail: #fb7185;
-  --fail-dim: rgba(251, 113, 133, .13);
-  --neutral: #8793ab;
-  --progress: #60a5fa;
+  --accent: #9184d9;
+  --accent-dim: rgba(145, 132, 217, .14);
+  /** Accent ZEMİN üzerindeki yazı. */
+  --accent-on: #0b0c14;
+  --good: #62c98d;
+  --good-dim: rgba(98, 201, 141, .12);
+  --warn: #d9b36a;
+  --warn-dim: rgba(217, 179, 106, .12);
+  --fail: #e0716c;
+  --fail-dim: rgba(224, 113, 108, .12);
+  --neutral: #8b8d9c;
+  --progress: #9184d9;
 
   /* --- biçim --- */
-  --radius: 10px;
+  --radius: 9px;
   --radius-sm: 7px;
   --radius-xs: 5px;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
-  --font-sans: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px rgba(0, 0, 0, .42);
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
   --motion: 160ms cubic-bezier(.4, 0, .2, 1);
 }
@@ -61,31 +63,31 @@
 /* Açık tema — değerler tek yerde, iki seçici aynı bloğu paylaşır. */
 :root[data-theme="light"],
 :root:not([data-theme="dark"]) {
-  --bg: #F6F8FB;
-  --canvas-bg: #F1F5F9;
-  --surface: #FFFFFF;
-  --surface-raised: #E8EEF6;
-  --border: #DCE3ED;
-  --border-strong: #C3CEDD;
-  --grid-dot: rgba(2, 132, 199, .08);
+  --bg: #f4f4f6;
+  --canvas-bg: #ececf2;
+  --surface: #ffffff;
+  --surface-raised: #e2e2ea;
+  --border: #d9d9e2;
+  --border-strong: #c4c4d0;
+  --grid-dot: rgba(111, 97, 192, .10);
 
-  --text: #0F172A;
-  --text-muted: #5A6B85;
-  --text-faint: #8A9AB2;
+  --text: #24263a;
+  --text-muted: #6b6d80;
+  --text-faint: #8f91a3;
 
-  --accent: #0284C7;
-  --accent-dim: rgba(2, 132, 199, .10);
-  --accent-on: #FFFFFF;
-  --good: #15803D;
-  --good-dim: rgba(21, 128, 61, .10);
-  --warn: #B45309;
-  --warn-dim: rgba(180, 83, 9, .10);
-  --fail: #DC2626;
-  --fail-dim: rgba(220, 38, 38, .09);
-  --neutral: #5A6B85;
-  --progress: #2563EB;
+  --accent: #6f61c0;
+  --accent-dim: rgba(111, 97, 192, .12);
+  --accent-on: #ffffff;
+  --good: #2e8f5b;
+  --good-dim: rgba(46, 143, 91, .12);
+  --warn: #a97e2f;
+  --warn-dim: rgba(169, 126, 47, .12);
+  --fail: #c2453f;
+  --fail-dim: rgba(194, 69, 63, .10);
+  --neutral: #6b6d80;
+  --progress: #6f61c0;
 
-  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 20px rgba(15, 23, 42, .07);
+  --shadow: 0 1px 2px rgba(36, 38, 58, .08), 0 8px 22px rgba(36, 38, 58, .10);
 }
 
 /**
@@ -119,6 +121,6 @@
     --neutral: #8793ab;
     --progress: #60a5fa;
 
-    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px rgba(0, 0, 0, .42);
   }
 }

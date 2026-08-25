@@ -71,6 +71,7 @@ import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunRes
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
 import { generateForNode } from "./testcase-gen.mjs";
+import * as runJournal from "./run-journal.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
   readHistory,
@@ -543,6 +544,8 @@ function startRun(runId, params, headless = false) {
   });
 
   active = { id: runId, label, child, startedAt: Date.now(), lines: [] };
+  // Kosum gunlugu: genel bakis ekranindaki "kosum gecmisi" bundan beslenir.
+  active.journalId = runJournal.start({ runId, label, argv: [cmd, ...args].join(" ") });
   broadcast("run-start", {
     id: runId,
     label,
@@ -569,6 +572,9 @@ function startRun(runId, params, headless = false) {
     }
     const summary = active.lines.slice(-40).join("\n");
     const durationMs = Date.now() - active.startedAt;
+    try {
+      runJournal.finish(active.journalId, { code, durationMs, counts: lastResults()?.counts ?? null });
+    } catch { /* gunluk yazilamazsa kosum akisi etkilenmez */ }
     broadcast("run-end", {
       id: runId,
       code,
@@ -2020,6 +2026,12 @@ ${testBlock}
     }
 
     if (p === "/api/specs") return send(res, 200, listSpecs());
+
+    /** Genel bakis: kosum gecmisi (yeniden eskiye). */
+    if (p === "/api/runs/history") {
+      const n = Math.min(Math.max(Number(url.searchParams.get("limit")) || 12, 1), 50);
+      return send(res, 200, { runs: runJournal.list(n) });
+    }
 
     // Parametreli kosumun uretecegi komutu ONCE gosterir (calistirmaz)
     if (p === "/api/run/preview" && req.method === "POST") {
