@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<!-- Sayfa /scope adresinden de servis edilebiliyor; base olmadan goreli
+     yollar (style.css, js/app.js) panelin KOKUNE gidiyor ve 404 oluyor. -->
+<base href="/scope/">
+<title>Kapsam Agaci — Flowscope</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="fw" id="fw-root"></div>
+<!-- Yazma uclari x-panel-token ister; sunucu bu yer tutucuyu doldurur. -->
+<script>window.PANEL_TOKEN = "__PANEL_TOKEN__";</script>
+<script type="module" src="./js/app.js"></script>
+</body>
+</html>

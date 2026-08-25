@@ -66,6 +66,8 @@ import {
 } from "./scenario-suggest.mjs";
 import { analyze as analyzePerf } from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
+import { tracker } from "./connectors/index.mjs";
+import { readTree, writeTree, countNodes } from "./scope.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
   readHistory,
@@ -170,6 +172,10 @@ const PANEL_TOKEN = (() => {
 const ALLOWED_ORIGINS = new Set([
   `http://localhost:${PORT}`,
   `http://127.0.0.1:${PORT}`,
+  // Sunucu `*` (IPv6) dinliyor; `localhost` macOS'ta ::1'e cozulebiliyor ve
+  // tarayici Origin'i bu bicimde yolluyor. Listede olmayinca TUM yazma uclari
+  // 403 donuyordu — ayni makinedeki mesru kullanim.
+  `http://[::1]:${PORT}`,
 ]);
 
 function requireAuth(req, res) {
@@ -640,6 +646,78 @@ const server = http.createServer(async (req, res) => {
         .readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
         .replace("__PANEL_TOKEN__", PANEL_TOKEN);
       return send(res, 200, html, "text/html; charset=utf-8");
+    }
+
+    /* ---------------- Kapsam agaci (Flowscope yuzu) ----------------
+     * Statikler panel tarafindan servis edilir; Flowscope'un kendi
+     * `server.py`si emekli. Token enjeksiyonu ana index.html ile ayni.
+     */
+    if (p === "/scope" || p === "/scope/" || p === "/scope/index.html") {
+      const html = fs
+        .readFileSync(path.join(__dirname, "public", "scope", "index.html"), "utf8")
+        .replace("__PANEL_TOKEN__", PANEL_TOKEN);
+      return send(res, 200, html, "text/html; charset=utf-8");
+    }
+
+    if (p.startsWith("/scope/")) {
+      const rel = p.slice("/scope/".length);
+      const root = path.join(__dirname, "public", "scope");
+      const file = path.normalize(path.join(root, rel));
+      // Dizin disina cikma denemesi: normalize sonrasi kok kontrolu sart.
+      if (!file.startsWith(root + path.sep)) return send(res, 403, { error: "yol reddedildi" });
+      if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, { error: "yok" });
+      const MIME = {
+        ".js": "text/javascript; charset=utf-8",
+        ".css": "text/css; charset=utf-8",
+        ".svg": "image/svg+xml",
+        ".json": "application/json",
+        ".png": "image/png",
+      };
+      const type = MIME[path.extname(file)] ?? "application/octet-stream";
+      res.writeHead(200, { "content-type": type, "cache-control": "no-store" });
+      return res.end(fs.readFileSync(file));
+    }
+
+    if (p === "/api/scope/tree" && req.method === "GET") {
+      const { tree, seeded } = readTree();
+      return send(res, 200, {
+        tree,
+        seeded,
+        nodes: countNodes(tree),
+        trackerBaseUrl: JIRA.host,
+      });
+    }
+
+    if (p === "/api/scope/tree" && req.method === "PUT") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      // Hata YUTULMAZ: yazma basarisizsa cagiran gorsun (Flowscope'un sessiz
+      // catch'i dokumante edilmis veri kaybi riskiydi, tasinmadi).
+      const info = writeTree(body.tree);
+      audit({ event: "scope-tree-save", nodes: info.nodes });
+      return send(res, 200, { ok: true, ...info });
+    }
+
+    /* Tracker (kart) uclari — Jira'ya DEGIL, aktif tracker'a gider. */
+    if (p === "/api/tracker/status") {
+      const keys = (url.searchParams.get("keys") ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+      const t = tracker();
+      if (!t) return send(res, 200, { ok: false, error: "Bu projede tracker tanimli degil (profil: connectors.tracker)." });
+      try {
+        return send(res, 200, { ok: true, statuses: await t.statusByKeys(keys) });
+      } catch (e) {
+        return send(res, 200, { ok: false, error: String(e.message).slice(0, 160) });
+      }
+    }
+
+    if (p === "/api/tracker/comment" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { key, text } = await readBody(req);
+      const t = tracker();
+      if (!t) return send(res, 400, { ok: false, error: "tracker tanimli degil" });
+      await t.comment(key, text);
+      audit({ event: "tracker-comment", key, chars: (text ?? "").length });
+      return send(res, 200, { ok: true });
     }
 
     if (p === "/api/meta") {

@@ -72,6 +72,19 @@ export const tracker = {
     const d = await gql("{ viewer { name email } }");
     return { name: d.viewer.name, email: d.viewer.email };
   },
+  async statusByKeys(keys) {
+    const list = (keys ?? []).filter(Boolean);
+    if (!list.length) return {};
+    // Linear'da identifier ile TOPLU sorgu filtresi yok; anahtarlar paralel cozulur.
+    const out = {};
+    await Promise.all(list.map(async (k) => {
+      try {
+        const r = await gql(`query($id:String!){ issue(id:$id){ identifier title state{ name type } } }`, { id: k });
+        out[k] = { found: true, statusName: r.issue.state.name, statusCategory: r.issue.state.type, summary: r.issue.title };
+      } catch { out[k] = { found: false, statusName: "", statusCategory: "", summary: "" }; }
+    }));
+    return out;
+  },
   async listIssues(view, limit = 50) {
     const d = await gql(
       `query($n:Int!){ issues(first:$n, orderBy:updatedAt){ nodes{ identifier title state{name} assignee{name} updatedAt } } }`,

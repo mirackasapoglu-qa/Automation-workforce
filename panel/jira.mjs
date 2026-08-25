@@ -172,6 +172,35 @@ export async function getCards(view = "test", limit = 100) {
   };
 }
 
+/**
+ * Anahtar listesi icin toplu durum. Kapsam agacindaki canli kart gostergesi
+ * bunu kullanir (bir dugumde birden fazla kart olabilir, tek istekte cozulur).
+ *
+ * Donen sekil tracker arayuzunun ortak sozlesmesi:
+ *   { KEY: { found, statusName, statusCategory, summary } }
+ * Bulunamayan anahtar `found:false` ile doner — cagiran taraf "gecersiz ID"
+ * ayrimini buradan yapar.
+ */
+export async function statusByKeys(keys) {
+  const list = (keys ?? []).filter(Boolean);
+  if (!list.length) return {};
+  const jql = `key in (${list.map((k) => `"${k.replace(/"/g, "")}"`).join(", ")})`;
+  const qs = new URLSearchParams({ jql, fields: "status,summary", maxResults: String(list.length) });
+  const page = await api(`/rest/api/3/search/jql?${qs}`);
+  const out = {};
+  for (const k of list) out[k] = { found: false, statusName: "", statusCategory: "", summary: "" };
+  for (const issue of page?.issues ?? []) {
+    const fields = issue.fields ?? {};
+    out[issue.key] = {
+      found: true,
+      statusName: fields.status?.name ?? "",
+      statusCategory: fields.status?.statusCategory?.key ?? "",
+      summary: fields.summary ?? "",
+    };
+  }
+  return out;
+}
+
 export async function getCard(key) {
   const issue = await api(
     `/rest/api/3/issue/${key}?fields=${FIELDS},description,${JIRA.projectFieldId},subtasks`,

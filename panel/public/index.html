@@ -309,6 +309,12 @@
      Sarmalayici `position:relative`, panel `right:0` ile dugmenin SAG kenarina
      hizali. Sola dogru aciliyor cunku dugme ust barin sag ucunda. */
   #cxWrap{position:relative;display:inline-flex}
+  /* Kapsam baglantisi: connectors dugmesiyle ayni yukseklik/renk dili.
+     `button` degil `a` — yeni sekmede acilabilsin diye. */
+  #scopeLink{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;margin-right:6px;
+    border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--fg);
+    font-size:12px;text-decoration:none;line-height:1.6}
+  #scopeLink:hover{border-color:var(--acc)}
   #cxPanel{position:absolute;z-index:60;top:calc(100% + 8px);right:0;
     width:min(440px,calc(100vw - 32px));
     max-height:min(74vh,640px);overflow-y:auto;background:var(--card);border:1px solid var(--line);
@@ -537,6 +543,9 @@
   <span class="pill" id="orderPill" role="status" aria-atomic="true"></span>
   <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
   <span class="spacer"></span>
+  <!-- Kapsam agaci: panelin ikinci yuzu. Ayni govde, ayni veri katmani;
+       "neyi test etmeliyiz" tarafi burada, "kosum/kanit" tarafi panelde. -->
+  <a id="scopeLink" href="/scope" title="Kapsam agaci — urun hiyerarsisi, durum ve test case'ler">kapsam</a>
   <!-- Baglantilar: kimlik, kota ve cozum adimlari tek yerde.
        Panel dugmenin ICINDEKI sarmalayicida duruyor — dropdown dugmeye
        hizalanmali, ust seride degil. -->

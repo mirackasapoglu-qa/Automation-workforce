@@ -65,6 +65,13 @@ export const PROJECT = {
   name,
   id: mod.id,
   title: mod.title,
+  /** Test edilen urunun adi (panelin adi degil) — kapsam agacinin kok dugumu. */
+  product: mod.product ?? mod.title,
+  /**
+   * Yetenek → connector eslemesi (tracker/design/ai/chat/device).
+   * Bkz. panel/connectors/index.mjs. Profil demezse orada makul varsayilan var.
+   */
+  connectors: mod.connectors ?? null,
   env: { var: null, default: "test", ordersVar: null, ...(mod.env ?? {}) },
   issuePrefixes: mod.issuePrefixes ?? [],
   knownIssuePrefix: mod.knownIssuePrefix ?? null,

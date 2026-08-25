@@ -12,6 +12,8 @@
 /** Panel başlığı ve localStorage/log ayrımı için kimlik. */
 export const id = "homee";
 export const title = "Homee QA Paneli";
+/** Test edilen ürünün adı (panelin adı değil) — kapsam ağacının kök düğümü. */
+export const product = "Homee";
 
 /**
  * Ortam değişkeni adları. Suite ve `.env` bu adları kullanıyor; çekirdek

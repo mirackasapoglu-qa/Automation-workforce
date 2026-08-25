@@ -55,6 +55,7 @@ export const tracker = {
   /** Kart anahtarı biçimi — ağaçtaki "hatalı için kart zorunlu" kuralı bunu doğrular. */
   keyPattern: /^[A-Z][A-Z0-9]+-\d+$/,
   async whoami() { return (await import("../jira.mjs")).whoami(); },
+  async statusByKeys(keys) { return (await import("../jira.mjs")).statusByKeys(keys); },
   async listIssues(view, limit) { return (await import("../jira.mjs")).getCards(view, limit); },
   async getIssue(k) { return (await import("../jira.mjs")).getCard(k); },
   async comment(k, text) { return (await import("../jira.mjs")).postComment(k, text); },
