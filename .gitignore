@@ -17,3 +17,19 @@ panel-data/
 homee-qa-raporu.html
 figma-diff-*.html
 figma-diff-*.json
+
+# codegen taslaklari — POM konvansiyonuna cevrilmeden commit edilmez
+
+panel-data/.panel-token
+
+# gecici kosum/probe log'lari
+.basket-probe.log
+.cart-cards.log
+.dogrulama.log
+.son-dogrulama.log
+.panel-up.log
+.rapor-*.log
+
+# uretilen HTML raporlari (kaynak degil cikti)
+homee-*-raporu-*.html
+homee-test-report.html
