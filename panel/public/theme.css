@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+/**
+ * Ortak tasarım katmanı — panelin (/) ve kapsam ekranının (/scope) TEK renk kaynağı.
+ *
+ * NEDEN: iki ekran iki ayrı palet taşıyordu (`--acc/--card/--fg` ve
+ * `--accent/--surface/--text`). Aynı ürünün iki yüzü farklı renk konuşuyordu ve
+ * bir rengi değiştirmek iki dosyada iki kez düzeltme demekti.
+ *
+ * KARAR: renk/yuvarlaklık/gölge KAPSAM ekranından alındı (görsel referans o),
+ * tipografi PANELDEN (Fira — aracın karakteri, zaten yüklüydü). Panel kendi
+ * token adlarını buradaki adlara BAĞLAR, kendi değerlerini taşımaz; kapsam
+ * ekranının adları da bilerek bu adlarla aynı, o yüzden doğrudan miras alır.
+ *
+ * ⚠️ Açık tema burada TANIMLI: kapsam ekranı eskiden yalnız koyu idi, ortak
+ * katmana geçince açık temayı bedavaya kazandı. Yeni bir renk eklerken İKİ
+ * bloğa da ekle, yoksa bir temada tanımsız kalır.
+ */
+
+:root {
+  color-scheme: dark light;
+
+  /* --- yüzeyler (koyu, varsayılan) --- */
+  --bg: #0a0e17;
+  --canvas-bg: #0d1220;
+  --surface: #121a2b;
+  --surface-raised: #182236;
+  --border: #232e46;
+  --border-strong: #303e5c;
+  --grid-dot: rgba(63, 208, 255, .07);
+
+  /* --- metin --- */
+  --text: #e9edf6;
+  --text-muted: #8793ab;
+  --text-faint: #5b6578;
+
+  /* --- anlam renkleri --- */
+  --accent: #3fd0ff;
+  --accent-dim: rgba(63, 208, 255, .14);
+  /** Accent ZEMİN üzerindeki yazı. Koyu temada koyu, açıkta beyaz. */
+  --accent-on: #04141c;
+  --good: #34d399;
+  --good-dim: rgba(52, 211, 153, .13);
+  --warn: #fbbf24;
+  --warn-dim: rgba(251, 191, 36, .13);
+  --fail: #fb7185;
+  --fail-dim: rgba(251, 113, 133, .13);
+  --neutral: #8793ab;
+  --progress: #60a5fa;
+
+  /* --- biçim --- */
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-xs: 5px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
+  --font-sans: "Fira Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Fira Code", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --motion: 160ms cubic-bezier(.4, 0, .2, 1);
+}
+
+/* Açık tema — değerler tek yerde, iki seçici aynı bloğu paylaşır. */
+:root[data-theme="light"],
+:root:not([data-theme="dark"]) {
+  --bg: #F6F8FB;
+  --canvas-bg: #F1F5F9;
+  --surface: #FFFFFF;
+  --surface-raised: #E8EEF6;
+  --border: #DCE3ED;
+  --border-strong: #C3CEDD;
+  --grid-dot: rgba(2, 132, 199, .08);
+
+  --text: #0F172A;
+  --text-muted: #5A6B85;
+  --text-faint: #8A9AB2;
+
+  --accent: #0284C7;
+  --accent-dim: rgba(2, 132, 199, .10);
+  --accent-on: #FFFFFF;
+  --good: #15803D;
+  --good-dim: rgba(21, 128, 61, .10);
+  --warn: #B45309;
+  --warn-dim: rgba(180, 83, 9, .10);
+  --fail: #DC2626;
+  --fail-dim: rgba(220, 38, 38, .09);
+  --neutral: #5A6B85;
+  --progress: #2563EB;
+
+  --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 20px rgba(15, 23, 42, .07);
+}
+
+/**
+ * ⚠️ Sıra önemli: yukarıdaki blok `:not([data-theme=dark])` ile SİSTEM tercihi
+ * olmadan da uygulanırdı. Sistem koyu isterken açık temayı basmamak için asıl
+ * kuralı medya sorgusuna kilitliyoruz; `[data-theme=light]` ise her durumda kazanır.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0e17;
+    --canvas-bg: #0d1220;
+    --surface: #121a2b;
+    --surface-raised: #182236;
+    --border: #232e46;
+    --border-strong: #303e5c;
+    --grid-dot: rgba(63, 208, 255, .07);
+
+    --text: #e9edf6;
+    --text-muted: #8793ab;
+    --text-faint: #5b6578;
+
+    --accent: #3fd0ff;
+    --accent-dim: rgba(63, 208, 255, .14);
+    --accent-on: #04141c;
+    --good: #34d399;
+    --good-dim: rgba(52, 211, 153, .13);
+    --warn: #fbbf24;
+    --warn-dim: rgba(251, 191, 36, .13);
+    --fail: #fb7185;
+    --fail-dim: rgba(251, 113, 133, .13);
+    --neutral: #8793ab;
+    --progress: #60a5fa;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 8px 24px rgba(0, 0, 0, .35);
+  }
+}

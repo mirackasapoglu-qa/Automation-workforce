@@ -7,7 +7,18 @@
 <base href="/scope/">
 <title>Kapsam Agaci — Flowscope</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="/theme.css">
 <link rel="stylesheet" href="style.css">
+<!-- Tema secimi panelle PAYLASILIR: ayni origin, ayni localStorage anahtari.
+     Panelde koyuya gecince burasi da koyu acilir. -->
+<script>
+  (function () {
+    try {
+      var m = localStorage.getItem('qa-panel-theme');
+      if (m) document.documentElement.setAttribute('data-theme', m);
+    } catch (e) { /* depolama kapaliysa sistem tercihi gecerli */ }
+  })();
+</script>
 </head>
 <body>
 <div class="fw" id="fw-root"></div>

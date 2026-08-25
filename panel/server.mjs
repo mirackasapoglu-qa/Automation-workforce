@@ -890,6 +890,13 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true });
     }
 
+    /* Ortak tasarim katmani — panel ve kapsam ekrani ayni dosyayi okur. */
+    if (p === "/theme.css") {
+      const css = fs.readFileSync(path.join(__dirname, "public", "theme.css"));
+      res.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" });
+      return res.end(css);
+    }
+
     if (p === "/api/meta") {
       return send(res, 200, {
         env: ENV,

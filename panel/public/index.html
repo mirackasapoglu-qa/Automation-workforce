@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="panel-token" content="__PANEL_TOKEN__">
 <title>QA Paneli</title>
+<link rel="stylesheet" href="/theme.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23020617'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2322C55E'/%3E%3C/svg%3E">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
 
   /* ---------------------------------------------------------------------------
      Tema: OLED koyu varsayilan (ui-ux-pro-max -> "Dark Mode (OLED)" + slate/navy).
@@ -17,36 +17,20 @@
      DIKKAT: --bg/--fg/--mut/--line/--card/--ok/--no/--sk/--acc isimleri HTML
      icindeki inline style'larda kullaniliyor — yeniden adlandirma.
   --------------------------------------------------------------------------- */
+  /**
+   * Panel kendi token ADLARINI korur ama DEGER tasimaz: hepsi /theme.css'teki
+   * ortak katmana baglanir. Boylece 2600 satirlik mevcut CSS'e dokunmadan iki
+   * ekran ayni paleti konusur. Yeni renk gerekirse theme.css'e eklenir.
+   */
   :root{
-    color-scheme:dark light;
-    --bg:#020617; --fg:#F8FAFC; --mut:#94A3B8; --line:#26314A;
-    --card:#0E1223; --card2:#161C31; --raise:#1A2136;
-    --ok:#22C55E; --no:#EF4444; --sk:#F59E0B; --acc:#38BDF8;
-    --acc-dim:rgba(56,189,248,.14); --ok-dim:rgba(34,197,94,.13);
-    --no-dim:rgba(239,68,68,.13); --sk-dim:rgba(245,158,11,.13);
-    --r:10px; --r-sm:7px; --r-xs:5px;
-    --sh:0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
-    --sans:"Fira Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    --mono:"Fira Code",ui-monospace,SFMono-Regular,Menlo,monospace;
-    --t:160ms cubic-bezier(.4,0,.2,1);
-  }
-  @media (prefers-color-scheme:light){
-    :root:not([data-theme=dark]){
-      --bg:#F6F8FB; --fg:#0F172A; --mut:#5A6B85; --line:#DCE3ED;
-      --card:#FFFFFF; --card2:#F1F5F9; --raise:#E8EEF6;
-      --ok:#15803D; --no:#DC2626; --sk:#B45309; --acc:#0284C7;
-      --acc-dim:rgba(2,132,199,.10); --ok-dim:rgba(21,128,61,.10);
-      --no-dim:rgba(220,38,38,.09); --sk-dim:rgba(180,83,9,.10);
-      --sh:0 1px 2px rgba(15,23,42,.06), 0 8px 20px rgba(15,23,42,.07);
-    }
-  }
-  :root[data-theme=light]{
-    --bg:#F6F8FB; --fg:#0F172A; --mut:#5A6B85; --line:#DCE3ED;
-    --card:#FFFFFF; --card2:#F1F5F9; --raise:#E8EEF6;
-    --ok:#15803D; --no:#DC2626; --sk:#B45309; --acc:#0284C7;
-    --acc-dim:rgba(2,132,199,.10); --ok-dim:rgba(21,128,61,.10);
-    --no-dim:rgba(220,38,38,.09); --sk-dim:rgba(180,83,9,.10);
-    --sh:0 1px 2px rgba(15,23,42,.06), 0 8px 20px rgba(15,23,42,.07);
+    --fg:var(--text); --mut:var(--text-muted); --line:var(--border);
+    --card:var(--surface); --card2:var(--canvas-bg); --raise:var(--surface-raised);
+    --ok:var(--good); --no:var(--fail); --sk:var(--warn); --acc:var(--accent);
+    --acc-dim:var(--accent-dim); --ok-dim:var(--good-dim);
+    --no-dim:var(--fail-dim); --sk-dim:var(--warn-dim);
+    --r:var(--radius); --r-sm:var(--radius-sm); --r-xs:var(--radius-xs);
+    --sh:var(--shadow); --sans:var(--font-sans); --mono:var(--font-mono);
+    --t:var(--motion);
   }
 
   *{box-sizing:border-box}
