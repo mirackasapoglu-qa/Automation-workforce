@@ -16,6 +16,7 @@
     "test:magaza": "playwright test tests/07-stores.spec.ts --project=chromium --headed",
     "test:statik": "playwright test tests/08-static-pages.spec.ts --project=chromium --headed",
     "test:form": "playwright test tests/09-forms.spec.ts --project=chromium --headed",
+    "test:rota": "playwright test tests/10-route-health.spec.ts --project=chromium --headed",
     "test:login": "playwright test tests/20-login.spec.ts --project=chromium --headed",
     "test:hesabim": "playwright test tests/21-account-overview.spec.ts --project=chromium --headed",
     "test:adres": "playwright test tests/22-addresses.spec.ts --project=chromium --headed",
@@ -23,15 +24,23 @@
     "test:siparis": "playwright test tests/24-orders.spec.ts --project=chromium --headed",
     "test:odeme": "playwright test tests/25-checkout-to-payment.spec.ts --project=chromium --headed",
     "panel": "node panel/server.mjs",
+    "panel:check": "node scripts/panel-portability-check.mjs",
+    "up": "node scripts/up.mjs",
     "report:create": "node scripts/create-test-report.cjs",
     "show-report": "playwright show-report",
     "format": "prettier --write .",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "test:havale": "playwright test tests/26-order-transfer.spec.ts --project=chromium --headed",
+    "test:gate": "node --test panel/scenario-suggest.test.mjs",
+    "history:merge": "node scripts/merge-case-history.mjs",
+    "figma:diff": "node scripts/figma-offline-diff.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
     "@types/node": "^20.0.0",
-    "dotenv": "^16.0.0",
     "prettier": "^3.8.3"
+  },
+  "optionalDependencies": {
+    "@anthropic-ai/sdk": "^0.120.0"
   }
 }

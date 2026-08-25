@@ -114,6 +114,16 @@
       "group": "misafir",
       "tip": "09-forms.spec.ts — 3 case: bülten geçersiz e-posta, iletişim formu render, boş gönderim validasyonu (HOMEE-003). GERÇEK form göndermez. ~1 dk."
     },
+    "test-rota": {
+      "label": "10 Rota sagligi (headed)",
+      "cmd": "npm",
+      "args": [
+        "run",
+        "test:rota"
+      ],
+      "group": "misafir",
+      "tip": "10-route-health.spec.ts: 5 case. 2026-08-20 rota denetiminin kod hali — KNOWN_BROKEN_ROUTES hala 404 mu, LISTING_EMPTY hala bos mu, urun donmesi beklenen rotalar doluyor mu, statik rotalar 404 vermiyor mu, misafir korumali hesap rotalarinda login'e yonleniyor mu. Homee 404'te de HTTP 200 dondugu icin tespit DOM'dan yapiliyor. Mutasyon yok, ~6 dk."
+    },
     "test-login": {
       "label": "20 Giris pozitif/negatif (headed)",
       "cmd": "npm",
@@ -183,6 +193,30 @@
       ],
       "group": "rapor",
       "tip": "Son koşumun test-results/results.json dosyasından HTML rapor üretir. Test KOŞMAZ, sadece rapor yazar."
+    },
+    "test-havale": {
+      "label": "26 HAVALE ile siparis TAMAMLAR (headed)",
+      "cmd": "npm",
+      "args": [
+        "run",
+        "test:havale"
+      ],
+      "group": "uye",
+      "tip": "⚠️ GERCEK SIPARIS ACAR. ALLOW_HOMEE_ORDERS=1 yoksa komple SKIP edilir. Havale secildigi icin para cekilmez (siparis 'odeme bekliyor' durumunda kalir) ama siparis kaydi olusur ve otomasyonla IPTAL EDILEMEZ — OrdersPage'de iptal akisi yok. Tek SAP test urunu, 1 adet, kosum basina TEK siparis. Sipariş no + banka/IBAN ekrani panel-data/evidence/26-havale-*.png olarak kaydedilir."
+    },
+    "gate-refresh": {
+      "label": "Kapi oturumunu yenile",
+      "cmd": "npx",
+      "args": [
+        "playwright",
+        "test",
+        "tests/08-static-pages.spec.ts",
+        "--project=chromium",
+        "-g",
+        "privacy"
+      ],
+      "group": "rapor",
+      "tip": "Tek hafif case kosarak global-setup'i tetikler ve playwright/.auth/<env>-gate.json'i yeniler. Kapi cookie'si ~24 saatte doluyor; dolunca butun sayfalar 'Gecici Erisim' ekranini gosterir ve olcumler sessizce yanlis olur. ~45 sn."
     }
   }
 }

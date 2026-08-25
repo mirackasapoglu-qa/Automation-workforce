@@ -1,21 +1,20 @@
 /**
- * Homee QA Paneli — Jira katmanı (machinarium.atlassian.net)
+ * Jira katmanı (REST v3).
  *
- * Kapsam: MAC projesi, `MAC-7035 Tepe - Redesign` epic'i.
+ * Host, proje, epic, hata tipi ve özel alan id'leri proje profilinden gelir:
+ * `panel/projects/<proje>.mjs → jira`. Bu dosyada proje bilgisi YOK.
  * Kimlik: ~/.jira-credentials (JIRA_EMAIL, JIRA_TOKEN) — repoya YAZILMAZ.
  *
  * Konvansiyonlar (ölçülerek doğrulandı 2026-08-18):
  *  - REST v3. Yorum gövdesi ADF formatında olmalı.
  *  - JQL'de issue type adı İNGİLİZCE: `issuetype = Bug` çalışır, `issuetype = "Hata"` 0 döner.
  *  - Arama ucu `/rest/api/3/search/jql`; sayfalama `nextPageToken` ile, `total` alanı YOK.
- *  - Statü geçişleri projede ortak id'ler: 11 Yapılacaklar · 21 Devam Ediyor · 31 Tamam ·
- *    41 Test · 51 Ready For Deploy · 61 Ready For Release · 71 Blocked · 81 Failed ·
- *    91 Test Blocked · 5 Move to Release for Stage
- *  - Özel alanlar: customfield_10072 = Project (TEPEHOME), customfield_10020 = Sprint
+ *  - Statü geçişi id'ye göre değil, `/transitions`'tan okunan ada göre eşlenir.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { PROJECT } from "./project.mjs";
 
 const CRED_FILE = path.join(os.homedir(), ".jira-credentials");
 
@@ -32,10 +31,30 @@ function readCreds() {
 
 const creds = readCreds();
 
+/**
+ * Profil değerleri; her biri aynı adlı ortam değişkeniyle ezilebilir
+ * (JIRA_HOST, JIRA_PROJECT, JIRA_EPIC, JIRA_BUG_TYPE_ID, JIRA_PROJECT_FIELD,
+ * JIRA_PROJECT_FIELD_VALUE, JIRA_SPRINT_FIELD) — tek seferlik denemeler için.
+ */
+const P = PROJECT.jira;
+
 export const JIRA = {
-  host: process.env.JIRA_HOST_HOMEE || "https://machinarium.atlassian.net",
-  project: process.env.JIRA_PROJECT_HOMEE || "MAC",
-  epic: process.env.JIRA_EPIC_HOMEE || "MAC-7035",
+  host: process.env.JIRA_HOST || P.host,
+  project: process.env.JIRA_PROJECT || P.project,
+  epic: process.env.JIRA_EPIC || P.epic,
+  /**
+   * Hata tipi ADIYLA değil id'siyle verilir: oluşturma ile sorgulama farklı ad
+   * ister (yerelleştirilmiş Jira'da `POST /issue` İngilizce adı reddeder, JQL
+   * ise yerel adı 0 sonuç döndürür). Ada güvenmek iki yönden de kırılgan.
+   */
+  bugTypeId: process.env.JIRA_BUG_TYPE_ID || P.bugTypeId,
+  /**
+   * Zorunlu select alan. Verilmezse oluşturma 400 ile düşer
+   * ("<Alan>: <Alan> gerekiyor."). Profilde alan id'si ve değer id'si birlikte durur.
+   */
+  projectFieldId: process.env.JIRA_PROJECT_FIELD || P.projectFieldId,
+  projectFieldValueId: process.env.JIRA_PROJECT_FIELD_VALUE || P.projectFieldValueId,
+  sprintFieldId: process.env.JIRA_SPRINT_FIELD || P.sprintFieldId || "",
   available: Boolean(creds),
   email: creds?.JIRA_EMAIL ?? "",
 };
@@ -100,26 +119,27 @@ export function textToAdf(text) {
 }
 
 // ---------------------------------------------------------------- görünümler
-const FIELDS = "summary,status,issuetype,assignee,updated,priority,parent,customfield_10020";
+const BASE_FIELDS = "summary,status,issuetype,assignee,updated,priority,parent";
+const FIELDS = JIRA.sprintFieldId ? `${BASE_FIELDS},${JIRA.sprintFieldId}` : BASE_FIELDS;
 
-export const VIEWS = {
-  test: {
-    label: "Test kolonu (bende bekleyen)",
-    jql: `parent = ${JIRA.epic} AND status = "Test" ORDER BY key`,
-  },
-  blocked: {
-    label: "Bloklu",
-    jql: `parent = ${JIRA.epic} AND status IN ("Test Blocked", "Blocked", "Failed") ORDER BY key`,
-  },
-  epic: {
-    label: "Tüm redesign epic'i",
-    jql: `parent = ${JIRA.epic} ORDER BY status, key`,
-  },
-  bugs: {
-    label: "Redesign bug'ları (son 30 gün)",
-    jql: `project = ${JIRA.project} AND issuetype = Bug AND summary ~ "Redesign" AND updated >= -30d ORDER BY updated DESC`,
-  },
-};
+/**
+ * Görünümler profilden gelir (`jira.views`), çünkü hangi JQL'in işe yaradığı
+ * projeye göre değişir. Profil tanımlamamışsa epic tabanlı iki genel görünüm
+ * kurulur — panel Jira sekmesi profilsiz de açılabilsin diye.
+ */
+export const VIEWS =
+  typeof PROJECT.jira.views === "function"
+    ? PROJECT.jira.views(JIRA)
+    : (PROJECT.jira.views ?? {
+        test: {
+          label: "Test kolonu (bende bekleyen)",
+          jql: `parent = ${JIRA.epic} AND status = "Test" ORDER BY key`,
+        },
+        epic: {
+          label: "Tüm epic",
+          jql: `parent = ${JIRA.epic} ORDER BY status, key`,
+        },
+      });
 
 /** Bir görünümü çeker; sayfalama nextPageToken ile (total alanı YOK). */
 export async function getCards(view = "test", limit = 100) {
@@ -146,7 +166,7 @@ export async function getCards(view = "test", limit = 100) {
       assignee: i.fields.assignee?.displayName ?? "",
       priority: i.fields.priority?.name ?? "",
       updated: i.fields.updated ?? "",
-      sprint: (i.fields.customfield_10020 ?? []).map((s) => s?.name).filter(Boolean),
+      sprint: (i.fields[JIRA.sprintFieldId] ?? []).map((s) => s?.name).filter(Boolean),
       url: `${JIRA.host}/browse/${i.key}`,
     })),
   };
@@ -154,7 +174,7 @@ export async function getCards(view = "test", limit = 100) {
 
 export async function getCard(key) {
   const issue = await api(
-    `/rest/api/3/issue/${key}?fields=${FIELDS},description,customfield_10072,subtasks`,
+    `/rest/api/3/issue/${key}?fields=${FIELDS},description,${JIRA.projectFieldId},subtasks`,
   );
   const comments = await api(`/rest/api/3/issue/${key}/comment?maxResults=20&orderBy=-created`);
   const transitions = await api(`/rest/api/3/issue/${key}/transitions`);
@@ -165,8 +185,9 @@ export async function getCard(key) {
     type: issue.fields.issuetype?.name ?? "",
     assignee: issue.fields.assignee?.displayName ?? "",
     parent: issue.fields.parent?.key ?? "",
-    projectField: issue.fields.customfield_10072?.value ?? issue.fields.customfield_10072 ?? "",
-    sprint: (issue.fields.customfield_10020 ?? []).map((s) => s?.name).filter(Boolean),
+    projectField:
+      issue.fields[JIRA.projectFieldId]?.value ?? issue.fields[JIRA.projectFieldId] ?? "",
+    sprint: (issue.fields[JIRA.sprintFieldId] ?? []).map((s) => s?.name).filter(Boolean),
     description: adfToText(issue.fields.description).slice(0, 4000),
     url: `${JIRA.host}/browse/${issue.key}`,
     comments: (comments.comments ?? []).map((c) => ({
@@ -193,28 +214,49 @@ export async function postComment(key, text) {
   });
 }
 
-/** ⚠️ YAZMA İŞLEMİ — statü geçişi. transitionId `getCard().transitions`'tan gelir. */
+/**
+ * ⚠️ YAZMA İŞLEMİ — statü geçişi. transitionId `getCard().transitions`'tan gelir.
+ *
+ * Yorum AYRI bir çağrıyla yazılıyor. ESKİ HALİ geçiş gövdesine
+ * `update.comment[].add` koyuyordu; Jira bunu **sessizce yutuyor** — geçiş
+ * ekranında yorum alanı tanımlı değilse hata dönmez, statü değişir, yorum
+ * kaybolur. Ölçüldü 2026-08-22: iki kart hedef statüye geçti ama gerekçe
+ * yorumları hiç yazılmadı (kartların yorum sayısı değişmedi).
+ * Geçişin gerekçesi kaybolursa kartta neden taşındığı görünmez — bu yüzden
+ * yorum başarısız olursa hata fırlatıyoruz.
+ */
 export async function transition(key, transitionId, comment) {
-  return api(`/rest/api/3/issue/${key}/transitions`, {
+  const res = await api(`/rest/api/3/issue/${key}/transitions`, {
     method: "POST",
-    body: {
-      transition: { id: String(transitionId) },
-      ...(comment ? { update: { comment: [{ add: { body: textToAdf(comment) } }] } } : {}),
-    },
+    body: { transition: { id: String(transitionId) } },
   });
+  if (comment) await postComment(key, comment);
+  return res;
 }
 
 /**
  * ⚠️ YAZMA İŞLEMİ — yeni bug kartı açar.
- * İsim kalıbı ekibin kullandığı biçime uyar: "TEPE - Redesign > <Alan> > <problem>"
+ * Başlık kalıbı projeye göre değişir; ekibin biçimi profilin `jira` notunda.
  */
-export async function createBug({ summary, description, parent = JIRA.epic, labels = [] }) {
-  return api(`/rest/api/3/issue`, {
+/**
+ * Hata kartı açar. `assigneeAccountId` verilirse oluşturmadan sonra atar
+ * (atama ayrı bir uç; oluşturma gövdesinde göndermek bazı ekranlarda reddediliyor).
+ * NOT: assignee JQL'de ve API'de görünen adla ÇALIŞMAZ, accountId şart.
+ */
+export async function createBug({
+  summary,
+  description,
+  parent = JIRA.epic,
+  labels = [],
+  assigneeAccountId = null,
+}) {
+  const issue = await api(`/rest/api/3/issue`, {
     method: "POST",
     body: {
       fields: {
         project: { key: JIRA.project },
-        issuetype: { name: "Bug" },
+        issuetype: { id: JIRA.bugTypeId },
+        [JIRA.projectFieldId]: { id: JIRA.projectFieldValueId },
         summary,
         description: textToAdf(description),
         ...(parent ? { parent: { key: parent } } : {}),
@@ -222,6 +264,46 @@ export async function createBug({ summary, description, parent = JIRA.epic, labe
       },
     },
   });
+  if (assigneeAccountId) {
+    await api(`/rest/api/3/issue/${issue.key}/assignee`, {
+      method: "PUT",
+      body: { accountId: assigneeAccountId },
+    });
+  }
+  return issue;
+}
+
+/** Karta dosya ekler (multipart; X-Atlassian-Token: no-check zorunlu). */
+export async function attachFile(key, filePath) {
+  if (!authHeader) throw new Error("~/.jira-credentials bulunamadı");
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const name = path.basename(filePath);
+  const form = new FormData();
+  form.append("file", new Blob([fs.readFileSync(filePath)]), name);
+  const res = await fetch(`${JIRA.host}/rest/api/3/issue/${key}/attachments`, {
+    method: "POST",
+    headers: { authorization: authHeader, "X-Atlassian-Token": "no-check" },
+    body: form,
+  });
+  const text = await res.text();
+  if (!res.ok) throw new Error(`Jira ek ${res.status}: ${text.slice(0, 200)}`);
+  return JSON.parse(text);
+}
+
+/**
+ * Karta atanabilecek kullanicilar. `/user/search` bu instance'ta BOS donuyor,
+ * dogru uc `/user/assignable/search`. Ad ile filtreleme JQL'de de API'de de
+ * calismiyor — accountId sart, bu yuzden id'yi de donduruyoruz.
+ */
+export async function assignableUsers() {
+  const list = await api(
+    `/rest/api/3/user/assignable/search?project=${encodeURIComponent(JIRA.project)}&maxResults=50`,
+  );
+  return list
+    .filter((u) => u.accountType !== "app" && u.displayName)
+    .map((u) => ({ accountId: u.accountId, name: u.displayName }))
+    .sort((a, b) => a.name.localeCompare(b.name, "tr"));
 }
 
 export async function whoami() {

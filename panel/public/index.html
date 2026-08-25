@@ -4,113 +4,567 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="panel-token" content="__PANEL_TOKEN__">
-<title>Homee QA Paneli</title>
+<title>QA Paneli</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23020617'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%2322C55E'/%3E%3C/svg%3E">
 <style>
-  :root{--bg:#fff;--fg:#18181b;--mut:#71717a;--line:#e4e4e7;--card:#fafafa;--ok:#0f766e;--no:#b91c1c;--sk:#a16207;--acc:#b91c1c}
-  @media (prefers-color-scheme:dark){:root{--bg:#0f1012;--fg:#ededed;--mut:#a1a1aa;--line:#27272a;--card:#17181b;--ok:#34d399;--no:#f87171;--sk:#fbbf24;--acc:#f87171}}
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
+  /* ---------------------------------------------------------------------------
+     Tema: OLED koyu varsayilan (ui-ux-pro-max -> "Dark Mode (OLED)" + slate/navy).
+     SAPMA: kit accent'i #22C55E yesil veriyor; bu panelde yesil "pass" anlamina
+     geldigi icin etkileşim accent'i ayni aileden #38BDF8'e alindi, yesil --ok'a
+     birakildi. Durum rengi asla tek basina bilgi tasimaz (ikon/metin eslik eder).
+     DIKKAT: --bg/--fg/--mut/--line/--card/--ok/--no/--sk/--acc isimleri HTML
+     icindeki inline style'larda kullaniliyor — yeniden adlandirma.
+  --------------------------------------------------------------------------- */
+  :root{
+    color-scheme:dark light;
+    --bg:#020617; --fg:#F8FAFC; --mut:#94A3B8; --line:#26314A;
+    --card:#0E1223; --card2:#161C31; --raise:#1A2136;
+    --ok:#22C55E; --no:#EF4444; --sk:#F59E0B; --acc:#38BDF8;
+    --acc-dim:rgba(56,189,248,.14); --ok-dim:rgba(34,197,94,.13);
+    --no-dim:rgba(239,68,68,.13); --sk-dim:rgba(245,158,11,.13);
+    --r:10px; --r-sm:7px; --r-xs:5px;
+    --sh:0 1px 2px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.35);
+    --sans:"Fira Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --mono:"Fira Code",ui-monospace,SFMono-Regular,Menlo,monospace;
+    --t:160ms cubic-bezier(.4,0,.2,1);
+  }
+  @media (prefers-color-scheme:light){
+    :root:not([data-theme=dark]){
+      --bg:#F6F8FB; --fg:#0F172A; --mut:#5A6B85; --line:#DCE3ED;
+      --card:#FFFFFF; --card2:#F1F5F9; --raise:#E8EEF6;
+      --ok:#15803D; --no:#DC2626; --sk:#B45309; --acc:#0284C7;
+      --acc-dim:rgba(2,132,199,.10); --ok-dim:rgba(21,128,61,.10);
+      --no-dim:rgba(220,38,38,.09); --sk-dim:rgba(180,83,9,.10);
+      --sh:0 1px 2px rgba(15,23,42,.06), 0 8px 20px rgba(15,23,42,.07);
+    }
+  }
+  :root[data-theme=light]{
+    --bg:#F6F8FB; --fg:#0F172A; --mut:#5A6B85; --line:#DCE3ED;
+    --card:#FFFFFF; --card2:#F1F5F9; --raise:#E8EEF6;
+    --ok:#15803D; --no:#DC2626; --sk:#B45309; --acc:#0284C7;
+    --acc-dim:rgba(2,132,199,.10); --ok-dim:rgba(21,128,61,.10);
+    --no-dim:rgba(220,38,38,.09); --sk-dim:rgba(180,83,9,.10);
+    --sh:0 1px 2px rgba(15,23,42,.06), 0 8px 20px rgba(15,23,42,.07);
+  }
+
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  header{padding:16px 20px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
-  header h1{font-size:17px;margin:0}
-  .pill{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--mut)}
-  main{display:grid;grid-template-columns:300px 1fr;gap:0;min-height:calc(100vh - 58px)}
-  @media (max-width:860px){main{grid-template-columns:1fr}}
-  aside{border-right:1px solid var(--line);padding:16px;overflow-y:auto}
-  section{padding:16px 20px;overflow:hidden}
-  h2{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--mut);margin:18px 0 8px}
+  /* hidden bayragi her zaman kazanir — inline display:grid ile ezilme bugini onler */
+  [hidden]{display:none !important}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 var(--sans);
+       -webkit-font-smoothing:antialiased;display:flex;flex-direction:column}
+  ::selection{background:var(--acc-dim)}
+  :focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:var(--r-xs)}
+  @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none !important;animation:none !important}}
+
+  /* ---- ust bar ---------------------------------------------------------- */
+  header{position:sticky;top:0;z-index:40;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+         padding:12px 20px;background:color-mix(in srgb,var(--bg) 88%,transparent);
+         backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  header h1{font:600 15px/1.2 var(--mono);margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
+  header h1::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);
+                    box-shadow:0 0 0 3px var(--ok-dim), 0 0 10px var(--ok);flex:0 0 auto}
+  header .spacer{flex:1}
+  .pill{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 var(--mono);padding:5px 9px;
+        border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--mut);white-space:nowrap}
+  .pill svg{width:11px;height:11px;flex:0 0 auto}
+  .pill.warn{color:var(--sk);border-color:color-mix(in srgb,var(--sk) 45%,var(--line));background:var(--sk-dim)}
+  .pill.good{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-dim)}
+  .pill:empty{display:none}
+  #gatePill{cursor:pointer;border:0;width:auto;margin:0;padding:5px 9px;border-radius:999px;
+    font:500 11px/1 var(--mono);white-space:nowrap;transition:background var(--t),color var(--t)}
+  #gatePill.ok{background:var(--ok-dim);color:var(--ok)}
+  #gatePill.warn{background:var(--sk-dim);color:var(--sk)}
+  #gatePill.expired,#gatePill.missing{background:var(--no-dim);color:var(--no);font-weight:700}
+  #gatePill.unknown{background:var(--card2);color:var(--mut)}
+  #gatePill:hover{filter:brightness(1.15)}
+  #themeBtn{width:auto;margin:0;padding:5px 8px;border-radius:999px;line-height:1;color:var(--mut)}
+
+  /* ---- iskelet ---------------------------------------------------------- */
+  main{display:grid;grid-template-columns:302px minmax(0,1fr);flex:1;min-height:0}
+  aside{border-right:1px solid var(--line);padding:16px;overflow-y:auto;background:var(--card);
+        position:sticky;top:53px;align-self:start;max-height:calc(100vh - 53px)}
+  section{padding:16px 20px 28px;min-width:0}
+  @media (max-width:1040px){
+    main{grid-template-columns:1fr}
+    aside{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
+  }
+  h2{font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--mut);
+     margin:20px 0 9px;display:flex;align-items:center;gap:8px}
+  h2::after{content:"";flex:1;height:1px;background:var(--line)}
   h2:first-child{margin-top:0}
-  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--card);color:var(--fg);
-         padding:7px 10px;border-radius:7px;width:100%;text-align:left;margin-bottom:6px}
-  button:hover{border-color:var(--acc)}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  button.danger{border-color:var(--no);color:var(--no)}
+  /* kenar cubugundaki kosum gruplari (misafir / uye / rapor) */
+  .grp{font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--acc);
+       margin:14px 0 6px;display:flex;align-items:center;gap:7px;opacity:.9}
+  .grp::after{content:"";flex:1;height:1px;background:color-mix(in srgb,var(--acc) 25%,transparent)}
+  #runs>.grp:first-child{margin-top:2px}
+
+  /* ---- kontroller ------------------------------------------------------- */
+  button{font:500 13px/1.35 var(--sans);cursor:pointer;border:1px solid var(--line);background:var(--card2);
+         color:var(--fg);padding:8px 11px;border-radius:var(--r-sm);width:100%;text-align:left;
+         margin-bottom:6px;transition:background var(--t),border-color var(--t),color var(--t),transform var(--t)}
+  button:hover:not(:disabled){border-color:var(--acc);background:var(--acc-dim);color:var(--fg)}
+  button:active:not(:disabled){transform:translateY(1px)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.danger{border-color:color-mix(in srgb,var(--no) 50%,var(--line));color:var(--no);background:var(--no-dim)}
+  button.danger:hover:not(:disabled){border-color:var(--no);background:color-mix(in srgb,var(--no) 20%,transparent);color:var(--no)}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
-  .row button{width:auto}
-  pre#log{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;
-           height:340px;overflow:auto;font:12px/1.45 ui-monospace,SFMono-Regular,monospace;margin:0;white-space:pre-wrap}
+  .row button{width:auto;margin-bottom:0}
+  input,textarea,select{font:13px/1.4 var(--sans);width:100%;padding:8px 10px;border:1px solid var(--line);
+    border-radius:var(--r-sm);background:var(--bg);color:var(--fg);margin-bottom:8px;transition:border-color var(--t),box-shadow var(--t)}
+  input:hover,textarea:hover,select:hover{border-color:color-mix(in srgb,var(--acc) 40%,var(--line))}
+  input:focus,textarea:focus,select:focus{outline:0;border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-dim)}
+  input::placeholder,textarea::placeholder{color:var(--mut);opacity:.75}
+  select[multiple]{padding:4px}
+  label{cursor:pointer}
+  input[type=checkbox]{accent-color:var(--acc);cursor:pointer}
+
+  /* ---- sekmeler --------------------------------------------------------- */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 0 16px;flex-wrap:wrap;
+        position:sticky;top:53px;z-index:30;background:var(--bg);padding-top:2px}
+  .tabs button{width:auto;border:0;border-bottom:2px solid transparent;background:none;border-radius:0;
+    margin:0;padding:9px 13px;color:var(--mut);font-weight:500}
+  .tabs button:hover{background:var(--acc-dim);color:var(--fg);border-color:transparent;border-bottom-color:var(--line)}
+  .tabs button[aria-selected=true]{border-bottom-color:var(--acc);color:var(--acc);font-weight:600;
+    text-shadow:0 0 12px var(--acc-dim)}
+  @media (max-width:1040px){.tabs{top:0}}
+
+  /* ---- log -------------------------------------------------------------- */
+  pre#log{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:13px 14px;
+    height:min(58vh,420px);overflow:auto;font:12px/1.6 var(--mono);margin:0;white-space:pre-wrap;
+    box-shadow:inset 0 1px 0 color-mix(in srgb,var(--fg) 6%,transparent)}
   .err{color:var(--no)}
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
-  th{color:var(--mut);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
-  .b{font-size:10.5px;font-weight:700;padding:2px 6px;border-radius:5px;white-space:nowrap}
+
+  /* ---- tablolar --------------------------------------------------------- */
+  .scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+  table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  /* Tablolar <thead> olmadan uretiliyor (JS '<tr><th>...' basiyor) — bu yuzden
+     secici dogrudan th; sticky YOK, cunku .scroll dikey scroll konteyneri degil
+     ve th viewport'a yapisip ust bara binerdi. */
+  th{background:var(--card2);color:var(--mut);
+    font:600 10.5px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}
+  tr:first-child th:first-child{border-top-left-radius:var(--r)}
+  tr:first-child th:last-child{border-top-right-radius:var(--r)}
+  tr{transition:background var(--t)}
+  tr:hover td{background:var(--acc-dim)}
+  tr:last-child td{border-bottom:0}
+  td.num,td .n{font-variant-numeric:tabular-nums}
+
+  /* ---- durum jetonlari -------------------------------------------------- */
+  .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
+     border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
-  .mono{font-family:ui-monospace,SFMono-Regular,monospace;font-size:12px;color:var(--mut)}
-  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(90px,1fr));gap:8px;margin-bottom:12px}
-  .c{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px}
-  .c .n{font-size:20px;font-weight:650;line-height:1}.c .l{font-size:11px;color:var(--mut);margin-top:4px}
-  input,textarea,select{font:inherit;width:100%;padding:7px 9px;border:1px solid var(--line);
-                        border-radius:7px;background:var(--bg);color:var(--fg);margin-bottom:8px}
-  .scroll{overflow-x:auto}
-  .issue{border-left:3px solid var(--sk);padding:6px 10px;margin-bottom:8px;background:var(--card);border-radius:0 7px 7px 0}
-  .issue .id{font-weight:650;font-size:12px}
-  .issue .w{font-size:11.5px;color:var(--mut);font-family:ui-monospace,monospace}
-  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px;flex-wrap:wrap}
-  .tabs button{width:auto;border:0;border-bottom:2px solid transparent;background:none;border-radius:0;margin:0;padding:8px 12px}
-  .tabs button[aria-selected=true]{border-bottom-color:var(--acc);color:var(--acc);font-weight:600}
-  /* tasarim diff: farklar kirmizi vurgulu */
-  td.num{color:#e11d48;font-weight:700}
-  tr.rowmiss td{background:color-mix(in srgb,#e11d48 8%,transparent)}
-  tr.rowspec td{background:color-mix(in srgb,#a16207 8%,transparent)}
-  .dexp{color:var(--ok)} .dgot{color:#e11d48;font-weight:600}
-  #dCards .c .n.no{color:#e11d48}
-  /* her butonun yanindaki bilgi butonu */
-  .tipwrap{display:inline-flex;align-items:center;gap:4px;position:relative;max-width:100%}
-  button.tip{width:18px;min-width:18px;height:18px;padding:0;margin:0;border-radius:50%;
-    border:1px solid var(--line);background:var(--bg);color:var(--mut);
-    font:700 11px/1 -apple-system,sans-serif;display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
-  button.tip:hover{border-color:var(--acc);color:var(--acc)}
-  button.tip[aria-expanded=true]{background:var(--acc);color:#fff;border-color:var(--acc)}
-  .tipbox{position:absolute;z-index:50;left:0;top:calc(100% + 6px);width:330px;max-width:80vw;
-    background:var(--bg);border:1px solid var(--acc);border-radius:8px;padding:9px 11px;
-    box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:12.5px;line-height:1.5;white-space:normal}
-  .tipbox .cmd{margin-top:6px;padding-top:6px;border-top:1px solid var(--line);
-    font-family:ui-monospace,monospace;font-size:11px;color:var(--mut);word-break:break-all}
-  aside .tipbox{left:auto;right:0}
-  /* NOT: inline "display:grid" verilirse hidden bayragi EZILIR (hidden UA stilindeki
-     display:none ile calisir). Bu yuzden display kurali burada, hidden'i da geciyoruz. */
+  .mono{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
+  code{font-family:var(--mono);font-size:11.5px;background:var(--card2);border:1px solid var(--line);
+       border-radius:var(--r-xs);padding:1px 5px}
+
+  /* ---- istatistik kutulari ---------------------------------------------- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(108px,1fr));gap:9px;margin-bottom:13px}
+  .c{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:11px 12px;
+     transition:border-color var(--t),transform var(--t)}
+  .c:hover{border-color:color-mix(in srgb,var(--acc) 40%,var(--line));transform:translateY(-1px)}
+  .c .n{font:600 22px/1 var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .c .l{font-size:11px;color:var(--mut);margin-top:5px}
+
+  /* ---- bilinen hatalar -------------------------------------------------- */
+  .issue{border:1px solid var(--line);border-left:3px solid var(--sk);padding:8px 11px;margin-bottom:8px;
+    background:var(--card);border-radius:0 var(--r-sm) var(--r-sm) 0;transition:border-color var(--t)}
+  .issue:hover{border-left-color:var(--no)}
+  .issue .id{font:600 12px/1.3 var(--mono)}
+  .issue .w{font-size:11px;color:var(--mut);font-family:var(--mono);word-break:break-all}
+
+  /* ---- tasarim diff: farklar kirmizi vurgulu ---------------------------- */
+  /* Tasarim diff tablosuna OZEL: farkli sayilar kirmizi. Kapsamsiz yazilmisti
+     ve Perf tablosundaki esik renklerini (.ok/.sk/.no) eziyordu — `td.num`
+     ozgullugu (0,1,1) sinif seciciden (0,1,0) yuksek. Artik #dTable'a kilitli. */
+  #dTable td.num{color:var(--no);font-weight:700}
+  tr.rowmiss td{background:var(--no-dim)}
+  tr.rowspec td{background:var(--sk-dim)}
+  .dexp{color:var(--ok)} .dgot{color:var(--no);font-weight:600}
+  #dCards .c .n.no{color:var(--no)}
+  /* NOT: inline "display:grid" verilirse hidden bayragi EZILIR; ustteki
+     [hidden]{display:none!important} kurali bunu global olarak garantiliyor. */
   #dShots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-  #dShots[hidden]{display:none}
-  /* Case'ler sekmesi: spec basina dropdown */
-  details.spec{border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--card)}
-  details.spec>summary{cursor:pointer;padding:8px 11px;font-size:13px;display:flex;gap:8px;
-    align-items:center;flex-wrap:wrap;list-style:none}
+  @media (max-width:900px){#dShots{grid-template-columns:1fr}}
+
+  /* ---- bilgi butonu ----------------------------------------------------- */
+  .tipwrap{display:inline-flex;align-items:center;gap:5px;position:relative;max-width:100%}
+  button.tip{width:19px;min-width:19px;height:19px;padding:0;margin:0;border-radius:50%;
+    border:1px solid var(--line);background:var(--bg);color:var(--mut);
+    font:700 11px/1 var(--mono);display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto}
+  button.tip:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
+  button.tip[aria-expanded=true]{background:var(--acc);color:var(--bg);border-color:var(--acc)}
+  .tipbox{position:absolute;z-index:50;left:0;top:calc(100% + 7px);width:340px;max-width:80vw;
+    background:var(--card);border:1px solid var(--acc);border-radius:var(--r);padding:10px 12px;
+    box-shadow:var(--sh);font-size:12.5px;line-height:1.55;white-space:normal}
+  .tipbox .cmd{margin-top:7px;padding-top:7px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:11px;color:var(--mut);word-break:break-all}
+  aside .tipbox{left:auto;right:0}
+
+  /* ---- Case'ler sekmesi ------------------------------------------------- */
+  details.spec{border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;background:var(--card);
+    overflow:hidden;transition:border-color var(--t)}
+  details.spec:hover{border-color:color-mix(in srgb,var(--acc) 35%,var(--line))}
+  details.spec[open]{border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
+  details.spec>summary{cursor:pointer;padding:9px 12px;font-size:13px;display:flex;gap:9px;
+    align-items:center;flex-wrap:wrap;list-style:none;transition:background var(--t)}
+  details.spec>summary:hover{background:var(--acc-dim)}
   details.spec>summary::-webkit-details-marker{display:none}
-  details.spec>summary::before{content:"▸";color:var(--mut);font-size:11px}
-  details.spec[open]>summary::before{content:"▾"}
-  details.spec>summary .fname{font-family:ui-monospace,monospace;font-size:12px}
-  details.spec>summary .cnt{color:var(--mut);font-size:11.5px}
-  details.spec .body{padding:0 11px 10px;background:var(--bg);border-radius:0 0 8px 8px}
-  .caserow{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid var(--line)}
-  .caserow .idx{color:var(--mut);font-family:ui-monospace,monospace;font-size:11px;min-width:20px}
-  .caserow .ttl{flex:1;font-size:13px}
+  details.spec>summary::before{content:"";width:0;height:0;border:4px solid transparent;
+    border-left-color:var(--mut);flex:0 0 auto;transition:transform var(--t)}
+  details.spec[open]>summary::before{transform:rotate(90deg) translateX(-1px)}
+  details.spec>summary .fname{font-family:var(--mono);font-size:12px}
+  details.spec>summary .cnt{color:var(--mut);font-size:11.5px;font-family:var(--mono)}
+  details.spec .body{padding:2px 12px 11px;background:var(--bg)}
+  .caserow{display:flex;gap:9px;align-items:flex-start;padding:7px 0;border-top:1px solid var(--line)}
+  .caserow .idx{color:var(--mut);font-family:var(--mono);font-size:11px;min-width:22px;padding-top:2px}
+  .caserow .ttl{flex:1;font-size:13px;line-height:1.45}
   .caserow .flags{display:flex;gap:4px;flex-wrap:wrap}
-  .caserow button.run{width:auto;padding:2px 8px;margin:0;font-size:11px}
-  .st{font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;white-space:nowrap;border:1px solid}
-  .st.passed{color:var(--ok);border-color:var(--ok)}
-  .st.failed{color:#fff;background:#e11d48;border-color:#e11d48}
-  .st.known{color:#e11d48;border-color:#e11d48}
-  .st.skipped{color:var(--sk);border-color:var(--sk)}
-  .st.none{color:var(--mut);border-color:var(--line)}
+  .caserow button.run{width:auto;padding:3px 9px;margin:0;font:500 11px/1.3 var(--mono)}
+  /* Tekrarlama orani: "3/10" = son 10 kosumda 3 kez basarisiz. Tek kosum kaniti degil. */
+  .caserow .rate{font:500 11px/1.5 var(--mono);min-width:44px;text-align:right;padding-top:2px;
+                 font-variant-numeric:tabular-nums;color:var(--mut);cursor:help}
+  .caserow .rate.hard{color:var(--no)}       /* her kosumda tekrarliyor */
+  .caserow .rate.flaky{color:var(--sk);font-weight:600}  /* bazen gecti bazen kaldi */
+  .caserow .rate.clean{color:var(--ok)}
+  .caserow button.rep{padding:3px 6px;opacity:.72}
+  .caserow button.rep:hover{opacity:1}
+  #kiWrap{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--card)}
+  #kiWrap>summary{display:flex;gap:8px;align-items:center;padding:9px 12px;cursor:pointer;list-style:none}
+  #kiWrap>summary::-webkit-details-marker{display:none}
+  #kiBody{padding:0 12px 12px}
+  #kiTable td.num{text-align:right;font-variant-numeric:tabular-nums}
+  #dfWrap{border:1px solid var(--line);border-radius:8px;margin:0 0 12px;background:var(--card)}
+  #dfWrap>summary{display:flex;gap:8px;align-items:center;padding:9px 12px;cursor:pointer;list-style:none}
+  #dfWrap>summary::-webkit-details-marker{display:none}
+  #dfBody{padding:0 12px 12px}
+  #dfTable td{vertical-align:middle}
+  #dfTable td.num{text-align:right;font-variant-numeric:tabular-nums}
+  #dfCode{max-height:280px;overflow:auto;background:var(--bg2,rgba(127,127,127,.08));
+          border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin:10px 0 0;
+          font:400 11.5px/1.6 var(--mono);white-space:pre;color:var(--fg)}
+  .df-act{display:flex;gap:5px;justify-content:flex-end}
+  .df-act button{width:auto;padding:3px 8px;margin:0;font:500 11px/1.3 var(--mono)}
+  .st{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
+      border-radius:var(--r-xs);white-space:nowrap;border:1px solid}
+  .st::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor;flex:0 0 auto}
+  .st.passed{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-dim)}
+  .st.failed{color:#fff;background:var(--no);border-color:var(--no)}
+  .st.known{color:var(--no);border-color:color-mix(in srgb,var(--no) 45%,var(--line));background:var(--no-dim)}
+  .st.skipped{color:var(--sk);border-color:color-mix(in srgb,var(--sk) 45%,var(--line));background:var(--sk-dim)}
+  .st.none{color:var(--mut);border-color:var(--line);background:var(--card2)}
+
+  /* ---- kotasiz diff ----------------------------------------------------- */
+  #odWrap{border:1px solid color-mix(in srgb,var(--ok) 30%,var(--line));border-radius:var(--r);
+    background:var(--card);margin:0 0 14px;overflow:hidden}
+  #odWrap>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;
+    padding:12px 14px;background:var(--ok-dim)}
+  #odWrap>summary::-webkit-details-marker{display:none}
+  #odWrap>summary .caret{margin-left:auto;width:0;height:0;border:4.5px solid transparent;
+    border-left-color:var(--ok);transition:transform var(--t)}
+  #odWrap[open]>summary .caret{transform:rotate(90deg) translateX(-1px)}
+  #odBody{padding:14px}
+  #odBtn{background:var(--ok);border-color:var(--ok);color:var(--bg);font-weight:600;width:auto;margin:0;padding:9px 15px}
+  #odBtn:hover:not(:disabled){background:color-mix(in srgb,var(--ok) 85%,#fff)}
+  .od-miss{border:1px solid var(--line);border-left:3px solid var(--no);border-radius:0 var(--r-sm) var(--r-sm) 0;
+    padding:7px 11px;margin-bottom:6px;background:var(--bg);display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .od-miss .tx{flex:1;font-size:13px;min-width:200px}
+  .od-miss .fn{font:10.5px/1 var(--mono);color:var(--mut);white-space:nowrap}
+  /* ---- onkosullar seridi ------------------------------------------------ */
+  /* `.pf` artik yalnizca Baglantilar panelindeki durum etiketi. Ust seritteki
+     ÖNKOŞULLAR cubugu kaldirildi — ayni bilgi connectors dropdown'unda. */
+  .pf{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:999px;
+    border:1px solid var(--line);background:var(--bg);white-space:nowrap;cursor:default}
+  .pf::before{content:"";width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+  .pf.ok{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
+  .pf.ok::before{background:var(--ok)}
+  .pf.warn{color:var(--sk);border-color:color-mix(in srgb,var(--sk) 45%,var(--line));background:var(--sk-dim)}
+  .pf.warn::before{background:var(--sk)}
+  .pf.blocked,.pf.off{color:var(--no);border-color:color-mix(in srgb,var(--no) 45%,var(--line));background:var(--no-dim)}
+  .pf.blocked::before,.pf.off::before{background:var(--no)}
+  .pf.unknown{color:var(--mut)} .pf.unknown::before{background:var(--mut)}
+  /* Ikonlu pill: marka logosu durum noktasinin yerini alir (nokta + logo kalabalik). */
+  .pf.has-icon::before{display:none}
+  /* Yuksekligi sabit, genisligi viewBox'tan: Figma 38x57, Jira 32x32 — sabit
+     genislik ikisinden birini eziyor. */
+  .pf .pf-ico{height:12px;width:auto;flex:0 0 auto;display:block}
+  /* Bagli degilse logo rengini kis — pill kirmiziyken renkli logo yanlis sinyal veriyor. */
+  .pf:not(.ok) .pf-ico{filter:grayscale(1);opacity:.55}
+  /* Ust bardaki connectors dugmesi — gatePill ile ayni kompakt bicim. */
+  #cxBtn{cursor:pointer;border:1px solid var(--line);width:auto;margin:0;padding:5px 9px;
+    border-radius:999px;font:500 11px/1 var(--mono);white-space:nowrap;display:inline-flex;
+    align-items:center;gap:6px;background:var(--card2);color:var(--mut)}
+  #cxBtn .pf-ico{height:11px;width:auto}
+  #cxBtn:hover{border-color:var(--acc);color:var(--fg)}
+  #cxBtn .cx-badge{width:6px;height:6px;border-radius:50%;background:var(--mut)}
+  #cxBtn.ok .cx-badge{background:var(--ok)}
+  #cxBtn.warn .cx-badge{background:var(--sk)}
+  #cxBtn.blocked .cx-badge{background:var(--no)}
+  #cxBtn.blocked{color:var(--no);border-color:color-mix(in srgb,var(--no) 45%,var(--line))}
+
+  /* ---- Baglantilar paneli: connectors dugmesinden acilan dropdown ----
+     Sarmalayici `position:relative`, panel `right:0` ile dugmenin SAG kenarina
+     hizali. Sola dogru aciliyor cunku dugme ust barin sag ucunda. */
+  #cxWrap{position:relative;display:inline-flex}
+  #cxPanel{position:absolute;z-index:60;top:calc(100% + 8px);right:0;
+    width:min(440px,calc(100vw - 32px));
+    max-height:min(74vh,640px);overflow-y:auto;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;box-shadow:0 14px 40px rgba(0,0,0,.18);padding:10px;
+    font:500 11px/1.5 var(--mono);text-align:left}
+  /* Dugmeye isaret eden ok. */
+  #cxPanel::before{content:"";position:absolute;top:-5px;right:16px;width:9px;height:9px;
+    background:var(--card);border-left:1px solid var(--line);border-top:1px solid var(--line);
+    transform:rotate(45deg)}
+  #cxPanel .cx-top{display:flex;align-items:center;gap:8px;padding:2px 4px 10px}
+  #cxPanel .cx-top b{letter-spacing:.09em}
+  #cxPanel .cx-when{color:var(--mut);margin-left:auto}
+  /* ⚠️ Genel `button{}` width:100% + text-align:left + margin-bottom veriyor
+     (kenar cubugu icin yazilmis). Panel basligindaki iki dugme onun yuzunden
+     tam genislikte kutuya donuyordu — ucunu de geri al. */
+  #cxPanel .cx-top button{width:auto;margin:0;padding:4px 8px;text-align:center;
+    font:500 11px/1 var(--mono);border-radius:6px}
+  #cxPanel .cx-top button:last-child{padding:4px 7px;font-size:13px;line-height:.9}
+  #cxPanel .cx-card{border:1px solid var(--line);border-radius:8px;padding:9px 10px;margin-bottom:8px;
+    background:var(--bg)}
+  #cxPanel .cx-card:last-child{margin-bottom:0}
+  #cxPanel .cx-head{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  #cxPanel .cx-name{display:inline-flex;align-items:center;gap:6px;font-weight:600;font-size:12px}
+  #cxPanel .cx-name .pf-ico{height:13px;width:auto}
+  #cxPanel .cx-row{display:flex;gap:7px;align-items:baseline;padding:1px 0}
+  #cxPanel .cx-k{color:var(--mut);min-width:58px;flex:0 0 auto}
+  #cxPanel .cx-v{color:var(--fg);word-break:break-word}
+  #cxPanel .cx-note{color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+  #cxPanel .cx-fix{margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
+  #cxPanel .cx-fix-h{color:var(--no);letter-spacing:.09em;margin-bottom:4px}
+  #cxPanel .cx-fix code{display:block;background:var(--card);border:1px solid var(--line);
+    border-radius:5px;padding:5px 7px;margin-bottom:4px;white-space:pre-wrap;word-break:break-all;
+    user-select:all}
+  /* Alt durum noktasi: parts satirlarinda ayni renk kodunu tasir. */
+  .pf-dot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:var(--mut);
+    align-self:center}
+  .pf-dot.ok{background:var(--ok)} .pf-dot.warn{background:var(--sk)}
+  .pf-dot.blocked,.pf-dot.off{background:var(--no)}
+  #pfRefresh{width:auto;margin:0 0 0 auto;padding:3px 9px;font:500 10.5px/1.3 var(--mono)}
+  /* ---- perf AI yorumu -------------------------------------------------- */
+  #paBtn{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600;width:auto;margin:0;
+    display:inline-flex;align-items:center;gap:7px}
+  #paBtn:hover:not(:disabled){background:color-mix(in srgb,var(--acc) 85%,#fff)}
+  #paBtn svg{width:14px;height:14px}
+  .pa-sum{border:1px solid color-mix(in srgb,var(--acc) 30%,var(--line));border-radius:var(--r);
+    background:var(--acc-dim);padding:12px 14px;margin:12px 0;font-size:13.5px;line-height:1.65}
+  .pa-f{border:1px solid var(--line);border-left:3px solid var(--mut);border-radius:0 var(--r-sm) var(--r-sm) 0;
+    padding:10px 12px;margin-bottom:8px;background:var(--card)}
+  .pa-f.high{border-left-color:var(--no)} .pa-f.medium{border-left-color:var(--sk)} .pa-f.low{border-left-color:var(--ok)}
+  .pa-f .t{font-weight:600;font-size:13.5px;margin-bottom:5px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .pa-f .ev{font:11.5px/1.6 var(--mono);color:var(--mut);margin-bottom:5px}
+  .pa-f .rc{font-size:12.5px;line-height:1.6}
+  .pa-f .rt{font:10.5px/1 var(--mono);color:var(--acc)}
+  /* ---- headless anahtari ------------------------------------------------ */
+  #hlWrap{display:flex;align-items:center;gap:8px;margin:0 0 8px;padding:8px 10px;border-radius:var(--r-sm);
+    background:var(--card2);border:1px solid var(--line);cursor:pointer}
+  #hlWrap input{width:auto;margin:0;accent-color:var(--acc)}
+  #hlWrap span{font:500 11px/1.35 var(--mono);color:var(--mut)}
+  #hlWrap.on{background:var(--acc-dim);border-color:color-mix(in srgb,var(--acc) 40%,var(--line))}
+  #hlWrap.on span{color:var(--acc)}
+  /* ---- iframe kaydedici (sag kolon) ------------------------------------ */
+  #recCol{flex:0 0 330px;display:flex;flex-direction:column;height:640px;border:1px solid var(--line);
+    border-radius:var(--r);background:var(--card);overflow:hidden}
+  #recCol .hd{display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--ok-dim);
+    border-bottom:1px solid var(--line);font:600 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--ok)}
+  #recCol .hd .dot{width:8px;height:8px;border-radius:50%;background:var(--no);animation:pulse 1.4s ease-in-out infinite}
+  #recCol .hd .n{margin-left:auto;color:var(--mut);letter-spacing:0;font-weight:400;text-transform:none}
+  #recSteps{flex:1;overflow-y:auto;padding:8px}
+  .st-row{display:flex;gap:7px;align-items:flex-start;padding:6px 7px;border-radius:var(--r-xs);
+    font:400 11px/1.4 var(--mono);border:1px solid transparent}
+  .st-row:hover{background:var(--acc-dim);border-color:color-mix(in srgb,var(--acc) 30%,transparent)}
+  .st-row .i{color:var(--mut);min-width:16px}
+  .st-row .a{color:var(--acc);font-weight:600;min-width:44px}
+  .st-row .l{flex:1;word-break:break-all;color:var(--fg)}
+  .st-row .x{cursor:pointer;color:var(--mut);border:0;background:none;width:auto;margin:0;padding:0 2px}
+  .st-row .x:hover{color:var(--no)}
+  #recCol .ft{padding:9px 11px;border-top:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  #recCol .ft button{width:auto;margin:0;padding:6px 11px;font-size:11.5px}
+  #asrLbl{display:flex;align-items:center;gap:7px;font:500 11.5px/1.3 var(--mono);cursor:pointer}
+  #asrLbl input{width:auto;margin:0}
+  #asrLbl #asrCount{margin-left:auto;color:var(--mut);font-weight:400}
+  #asrLbl:has(#asrChk:checked){color:#f59e0b}
+  #asrHint{margin:0;font-size:10.5px;line-height:1.5;color:var(--mut);
+           border-left:2px solid #f59e0b;padding-left:8px}
+  #recSteps .st-row.asr .a{color:#f59e0b;font-weight:600}
+  #recGen{background:var(--ok);border-color:var(--ok);color:var(--bg);font-weight:600}
+  /* ---- kayit (codegen) ------------------------------------------------- */
+  details#recWrap{border:1px solid color-mix(in srgb,var(--ok) 30%,var(--line));border-radius:var(--r);
+    background:var(--card);margin:0 0 12px;overflow:hidden}
+  details#recWrap>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;
+    padding:11px 14px;background:var(--ok-dim)}
+  details#recWrap>summary::-webkit-details-marker{display:none}
+  details#recWrap>summary .caret{margin-left:auto;width:0;height:0;border:4.5px solid transparent;
+    border-left-color:var(--ok);transition:transform var(--t)}
+  details#recWrap[open]>summary .caret{transform:rotate(90deg) translateX(-1px)}
+  #recBody{padding:13px 14px}
+  #recBtn{background:var(--ok);border-color:var(--ok);color:var(--bg);font-weight:600;width:auto;margin:0;padding:9px 16px}
+  #recBtn:hover:not(:disabled){background:color-mix(in srgb,var(--ok) 85%,#fff);border-color:var(--ok)}
+  #recBtn.live{background:var(--no);border-color:var(--no);color:#fff;animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.62}}
+  .rec-list{display:flex;flex-direction:column;gap:5px;margin-top:11px}
+  .rec-row{display:flex;align-items:center;gap:9px;padding:6px 9px;border:1px solid var(--line);
+    border-radius:var(--r-sm);background:var(--bg);font:400 11.5px/1.3 var(--mono)}
+  .rec-row .nm{flex:1;color:var(--fg)}
+  .rec-row .sz{color:var(--mut)}
+  .rec-row button{width:auto;margin:0;padding:3px 9px;font-size:11px}
+  #recCode{margin-top:10px;background:var(--card2);border:1px solid var(--line);border-radius:var(--r-sm);
+    padding:11px 12px;font:11.5px/1.6 var(--mono);max-height:290px;overflow:auto;white-space:pre;display:none}
+  /* ---- bug acma formu + kanit galerisi -------------------------------- */
+  details#bugWrap{border:1px solid color-mix(in srgb,var(--no) 28%,var(--line));border-radius:var(--r);
+    background:var(--card);margin:0 0 14px;overflow:hidden}
+  details#bugWrap>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;
+    padding:12px 14px;background:var(--no-dim)}
+  details#bugWrap>summary::-webkit-details-marker{display:none}
+  details#bugWrap>summary .caret{margin-left:auto;width:0;height:0;border:4.5px solid transparent;
+    border-left-color:var(--no);transition:transform var(--t)}
+  details#bugWrap[open]>summary .caret{transform:rotate(90deg) translateX(-1px)}
+  #bugBody{padding:14px}
+  #bugBody label{display:block;font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.09em;
+    color:var(--mut);margin:0 0 5px}
+  #bugBody .fld{margin-bottom:11px}
+  #bugDesc{min-height:190px;font:12.5px/1.6 var(--mono);resize:vertical}
+  .ev-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px;max-height:250px;
+    overflow-y:auto;padding:3px;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg)}
+  .ev-item{position:relative;cursor:pointer;border:2px solid transparent;border-radius:var(--r-xs);
+    overflow:hidden;transition:border-color var(--t)}
+  .ev-item img{display:block;width:100%;height:70px;object-fit:cover;object-position:top}
+  .ev-item .n{font:400 9px/1.25 var(--mono);color:var(--mut);padding:3px 4px;word-break:break-all}
+  .ev-item:hover{border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
+  .ev-item.sel{border-color:var(--acc)}
+  .ev-item.sel::after{content:"✓";position:absolute;top:3px;right:4px;font:700 11px/1 var(--mono);
+    color:var(--bg);background:var(--acc);border-radius:3px;padding:2px 4px}
+  #bugBtn{background:var(--no);border-color:var(--no);color:#fff;font-weight:600;width:auto;margin:0;padding:9px 16px}
+  #bugBtn:hover:not(:disabled){background:color-mix(in srgb,var(--no) 85%,#000);border-color:var(--no)}
+  /* ---- katlanabilir kosum gruplari ------------------------------------- */
+  details.rungrp{margin:0 0 6px}
+  details.rungrp>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;
+    padding:7px 9px;border-radius:var(--r-sm);font:600 10px/1 var(--mono);text-transform:uppercase;
+    letter-spacing:.1em;color:var(--acc);background:var(--acc-dim);transition:background var(--t)}
+  details.rungrp>summary:hover{background:color-mix(in srgb,var(--acc) 18%,transparent)}
+  details.rungrp>summary::-webkit-details-marker{display:none}
+  details.rungrp>summary::before{content:"";width:0;height:0;border:4px solid transparent;
+    border-left-color:currentColor;flex:0 0 auto;transition:transform var(--t)}
+  details.rungrp[open]>summary::before{transform:rotate(90deg) translateX(-1px)}
+  details.rungrp>summary .cnt{margin-left:auto;color:var(--mut);letter-spacing:0;font-weight:400}
+  details.rungrp .body{padding:7px 0 2px}
+  /* ---- sekme sayaci ---------------------------------------------------- */
+  .tabs button .tc{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:999px;
+    font:600 10px/1.5 var(--mono);background:var(--card2);color:var(--mut);vertical-align:1px}
+  .tabs button[aria-selected=true] .tc{background:var(--acc-dim);color:var(--acc)}
+  /* ---- ozet serit (Case'ler / Jira) ------------------------------------ */
+  .strip{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 13px;padding:11px 13px;
+    border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+  .strip .k{font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin-right:2px}
+  .strip .v{font:600 19px/1 var(--mono);font-variant-numeric:tabular-nums}
+  .strip .cell{display:flex;flex-direction:column;gap:5px;padding-right:16px;border-right:1px solid var(--line)}
+  .strip .cell:last-child{border-right:0;padding-right:0}
+  .strip .v.ok{color:var(--ok)} .strip .v.no{color:var(--no)} .strip .v.sk{color:var(--sk)} .strip .v.mut{color:var(--mut)}
+
+  /* ---- senaryo onerici ------------------------------------------------- */
+  /* Panelin tek model destekli ozelligi — kendi kimligi olsun diye accent
+     tonlu baslik seridi + dolu birincil buton. Baska hicbir yerde accent
+     dolgu kullanilmiyor, bu yuzden goz buraya gidiyor. */
+  details#sgWrap{border:1px solid color-mix(in srgb,var(--acc) 30%,var(--line));border-radius:var(--r);
+    background:var(--card);margin:0 0 14px;overflow:hidden;transition:border-color var(--t)}
+  details#sgWrap:hover{border-color:color-mix(in srgb,var(--acc) 50%,var(--line))}
+  details#sgWrap>summary{cursor:pointer;padding:12px 14px;list-style:none;display:flex;align-items:center;
+    gap:10px;background:var(--acc-dim);transition:background var(--t)}
+  details#sgWrap>summary:hover{background:color-mix(in srgb,var(--acc) 15%,transparent)}
+  details#sgWrap>summary::-webkit-details-marker{display:none}
+  .sg-ico{width:17px;height:17px;flex:0 0 auto;color:var(--acc)}
+  .sg-name{font:600 13.5px/1.2 var(--sans);color:var(--fg);letter-spacing:-.01em}
+  .sg-sub{font:400 11.5px/1.2 var(--mono);color:var(--mut)}
+  details#sgWrap>summary .caret{margin-left:auto;width:0;height:0;border:4.5px solid transparent;
+    border-left-color:var(--acc);transition:transform var(--t);flex:0 0 auto}
+  details#sgWrap[open]>summary .caret{transform:rotate(90deg) translateX(-1px)}
+  #sgBody{padding:14px}
+  #sgCtx{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 11px}
+  #sgCtx .c{display:inline-flex;align-items:center;gap:5px;font:500 10.5px/1 var(--mono);padding:4px 8px;
+    border-radius:999px;border:1px solid var(--line);background:var(--card2);color:var(--mut)}
+  #sgCtx .c b{color:var(--fg);font-weight:600}
+  #sgReq{min-height:76px;resize:vertical;font:13px/1.6 var(--sans);padding:11px 12px}
+  .sg-presets{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 11px}
+  .sg-presets button{width:auto;margin:0;padding:5px 10px;border-radius:999px;font:500 11.5px/1.3 var(--sans);
+    background:var(--bg);color:var(--mut)}
+  .sg-presets button:hover{color:var(--fg)}
+  #sgBtn{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600;
+    display:inline-flex;align-items:center;gap:7px;padding:9px 16px}
+  #sgBtn:hover:not(:disabled){background:color-mix(in srgb,var(--acc) 85%,#fff);border-color:var(--acc)}
+  #sgBtn:disabled{opacity:.55}
+  #sgBtn svg{width:14px;height:14px}
+  #sgState{font:400 11.5px/1 var(--mono);color:var(--mut)}
+  .sg-hint{font:400 12px/1.55 var(--sans);color:var(--mut);margin:0 0 11px}
+  .sg-warn{display:flex;gap:9px;align-items:flex-start;margin:0 0 11px;padding:10px 12px;border-radius:var(--r-sm);
+    background:var(--sk-dim);border:1px solid color-mix(in srgb,var(--sk) 40%,var(--line))}
+  .sg-warn svg{width:15px;height:15px;color:var(--sk);flex:0 0 auto;margin-top:1px}
+  .sg-warn p{margin:0;font:400 12px/1.55 var(--sans);color:var(--fg)}
+  .sg-warn code{font-size:11px}
+  .sg-hint b{color:var(--fg);font-weight:500}
+  .sg-oracle{display:inline-flex;align-items:center;gap:5px;font:600 10px/1 var(--mono);padding:3px 7px;
+    border-radius:var(--r-xs);border:1px solid color-mix(in srgb,var(--acc) 45%,var(--line));
+    background:var(--acc-dim);color:var(--acc);white-space:nowrap}
+  .sg-card{border:1px solid var(--line);border-left:3px solid var(--ok);border-radius:0 var(--r-sm) var(--r-sm) 0;
+    padding:10px 12px;margin-bottom:8px;background:var(--bg)}
+  .sg-card .hd{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;margin-bottom:5px}
+  .sg-card .cid{font:600 11.5px/1.3 var(--mono);color:var(--mut)}
+  .sg-card .ttl{font-size:13.5px;flex:1;min-width:180px}
+  .sg-card ol{margin:6px 0 0;padding-left:20px;font-size:12.5px;color:var(--mut)}
+  .sg-card ol li{margin-bottom:2px}
+  .sg-card .rat{font-size:12px;color:var(--mut);margin-top:6px;font-style:italic}
+  .sg-bad{border:1px solid var(--line);border-left:3px solid var(--no);border-radius:0 var(--r-sm) var(--r-sm) 0;
+    padding:8px 11px;margin-bottom:6px;background:var(--no-dim)}
+  .sg-bad .cid{font:600 11.5px/1.3 var(--mono)}
+  .sg-bad .why{font-size:12px;color:var(--mut);margin-top:3px}
+  .sg-tally{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+
+  /* ---- iframe / gorsel panolari ---------------------------------------- */
+  iframe{border:1px solid var(--line);border-radius:var(--r);background:#fff}
+  figure img{display:block;width:100%}
 </style>
 </head>
 <body>
 <header>
-  <h1>Homee QA Paneli</h1>
-  <span class="pill" id="envPill">yukleniyor...</span>
-  <span class="pill" id="orderPill"></span>
-  <span class="pill" id="activePill"></span>
+  <h1 id="panelTitle">QA Paneli</h1>
+  <span class="pill" id="envPill" role="status" aria-atomic="true">yukleniyor...</span>
+  <span class="pill" id="orderPill" role="status" aria-atomic="true"></span>
+  <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
+  <span class="spacer"></span>
+  <!-- Baglantilar: kimlik, kota ve cozum adimlari tek yerde.
+       Panel dugmenin ICINDEKI sarmalayicida duruyor — dropdown dugmeye
+       hizalanmali, ust seride degil. -->
+  <span id="cxWrap">
+    <button id="cxBtn" type="button" onclick="pfPanelToggle()"
+            title="Bağlantılar — kimlik, kota ve çözüm adımları"><span class="cx-badge"></span>connectors</button>
+    <div id="cxPanel" hidden></div>
+  </span>
+  <button id="gatePill" class="unknown" type="button" onclick="refreshGate()" title="Tiklayinca kapi oturumunu yeniler">kapi: —</button>
+  <button id="themeBtn" type="button" title="Tema degistir" aria-label="Tema degistir"></button>
 </header>
+
 
 <main>
   <aside>
     <h2>Kosumlar</h2>
+    <label id="hlWrap" title="Headed kosum TEST BASINA bir tarayici penceresi acar. Bu anahtar --headed'i kaldirir.">
+      <input type="checkbox" id="hlChk" onchange="toggleHeadless()">
+      <span id="hlLabel">headless kos (pencere acilmaz)</span>
+    </label>
     <div id="runs"></div>
     <div class="row">
       <button id="stopBtn" class="danger" style="width:auto">Durdur</button>
       <button onclick="load()" style="width:auto">Yenile</button>
     </div>
-    <h2>Parametreli kosum</h2>
-    <div id="customRun">
+    <details class="rungrp" id="sideParam">
+      <summary>Parametreli kosum</summary>
+      <div class="body" id="customRun">
       <select id="cSpec" multiple size="6" style="margin-bottom:6px"></select>
       <input id="cGrep" placeholder='Baslik filtresi (-g), örn: silinir' style="margin-bottom:6px">
       <div class="row" style="gap:6px">
@@ -122,24 +576,65 @@
       <p class="mono" id="cPreview" style="background:var(--card);border:1px solid var(--line);
          border-radius:6px;padding:6px 8px;word-break:break-all;margin:0 0 6px">komut...</p>
       <button id="cRunBtn" onclick="runCustom()">Parametreli kosum baslat</button>
-    </div>
+      </div>
+    </details>
 
-    <h2>Bilinen hatalar</h2>
-    <div id="issues"></div>
+    <details class="rungrp" id="sideIssues">
+      <summary>Bilinen hatalar<span class="cnt" id="issuesCnt"></span></summary>
+      <div class="body" id="issues"></div>
+    </details>
   </aside>
 
   <section>
-    <div class="tabs">
-      <button data-tab="site" aria-selected="true">Site (canli)</button>
-      <button data-tab="log" aria-selected="false">Canli log</button>
-      <button data-tab="results" aria-selected="false">Son sonuclar</button>
-      <button data-tab="verdict" aria-selected="false">Verdict</button>
-      <button data-tab="jira" aria-selected="false">Jira</button>
-      <button data-tab="cases" aria-selected="false">Case'ler</button>
-      <button data-tab="diff" aria-selected="false">Tasarim diff</button>
+    <div class="tabs" role="tablist" aria-label="Panel bolumleri">
+      <button data-tab="cases" aria-selected="true" role="tab" type="button">Case'ler<span class="tc" id="tcCases">–</span></button>
+      <button data-tab="jira" aria-selected="false" role="tab" type="button">Jira<span class="tc" id="tcJira">–</span></button>
+      <button data-tab="perf" aria-selected="false" role="tab" type="button">Perf<span class="tc" id="tcPerf">–</span></button>
+      <button data-tab="site" aria-selected="false" role="tab" type="button">Site (canli)</button>
+      <button data-tab="log" aria-selected="false" role="tab" type="button">Canli log</button>
+      <button data-tab="results" aria-selected="false" role="tab" type="button">Son sonuclar</button>
+      <button data-tab="verdict" aria-selected="false" role="tab" type="button">Verdict</button>
+      <button data-tab="diff" aria-selected="false" role="tab" type="button">Tasarim diff</button>
     </div>
 
-    <div id="tab-site">
+    <div id="tab-site" hidden>
+      <details id="recWrap">
+        <summary>
+          <svg style="width:16px;height:16px;color:var(--ok);flex:0 0 auto" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.9" aria-hidden="true">
+            <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/>
+          </svg>
+          <span class="sg-name">Kaydet</span>
+          <span class="sg-sub">gezinmeyi test koduna cevirir — oturum yuklu baslar</span>
+          <span class="caret"></span>
+        </summary>
+        <div id="recBody">
+          <p class="sg-hint">
+            Tarayici acilir, sen gezinirsin. <b>Kaydi bitirmek icin tarayici penceresini kapat</b> —
+            kod o an <b>tests/.recorded/</b> altina yazilir. Buradaki iptal butonu sureci oldurur ve
+            <b>kod kaydedilmez</b>. Codegen ham locator uretir; repo POM konvansiyonuna elle cevrilmeli.
+          </p>
+          <div class="row" style="margin-bottom:0;align-items:center">
+            <button id="recBtn" onclick="toggleRecord()">Kaydi baslat</button>
+            <label class="mono" style="font-size:11px;color:var(--mut)">rota
+              <input id="recRoute" value="/" style="width:150px;margin:0 0 0 5px"></label>
+            <label class="mono" style="font-size:11px;color:var(--mut)">oturum
+              <select id="recState" style="width:auto;margin:0 0 0 5px">
+                <option value="guest">misafir (kapi)</option>
+                <option value="member">uye</option>
+              </select></label>
+            <label class="mono" style="font-size:11px;color:var(--mut)">cihaz
+              <select id="recDevice" style="width:auto;margin:0 0 0 5px">
+                <option value="">masaustu</option>
+                <option>iPhone 11</option><option>iPhone 13</option>
+                <option>Pixel 5</option><option>iPad Mini</option>
+              </select></label>
+            <span class="mono" id="recState2"></span>
+          </div>
+          <div class="rec-list" id="recList"></div>
+          <pre id="recCode"></pre>
+        </div>
+      </details>
       <div class="row">
         <input id="siteUrl" placeholder="/tum-urunler" style="width:260px;margin:0">
         <button style="width:auto" onclick="goSite()">Git</button>
@@ -154,11 +649,32 @@
           <button id="siteRunBtn" style="width:auto;margin:0 0 0 8px" disabled onclick="runForCurrent()">Bu sayfayi test et</button>
           <button id="siteDesignBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleDesign()">Yan yana tasarim</button>
           <button id="siteDiffBtn" style="width:auto;margin:0 0 0 6px" onclick="diffForCurrent()">Tasarim diff</button>
+          <button id="siteRecBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleIframeRec()">Kaydet (iframe)</button>
         </span>
       </div>
       <div id="siteSplit" style="display:flex;gap:10px;align-items:stretch">
-        <iframe id="siteFrame" title="Homee (canli)"
+        <iframe id="siteFrame" title="Site (canli)"
           style="flex:1;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+        <div id="recCol" hidden>
+          <div class="hd"><span class="dot"></span>Kaydediliyor<span class="n" id="recCount">0 adim</span></div>
+          <div id="recSteps"></div>
+          <div class="ft" style="flex-direction:column;align-items:stretch;gap:8px">
+            <label id="asrLbl" title="Acikken tiklamalar EYLEM degil DOGRULAMA olarak kaydedilir; tiklama yutulur, sayfa gitmez">
+              <input type="checkbox" id="asrChk" onchange="toggleAssertMode()">
+              <span>Iddia modu</span>
+              <span class="mono" id="asrCount">0 iddia</span>
+            </label>
+            <p id="asrHint" hidden class="mono">
+              Dogrulanmasini istedigin ogeye tikla. Metni varsa <code>toContainText</code>,
+              yoksa <code>toBeVisible</code> uretilir. Tiklama yutulur — sayfa degismez.
+            </p>
+            <span style="display:flex;gap:7px;flex-wrap:wrap">
+              <button id="recGen" onclick="generateSpec()">Spec uret</button>
+              <button onclick="clearSteps()">Temizle</button>
+              <button onclick="toggleIframeRec()">Bitir</button>
+            </span>
+          </div>
+        </div>
         <div id="designCol" hidden style="flex:1;height:640px;overflow:auto;border:1px solid var(--line);
              border-radius:8px;background:#fff;position:relative">
           <div style="position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);
@@ -180,6 +696,41 @@
     </div>
 
     <div id="tab-jira" hidden>
+      <div class="strip" id="jiraStrip"></div>
+      <details id="bugWrap">
+        <summary>
+          <svg style="width:17px;height:17px;color:var(--no);flex:0 0 auto" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>
+          </svg>
+          <span class="sg-name">Bug kartı aç</span>
+          <span class="sg-sub" id="bugCtx"></span>
+          <span class="caret"></span>
+        </summary>
+        <div id="bugBody">
+          <div class="fld">
+            <label for="bugSummary">Özet</label>
+            <input id="bugSummary" placeholder="Kısa ve net: nerede, ne oluyor">
+          </div>
+          <div class="fld">
+            <label for="bugDesc">Açıklama <span style="text-transform:none;letter-spacing:0">— şablon dolu, üzerine yaz</span></label>
+            <textarea id="bugDesc"></textarea>
+          </div>
+          <div class="fld">
+            <label for="bugAssignee">Atanan</label>
+            <select id="bugAssignee"><option value="">— atanmamış —</option></select>
+          </div>
+          <div class="fld">
+            <label>Kanıt <span style="text-transform:none;letter-spacing:0" id="bugEvCount">— seçilmedi</span></label>
+            <div class="ev-gal" id="bugEvidence"></div>
+          </div>
+          <div class="row" style="margin-bottom:0;align-items:center">
+            <button id="bugBtn" onclick="createBugCard()">Kartı aç</button>
+            <span class="mono" id="bugState"></span>
+          </div>
+          <div id="bugOut"></div>
+        </div>
+      </details>
       <div class="row">
         <select id="jView" style="width:auto;min-width:240px"></select>
         <button style="width:auto" onclick="loadCards()">Yenile</button>
@@ -189,15 +740,106 @@
       <div id="jCard" hidden style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"></div>
     </div>
 
-    <div id="tab-cases" hidden>
+    <div id="tab-perf" hidden>
+      <div class="strip" id="perfStrip"></div>
       <div class="row">
-        <input id="qCase" placeholder="Case ara (baslik, spec, HOMEE-00X)" style="width:280px;margin:0">
+        <span class="mono" id="perfMeta"></span>
+        <button style="width:auto;margin:0" onclick="loadPerf()">Yenile</button>
+        <button id="paBtn" onclick="analyzePerf()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3"/><circle cx="12" cy="12" r="3.2"/>
+          </svg>AI yorumu
+        </button>
+        <span class="mono" id="paState"></span>
+      </div>
+      <div id="paOut"></div>
+      <div id="perfBudget" class="mono" style="margin:0 0 10px;line-height:1.9"></div>
+      <h2>Rotalar <span class="mono" style="text-transform:none;letter-spacing:0">— LCP'ye gore sirali</span></h2>
+      <div class="scroll"><table id="perfRoutes"></table></div>
+      <h2>Endpoint envanteri <span class="mono" style="text-transform:none;letter-spacing:0">— en yavastan</span></h2>
+      <div class="scroll"><table id="perfEndpoints"></table></div>
+    </div>
+
+    <div id="tab-cases">
+      <div class="strip" id="caseStrip"></div>
+      <details id="sgWrap" open>
+        <summary>
+          <svg class="sg-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3M4.2 16.5l2.1-2.1M17.7 9.6l2.1-2.1"/>
+            <circle cx="12" cy="12" r="3.2"/>
+          </svg>
+          <span class="sg-name">Senaryo öner</span>
+          <span class="sg-sub">dayanağı olmayan öneri kabul edilmez</span>
+          <span class="caret"></span>
+        </summary>
+        <div id="sgBody">
+          <div id="sgCtx"></div>
+          <p class="sg-hint">
+            Model yalnızca <b>bağlamda listelenen dayanak kaynaklarına</b> yaslanan senaryo önerebilir.
+            Dayanağı olmayanlar kapıda elenir ve gerekçesiyle aşağıda gösterilir.
+          </p>
+          <textarea id="sgReq" rows="3" placeholder="Ne için senaryo önerilsin?&#10;Örn: Mağazalar sayfasındaki tasarım açıklarını kapatan senaryolar"></textarea>
+          <div class="sg-presets" id="sgPresets"></div>
+          <div class="row" style="margin-bottom:0;align-items:center">
+            <button id="sgBtn" onclick="suggestScenarios()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>Senaryo öner
+            </button>
+            <label class="mono" style="font-size:11px;color:var(--mut)">en fazla
+              <select id="sgLimit" style="width:auto;margin:0 0 0 5px">
+                <option>3</option><option selected>5</option><option>8</option><option>10</option>
+              </select>
+            </label>
+            <span id="sgState"></span>
+          </div>
+          <div id="sgOut"></div>
+        </div>
+      </details>
+      <details id="kiWrap">
+        <summary>
+          <span class="sg-name">Bilinen hatalar — hâlâ tekrarlıyor mu?</span>
+          <span class="sg-sub" id="kiSub"></span>
+          <span class="caret"></span>
+        </summary>
+        <div id="kiBody">
+          <p class="sg-hint">
+            <b>Tek koşum kanıt değil.</b> Bir bulgunun kapatılabilmesi için birden fazla koşumda
+            tekrarlamadığını görmek gerekir. Aşağıdaki oran son koşumlardan birikir — <code>N×</code>
+            düğmesi aynı case'i üst üste koşup kaydı büyütür.
+          </p>
+          <div class="scroll"><table id="kiTable"></table></div>
+        </div>
+      </details>
+      <details id="dfWrap">
+        <summary>
+          <span class="sg-name">Taslaklar</span>
+          <span class="sg-sub" id="dfSub"></span>
+          <span class="caret"></span>
+        </summary>
+        <div id="dfBody">
+          <p class="sg-hint">
+            Kaydedicinin ürettiği dosyalar <code>panel-data/recorded/</code> altında —
+            <b>gerçek suite'in dışında</b>. Buradan koşabilirsin; sonuç
+            <code>test-results/draft-results.json</code>'a yazılır, Case'ler sekmesinin
+            oran defterine karışmaz. Konvansiyona çevirip <code>tests/NN-*.spec.ts</code>
+            olarak taşıdığında yukarıdaki listeye kendiliğinden düşer.
+          </p>
+          <div class="scroll"><table id="dfTable"></table></div>
+          <pre id="dfCode" hidden></pre>
+        </div>
+      </details>
+      <div class="row">
+        <input id="qCase" placeholder="Case ara (baslik, spec, dayanak)" style="width:280px;margin:0">
         <select id="qFilter" style="width:auto;margin:0">
           <option value="">tum durumlar</option>
           <option value="failed">basarisiz</option>
           <option value="known">bilinen hata</option>
           <option value="passed">gecti</option>
           <option value="none">hic kosulmadi</option>
+          <option value="flaky">kararsiz (bazen gecer)</option>
+          <option value="repeat">1'den fazla kosum var</option>
           <option value="mutates">veri degistiren</option>
         </select>
         <button style="width:auto" onclick="loadCases()">Yenile</button>
@@ -209,6 +851,41 @@
     </div>
 
     <div id="tab-diff" hidden>
+      <details id="odWrap" open>
+        <summary>
+          <svg style="width:17px;height:17px;color:var(--ok);flex:0 0 auto" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h7M4 12h7M4 17h7M15 7l5 5-5 5"/>
+          </svg>
+          <span class="sg-name">Kotasız diff</span>
+          <span class="sg-sub" id="odCtx">Figma'ya sıfır çağrı — önbellekteki düğüm ağacından</span>
+          <span class="caret"></span>
+        </summary>
+        <div id="odBody">
+          <p class="sg-hint">
+            Tasarım metinleri <b>panel-data/figma-cache/</b> içindeki ağaçtan okunur (font, punto, ağırlık dahil),
+            canlı taraf tarayıcıyla yakalanır. Kota kapalıyken de çalışır.
+            <b>Durum eşitle:</b> frame ürünlü/dolu bir hâl gösteriyorsa canlıyı da aynı hâle getir.
+          </p>
+          <div class="row" style="margin-bottom:8px;align-items:center">
+            <label class="mono" style="font-size:11px;color:var(--mut)">frame
+              <select id="odFrame" style="width:auto;min-width:300px;margin:0 0 0 5px"></select></label>
+            <label class="mono" style="font-size:11px;color:var(--mut)">rota
+              <input id="odRoute" value="/" style="width:150px;margin:0 0 0 5px"></label>
+            <label class="mono" style="font-size:11px;color:var(--mut)">oturum
+              <select id="odState" style="width:auto;margin:0 0 0 5px">
+                <option value="guest">misafir</option><option value="member">üye</option>
+              </select></label>
+          </div>
+          <div class="row" style="margin-bottom:0;align-items:center">
+            <button id="odBtn" onclick="offlineDiff()">Diff al</button>
+            <label class="mono" style="font-size:11px;color:var(--mut)">yoksay (regex, virgüllü)
+              <input id="odIgnore" placeholder="yoksay (regex)" style="width:190px;margin:0 0 0 5px"></label>
+            <span class="mono" id="odState2"></span>
+          </div>
+          <div id="odOut"></div>
+        </div>
+      </details>
       <div class="row">
         <input id="dPath" placeholder="/" style="width:220px;margin:0">
         <button style="width:auto" onclick="runDiff()">Diff al</button>
@@ -238,7 +915,7 @@
 
     <div id="tab-verdict" hidden>
       <div class="row" style="display:block;max-width:520px">
-        <input id="vKey" placeholder="Kayit anahtari (orn. HOMEE-001 veya 06-sepet)">
+        <input id="vKey" placeholder="Kayit anahtari (orn. 06-sepet)">
         <input id="vScope" placeholder="Kapsam (orn. /sepet adet artirma)">
         <select id="vStatus">
           <option value="">Durum sec...</option>
@@ -267,7 +944,17 @@ async function post(url, body) {
     headers: { 'content-type': 'application/json', 'x-panel-token': PANEL_TOKEN },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  return res.json().catch(() => ({ ok: false, error: 'yanit okunamadi' }));
+  const out = await res.json().catch(() => ({ ok: false, error: 'yanit okunamadi' }));
+  // 403 = token eskimis (sunucu yeniden baslatilmis). Sayfayi yenilemek toplanmis
+  // kayit adimlarini SILER, o yuzden yenile demiyoruz — kurtarma yolunu soyluyoruz.
+  if (res.status === 403) {
+    out.error = 'Panel token eskimis (sunucu yeniden baslatilmis). '
+      + (typeof REC_STEPS !== 'undefined' && REC_STEPS.length
+          ? `Sayfayi YENILEME — ${REC_STEPS.length} kayit adimi kaybolur. Konsolda REC_STEPS'i kopyalayip yeni sekmede gonder.`
+          : 'Sayfayi yenile.');
+    out.code = 'STALE_TOKEN';
+  }
+  return out;
 }
 
 // ---------------- her butona bilgi (ⓘ) ----------------
@@ -361,38 +1048,80 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&l
 
 document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', String(x === b)));
-  for (const t of ['site','log','results','verdict','jira','diff','cases']) $('#tab-'+t).hidden = (t !== b.dataset.tab);
+  // Sekme listesi DOM'dan turetiliyor, ELLE YAZILMIYOR: sabit dizi 'perf'
+  // sekmesi eklendiginde guncellenmedi ve panel #tab-perf'i hic acmadi —
+  // icerik doluyordu ama gizli kaliyordu. Yeni sekme eklemek artik tek yerde.
+  for (const el of document.querySelectorAll('[id^="tab-"]')) {
+    el.hidden = el.id !== 'tab-' + b.dataset.tab;
+  }
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
   if (b.dataset.tab === 'jira') loadCards();
   if (b.dataset.tab === 'cases') loadCases();
+  if (b.dataset.tab === 'perf') loadPerf();
+  if (b.dataset.tab === 'jira') loadBugForm();
+  if (b.dataset.tab === 'site') loadRecordings();
+  if (b.dataset.tab === 'diff') loadOfflineFrames();
   if (b.dataset.tab === 'diff') { $('#dPath').value = CURRENT_PATH || '/'; matchFigma($('#dPath').value); loadDiffReports(); }
 });
 
+let META = null;   // /api/meta sonucu — bug sablonu ortam bilgisini buradan okuyor
 async function load() {
   const m = await (await fetch('/api/meta')).json();
+  META = m;
+  // Baslik proje profilinden gelir; HTML'de sabit proje adi durmuyor.
+  if (m.project?.title) {
+    const t = $('#panelTitle');
+    if (t) t.textContent = m.project.title;
+    document.title = m.project.title;
+  }
+  if (m.project?.scenarioPresets?.length) {
+    SG_PRESETS = m.project.scenarioPresets;
+    if ($('#sgPresets')) renderPresets();
+  }
+  // Dayanak oneki profilden gelir; arama ve verdict ipuclarina yazilir.
+  // load() burada patlarsa panelin TAMAMI bos kalir — bu yuzden null-guard.
+  const pfx = m.project?.issuePrefixes?.[0];
+  if (pfx) {
+    const q = $('#qCase'), v = $('#vKey');
+    if (q) q.placeholder = `Case ara (baslik, spec, ${pfx}-00X)`;
+    if (v) v.placeholder = `Kayit anahtari (orn. ${pfx}-001 veya 06-sepet)`;
+  }
   $('#envPill').textContent = `ortam: ${m.env} - ${m.baseURL}`;
   $('#orderPill').textContent = `siparis tamamlama: ${m.ordersAllowed ? 'ACIK' : 'kapali'}`;
+  // renk tek basina bilgi tasimaz — metin de degisiyor (ACIK/kapali)
+  $('#orderPill').className = 'pill ' + (m.ordersAllowed ? 'warn' : '');
   $('#activePill').textContent = m.active ? `kosuyor: ${m.active.label}` : '';
+  $('#activePill').className = 'pill ' + (m.active ? 'good' : '');
 
   RUN_TIPS = {};
   for (const r of m.runs) if (r.tip) RUN_TIPS[r.id] = { text: r.tip, cmd: r.cmd || '' };
 
   const groups = {};
   for (const r of m.runs) (groups[r.group || 'diger'] ??= []).push(r);
-  $('#runs').innerHTML = Object.entries(groups).map(([g, list]) =>
-    `<div class="mono" style="margin:8px 0 4px">${esc(g)}</div>` +
-    list.map(r => `<button data-run-id="${r.id}" onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')
-  ).join('');
+  // Gruplar katlanabilir: sol kolon 20 kosumla cok uzuyordu. Acik/kapali durumu
+  // localStorage'da tutuluyor; ilk acilista yalnizca ilk grup acik.
+  const OPEN_KEY = 'qa-panel-rungroups';
+  let openSet;
+  try { openSet = new Set(JSON.parse(localStorage.getItem(OPEN_KEY) || 'null') || [Object.keys(groups)[0]]); }
+  catch { openSet = new Set([Object.keys(groups)[0]]); }
+  $('#runs').innerHTML = Object.entries(groups).map(([g, list]) => `
+    <details class="rungrp" data-grp="${esc(g)}"${openSet.has(g) ? ' open' : ''}>
+      <summary>${esc(g)}<span class="cnt">${list.length}</span></summary>
+      <div class="body">${list.map(r => `<button data-run-id="${r.id}" onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')}</div>
+    </details>`).join('');
+  // NOT: bu panelde $$ helper'i YOK, yalnizca $ var — querySelectorAll dogrudan.
+  const sel = (q) => [...document.querySelectorAll(q)];
+  relabelRuns();
+  sel('#runs details.rungrp').forEach(d => d.addEventListener('toggle', () => {
+    localStorage.setItem(OPEN_KEY, JSON.stringify(sel('#runs details.rungrp[open]').map(x => x.dataset.grp)));
+  }));
 
   if (m.proxyUrl) {
     PROXY = m.proxyUrl;
     $('#proxyInfo').textContent = m.proxyUrl + ' → ' + m.baseURL;
-    const shortcuts = [
-      ['Anasayfa','/'], ['Tum urunler','/tum-urunler'], ['Urun','/tepe-sap-test-yeni-urun-p-1099765'],
-      ['Arama','/arama?q=koltuk'], ['Sepet','/sepet'], ['Giris','/giris'],
-      ['Hesabim','/hesabim'], ['Magazalar','/magazalar'], ['Iletisim','/iletisim'],
-    ];
+    // Hizli gidis butonlari proje profilinden (panel/projects/<proje>.mjs).
+    const shortcuts = m.project?.quickRoutes?.length ? m.project.quickRoutes : [['Anasayfa','/']];
     $('#siteShortcuts').innerHTML = shortcuts.map(([l,p]) =>
       `<button style="width:auto" onclick="goSite('${p}')">${esc(l)}</button>`).join('');
     if (!$('#siteFrame').src) goSite('/');
@@ -413,12 +1142,13 @@ async function load() {
     ? m.knownIssues.map(i => `<div class="issue"><div class="id">${esc(i.id)}</div>
         <div class="w">${esc(i.where)}</div><div style="font-size:12.5px">${esc(i.detail)}</div></div>`).join('')
     : '<p class="mono">Kayit yok</p>';
+  $('#issuesCnt').textContent = document.querySelectorAll('#issues .issue').length || '';
 }
 
 async function startRun(id) {
   $('#log').textContent = '';
   document.querySelector('.tabs button[data-tab=log]').click();
-  const r = await post('/api/run', { id });
+  const r = await post('/api/run', { id, headless: HEADLESS });
   if (!r.ok) appendLog('PANEL HATASI: ' + r.error, true);
 }
 
@@ -440,6 +1170,7 @@ const es = new EventSource('/api/events');
 es.addEventListener('run-start', e => {
   const d = JSON.parse(e.data);
   $('#activePill').textContent = 'kosuyor: ' + d.label;
+  $('#activePill').className = 'pill good';
   appendLog(`=== ${d.label} basladi ===`);
   if (d.argv) appendLog(`$ ${d.argv}`);
 });
@@ -447,6 +1178,7 @@ es.addEventListener('log', e => { const d = JSON.parse(e.data); appendLog(d.line
 es.addEventListener('run-end', e => {
   const d = JSON.parse(e.data);
   $('#activePill').textContent = '';
+  $('#activePill').className = 'pill';
   appendLog(`=== bitti (cikis kodu ${d.code}, ${(d.durationMs/1000).toFixed(0)} sn) ===`, d.code !== 0);
   loadResults();
 });
@@ -496,15 +1228,47 @@ let SPECS = [];
 async function loadCases() {
   SPECS = await (await fetch('/api/specs')).json();
   renderCases();
+  loadDrafts();
 }
 
 function caseMatches(sp, c, q, f) {
   const st = c.last?.status || 'none';
   if (f === 'mutates' && !c.mutates) return false;
-  if (f && f !== 'mutates' && st !== f) return false;
+  if (f === 'flaky' && !c.stats?.flaky) return false;
+  if (f === 'repeat' && (c.stats?.runs ?? 0) < 2) return false;
+  if (f && !['mutates', 'flaky', 'repeat'].includes(f) && st !== f) return false;
   if (!q) return true;
   const hay = (sp.file + ' ' + sp.describe + ' ' + c.title + ' ' + (c.issue || '') + ' ' + (sp.cards || []).join(' ')).toLocaleLowerCase('tr');
   return hay.includes(q.toLocaleLowerCase('tr'));
+}
+
+/**
+ * Oran kolonunun sinifi. Tek kosumluk kayitta renk YOK — "1/1 basarisiz" ile
+ * "10/10 basarisiz" ayni sey degil, ilkine kirmizi demek yaniltir.
+ */
+function rateCls(st) {
+  if (!st) return 'rate';
+  if (st.runs < 2) return 'rate';
+  if (st.flaky) return 'rate flaky';
+  if (st.failed === st.runs) return 'rate hard';
+  if (st.failed === 0) return 'rate clean';
+  return 'rate';
+}
+
+function rateTitle(st) {
+  if (!st) return 'Henuz kosum kaydi yok';
+  const span = st.firstAt === st.lastAt
+    ? st.lastAt.slice(5, 16).replace('T', ' ')
+    : `${st.firstAt.slice(5, 10)} → ${st.lastAt.slice(5, 16).replace('T', ' ')}`;
+  const yorum = st.runs < 2
+    ? 'Tek kosum — tekrarlanabilirlik icin --repeat-each ile tekrar kos'
+    : st.flaky
+      ? `KARARSIZ: ${st.passed} gecti, ${st.failed} kaldi. Ya test ya urun kararsiz.`
+      : st.failed === st.runs
+        ? 'Her kosumda tekrarliyor — saglam bulgu'
+        : 'Her kosumda gecti';
+  const dus = st.dropped ? `\n${st.dropped} kayit sayilmadi (kesilen/atlanan kosum)` : '';
+  return `Son ${st.runs} kosumda ${st.failed} basarisiz\n${span}\n${yorum}${dus}`;
 }
 
 function renderCases() {
@@ -544,8 +1308,12 @@ function renderCases() {
             <span class="ttl">${esc(c.title.replace(/\$\{[^}]+\}/g, '<rota>'))}
               ${c.last?.error ? `<div class="mono err" style="font-size:11px">${esc(c.last.error.slice(0,120))}</div>` : ''}</span>
             <span class="flags">${flags}</span>
+            <span class="${rateCls(c.stats)}" title="${esc(rateTitle(c.stats))}">${c.stats ? c.stats.rate : '—'}</span>
             <button class="run" ${c.parametric ? 'disabled title="parametrik case: -g ile tek tek kosulamaz"' : ''}
               onclick="runCase('${esc(sp.file)}', this.dataset.t)" data-t="${esc(c.title)}">kos</button>
+            <button class="run rep" ${c.parametric ? 'disabled' : ''}
+              title="Ayni case'i 5 kez ust uste kos — oran kaydini buyutur"
+              onclick="runCase('${esc(sp.file)}', this.dataset.t, 5)" data-t="${esc(c.title)}">5&times;</button>
           </div>`;
         }).join('')}
       </div>
@@ -554,6 +1322,8 @@ function renderCases() {
 
   $('#caseList').innerHTML = html || '<p class="mono">Eslesen case yok</p>';
   $('#caseMeta').textContent = `${shown}/${total} case`;
+  renderCaseStrip(total);
+  renderKnownIssues();
 }
 
 function toggleAllCases(open) {
@@ -561,8 +1331,10 @@ function toggleAllCases(open) {
 }
 
 /** Tek case'i parametreli kosumla calistirir: -g "<baslik>" */
-async function runCase(file, title) {
-  const params = { specs: [file], grep: title.slice(0, 80), repeatEach: 1, headed: false };
+async function runCase(file, title, repeat = 1) {
+  // repeat>1: Playwright her tekrari ayri sonuc satiri olarak yazar, dolayisiyla
+  // kayda tek seferde `repeat` kadar kosum eklenir — oran boyle birikiyor.
+  const params = { specs: [file], grep: title.slice(0, 80), repeatEach: repeat, headed: false };
   document.querySelector('.tabs button[data-tab=log]').click();
   $('#log').textContent = '';
   const r = await post('/api/run', { id: 'custom', params });
@@ -573,7 +1345,7 @@ $('#qCase').addEventListener('input', renderCases);
 $('#qFilter').addEventListener('change', renderCases);
 
 // kosum bitince durumlar guncellenir
-es.addEventListener('run-end', () => { if (!$('#tab-cases').hidden) loadCases(); });
+es.addEventListener('run-end', () => { if (!$('#tab-cases').hidden) loadCases(); loadGateStatus(); });
 
 // ---------------- parametreli kosum ----------------
 async function loadSpecs() {
@@ -665,7 +1437,7 @@ async function loadDesign(path) {
 // iframe kaydirmasini tasarim kolonuna oranlayarak yansit
 addEventListener('message', (e) => {
   const d = e.data;
-  if (!d || d.type !== 'homee-scroll' || !DESIGN_ON) return;
+  if (!d || d.type !== 'qa-scroll' || !DESIGN_ON) return;
   const col = $('#designCol'), img = $('#designImg');
   if (!img.naturalHeight) return;
   const liveScrollable = Math.max(1, d.h - d.vh);
@@ -676,7 +1448,7 @@ addEventListener('message', (e) => {
 // iframe icindeki her navigasyon proxy'nin enjekte ettigi script ile bildirilir
 addEventListener('message', async (e) => {
   const d = e.data;
-  if (!d || d.type !== 'homee-nav') return;
+  if (!d || d.type !== 'qa-nav') return;
   const path = d.path || '/';
   if (path === CURRENT_PATH) return;
   CURRENT_PATH = path;
@@ -834,6 +1606,8 @@ async function loadCards() {
     const d = await (await fetch('/api/jira/cards?view=' + encodeURIComponent(view))).json();
     if (d.error) { $('#jTable').innerHTML = `<tr><td class="mono err">${esc(d.error)}</td></tr>`; return; }
     $('#jMeta').textContent = `${d.cards.length} kart · ${d.jql}`;
+    $('#tcJira').textContent = d.cards.length;
+    renderJiraStrip(d.cards);
     $('#jTable').innerHTML = '<tr><th>Kart</th><th>Özet</th><th>Statü</th><th>Atanan</th><th>Sprint</th></tr>' +
       d.cards.map(c => `<tr>
         <td class="mono"><a href="${c.url}" target="_blank">${esc(c.key)}</a>
@@ -905,6 +1679,931 @@ $('#jView').onchange = loadCards;
 
 loadSpecs().then(previewCustom);
 load();
+</script>
+<script>
+  /* Tema: koyu varsayilan (OLED). Secim localStorage'da, yoksa sistem tercihi. */
+  (function () {
+    const KEY = 'qa-panel-theme';
+    const btn = document.getElementById('themeBtn');
+    const icon = { dark: '\u25D0 koyu', light: '\u25D1 acik' };
+    function apply(mode) {
+      if (mode) document.documentElement.setAttribute('data-theme', mode);
+      else document.documentElement.removeAttribute('data-theme');
+      const eff = mode || (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
+      btn.textContent = icon[eff];
+      btn.setAttribute('aria-pressed', String(eff === 'light'));
+    }
+    apply(localStorage.getItem(KEY));
+    btn.addEventListener('click', () => {
+      const eff = document.documentElement.getAttribute('data-theme')
+        || (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
+      const next = eff === 'light' ? 'dark' : 'light';
+      localStorage.setItem(KEY, next);
+      apply(next);
+    });
+  })();
+
+// ---------------- headless anahtari ----------------
+/**
+ * Panelin 21 kosumundan 17'si --headed. Playwright headed modda TEST BASINA
+ * pencere aciyor; kullanici "surekli browser aciliyor" derken bunu goruyor.
+ * Anahtar acikken /api/run'a headless:true gidiyor ve sunucu --headed'i
+ * kaldiriyor (npm script'ini dogrudan playwright cagrisina cevirerek).
+ */
+let HEADLESS = localStorage.getItem('qa-panel-headless') === '1';
+
+function syncHeadless() {
+  $('#hlChk').checked = HEADLESS;
+  $('#hlWrap').classList.toggle('on', HEADLESS);
+  $('#hlLabel').textContent = HEADLESS ? 'headless kos — pencere acilmiyor' : 'headless kos (pencere acilmaz)';
+}
+function toggleHeadless() {
+  HEADLESS = $('#hlChk').checked;
+  localStorage.setItem('qa-panel-headless', HEADLESS ? '1' : '0');
+  syncHeadless();
+  relabelRuns();
+}
+
+/**
+ * Kosum butonlarindaki "(headed)" etiketi anahtar acikken YALAN soyluyordu.
+ * Etiketi anahtara gore yaziyoruz; orijinali data-label'da duruyor.
+ */
+function relabelRuns() {
+  for (const b of document.querySelectorAll('#runs button[data-run-id]')) {
+    if (!b.dataset.label) b.dataset.label = b.textContent;
+    b.textContent = HEADLESS ? b.dataset.label.replace(/\(headed\)/i, '(headless)') : b.dataset.label;
+  }
+}
+
+// ---------------- iframe kaydedici ----------------
+/**
+ * Codegen'i iframe'e koymak MUMKUN DEGIL (ayri tarayici sureci, kendi penceresi).
+ * Bunun yerine proxy sayfaya bir kaydedici enjekte ediyor; tiklama/yazma
+ * olaylari postMessage ile buraya geliyor ve sag kolonda adim listesi oluyor.
+ */
+let REC_STEPS = [];
+let IFRAME_REC = false;
+
+function locLabel(l) {
+  if (!l) return 'body';
+  if (l.kind === 'role') return `getByRole('${l.role}', '${l.name}')`;
+  if (l.kind === 'testid') return `getByTestId('${l.value}')`;
+  if (l.kind === 'placeholder') return `getByPlaceholder('${l.value}')`;
+  if (l.kind === 'text') return `getByText('${l.value}')`;
+  return l.value;
+}
+
+function renderSteps() {
+  $('#recCount').textContent = `${REC_STEPS.length} adim`;
+  const na = assertCount();
+  $('#asrCount').textContent = `${na} iddia`;
+  $('#asrCount').style.color = na ? 'var(--ok)' : 'var(--no)';
+  $('#recSteps').innerHTML = REC_STEPS.length
+    ? REC_STEPS.map((s, i) => `<div class="st-row${s.action.startsWith('assert') ? ' asr' : ''}">
+        <span class="i">${i + 1}</span>
+        <span class="a">${esc(s.action === 'assert' ? (s.value ? 'iddia: metin' : 'iddia: gorunur') : s.action)}</span>
+        <span class="l">${s.action === 'goto'
+          ? esc(String(s.value ?? '/'))
+          : esc(locLabel(s.loc)) + (s.value ? ` = ${esc(String(s.value).slice(0, 26))}` : '') + (s.key ? ` ${esc(s.key)}` : '')}</span>
+        <button class="x" onclick="dropStep(${i})" title="sil">×</button></div>`).join('')
+    : '<p class="mono" style="padding:8px">iframe icinde gezin — tiklama ve yazma adim olarak dusecek</p>';
+  $('#recSteps').scrollTop = $('#recSteps').scrollHeight;
+}
+
+/**
+ * Iddia modu. AYRI ANAHTAR secildi (Alt+tik gibi bir kisayol degil): kisayol
+ * daha akici ama yanlislikla tetiklenip akisin ortasina iddia birakiyor.
+ * Kayit bitince mod kendiliginden kapaniyor.
+ */
+function toggleAssertMode() {
+  const on = $('#asrChk').checked;
+  $('#asrHint').hidden = !on;
+  $('#siteFrame').contentWindow?.postMessage({ type: 'qa-rec-assert', on }, '*');
+}
+
+function assertCount() {
+  return REC_STEPS.filter(s => s.action === 'assert' || s.action === 'assertUrl').length;
+}
+
+function dropStep(i) { REC_STEPS.splice(i, 1); renderSteps(); }
+function clearSteps() { REC_STEPS = []; renderSteps(); }
+
+function toggleIframeRec() {
+  IFRAME_REC = !IFRAME_REC;
+  $('#recCol').hidden = !IFRAME_REC;
+  $('#siteRecBtn').textContent = IFRAME_REC ? 'Kaydi bitir' : 'Kaydet (iframe)';
+  if (IFRAME_REC) {
+    $('#designCol').hidden = true;              // sag kolon paylasimli
+    const path = ($('#siteNow').textContent || '/').trim();
+    if (!REC_STEPS.length) REC_STEPS.push({ action: 'goto', value: path.startsWith('/') ? path : '/' });
+    renderSteps();
+  }
+  if (!IFRAME_REC) { $('#asrChk').checked = false; $('#asrHint').hidden = true; }
+  // iframe'e ac/kapat bildir
+  $('#siteFrame').contentWindow?.postMessage({ type: 'qa-rec', on: IFRAME_REC }, '*');
+}
+
+// proxy'den gelen adimlar
+addEventListener('message', (e) => {
+  const d = e.data;
+  if (!d || d.type !== 'qa-rec-step' || !IFRAME_REC) return;
+  const s = d.step;
+  // ayni ogeye 400ms icinde ikinci tiklama: cift olay, yut
+  const last = REC_STEPS[REC_STEPS.length - 1];
+  if (last && last.action === s.action && locLabel(last.loc) === locLabel(s.loc) && s.at - (last.at ?? 0) < 400) return;
+  // ayni alana ust uste fill: son degeri tut
+  if (s.action === 'fill' && last && last.action === 'fill' && locLabel(last.loc) === locLabel(s.loc)) REC_STEPS.pop();
+  REC_STEPS.push(s);
+  renderSteps();
+});
+
+// sayfa degisince goto adimi dus
+addEventListener('message', (e) => {
+  if (!IFRAME_REC || e.data?.type !== 'qa-nav') return;
+  const path = e.data.path || '/';
+  const last = REC_STEPS[REC_STEPS.length - 1];
+  if (last && last.action === 'goto' && last.value === path) return;
+  // kaydedici yeniden enjekte oldu, tekrar ac
+  $('#siteFrame').contentWindow?.postMessage({ type: 'qa-rec', on: true }, '*');
+});
+
+async function generateSpec() {
+  if (!REC_STEPS.length) return;
+  // Uretim aninda uyar: iddiasiz dosya case olarak EKLENEMEZ (kapi sunucuda).
+  if (!assertCount() && !confirm(
+      'Bu kayitta 0 iddia var.\n\nIddiasiz bir dosya script olur, test olmaz: locator ' +
+      'kirilmadikca her zaman gecer. Case olarak EKLENEMEZ, yalnizca taslak kalir.\n\n' +
+      'Yine de uretilsin mi?')) return;
+  const title = prompt('Spec basligi:', 'kaydedilen akis');
+  if (title === null) return;
+  const btn = $('#recGen');
+  btn.disabled = true;
+  try {
+    const d = await post('/api/record/steps', {
+      steps: REC_STEPS, title,
+      route: REC_STEPS[0]?.value || '/',
+      state: $('#recState')?.value || 'guest',
+    });
+    if (d.error) { alert('Uretilemedi: ' + d.error); return; }
+    alert(`${d.file} yazildi (${d.lines} satir).\n\nSite sekmesindeki Kaydet blogundan "gor" ile okuyabilirsin.`);
+    loadRecordings();
+  } finally { btn.disabled = false; }
+}
+
+// ---------------- kayit (codegen) ----------------
+/**
+ * Playwright codegen'i panelden baslatir. Oturum dosyasi yuklendigi icin kapiyi
+ * gecmis (ya da uye girisi yapilmis) halde basliyor — bugun elle her seferinde
+ * once giris yapmak gerekiyordu.
+ */
+let RECORDING_ON = false;
+
+async function loadRecordings() {
+  try {
+    const d = await (await fetch('/api/record/list')).json();
+    RECORDING_ON = d.recording;
+    const btn = $('#recBtn');
+    btn.textContent = d.recording ? 'Kaydi iptal et' : 'Kaydi baslat';
+    btn.classList.toggle('live', d.recording);
+    $('#recState2').textContent = d.recording ? `kaydediliyor → ${d.current} · bitirmek icin tarayiciyi kapat` : '';
+    $('#recList').innerHTML = d.files.length
+      ? d.files.map(f => `<div class="rec-row">
+          <span class="nm">${esc(f.name)}</span>
+          <span class="sz">${Math.round(f.size / 1024)} KB · ${new Date(f.at).toLocaleString('tr-TR')}</span>
+          <button onclick="showRecording('${esc(f.name)}')">gor</button></div>`).join('')
+      : '<p class="mono" style="margin:0">henuz kayit yok</p>';
+  } catch { /* uc yoksa sessiz */ }
+}
+
+async function toggleRecord() {
+  const btn = $('#recBtn');
+  btn.disabled = true;
+  try {
+    if (RECORDING_ON) {
+      if (!confirm('Kaydi IPTAL et? Kod kaydedilmez.\n\nKaydi bitirmek istiyorsan bunun yerine tarayici penceresini kapat.')) return;
+      await post('/api/record/cancel', {});
+    } else {
+      const body = { route: $('#recRoute').value.trim() || '/', state: $('#recState').value, device: $('#recDevice').value };
+      const d = await post('/api/record/start', body);
+      if (d.error) { $('#recState2').textContent = d.error; return; }
+      $('#recState2').textContent = `tarayici acildi → ${d.file}`;
+    }
+    await loadRecordings();
+  } finally {
+    btn.disabled = false;
+    // codegen kapaninca sunucu run-end degil kendi log'unu basiyor; kisa gecikmeyle tekrar oku
+    setTimeout(loadRecordings, 1500);
+  }
+}
+
+async function showRecording(name) {
+  const box = $('#recCode');
+  box.style.display = 'block';
+  box.textContent = 'yükleniyor...';
+  try {
+    const d = await (await fetch('/api/record/file/' + encodeURIComponent(name))).json();
+    box.textContent = d.code ?? d.error ?? '';
+  } catch (e) { box.textContent = e.message; }
+}
+
+// ---------------- bug acma formu + kanit galerisi ----------------
+/**
+ * 2026-08-21'e kadar /api/jira/bug ucu UI'siz duruyordu ve 16 kart elle python
+ * yazilarak acildi. Sablon bugun kullanilan yapinin aynisi: Ortam / Adimlar /
+ * Gerceklesen / Beklenen / Olcum — Ahmet'in kartlari boyle okuyor.
+ */
+const BUG_TEMPLATE = () => `Ortam: ${META?.env ?? 'test'} - ${META?.baseURL ?? ''}
+Olcum tarihi: ${new Date().toISOString().slice(0, 10)}
+
+ADIMLAR
+1.
+2.
+
+GERCEKLESEN
+
+
+BEKLENEN
+
+
+OLCUM
+`;
+
+let EV_SELECTED = new Set();
+
+async function loadBugForm() {
+  if ($('#bugDesc') && !$('#bugDesc').value) $('#bugDesc').value = BUG_TEMPLATE();
+  // atanabilir kullanicilar — accountId ile, cunku ad ile atama CALISMIYOR
+  try {
+    const [me, as] = await Promise.all([
+      (await fetch('/api/jira/whoami')).json(),
+      (await fetch('/api/jira/assignable')).json(),
+    ]);
+    $('#bugCtx').textContent = `${me.name ?? '?'} olarak · epic ${as.epic ?? '?'}`;
+    const sel = $('#bugAssignee');
+    if (sel.options.length <= 1) {
+      for (const u of as.users || []) {
+        const o = document.createElement('option');
+        o.value = u.accountId;
+        o.textContent = u.name;
+        sel.appendChild(o);
+      }
+      if (as.error) $('#bugState').textContent = 'atanan listesi alınamadı';
+    }
+  } catch { /* jira erisimi yoksa form yine calisir, atanmamis kalir */ }
+  // kanit galerisi
+  try {
+    const d = await (await fetch('/api/evidence')).json();
+    $('#bugEvidence').innerHTML = d.files.length
+      ? d.files.map(f => `
+        <div class="ev-item" data-ev="${esc(f.name)}" onclick="toggleEvidence(this)" title="${esc(f.name)}">
+          <img src="/api/evidence/${encodeURIComponent(f.name)}" alt="" loading="lazy">
+          <div class="n">${esc(f.name.replace(/\.(png|jpe?g)$/i, '').slice(0, 30))}</div>
+        </div>`).join('')
+      : '<p class="mono" style="padding:8px">kanıt dosyası yok</p>';
+  } catch { $('#bugEvidence').innerHTML = '<p class="mono err" style="padding:8px">kanıt listesi okunamadı</p>'; }
+}
+
+function toggleEvidence(el) {
+  const name = el.dataset.ev;
+  if (EV_SELECTED.has(name)) { EV_SELECTED.delete(name); el.classList.remove('sel'); }
+  else { EV_SELECTED.add(name); el.classList.add('sel'); }
+  $('#bugEvCount').textContent = EV_SELECTED.size ? `— ${EV_SELECTED.size} seçildi` : '— seçilmedi';
+}
+
+async function createBugCard() {
+  const summary = $('#bugSummary').value.trim();
+  if (!summary) { $('#bugState').textContent = 'özet zorunlu'; return; }
+  const description = $('#bugDesc').value;
+  const assigneeAccountId = $('#bugAssignee').value || null;
+  const evidence = [...EV_SELECTED];
+  if (!confirm(`Jira'da yeni kart açılacak:\n\n${summary}\n\n${evidence.length} kanıt eklenecek. Devam?`)) return;
+  $('#bugBtn').disabled = true;
+  $('#bugState').textContent = 'kart açılıyor…';
+  try {
+    const d = await post('/api/jira/bug', { summary, description, assigneeAccountId, evidence });
+    if (d.error) { $('#bugOut').innerHTML = `<p class="mono err">${esc(d.error)}</p>`; return; }
+    $('#bugOut').innerHTML = `<p class="mono"><a href="${d.url}" target="_blank">${esc(d.key)}</a> açıldı`
+      + (d.attached?.length ? ` · ${d.attached.length} ek yüklendi` : '') + '</p>';
+    $('#bugSummary').value = '';
+    $('#bugDesc').value = BUG_TEMPLATE();
+    EV_SELECTED.clear();
+    document.querySelectorAll('.ev-item.sel').forEach(x => x.classList.remove('sel'));
+    $('#bugEvCount').textContent = '— seçilmedi';
+    loadCards();
+  } catch (e) {
+    $('#bugOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
+  } finally {
+    $('#bugBtn').disabled = false;
+    $('#bugState').textContent = '';
+  }
+}
+
+// ---------------- perf AI yorumu ----------------
+/**
+ * Olcumu modele yorumlatir. Kapi sunucuda: model olcumde olmayan bir rotadan
+ * bahsederse bulgu elenir ve burada "elenen" olarak gosterilir.
+ */
+async function analyzePerf() {
+  const btn = $('#paBtn');
+  btn.disabled = true;
+  $('#paState').textContent = 'model olcumu okuyor…';
+  $('#paOut').innerHTML = '';
+  try {
+    const d = await post('/api/perf/analyze', {});
+    if (d.error) {
+      $('#paOut').innerHTML = d.code === 'NO_CREDENTIALS'
+        ? `<div class="sg-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p>${esc(d.error)}</p></div>`
+        : `<p class="mono err">${esc(d.error)}</p>`;
+      return;
+    }
+    const sev = { high: 'YUKSEK', medium: 'ORTA', low: 'DUSUK' };
+    $('#paOut').innerHTML =
+      `<div class="pa-sum">${esc(d.summary)}</div>` +
+      d.findings.map(f => `<div class="pa-f ${esc(f.severity)}">
+        <div class="t"><span class="b ${f.severity === 'high' ? 'no' : f.severity === 'medium' ? 'sk' : 'ok'}">${sev[f.severity] ?? f.severity}</span>
+          ${esc(f.title)}${(f.routes || []).length ? `<span class="rt">${f.routes.map(esc).join(' · ')}</span>` : ''}</div>
+        <div class="ev">${esc(f.evidence)}</div>
+        <div class="rc">${esc(f.recommendation)}</div></div>`).join('') +
+      (d.dropped?.length
+        ? `<h2>Kapida elenenler</h2>` + d.dropped.map(x => `<div class="sg-bad"><span class="cid">${esc(x.title)}</span><div class="why">${esc(x.reason)}</div></div>`).join('')
+        : '');
+    $('#paState').textContent = d.stopReason === 'max_tokens' ? 'uyari: yanit kesildi' : '';
+  } catch (e) {
+    $('#paOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+    if ($('#paState').textContent === 'model olcumu okuyor…') $('#paState').textContent = '';
+  }
+}
+
+// ---------------- perf ----------------
+/**
+ * `panel-data/perf/` diskte duruyordu ama gorunecek yer yoktu; iki yapisal
+ * bulgu (token x3, menu cache'siz) terminalden okunarak bulunmustu.
+ */
+const ms = (v) => (v == null ? '—' : `${v} ms`);
+/**
+ * Esikler Google Web Vitals'tan; kendi uydurdugum 2000/3000 yerine standarda
+ * baglandi ki rapor tartisilabilir olsun.
+ */
+const BUDGET = {
+  lcp:  { warn: 2500, bad: 4000, label: 'LCP', unit: 'ms', src: 'Web Vitals: iyi ≤2500, zayif >4000' },
+  load: { warn: 3000, bad: 5000, label: 'load', unit: 'ms', src: 'panel butcesi: iyi ≤3000, zayif >5000' },
+  ttfb: { warn: 800,  bad: 1800, label: 'TTFB', unit: 'ms', src: 'Web Vitals: iyi ≤800, zayif >1800' },
+  req:  { warn: 100,  bad: 150,  label: 'istek', unit: '', src: 'panel butcesi: iyi ≤100, zayif >150' },
+  api:  { warn: 10,   bad: 15,   label: 'API', unit: '', src: 'panel butcesi: iyi ≤10, zayif >15' },
+};
+function perfClass(v, b) { return v == null ? '' : v >= b.bad ? 'no' : v >= b.warn ? 'sk' : 'ok'; }
+
+async function loadPerf() {
+  $('#perfRoutes').innerHTML = '<tr><td class="mono">yükleniyor...</td></tr>';
+  try {
+    const d = await (await fetch('/api/perf')).json();
+    $('#tcPerf').textContent = d.totals.routes;
+    $('#perfMeta').textContent = d.measuredAt
+      ? `son ölçüm: ${new Date(d.measuredAt).toLocaleString('tr-TR')}`
+      : 'ölçüm yok — scripts/perf-sweep.mjs koşulmalı';
+    $('#perfStrip').innerHTML = [
+      ['ROTA', d.totals.routes, ''],
+      ['ISTEK', d.totals.requests, ''],
+      ['API CAGRISI', d.totals.api, ''],
+      ['ENDPOINT', d.totals.endpoints, ''],
+      ['MUKERRER ENDPOINT', d.totals.dupEndpoints, d.totals.dupEndpoints ? 'no' : 'ok'],
+    ].map(([k, v, c]) => `<span class="cell"><span class="k">${k}</span><span class="v ${c}">${v}</span></span>`).join('');
+
+    $('#perfBudget').innerHTML = 'ESIKLER — ' + Object.values(BUDGET).map(b =>
+      `<span class="b ok" style="margin-right:3px">${b.label} ≤${b.warn}${b.unit}</span>` +
+      `<span class="b sk" style="margin-right:3px">≤${b.bad}${b.unit}</span>` +
+      `<span class="b no" style="margin-right:12px">&gt;${b.bad}${b.unit}</span>`).join('');
+
+    $('#perfRoutes').innerHTML =
+      '<tr><th>Rota</th><th>LCP</th><th>load</th><th>TTFB</th><th>istek</th><th>API</th><th>mükerrer</th><th>4xx/5xx</th><th>konsol</th></tr>' +
+      d.routes.map(r => `<tr>
+        <td class="mono">${esc(r.route)}${r.notFound ? ' <span class="b no">404</span>' : ''}</td>
+        <td class="num ${perfClass(r.lcp, BUDGET.lcp)}">${ms(r.lcp)}</td>
+        <td class="num ${perfClass(r.load, BUDGET.load)}">${ms(r.load)}</td>
+        <td class="num ${perfClass(r.ttfb, BUDGET.ttfb)}">${ms(r.ttfb)}</td>
+        <td class="num ${perfClass(r.requests, BUDGET.req)}">${r.requests ?? '—'}</td>
+        <td class="num ${perfClass(r.api, BUDGET.api)}">${r.api ?? '—'}</td>
+        <td class="num">${r.duplicates ? `<span class="b no">${r.duplicates}</span>` : '—'}</td>
+        <td class="num">${r.siteErrors ? `<span class="b no">${r.siteErrors}</span>` : '—'}</td>
+        <td class="num">${r.consoleErrors ? `<span class="b sk">${r.consoleErrors}</span>` : '—'}</td></tr>`).join('');
+
+    $('#perfEndpoints').innerHTML =
+      '<tr><th>Endpoint</th><th>en yavaş</th><th>rota</th><th>çağrı</th><th>mükerrer</th></tr>' +
+      d.endpoints.map(e => `<tr>
+        <td class="mono">${esc(e.endpoint)}</td>
+        <td class="num ${perfClass(e.maxMs, { warn: 400, bad: 800 })}">${ms(e.maxMs)}</td>
+        <td class="num">${e.routes}</td>
+        <td class="num">${e.calls}</td>
+        <td class="num">${e.dupRoutes ? `<span class="b no">${e.dupRoutes} rotada</span>` : '—'}</td></tr>`).join('');
+  } catch (e) {
+    $('#perfRoutes').innerHTML = `<tr><td class="mono err">${esc(e.message)}</td></tr>`;
+  }
+}
+
+// ---------------- kotasiz diff ----------------
+/**
+ * Mevcut "Tasarim diff" akisi API'ye gidiyor ve 10 rotanin 2'sinde calisiyor.
+ * Bu blok onbellekten okur: 26 ekran frame'i, Figma'ya sifir cagri.
+ */
+async function loadOfflineFrames() {
+  const sel = $('#odFrame');
+  if (sel.options.length) return;
+  try {
+    const d = await (await fetch('/api/figma/offline-frames')).json();
+    const byCanvas = {};
+    for (const f of d.frames) (byCanvas[f.canvas] ??= []).push(f);
+    sel.innerHTML = Object.entries(byCanvas).map(([c, list]) =>
+      `<optgroup label="${esc(c)}">` + list.map(f =>
+        `<option value="${esc(f.id)}">${esc(f.name)} · ${f.w}x${f.h} · ${f.texts} metin</option>`).join('') +
+      '</optgroup>').join('');
+    $('#odCtx').textContent = `${d.frames.length} frame önbellekte — Figma'ya sıfır çağrı`;
+  } catch (e) { $('#odCtx').textContent = 'frame listesi okunamadı'; }
+}
+
+async function offlineDiff() {
+  const btn = $('#odBtn');
+  btn.disabled = true;
+  $('#odState2').textContent = 'canlı yakalanıyor…';
+  $('#odOut').innerHTML = '';
+  try {
+    const ignore = ($('#odIgnore').value || '').split(',').map(x => x.trim()).filter(Boolean);
+    const d = await post('/api/figma/offline-diff', {
+      frameId: $('#odFrame').value, route: $('#odRoute').value.trim() || '/',
+      state: $('#odState').value, ignore,
+    });
+    if (d.error) { $('#odOut').innerHTML = `<p class="mono err">${esc(d.error)}</p>`; return; }
+    $('#odOut').innerHTML =
+      `<div class="strip" style="margin:12px 0">
+        <span class="cell"><span class="k">FRAME</span><span class="v" style="font-size:13px">${esc(d.frame)}</span></span>
+        <span class="cell"><span class="k">TASARIM METNI</span><span class="v">${d.total}</span></span>
+        <span class="cell"><span class="k">DINAMIK AYIKLANDI</span><span class="v mut">${d.dynamicSkipped}</span></span>
+        <span class="cell"><span class="k">ESLESTI</span><span class="v ok">${d.matched}</span></span>
+        <span class="cell"><span class="k">EKSIK</span><span class="v ${d.missing.length ? 'no' : 'ok'}">${d.missing.length}</span></span>
+        <span class="cell"><span class="k">FIGMA CAGRISI</span><span class="v ok">${d.apiCalls}</span></span>
+      </div>` +
+      (d.missing.length
+        ? d.missing.map(m => `<div class="od-miss">
+            <span class="tx">${esc(m.t)}</span>
+            <span class="fn">${esc(m.f ?? '?')} ${m.s ?? '?'}px w${m.w ?? '?'}</span></div>`).join('')
+        : '<p class="mono">eksik yok — tasarımdaki statik metinlerin hepsi canlıda var.</p>');
+    $('#odState2').textContent = '';
+  } catch (e) {
+    $('#odOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
+  } finally {
+    btn.disabled = false;
+    if ($('#odState2').textContent === 'canlı yakalanıyor…') $('#odState2').textContent = '';
+  }
+}
+
+// ---------------- onkosullar seridi ----------------
+/**
+ * Disa bagimli her sey tek seritte. 20-21 Agustos'ta ucu birden sessizce
+ * bozuldu (Anthropic anahtari, Figma kotalari, kapi, cihaz) ve her seferinde
+ * sebebi bulmak dakikalar aldi.
+ */
+/**
+ * Onkosul pill'lerinde kullanilabilen marka ikonlari. Inline SVG: CSP dis
+ * kaynaga izin vermiyor, ayrica tek istek bile etmesin.
+ */
+const PF_ICON = {
+  slack: '<svg class="pf-ico" viewBox="0 0 122.8 122.8" aria-hidden="true">'
+    + '<path fill="#e01e5a" d="M25.8 77.6a12.9 12.9 0 1 1-12.9-12.9h12.9zM32.3 77.6a12.9 12.9 0 0 1 25.8 0v32.3a12.9 12.9 0 0 1-25.8 0z"/>'
+    + '<path fill="#36c5f0" d="M45.2 25.8a12.9 12.9 0 1 1 12.9-12.9v12.9zM45.2 32.3a12.9 12.9 0 0 1 0 25.8H12.9a12.9 12.9 0 0 1 0-25.8z"/>'
+    + '<path fill="#2eb67d" d="M97 45.2a12.9 12.9 0 1 1 12.9 12.9H97zM90.5 45.2a12.9 12.9 0 0 1-25.8 0V12.9a12.9 12.9 0 0 1 25.8 0z"/>'
+    + '<path fill="#ecb22e" d="M77.6 97a12.9 12.9 0 1 1-12.9 12.9V97zM77.6 90.5a12.9 12.9 0 0 1 0-25.8h32.3a12.9 12.9 0 0 1 0 25.8z"/>'
+    + '</svg>',
+  linear: '<svg class="pf-ico" viewBox="0 0 100 100" aria-hidden="true">'
+    + '<rect width="100" height="100" rx="22" fill="#5e6ad2"/>'
+    + '<g fill="none" stroke="#fff" stroke-width="6.5" stroke-linecap="round">'
+    + '<path d="M22 48A26 26 0 0 0 48 22"/><path d="M22 66A44 44 0 0 0 66 22"/>'
+    + '<path d="M28 79A56 56 0 0 0 79 28"/></g>'
+    + '</svg>',
+  figma: '<svg class="pf-ico" viewBox="0 0 38 57" aria-hidden="true">'
+    + '<path fill="#1abcfe" d="M19 28.5a9.5 9.5 0 1 1 19 0 9.5 9.5 0 0 1-19 0z"/>'
+    + '<path fill="#0acf83" d="M0 47.5A9.5 9.5 0 0 1 9.5 38H19v9.5a9.5 9.5 0 0 1-19 0z"/>'
+    + '<path fill="#ff7262" d="M19 0v19h9.5a9.5 9.5 0 0 0 0-19H19z"/>'
+    + '<path fill="#f24e1e" d="M0 9.5A9.5 9.5 0 0 0 9.5 19H19V0H9.5A9.5 9.5 0 0 0 0 9.5z"/>'
+    + '<path fill="#a259ff" d="M0 28.5A9.5 9.5 0 0 0 9.5 38H19V19H9.5A9.5 9.5 0 0 0 0 28.5z"/>'
+    + '</svg>',
+  jira: '<svg class="pf-ico" viewBox="0 0 32 32" aria-hidden="true">'
+    + '<path fill="#2684ff" d="M30.7 15.2 17.2 1.7 15.9.4 5.7 10.6 1 15.2a1.1 1.1 0 0 0 0 1.6l9.4 9.4'
+    + ' 5.5 5.5 10.2-10.2.2-.2 4.4-4.4a1.1 1.1 0 0 0 0-1.7zM15.9 21.4 11.2 16l4.7-4.7 4.7 4.7z"/>'
+    + '<path fill="#0052cc" d="M15.9 11.3a7.9 7.9 0 0 1 0-11.1L5.7 10.4l5.5 5.5z"/>'
+    + '<path fill="#0052cc" d="M20.6 15.9 15.9 20.6a7.9 7.9 0 0 1 0 11.2l10.2-10.2z"/>'
+    + '</svg>',
+};
+
+/**
+ * BAGLANTILAR PANELI
+ *
+ * Pill'ler durumu soyluyor ama "neden" ve "nasil duzeltilir" hicbir yerde
+ * yoktu: kimlik hangi dosyada, kota ne zaman aciliyor, kapali ise ne yapmali.
+ * Anthropic'in cozumu ornegin yalnizca Senaryo oner kutusundaki uyari metninde
+ * duruyordu — baglanti kapaliysa cozum durumun YANINDA olmali.
+ *
+ * Ust bardaki `connectors` dugmesinden acilan dropdown. Eskiden ayrica bir
+ * ONKOSULLAR seridi vardi; ayni bilgiyi iki yerde gostermek gereksizdi, serit
+ * kaldirildi. Veri `/api/preflight`ten geliyor, panel acmak EK ISTEK YAPMAZ.
+ */
+let PF_LAST = null;
+
+const PF_WORD = {
+  ok: 'bağlandı', warn: 'sorunlu', blocked: 'bloke', off: 'kapalı', unknown: 'bilinmiyor',
+};
+
+function pfCard(c) {
+  const ico = PF_ICON[c.icon] ?? '';
+  const name = String(c.label).replace(/\s+(bağlandı|bloke|sorunlu|yok)$/, '');
+  const parts = (c.parts ?? []).map(p =>
+    `<div class="cx-row"><span class="cx-k">${esc(p.label)}</span>`
+    + `<span class="pf-dot ${esc(p.state)}"></span>`
+    + `<span class="cx-v">${esc(p.detail ?? '')}</span></div>`).join('');
+  const fix = (c.fix ?? []).length
+    ? `<div class="cx-fix"><div class="cx-fix-h">ÇÖZÜM</div>`
+      + c.fix.map(f => `<code>${esc(f)}</code>`).join('') + `</div>`
+    : '';
+  return `<div class="cx-card">
+    <div class="cx-head">
+      <span class="cx-name">${ico}${esc(name)}</span>
+      <span class="pf ${esc(c.state)}">${esc(PF_WORD[c.state] ?? c.state)}</span>
+    </div>
+    ${c.parts?.length ? parts : `<div class="cx-row"><span class="cx-v">${esc(c.detail ?? '')}</span></div>`}
+    ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${esc(c.credential)}</span></div>` : ''}
+    ${c.note ? `<div class="cx-note">${esc(c.note)}</div>` : ''}
+    ${fix}
+  </div>`;
+}
+
+function pfPanelOpen() {
+  if (!PF_LAST) return;
+  const el = $('#cxPanel');
+  el.innerHTML = `<div class="cx-top"><b>BAĞLANTILAR</b>
+      <span class="cx-when">${esc(new Date(PF_LAST.at).toLocaleTimeString('tr-TR'))}</span>
+      <button onclick="loadPreflight(true)">yenile</button>
+      <button onclick="pfPanelClose()" aria-label="Kapat">×</button></div>`
+    + PF_LAST.checks.map(pfCard).join('');
+  el.hidden = false;
+}
+function pfPanelClose() { $('#cxPanel').hidden = true; }
+function pfPanelToggle() { $('#cxPanel').hidden ? pfPanelOpen() : pfPanelClose(); }
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') pfPanelClose(); });
+/**
+ * Disina tiklama kapatir. ⚠️ `#cxWrap` HARIC tutulmali: connectors dugmesi
+ * panelin kardesi, panelin ICINDE degil. Haric tutulmazsa dugmeye basmak once
+ * paneli aciyor, sonra AYNI tiklama buraya kadar kabararak hemen kapatiyor —
+ * panel hic gorunmuyor.
+ */
+document.addEventListener('click', e => {
+  const p = $('#cxPanel');
+  if (!p || p.hidden) return;
+  if (!p.contains(e.target) && !e.target.closest('#cxWrap')) pfPanelClose();
+});
+
+async function loadPreflight(keepOpen) {
+  try {
+    const d = await (await fetch('/api/preflight')).json();
+    PF_LAST = d;
+
+    /**
+     * connectors dugmesinin durum noktasi. `d.worst`i KULLANMIYOR: o `off`u
+     * `blocked` sayiyor ve Anthropic anahtari kasitli yokken dugme surekli
+     * kirmizi kaliyor. Ayrim onemli — "kota bloke/bozuk" (kirmizi) ile
+     * "kurulmamis" (amber) ayni sey degil.
+     */
+    // `passive` satirlar (Slack/Linear — gosterim amacli, panel onlari
+    // kullanmiyor) rozeti ETKILEMEZ: eksik token dugmeyi surekli amber
+    // yakmamali. Sunucu tarafinda `worst` de ayni sekilde disliyor.
+    const active = d.checks.filter(c => !c.passive);
+    const states = active.map(c => c.state);
+    const badge = states.includes('blocked') ? 'blocked'
+      : states.some(s => s === 'off' || s === 'warn') ? 'warn' : 'ok';
+    const btn = $('#cxBtn');
+    if (btn) {
+      btn.className = badge;
+      const bad = active.filter(c => c.state !== 'ok');
+      btn.title = bad.length
+        ? `Bağlantılar — sorunlu: ${bad.map(c => c.label).join(', ')}`
+        : 'Bağlantılar — hepsi bağlı';
+    }
+    if (keepOpen || !$('#cxPanel').hidden) pfPanelOpen();
+  } catch (e) {
+    // Ust seritte gosterecek yer yok; hata connectors dugmesinde durur.
+    const btn = $('#cxBtn');
+    if (btn) { btn.className = 'blocked'; btn.title = `Bağlantılar okunamadı: ${e.message}`; }
+  }
+}
+
+// ---------------- kapi oturumu sagligi ----------------
+/**
+ * Kapi cookie'si ~24 saatte sessizce doluyor ve dolunca TUM olcumler yanlis
+ * oluyor (sayfalar "Gecici Erisim" ekranini gosteriyor). Ust barda surekli
+ * gorunur olsun; 4 saatin altinda amber, dolmussa kirmizi.
+ */
+async function loadGateStatus() {
+  try {
+    const d = await (await fetch('/api/gate/status')).json();
+    const el = $('#gatePill');
+    el.className = d.state;
+    el.textContent = d.state === 'ok' ? `kapi ${d.hoursLeft.toFixed(1)}sa`
+      : d.state === 'warn' ? `kapi ${d.hoursLeft.toFixed(1)}sa!`
+      : d.state === 'expired' ? 'kapi doldu'
+      : d.state === 'missing' ? 'kapi yok' : 'kapi ?';
+    el.title = `${d.label} — tiklayinca yeniler (~45 sn)`;
+    return d;
+  } catch { $('#gatePill').textContent = 'kapi ?'; }
+}
+
+async function refreshGate() {
+  const el = $('#gatePill');
+  const before = el.textContent;
+  el.textContent = 'yenileniyor…';
+  const d = await post('/api/run', { id: 'gate-refresh' });
+  if (d.error) { el.textContent = before; alert('Kapi yenilenemedi: ' + d.error); return; }
+  // Kosum bitince run-end olayi geliyor; orada tekrar okunuyor.
+}
+
+// ---------------- ozet seritler ----------------
+/**
+ * Case'ler ve Jira sekmelerinin ustundeki sayi seridi. Ozet detaydan once
+ * gelsin diye: neye bakilmasi gerektigi tek bakista okunmali.
+ */
+/**
+ * Bilinen hata (test.fail'li) case'lerin tekrarlama tablosu.
+ * "Kapatilabilir mi?" sorusunun cevabi burada: >=2 kosumda hic tekrarlamayan
+ * satirlar aday, kararsiz olanlar once kararliliga kavusturulmali.
+ */
+let DRAFTS = [];
+
+async function loadDrafts() {
+  try {
+    const r = await (await fetch('/api/record/list')).json();
+    DRAFTS = r.files || [];
+  } catch { DRAFTS = []; }
+  renderDrafts();
+}
+
+function renderDrafts() {
+  const uye = DRAFTS.filter(d => d.member).length;
+  $('#dfSub').textContent = DRAFTS.length
+    ? `${DRAFTS.length} taslak · ${uye} uye oturumu · gercek suite disinda`
+    : 'kayit yok';
+  if (!DRAFTS.length) {
+    $('#dfTable').innerHTML = '<tr><td class="mono">Henuz taslak yok — Site (canli) sekmesinden kaydet</td></tr>';
+    return;
+  }
+  $('#dfTable').innerHTML =
+    '<tr><th>Taslak</th><th>Adim</th><th>Iddia</th><th>Oturum</th><th>Kaydedildi</th><th></th></tr>' +
+    DRAFTS.map(d => `<tr>
+      <td>${esc(d.title || '(baslik yok)')}
+          <span class="mono" style="display:block;color:var(--mut);font-size:10px">${esc(d.name)}</span></td>
+      <td class="mono num">${d.steps}</td>
+      <td class="mono num" style="color:${d.asserts ? 'var(--ok)' : 'var(--no)'}">${d.asserts ?? 0}</td>
+      <td><span class="st ${d.member ? 'skipped' : 'none'}">${d.member ? 'uye' : 'misafir'}</span></td>
+      <td class="mono" style="font-size:11px;color:var(--mut)">${esc(d.at.slice(5, 16).replace('T', ' '))}</td>
+      <td><span class="df-act">
+        <button onclick="showDraft(this.dataset.n)" data-n="${esc(d.name)}">kodu gor</button>
+        <button onclick="runDraft(this.dataset.n)" data-n="${esc(d.name)}">kos</button>
+        <button onclick="promoteDraft(this.dataset.n)" data-n="${esc(d.name)}"
+          ${d.asserts ? '' : 'disabled title="Iddia yok — eklenemez. Kaydederken Iddia modunu kullan."'}>case ekle</button>
+      </span></td>
+    </tr>`).join('');
+}
+
+async function showDraft(name) {
+  const box = $('#dfCode');
+  try {
+    // Uc ham metin degil JSON donuyor: { name, code }
+    const r = await (await fetch('/api/record/file/' + encodeURIComponent(name))).json();
+    if (r.error) throw new Error(r.error);
+    box.textContent = r.code ?? '(bos)';
+    box.hidden = false;
+    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  } catch (e) {
+    box.textContent = 'okunamadi: ' + e.message;
+    box.hidden = false;
+  }
+}
+
+/**
+ * Taslagi kosar. Proje secimi UI'da yok: kaydedici mobil viewport'ta calisiyor,
+ * ama taslagi masaustu chromium'da kosmak daha hizli dogrulama veriyor — mobil
+ * dogrulama icin dosyayi tests/ altina tasidiktan sonra normal akis var.
+ */
+async function runDraft(name) {
+  document.querySelector('.tabs button[data-tab=log]').click();
+  $('#log').textContent = '';
+  const r = await post('/api/record/run', { name, project: 'chromium', headed: false });
+  if (!r.ok) appendLog('PANEL: ' + r.error, true);
+}
+
+/** Taslagi tests/NN-*.spec.ts'e yukseltir. Kapi sunucuda; buradaki disabled sadece kolaylik. */
+async function promoteDraft(name) {
+  const r = await post('/api/record/promote', { name });
+  if (!r.ok) { alert(r.error || 'Eklenemedi'); return; }
+  alert(`tests/${r.file} olarak eklendi (${r.asserts} iddia).\n\nLocator'lar ham — POM'a tasinmali.`);
+  loadCases();
+}
+
+function renderKnownIssues() {
+  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
+  const rows = specs.flatMap(sp => (sp.list || [])
+    .filter(c => c.known || c.issue)
+    .map(c => ({ file: sp.file, ...c })));
+
+  const kapanabilir = rows.filter(r => (r.stats?.runs ?? 0) >= 2 && r.stats.failed === 0).length;
+  const kararsiz = rows.filter(r => r.stats?.flaky).length;
+  const tekKosum = rows.filter(r => (r.stats?.runs ?? 0) < 2).length;
+  $('#kiSub').textContent =
+    `${rows.length} kayit · ${kapanabilir} kapatma adayi · ${kararsiz} kararsiz · ${tekKosum} tek kosum`;
+
+  if (!rows.length) { $('#kiTable').innerHTML = '<tr><td class="mono">test.fail() ile isaretli case yok</td></tr>'; return; }
+
+  $('#kiTable').innerHTML =
+    '<tr><th>Dayanak</th><th>Case</th><th>Oran</th><th>Durum</th><th></th></tr>' +
+    rows.map(r => {
+      const st = r.stats;
+      // ONEMLI AYRIM: r.known = test.fail() ile "bu hata var" diye isaretli.
+      // r.known yoksa case yalnizca dayanaga ATIF yapiyor (aralikli bir hata
+      // test.fail almaz) — orada 0/N "kapatma adayi" DEMEK DEGIL,
+      // sadece "bu kosumlarda sorun gorulmedi" demek.
+      const [karar, cls] =
+        !st || !st.runs ? [st?.dropped ? 'olcum gecersiz' : 'kosulmadi', 'mut']
+        : st.runs < 2 ? ['tek kosum — yetersiz', 'mut']
+        : st.flaky ? ['kararsiz — araliklı', 'sk']
+        : st.failed === st.runs ? [r.known ? 'tekrarliyor' : 'her kosumda fail', 'no']
+        : [r.known ? 'kapatma adayi' : 'sorun gorulmedi', 'ok'];
+      return `<tr>
+        <td class="mono">${esc(r.issue || 'bilinen hata')}</td>
+        <td>${esc(r.title.replace(/\$\{[^}]+\}/g, '<rota>').slice(0, 68))}
+            <span class="mono" style="color:var(--mut);font-size:10px">${esc(r.file)}</span></td>
+        <td class="mono num">${st ? st.rate : '—'}</td>
+        <td><span class="st ${cls === 'ok' ? 'passed' : cls === 'no' ? 'failed' : cls === 'sk' ? 'skipped' : 'none'}">${karar}</span></td>
+        <td><button class="run rep" ${r.parametric ? 'disabled' : ''}
+              onclick="runCase('${esc(r.file)}', this.dataset.t, 5)" data-t="${esc(r.title)}">5&times; kos</button></td>
+      </tr>`;
+    }).join('');
+}
+
+function renderCaseStrip(total) {
+  // /api/specs DIZI donuyor (SPECS.specs degil) — her ogede `list` case dizisi var.
+  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
+  const all = specs.flatMap(sp => sp.list || []);
+  const c = { passed: 0, failed: 0, known: 0, skipped: 0, none: 0 };
+  for (const x of all) c[x.last?.status || 'none'] = (c[x.last?.status || 'none'] || 0) + 1;
+  const mut = all.filter(x => x.mutates).length;
+  $('#tcCases').textContent = total ?? all.length;
+  $('#caseStrip').innerHTML = [
+    ['SPEC', specs.length, 'mut'],
+    ['CASE', all.length, ''],
+    ['GECTI', c.passed, 'ok'],
+    ['BASARISIZ', c.failed, 'no'],
+    ['BILINEN HATA', c.known, 'no'],
+    ['KOSULMADI', c.none, 'mut'],
+    ['KARARSIZ', all.filter(x => x.stats?.flaky).length, 'sk'],
+    ['VERI DEGISTIREN', mut, 'sk'],
+  ].map(([k, v, cls]) => `<span class="cell"><span class="k">${k}</span><span class="v ${cls}">${v}</span></span>`).join('');
+}
+
+function renderJiraStrip(cards) {
+  const byStatus = {};
+  for (const c of cards) byStatus[c.status || '—'] = (byStatus[c.status || '—'] || 0) + 1;
+  const mine = cards.filter(c => (c.assignee || '').trim()).length;
+  const top = Object.entries(byStatus).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  $('#jiraStrip').innerHTML =
+    [['KART', cards.length, ''], ['ATANMIS', mine, 'ok'], ['ATANMAMIS', cards.length - mine, 'sk']]
+      .map(([k, v, cls]) => `<span class="cell"><span class="k">${k}</span><span class="v ${cls}">${v}</span></span>`).join('') +
+    top.map(([st, n]) => `<span class="cell"><span class="k">${esc(st).slice(0, 18)}</span><span class="v mut">${n}</span></span>`).join('');
+}
+
+// ---------------- senaryo onerici ----------------
+/**
+ * Kapinin elediklerini de gosteriyoruz: modelin neyi uydurmaya calistigi
+ * gorunur olmali. Kabul/red karari SUNUCUDA verilir, burada sadece sunulur.
+ */
+/** Hazir istekler: bos sayfa surtunmesini kaldirir, hepsi repodaki gercek duruma dayali. */
+// Profil kendi hazir istemlerini verir (m.project.scenarioPresets); asagidakiler
+// yalnizca profil vermediginde kullanilan proje-bagimsiz varsayilanlar.
+let SG_PRESETS = [
+  ['Zayıf spec\'ler', 'En az case içeren spec\'leri güçlendiren senaryolar öner.'],
+  ['Tasarım açıkları', 'Tasarımla canlı arasındaki farkları kapatan senaryolar öner.'],
+  ['Erişilebilirlik', 'Dokunma hedefi, erişilebilir ad ve odak sırası sorunlarını yakalayan senaryolar öner.'],
+  ['Üye akışı', 'Üye oturumundaki akışlar için senaryolar öner; yıkıcı olmayan, mutasyonu geri alan.'],
+  ['Bilinen hatalar', 'Bilinen hata kayıtlarını regresyon altına alan senaryolar öner.'],
+];
+
+function renderPresets() {
+  $('#sgPresets').innerHTML = SG_PRESETS
+    .map(([label], i) => `<button type="button" onclick="fillPreset(${i})">${esc(label)}</button>`).join('');
+}
+function fillPreset(i) {
+  $('#sgReq').value = SG_PRESETS[i][1];
+  $('#sgReq').focus();
+}
+
+async function loadScenarioContext() {
+  renderPresets();
+  try {
+    const d = await (await fetch('/api/scenarios/context')).json();
+    if (!d.ready) {
+      $('#sgCtx').innerHTML = '<span class="c">dayanak kaynağı yok — öneri kapalı</span>';
+      $('#sgBtn').disabled = true;
+      return;
+    }
+    if (!d.authReady) {
+      $('#sgBtn').disabled = true;
+      $('#sgBtn').title = 'API kimliği yok';
+      $('#sgBody').insertAdjacentHTML('afterbegin',
+        `<div class="sg-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+         <p>${esc(d.authHint || 'API kimliği yok.')}</p></div>`);
+    }
+    const kinds = {};
+    for (const o of d.oracleSources) kinds[o.kind] = (kinds[o.kind] || 0) + 1;
+    const label = { 'known-issue': 'bilinen hata', jira: 'Jira kartı', figma: 'Figma frame' };
+    $('#sgCtx').innerHTML =
+      `<span class="c"><b>${d.suites}</b> paket</span>` +
+      `<span class="c"><b>${d.existingCases}</b> mevcut senaryo</span>` +
+      `<span class="c"><b>${d.oracleSources.length}</b> dayanak kaynağı</span>` +
+      Object.entries(kinds).map(([k, v]) => `<span class="c"><b>${v}</b> ${esc(label[k] || k)}</span>`).join('');
+  } catch { $('#sgCtx').innerHTML = ''; }
+}
+
+async function suggestScenarios() {
+  const request = $('#sgReq').value.trim();
+  if (!request) { $('#sgState').textContent = 'istek metni gerekli'; return; }
+  const limit = Number($('#sgLimit').value);
+  $('#sgBtn').disabled = true;
+  $('#sgState').textContent = 'model düşünüyor…';
+  $('#sgOut').innerHTML = '';
+  try {
+    const d = await post('/api/scenarios/suggest', { request, limit });
+    if (d.error) {
+      $('#sgState').textContent = '';
+      const warn = d.code === 'NO_CREDENTIALS';
+      $('#sgOut').innerHTML = warn
+        ? `<div class="sg-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p>${esc(d.error)}</p></div>`
+        : `<p class="mono err">${esc(d.error)}</p>`;
+      return;
+    }
+    renderScenarios(d);
+    $('#sgState').textContent = d.stopReason === 'max_tokens' ? 'uyarı: yanıt max_tokens ile kesildi' : '';
+  } catch (e) {
+    $('#sgOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
+    $('#sgState').textContent = '';
+  } finally {
+    $('#sgBtn').disabled = false;
+  }
+}
+
+function renderScenarios(d) {
+  const a = d.audit || {};
+  const tally = [
+    `<span class="st passed">${a.accepted ?? 0} kabul</span>`,
+    (a.droppedNoOracle?.length ? `<span class="st known">${a.droppedNoOracle.length} dayanaksız</span>` : ''),
+    (a.rejectedByContext?.length ? `<span class="st failed">${a.rejectedByContext.length} bağlam dışı</span>` : ''),
+    (a.trimmedByLimit ? `<span class="st skipped">${a.trimmedByLimit} limit</span>` : ''),
+    `<span class="st none">${a.received ?? 0} modelden geldi</span>`,
+  ].filter(Boolean).join('');
+
+  const cards = (d.scenarios || []).map(s => `
+    <div class="sg-card">
+      <div class="hd">
+        <span class="cid">${esc(s.suiteId)} / ${esc(s.caseId)}</span>
+        <span class="ttl">${esc(s.title)}</span>
+        <span class="sg-oracle">${esc(s.oracleRef)}</span>
+      </div>
+      ${(s.tags || []).length ? `<div class="caserow flags" style="border:0;padding:0 0 4px">${s.tags.map(t => `<span class="b ok">${esc(t)}</span>`).join('')}</div>` : ''}
+      <ol>${(s.steps || []).map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+      ${s.rationale ? `<div class="rat">${esc(s.rationale)}</div>` : ''}
+    </div>`).join('');
+
+  const bad = [
+    ...(a.droppedNoOracle || []).map(x => ({ id: x.caseId, why: x.reason })),
+    ...(a.rejectedByContext || []).map(x => ({ id: x.caseId, why: (x.reasons || []).join(' · ') })),
+  ].map(x => `<div class="sg-bad"><span class="cid">${esc(x.id)}</span><div class="why">${esc(x.why)}</div></div>`).join('');
+
+  $('#sgOut').innerHTML =
+    `<div class="sg-tally">${tally}</div>` +
+    (cards || '<p class="mono">Kapıdan geçen senaryo yok.</p>') +
+    (bad ? `<h2 style="margin-top:14px">Kapıda elenenler</h2>${bad}` : '') +
+    (a.note ? `<p class="mono">${esc(a.note)}</p>` : '');
+}
+
+// Baglami kendi blogunda yukle: `load()` daha erken bir <script> blogunda kosuyor,
+// oradan cagirmak "not defined" veriyordu (bu blok henuz ayristirilmamis oluyor).
+syncHeadless();
+loadPreflight();
+setInterval(loadPreflight, 10 * 60 * 1000);
+loadGateStatus();
+setInterval(loadGateStatus, 5 * 60 * 1000);
+loadScenarioContext();
+// Varsayilan sekme artik Case'ler; sekme tiklamasi olmadigi icin ilk yuklemeyi
+// burada tetikliyoruz (yoksa serit ve sayac bos kaliyor).
+loadCases();
+
 </script>
 </body>
 </html>
