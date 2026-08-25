@@ -155,14 +155,8 @@ export function buildToolbar() {
   sitemapBtn.type = 'button';
   sitemapBtn.className = 'btn';
   sitemapBtn.innerHTML = ICON.globe + '<span>URL’den İçe Aktar</span>';
-  /* Crawler (crawler.py) henüz panele bağlanmadı — Faz 2. Butonu gizlemek
-   * yerine ne olduğunu SÖYLÜYORUZ: sessizce çalışmayan buton, hata veren
-   * butondan daha kötü. */
-  sitemapBtn.title = 'Henüz bağlı değil (Faz 2): tarayıcı crawler paneldeki koşum motoruna taşınacak';
-  sitemapBtn.onclick = () => alert(
-    'URL’den içe aktarma henüz bağlı değil.\n\n' +
-    'Tarayıcı tabanlı crawler panelin koşum motoruna taşınınca (Faz 2) burada çalışacak. ' +
-    'Şimdilik ağaç, proje profilindeki rota haritasından tohumlanıyor.');
+  sitemapBtn.title = 'Bir URL’i gezip kapsam ağacı çıkarır (robots.txt’e uyar, yıkıcı öğelere dokunmaz)';
+  sitemapBtn.onclick = openSitemapImportModal;
   left.appendChild(sitemapBtn);
 
   const clearBtn = document.createElement('button');

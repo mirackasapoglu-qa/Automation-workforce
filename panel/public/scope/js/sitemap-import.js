@@ -149,6 +149,22 @@ export function openSitemapImportModal() {
       + 'Yine de canlı sistemlerde beklenmedik yan etkiler doğurabilir — mümkünse test ortamında kullan; taramayı da yavaşlatır.';
     body.appendChild(interactHint);
 
+    const robotsWrap = document.createElement('label');
+    robotsWrap.className = 'sitemap-checkbox-row';
+    const robotsCheckbox = document.createElement('input');
+    robotsCheckbox.type = 'checkbox';
+    robotsWrap.appendChild(robotsCheckbox);
+    const robotsText = document.createElement('span');
+    robotsText.textContent = 'robots.txt kurallarını yoksay — yalnızca kendi projenin ortamında';
+    robotsWrap.appendChild(robotsText);
+    body.appendChild(robotsWrap);
+    const robotsHint = document.createElement('div');
+    robotsHint.className = 'sitemap-field-hint sitemap-login-hint';
+    robotsHint.textContent = 'Test/staging ortamları arama motorlarını dışarıda tutmak için genelde '
+      + '"Disallow: /" yazar; bu, ekibin kendi QA aracını yasaklamak anlamına gelmez. Bu seçenek YALNIZCA '
+      + 'hedef adres projenin kendi host\'u olduğunda uygulanır — yabancı bir sitede yoksayılır.';
+    body.appendChild(robotsHint);
+
     const startBtn = document.createElement('button');
     startBtn.type = 'button';
     startBtn.className = 'btn btn-primary sitemap-start-btn';
@@ -156,7 +172,7 @@ export function openSitemapImportModal() {
     startBtn.onclick = () => {
       const url = urlField.value.trim();
       if (!url) return;
-      startCrawl(url, depthInput.value, pagesInput.value, loginCheckbox.checked, interactCheckbox.checked);
+      startCrawl(url, depthInput.value, pagesInput.value, loginCheckbox.checked, interactCheckbox.checked, robotsCheckbox.checked);
     };
     body.appendChild(startBtn);
 
@@ -189,7 +205,7 @@ export function openSitemapImportModal() {
       if (jobId) {
         fetch('/api/crawl-cancel', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
           body: JSON.stringify({ jobId })
         });
       }
@@ -225,7 +241,7 @@ export function openSitemapImportModal() {
       body.appendChild(txt);
       fetch('/api/crawl-continue', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
         body: JSON.stringify({ jobId })
       });
     };
@@ -242,7 +258,7 @@ export function openSitemapImportModal() {
       if (jobId) {
         fetch('/api/crawl-cancel', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
           body: JSON.stringify({ jobId })
         });
       }
@@ -330,7 +346,7 @@ export function openSitemapImportModal() {
       .catch(() => { /* geçici ağ hatası — bir sonraki pollde tekrar denenir */ });
   }
 
-  function startCrawl(url, maxDepth, maxPages, requireLogin, interactWithUI) {
+  function startCrawl(url, maxDepth, maxPages, requireLogin, interactWithUI, ignoreRobots) {
     body.innerHTML = '';
     loginContinueRequested = false;
     const spin = document.createElement('div');
@@ -340,10 +356,10 @@ export function openSitemapImportModal() {
 
     fetch('/api/crawl', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
       body: JSON.stringify({
         url, maxDepth: Number(maxDepth), maxPages: Number(maxPages),
-        requireLogin: !!requireLogin, interactWithUI: !!interactWithUI
+        requireLogin: !!requireLogin, interactWithUI: !!interactWithUI, ignoreRobots: !!ignoreRobots
       })
     })
       .then(r => r.json())
@@ -353,7 +369,7 @@ export function openSitemapImportModal() {
         poll();
         pollTimer = setInterval(poll, 1200);
       })
-      .catch(() => renderError('Sunucuya ulaşılamadı (server.py çalışıyor mu?).'));
+      .catch(() => renderError('Panel sunucusuna ulaşılamadı.'));
   }
 
   renderForm();

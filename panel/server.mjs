@@ -68,6 +68,7 @@ import { analyze as analyzePerf } from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker } from "./connectors/index.mjs";
 import { readTree, writeTree, countNodes } from "./scope.mjs";
+import * as crawler from "./crawler.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
   readHistory,
@@ -697,6 +698,52 @@ const server = http.createServer(async (req, res) => {
       audit({ event: "scope-tree-save", nodes: info.nodes });
       return send(res, 200, { ok: true, ...info });
     }
+
+    /* ---------------- Tarama (URL → kapsam agaci) ----------------
+     * Playwright panelin baslangicinda YUKLENMEZ; crawler.mjs onu yalnizca
+     * tarama basladiginda dinamik import eder.
+     */
+    if (p === "/api/crawl" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      const target = String(body.url ?? "").trim();
+      if (!target) return send(res, 400, { ok: false, error: "url gerekli." });
+      const jobId = crawler.startCrawlJob({
+        url: target,
+        maxDepth: body.maxDepth,
+        maxPages: body.maxPages,
+        requireLogin: body.requireLogin,
+        interactWithUI: body.interactWithUI,
+        ignoreRobots: body.ignoreRobots,
+        // Kapi oturumu YALNIZCA projenin kendi host'una eklenir (crawler.mjs).
+        projectBaseUrl: BASE_URL,
+      });
+      audit({ event: "crawl-start", url: target, jobId, interact: Boolean(body.interactWithUI) });
+      broadcast("log", { stream: "out", line: `[tarama] basladi: ${target}` });
+      return send(res, 200, { ok: true, jobId });
+    }
+
+    if (p === "/api/crawl-status") {
+      const job = crawler.getJob(url.searchParams.get("jobId") ?? "");
+      if (!job) return send(res, 200, { ok: false, error: "Is bulunamadi." });
+      return send(res, 200, { ok: true, job });
+    }
+
+    if (p === "/api/crawl-continue" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      crawler.confirmLogin((await readBody(req)).jobId ?? "");
+      return send(res, 200, { ok: true });
+    }
+
+    if (p === "/api/crawl-cancel" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { jobId } = await readBody(req);
+      crawler.cancelJob(jobId ?? "");
+      audit({ event: "crawl-cancel", jobId });
+      return send(res, 200, { ok: true });
+    }
+
+    if (p === "/api/crawl-limits") return send(res, 200, crawler.limits());
 
     /* Tracker (kart) uclari — Jira'ya DEGIL, aktif tracker'a gider. */
     if (p === "/api/tracker/status") {
