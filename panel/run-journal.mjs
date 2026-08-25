@@ -60,8 +60,21 @@ export function finish(id, { code, durationMs, counts }) {
  * eski koşumların sonucu bilinmiyor ama en azından ne zaman koştukları
  * görünsün (aksi halde ekran boş açılırdı).
  */
-export function list(limit = 20) {
+export function list(limit = 20, aktifId = null) {
   let kayitlar = read();
+
+  /**
+   * ASILI KALAN KAYITLAR. Panel yeniden baslatilirsa (ya da kosum sureci
+   * oldurulurse) `finish` hic cagrilmaz ve kayit sonsuza kadar "kosuyor"
+   * gorunur. Genel bakis ekraninda bu, bitmis kosumlari canli gostererek
+   * yanlis bilgi verir. Aktif olmayan her "running" kayit KESILDI sayilir.
+   */
+  for (const k of kayitlar) {
+    if (k.status === "running" && k.id !== aktifId) {
+      k.status = "interrupted";
+      k.note = "panel yeniden baslatildi ya da kosum kesildi";
+    }
+  }
   if (!kayitlar.length) {
     try {
       for (const satir of fs.readFileSync(AUDIT, "utf8").split("\n")) {

@@ -2030,7 +2030,7 @@ ${testBlock}
     /** Genel bakis: kosum gecmisi (yeniden eskiye). */
     if (p === "/api/runs/history") {
       const n = Math.min(Math.max(Number(url.searchParams.get("limit")) || 12, 1), 50);
-      return send(res, 200, { runs: runJournal.list(n) });
+      return send(res, 200, { runs: runJournal.list(n, active?.journalId ?? null) });
     }
 
     // Parametreli kosumun uretecegi komutu ONCE gosterir (calistirmaz)

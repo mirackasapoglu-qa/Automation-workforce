@@ -564,27 +564,175 @@
   .caserow,.cards .c,.strip,.sg-card,.issue{animation:ncRowIn .32s both}
   @media (prefers-reduced-motion:reduce){.caserow,.cards .c,.strip,.sg-card,.issue{animation:none}}
 
+
+  /* =========================================================================
+     GENEL BAKIS — kullanicinin tasarimindan (Claude Design, "Akis" ekrani).
+     Uc sutun: sol nav · ortada ozet+gecmis+bulgular · sagda canli kosum.
+     ========================================================================= */
+
+  /* --- ust serit --- */
+  header{gap:14px;padding:14px 20px}
+  .hq-badge{width:32px;height:32px;border-radius:9px;display:inline-flex;align-items:center;
+    justify-content:center;font:600 12px var(--mono);letter-spacing:.04em;
+    background:var(--acc-dim);color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 32%,transparent)}
+  .crumb{display:inline-flex;align-items:center;gap:10px;font-size:15px}
+  .crumb-root{color:var(--mut);font-weight:500}
+  .crumb-sep{color:var(--line)}
+  .crumb-leaf{color:var(--fg);font-weight:500}
+  h1#panelTitle{font-size:15px;font-weight:500;margin:0}
+  h1#panelTitle::before{display:none}
+
+  .cmdbox{flex:1;max-width:720px;display:flex;align-items:center;gap:10px;margin:0 auto;
+    background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 14px;
+    color:var(--mut);transition:border-color var(--t)}
+  .cmdbox:focus-within{border-color:color-mix(in srgb,var(--acc) 55%,var(--line))}
+  .cmdbox svg{width:15px;height:15px;flex-shrink:0}
+  .cmdbox input{flex:1;border:0;background:none;outline:none;color:var(--fg);font:400 14px var(--sans);
+    padding:0;margin:0;width:auto}
+  .cmdbox input::placeholder{color:var(--mut)}
+  .cmdbox kbd{font:500 11px var(--mono);color:var(--mut);border:1px solid var(--line);
+    border-radius:5px;padding:2px 6px;background:var(--card2)}
+  #cmdMenu{position:absolute;top:56px;left:50%;transform:translateX(-50%);width:min(720px,90vw);
+    z-index:60;background:var(--card);border:1px solid var(--line);border-radius:11px;
+    box-shadow:var(--sh);padding:6px;max-height:340px;overflow:auto}
+  #cmdMenu .cmd-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer}
+  #cmdMenu .cmd-item:hover,#cmdMenu .cmd-item.on{background:var(--acc-dim)}
+  #cmdMenu .cmd-k{font:500 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--acc);min-width:34px}
+  #cmdMenu .cmd-s{color:var(--mut);font-size:12px;margin-left:auto}
+
+  /* --- sol menu: BUGUN listesi + alt eylem --- */
+  aside{display:flex;flex-direction:column}
+  .side-label{font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.12em;
+    color:var(--mut);margin:0 0 10px}
+  #todayWrap{margin:0 0 18px}
+  #todayList{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+  #todayList li{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--fg)}
+  #todayList .d{width:6px;height:6px;border-radius:50%;flex-shrink:0;border:1px solid var(--acc)}
+  #todayList .d.on{background:var(--acc)}
+  #todayList .m{color:var(--mut)}
+
+  /* --- genel bakis izgarasi --- */
+  #tab-overview{padding:0}
+  .ov-grid{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:0;min-height:calc(100vh - 120px)}
+  .ov-main{padding:26px 30px 40px}
+  /* ⚠️ Global `aside{...}` kurali (sol menu icin yazilmis) bu sutuna da
+     uyguluyordu: kart zemini + sag kenarlik + kendi padding'i. Sifirlaniyor. */
+  aside.ov-live{border:0;border-left:1px solid var(--line);background:transparent;
+    padding:26px 24px 24px;display:flex;flex-direction:column;overflow:visible}
+  @media (max-width:1200px){.ov-grid{grid-template-columns:1fr}.ov-live{border-left:0;border-top:1px solid var(--line)}}
+
+  /* --- KPI satiri --- */
+  .ov-kpis{display:flex;align-items:flex-start;gap:44px;margin:0 0 34px}
+  .ov-kpi{flex:0 0 auto}
+  .ov-kpi .n{font:300 42px/1 var(--sans);letter-spacing:-.02em;color:var(--fg);font-variant-numeric:tabular-nums}
+  .ov-kpi .n .of{color:var(--mut)}
+  .ov-kpi .n.no{color:var(--no)} .ov-kpi .n.sk{color:var(--sk)} .ov-kpi .n.ok{color:var(--ok)}
+  .ov-kpi .l{font-size:13px;color:var(--mut);margin-top:9px}
+  .ov-kpi .bar{height:2px;border-radius:2px;background:var(--line);margin-top:11px;overflow:hidden}
+  .ov-kpi .bar i{display:block;height:100%;background:var(--ok)}
+  .ov-kpi-act{margin-left:auto;display:flex;gap:10px;align-items:center;flex:0 0 auto;padding-top:6px}
+  .ov-kpi-act button{width:auto;margin:0;border-radius:9px;padding:9px 18px;font-weight:500}
+  .ov-kpi-act .primary{border-color:var(--acc);color:var(--acc);background:transparent}
+
+  /* --- bolum basliklari --- */
+  .ov-sec{display:flex;align-items:baseline;gap:12px;margin:0 0 12px}
+  .ov-sec-t{font:600 10px/1 var(--mono);text-transform:uppercase;letter-spacing:.12em;color:var(--mut)}
+  .ov-sec-m{margin-left:auto;font-size:12px;color:var(--mut)}
+
+  /* --- kosum gecmisi --- */
+  .ov-row{display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:10px;
+    border-bottom:1px solid var(--line);font-size:14px}
+  .ov-row:last-child{border-bottom:0}
+  .ov-row .d{width:8px;height:8px;border-radius:50%;flex-shrink:0;background:var(--mut)}
+  .ov-row .d.ok{background:var(--ok)} .ov-row .d.no{background:var(--no)}
+  .ov-row .d.sk{background:var(--sk)} .ov-row .d.run{background:var(--acc)}
+  .ov-row .nm{font-weight:500;color:var(--fg)}
+  .ov-row .mt{color:var(--mut);font-size:13px}
+  .ov-row .rs{margin-left:auto;font-size:13px}
+  .ov-row .rs.ok{color:var(--ok)} .ov-row .rs.no{color:var(--no)} .ov-row .rs.sk{color:var(--sk)}
+  .ov-row .tm{color:var(--mut);font-size:13px;min-width:74px;text-align:right}
+  .ov-row.live{background:var(--card);border-bottom:0;border:1px solid var(--line)}
+  .ov-row .prog{flex:1;max-width:280px;height:3px;border-radius:3px;background:var(--card2);overflow:hidden}
+  .ov-row .prog i{display:block;height:100%;background:var(--acc)}
+  .ov-row .stop{color:var(--fg);background:none;border:0;width:auto;margin:0;padding:0 0 0 6px;font-size:13px}
+
+  /* --- acik bulgu cipleri --- */
+  .ov-chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px}
+  .ov-chip{border:1px solid var(--line);border-radius:9px;padding:9px 14px;font-size:13px;color:var(--fg);
+    background:transparent;width:auto;margin:0;text-align:left}
+  .ov-chip .m{color:var(--mut)}
+  .ov-chip.hot{border-color:color-mix(in srgb,var(--no) 45%,var(--line));background:var(--no-dim)}
+
+  /* --- sag sutun: canli kosum --- */
+  .ov-live-h{display:flex;align-items:center;gap:9px;font:600 10px/1 var(--mono);text-transform:uppercase;
+    letter-spacing:.12em;color:var(--mut);margin-bottom:18px}
+  .ov-spin{display:inline-block;font-size:13px}
+  .ov-spin.on{animation:ovSpin 1.4s linear infinite}
+  @keyframes ovSpin{to{transform:rotate(360deg)}}
+  .ov-live-log{font:400 13px/2.05 var(--mono);color:var(--mut);flex:1;overflow:auto;max-height:52vh}
+  .ov-live-log .ln{display:flex;gap:9px}
+  .ov-live-log .ok{color:var(--ok)}
+  .ov-live-log .cur{color:var(--acc)}
+  .ov-live-log .dim{opacity:.5}
+  .ov-live-log .t{margin-left:auto;color:var(--mut);opacity:.75}
+  .ov-live-foot{margin-top:auto;padding-top:22px;border-top:1px solid var(--line)}
+  .ov-live-foot p{margin:0;font-size:13px;line-height:1.75;color:var(--mut)}
+  .ov-live-foot p b{color:var(--fg);font-weight:500}
+
+
+  /* --- sol menu alt eylemi (tasarim: en altta birincil buton) --- */
+  .side-foot{margin-top:auto;padding-top:18px}
+  #startRunBtn{width:100%;border-radius:11px;padding:13px 16px;font-size:14px;font-weight:500;
+    border:1px solid var(--line);background:transparent;color:var(--fg);text-align:center;margin:0}
+  #startRunBtn:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
+
+  /* Kosum listesi artik kendi sekmesinde; orada tam genislik. */
+  #tab-runs{padding:26px 30px 40px;max-width:760px}
+  #tab-runs h2:first-child{margin-top:0}
+
+
+  /* --- nav ikonlari + tam yukseklik --- */
+  /* Grid SATIRI icerik yuksekliginde kaliyordu: kapsayici uzasa da ogeler
+     satira gore esniyor. Satiri 1fr yapinca yan panel ve canli sutun tam
+     yuksekligi aliyor (tasarimda ikisi de asagiya kadar iniyor). */
+  main{min-height:calc(100vh - 62px);grid-template-rows:minmax(0,1fr)}
+  /* Yan panel `align-self:start` ile sabitlenmisti; tasarimda asagiya kadar
+     iniyor ve "Kosum baslat" en altta duruyor. */
+  main > aside{align-self:stretch}
+  aside .tabs button{gap:11px}
+  .nav-ic{display:inline-flex;width:16px;height:16px;flex-shrink:0;opacity:.75}
+  .nav-ic svg{width:100%;height:100%}
+  aside .tabs button[aria-selected=true] .nav-ic{opacity:1;color:var(--acc)}
+
 </style>
 </head>
 <body>
 <header>
-  <h1 id="panelTitle">QA Paneli</h1>
-  <span class="pill" id="envPill" role="status" aria-atomic="true">yukleniyor...</span>
-  <span class="pill" id="orderPill" role="status" aria-atomic="true"></span>
-  <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
+  <!-- Tasarim: HQ rozeti + kirilim · ortada komut kutusu · sagda durum -->
+  <span class="hq-badge" aria-hidden="true">HQ</span>
+  <span class="crumb"><span class="crumb-root" id="panelTitle">QA Paneli</span><span class="crumb-sep">/</span><span class="crumb-leaf" id="crumbLeaf">Genel bakis</span></span>
+
+  <label class="cmdbox" title="Komut: kosum adi yaz ve Enter">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="cmdInput" placeholder="kos, ac, bug... her sey buradan" autocomplete="off">
+    <kbd>&#8984;K</kbd>
+  </label>
+  <div id="cmdMenu" hidden></div>
+
   <span class="spacer"></span>
-  <!-- Kapsam agaci: panelin ikinci yuzu. Ayni govde, ayni veri katmani;
-       "neyi test etmeliyiz" tarafi burada, "kosum/kanit" tarafi panelde. -->
+  <!-- Tasarimda sagda yalnizca uc sey var: kapi suresi · baglanti orani · ortam.
+       Uzun ortam URL'i ve siparis pill'i komut kutusunu eziyordu; ikisi de
+       baslikta degil, connectors panelinde ve tooltip'te duruyor. -->
+  <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
+  <span class="pill" id="orderPill" role="status" aria-atomic="true" hidden></span>
   <a id="scopeLink" href="/scope" title="Kapsam agaci — urun hiyerarsisi, durum ve test case'ler">kapsam</a>
-  <!-- Baglantilar: kimlik, kota ve cozum adimlari tek yerde.
-       Panel dugmenin ICINDEKI sarmalayicida duruyor — dropdown dugmeye
-       hizalanmali, ust seride degil. -->
   <span id="cxWrap">
     <button id="cxBtn" type="button" onclick="pfPanelToggle()"
             title="Bağlantılar — kimlik, kota ve çözüm adımları"><span class="cx-badge"></span>connectors</button>
     <div id="cxPanel" hidden></div>
   </span>
   <button id="gatePill" class="unknown" type="button" onclick="refreshGate()" title="Tiklayinca kapi oturumunu yeniler">kapi: —</button>
+  <span class="pill" id="envPill" role="status" aria-atomic="true" title="Aktif ortam">—</span>
   <button id="themeBtn" type="button" title="Tema degistir" aria-label="Tema degistir"></button>
 </header>
 
@@ -593,15 +741,53 @@
   <aside>
     <!-- Tasarim: sekmeler sol menude, dikey nav olarak. -->
     <div class="tabs" role="tablist" aria-label="Panel bolumleri">
-      <button data-tab="cases" aria-selected="true" role="tab" type="button">Case'ler<span class="tc" id="tcCases">–</span></button>
-      <button data-tab="jira" aria-selected="false" role="tab" type="button">Jira<span class="tc" id="tcJira">–</span></button>
-      <button data-tab="perf" aria-selected="false" role="tab" type="button">Perf<span class="tc" id="tcPerf">–</span></button>
-      <button data-tab="site" aria-selected="false" role="tab" type="button">Site (canli)</button>
-      <button data-tab="log" aria-selected="false" role="tab" type="button">Canli log</button>
-      <button data-tab="results" aria-selected="false" role="tab" type="button">Son sonuclar</button>
-      <button data-tab="verdict" aria-selected="false" role="tab" type="button">Verdict</button>
-      <button data-tab="diff" aria-selected="false" role="tab" type="button">Tasarim diff</button>
+      <button data-tab="overview" aria-selected="true" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Genel bakis</button>
+      <button data-tab="runs" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 4l14 8-14 8V4z"/></svg></span>Kosumlar<span class="tc" id="tcRuns">–</span></button>
+      <button data-tab="cases" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></span>Sonuclar<span class="tc" id="tcCases">–</span></button>
+      <button data-tab="jira" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg></span>Jira<span class="tc" id="tcJira">–</span></button>
+      <button data-tab="perf" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V10M6 20v-5M18 20V5"/></svg></span>Perf<span class="tc" id="tcPerf">–</span></button>
+      <button data-tab="site" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg></span>Site (canli)</button>
+      <button data-tab="log" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg></span>Canli log</button>
+      <button data-tab="results" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 13l4 4L19 7"/></svg></span>Son sonuclar</button>
+      <button data-tab="verdict" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 8l7-5 7 5"/><path d="M3 12l4-4 4 4a4 4 0 0 1-8 0zM13 12l4-4 4 4a4 4 0 0 1-8 0z"/></svg></span>Verdict</button>
+      <button data-tab="diff" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/></svg></span>Tasarim diff</button>
     </div>
+    <!-- Tasarim: nav'in altinda "BUGUN" is listesi, en altta birincil eylem. -->
+    <div id="todayWrap">
+      <div class="side-label">Bugun</div>
+      <ul id="todayList"></ul>
+    </div>
+    <div class="side-foot">
+      <button id="startRunBtn" type="button" onclick="document.querySelector('.tabs button[data-tab=runs]').click()">&#9655;&nbsp; Kosum baslat</button>
+    </div>
+  </aside>
+
+  <section>
+
+    <div id="tab-overview">
+      <div class="ov-grid">
+        <div class="ov-main">
+          <div class="ov-kpis" id="ovKpis"></div>
+          <div class="ov-sec">
+            <span class="ov-sec-t">Kosum gecmisi</span>
+            <span class="ov-sec-m" id="ovHistMeta">filtre: tumu · son 7 gun</span>
+          </div>
+          <div id="ovHistory"></div>
+          <div class="ov-sec"><span class="ov-sec-t">Acik bulgular</span></div>
+          <div id="ovFindings" class="ov-chips"></div>
+        </div>
+        <aside class="ov-live">
+          <div class="ov-live-h"><span class="ov-spin" id="ovSpin">&#8635;</span><span id="ovLiveTitle">Canli kosum</span></div>
+          <div id="ovLiveLog" class="ov-live-log"></div>
+          <div class="ov-live-foot">
+            <div class="side-label">Kosum bitince</div>
+            <p>Basarisiz case varsa buradan tek tikla <b>bug karti</b> acilir — kanit ekran goruntuleri otomatik eklenir.</p>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <div id="tab-runs" hidden>
     <h2>Kosumlar</h2>
     <label id="hlWrap" title="Headed kosum TEST BASINA bir tarayici penceresi acar. Bu anahtar --headed'i kaldirir.">
       <input type="checkbox" id="hlChk" onchange="toggleHeadless()">
@@ -633,9 +819,7 @@
       <summary>Bilinen hatalar<span class="cnt" id="issuesCnt"></span></summary>
       <div class="body" id="issues"></div>
     </details>
-  </aside>
-
-  <section>
+    </div>
 
     <div id="tab-site" hidden>
       <details id="recWrap">
@@ -800,7 +984,7 @@
       <div class="scroll"><table id="perfEndpoints"></table></div>
     </div>
 
-    <div id="tab-cases">
+    <div id="tab-cases" hidden>
       <div class="strip" id="caseStrip"></div>
       <details id="sgWrap" open>
         <summary>
@@ -1099,6 +1283,10 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.tab === 'jira') loadCards();
   if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'perf') loadPerf();
+  if (b.dataset.tab === 'overview') renderOverview();
+  // Kirilim ust seritte sekmeyi yansitir: "<proje> / <sekme>".
+  const leaf = $('#crumbLeaf');
+  if (leaf) leaf.textContent = b.textContent.replace(/\s*\d+\s*$/, '').trim();
   if (b.dataset.tab === 'jira') loadBugForm();
   if (b.dataset.tab === 'site') loadRecordings();
   if (b.dataset.tab === 'diff') loadOfflineFrames();
@@ -1119,6 +1307,10 @@ async function load() {
     SG_PRESETS = m.project.scenarioPresets;
     if ($('#sgPresets')) renderPresets();
   }
+  // Sekme sayaclari (tasarim: nav'da sagda sayi durur).
+  const tr = $('#tcRuns'); if (tr) tr.textContent = (m.runs || []).length;
+  // Kirilim kokunu proje adiyla yaz; genel bakis acikta ise doldur.
+  renderOverview();
   // Dayanak oneki profilden gelir; arama ve verdict ipuclarina yazilir.
   // load() burada patlarsa panelin TAMAMI bos kalir — bu yuzden null-guard.
   const pfx = m.project?.issuePrefixes?.[0];
@@ -1127,7 +1319,9 @@ async function load() {
     if (q) q.placeholder = `Case ara (baslik, spec, ${pfx}-00X)`;
     if (v) v.placeholder = `Kayit anahtari (orn. ${pfx}-001 veya 06-sepet)`;
   }
-  $('#envPill').textContent = `ortam: ${m.env} - ${m.baseURL}`;
+  // Tasarim: sag ustte yalnizca ortam ADI. Tam URL tooltip'te kalir.
+  $('#envPill').textContent = m.env;
+  $('#envPill').title = `${m.env} — ${m.baseURL}`;
   $('#orderPill').textContent = `siparis tamamlama: ${m.ordersAllowed ? 'ACIK' : 'kapali'}`;
   // renk tek basina bilgi tasimaz — metin de degisiyor (ACIK/kapali)
   $('#orderPill').className = 'pill ' + (m.ordersAllowed ? 'warn' : '');
@@ -1213,14 +1407,26 @@ es.addEventListener('run-start', e => {
   $('#activePill').className = 'pill good';
   appendLog(`=== ${d.label} basladi ===`);
   if (d.argv) appendLog(`$ ${d.argv}`);
+  // Genel bakis: sag sutun basligi ve donen ikon
+  OV.live = [];
+  const t = $('#ovLiveTitle'); if (t) t.textContent = `Canli kosum · ${d.label}`;
+  $('#ovSpin')?.classList.add('on');
+  renderOverviewHistory();
 });
-es.addEventListener('log', e => { const d = JSON.parse(e.data); appendLog(d.line, d.stream === 'err'); });
+es.addEventListener('log', e => {
+  const d = JSON.parse(e.data);
+  appendLog(d.line, d.stream === 'err');
+  ovPushLog(d.line);
+});
 es.addEventListener('run-end', e => {
   const d = JSON.parse(e.data);
   $('#activePill').textContent = '';
   $('#activePill').className = 'pill';
   appendLog(`=== bitti (cikis kodu ${d.code}, ${(d.durationMs/1000).toFixed(0)} sn) ===`, d.code !== 0);
   loadResults();
+  $('#ovSpin')?.classList.remove('on');
+  const t2 = $('#ovLiveTitle'); if (t2) t2.textContent = 'Canli kosum';
+  renderOverview();
 });
 
 const badge = (r) => r.status === 'passed' ? '<span class="b ok">GECTI</span>'
@@ -2485,6 +2691,195 @@ function renderKnownIssues() {
               onclick="runCase('${esc(r.file)}', this.dataset.t, 5)" data-t="${esc(r.title)}">5&times; kos</button></td>
       </tr>`;
     }).join('');
+}
+
+
+
+// ---------------- komut kutusu (⌘K) ----------------
+/**
+ * Tasarimdaki "kos, ac, bug... her sey buradan" kutusu.
+ *
+ * Kapsam bilincli olarak dar: whitelist'teki KOSUMLARI ve SEKMELERI arar.
+ * Model cagrisi ya da serbest komut YOK — panelin kosum guvenligi whitelist'e
+ * dayaniyor, komut kutusu o siniri delmemeli.
+ */
+const CMD = { items: [], sec: 0 };
+
+function cmdBuild(q) {
+  const t = q.trim().toLowerCase();
+  const out = [];
+  for (const r of (META?.runs || [])) {
+    if (!t || r.label.toLowerCase().includes(t) || r.id.toLowerCase().includes(t))
+      out.push({ k: 'kos', ad: r.label, ip: r.id, yap: () => startRun(r.id) });
+  }
+  for (const b of document.querySelectorAll('.tabs button')) {
+    const ad = b.textContent.replace(/\s*\d+\s*$/, '').trim();
+    if (!t || ad.toLowerCase().includes(t)) out.push({ k: 'ac', ad, ip: '', yap: () => b.click() });
+  }
+  return out.slice(0, 8);
+}
+
+function cmdRender() {
+  const el = $('#cmdMenu');
+  if (!CMD.items.length) { el.hidden = true; return; }
+  el.innerHTML = CMD.items.map((i, n) =>
+    `<div class="cmd-item ${n === CMD.sec ? 'on' : ''}" data-n="${n}">
+       <span class="cmd-k">${i.k}</span><span>${esc(i.ad)}</span><span class="cmd-s">${esc(i.ip)}</span></div>`).join('');
+  el.hidden = false;
+  el.querySelectorAll('.cmd-item').forEach(d => d.onclick = () => cmdSec(Number(d.dataset.n)));
+}
+
+function cmdSec(n) {
+  const i = CMD.items[n];
+  if (!i) return;
+  $('#cmdMenu').hidden = true;
+  $('#cmdInput').value = '';
+  i.yap();
+}
+
+(function wireCmd() {
+  const inp = $('#cmdInput');
+  if (!inp) return;
+  const yenile = () => { CMD.items = cmdBuild(inp.value); CMD.sec = 0; cmdRender(); };
+  inp.addEventListener('input', yenile);
+  inp.addEventListener('focus', yenile);
+  inp.addEventListener('blur', () => setTimeout(() => { $('#cmdMenu').hidden = true; }, 150));
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { CMD.sec = Math.min(CMD.sec + 1, CMD.items.length - 1); cmdRender(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { CMD.sec = Math.max(CMD.sec - 1, 0); cmdRender(); e.preventDefault(); }
+    else if (e.key === 'Enter') { cmdSec(CMD.sec); e.preventDefault(); }
+    else if (e.key === 'Escape') { $('#cmdMenu').hidden = true; inp.blur(); }
+  });
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); inp.focus(); inp.select(); }
+  });
+})();
+
+// ---------------- genel bakis ----------------
+/**
+ * Tasarimdaki "Akis" ekrani. Sayilarin HEPSI gercek veriden gelir:
+ * KPI'lar /api/specs + bilinen hatalar, gecmis /api/runs/history, bulgular
+ * tests/known-issues.ts, canli kosum SSE. Tasarimda gorunen ornek degerler
+ * (72/77 vb.) mock DEGIL — ayni alanlar bu kaynaklardan doldurulur.
+ */
+const OV = { live: [], liveTitle: null };
+
+function ovNum(n, cls, label, barPct) {
+  return `<div class="ov-kpi"><div class="n ${cls || ''}">${n}</div><div class="l">${esc(label)}</div>` +
+    (barPct == null ? '' : `<div class="bar"><i style="width:${Math.max(0, Math.min(100, barPct))}%"></i></div>`) + `</div>`;
+}
+
+function renderOverviewKpis() {
+  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
+  const all = specs.flatMap(sp => sp.list || []);
+  const c = { passed: 0, failed: 0, known: 0, skipped: 0, none: 0 };
+  for (const x of all) c[x.last?.status || 'none'] = (c[x.last?.status || 'none'] || 0) + 1;
+  const flaky = all.filter(x => x.stats?.flaky).length;
+  const kosan = all.length - c.none;
+  const pct = kosan ? Math.round((c.passed / kosan) * 100) : 0;
+  const bulgu = (META?.knownIssues || []).length;
+
+  $('#ovKpis').innerHTML =
+    ovNum(`${c.passed}<span class="of">/${kosan || all.length}</span>`, '', 'son kosum gecti', pct) +
+    ovNum(c.failed, 'no', 'gercek basarisiz') +
+    ovNum(c.known, '', 'bilinen hata') +
+    ovNum(flaky, 'sk', 'kararsiz') +
+    ovNum(bulgu, '', 'acik bulgu') +
+    `<div class="ov-kpi-act">
+       <button class="primary" onclick="startRun('guest-all')">Misafir seti</button>
+       <button onclick="startRun('member-all')">Uye seti</button>
+     </div>`;
+}
+
+const ovWhen = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso), fark = (Date.now() - d) / 86400000;
+  const saat = d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+  if (fark < 1 && d.getDate() === new Date().getDate()) return saat;
+  if (fark < 2) return `dun ${saat}`;
+  return d.toLocaleDateString('tr-TR', { day: '2-digit', month: 'short' });
+};
+
+async function renderOverviewHistory() {
+  let runs = [];
+  try { runs = (await (await fetch('/api/runs/history?limit=8')).json()).runs || []; } catch { /* ag hatasi: bos liste */ }
+  const el = $('#ovHistory');
+  if (!runs.length) { el.innerHTML = `<div class="ov-row"><span class="mt">Henuz kosum kaydi yok.</span></div>`; return; }
+
+  el.innerHTML = runs.map(r => {
+    const canli = r.status === 'running';
+    const cnt = r.counts;
+    // Sonuc metni: gecen/kalan. Kayit geri doldurulmussa sonuc bilinmiyor —
+    // uydurmak yerine acikca soyluyoruz.
+    let sonuc = '', scls = '';
+    if (canli) sonuc = '';
+    else if (cnt) {
+      scls = cnt.failed ? 'no' : 'ok';
+      sonuc = cnt.failed ? `${cnt.passed} gecti · ${cnt.failed} kaldi` : `${cnt.passed} gecti`;
+    } else { sonuc = 'sonuc kaydedilmemis'; scls = ''; }
+    const dcls = canli ? 'run' : cnt ? (cnt.failed ? 'no' : 'ok') : '';
+    return `<div class="ov-row ${canli ? 'live' : ''}">
+      <span class="d ${dcls}"></span>
+      <span class="nm">${esc(r.label || r.runId)}</span>
+      <span class="mt">${canli ? 'kosuyor' : ''}</span>
+      ${canli ? '<span class="prog"><i style="width:45%"></i></span>' : ''}
+      <span class="rs ${scls}">${esc(sonuc)}</span>
+      <span class="tm">${esc(ovWhen(r.startedAt))}</span>
+      ${canli ? '<button class="stop" onclick="stopRun()">durdur</button>' : ''}
+    </div>`;
+  }).join('');
+}
+
+function renderOverviewFindings() {
+  const list = META?.knownIssues || [];
+  $('#ovFindings').innerHTML = list.length
+    ? list.map((k, i) => `<button class="ov-chip ${i === 0 ? 'hot' : ''}" title="${esc(k.detail || '')}"
+        onclick="document.querySelector('.tabs button[data-tab=cases]').click()">${esc(k.id)} <span class="m">· ${esc((k.where || '').slice(0, 34))}</span></button>`).join('')
+    : `<span class="mt">Acik bulgu yok.</span>`;
+}
+
+/** Sol menudeki "BUGUN" listesi — gercek durumdan turer, sabit metin degil. */
+function renderToday(gate) {
+  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
+  const all = specs.flatMap(sp => sp.list || []);
+  const flaky = all.filter(x => x.stats?.flaky).length;
+  const ilk = (META?.knownIssues || [])[0];
+  const isler = [];
+  if (gate && gate.hoursLeft != null) {
+    const acil = gate.hoursLeft < 4;
+    isler.push({ on: acil, t: 'Kapiyi yenile', m: `${gate.hoursLeft.toFixed(1)}sa` });
+  }
+  if (ilk) isler.push({ on: false, t: `${ilk.id} dogrula`, m: '' });
+  if (flaky) isler.push({ on: false, t: `${flaky} kararsizi ayristir`, m: '' });
+  $('#todayList').innerHTML = isler.map(i =>
+    `<li><span class="d ${i.on ? 'on' : ''}"></span><span>${esc(i.t)}</span>${i.m ? `<span class="m">· ${esc(i.m)}</span>` : ''}</li>`).join('');
+}
+
+/** Sag sutun: SSE'den gelen satirlar. Playwright'in ✓/✗ isaretlerini renklendirir. */
+function ovPushLog(line) {
+  OV.live.push(line);
+  if (OV.live.length > 400) OV.live.shift();
+  const el = $('#ovLiveLog');
+  if (!el) return;
+  el.innerHTML = OV.live.slice(-40).map(l => {
+    const ok = /^\s*[✓√]|passed/i.test(l);
+    const cur = /kosuyor|running|›|▸/i.test(l);
+    const cls = ok ? 'ok' : cur ? 'cur' : 'dim';
+    return `<div class="ln"><span class="${cls}">${esc(l.slice(0, 90))}</span></div>`;
+  }).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+async function renderOverview() {
+  if ($('#tab-overview').hidden) return;
+  // Varsayilan sekme artik burasi; case listesi henuz cekilmemis olabilir.
+  if (!(Array.isArray(SPECS) ? SPECS.length : SPECS?.specs?.length)) {
+    try { SPECS = await (await fetch('/api/specs')).json(); } catch { /* ag hatasi */ }
+  }
+  renderOverviewKpis();
+  renderOverviewFindings();
+  await renderOverviewHistory();
+  try { renderToday(await (await fetch('/api/gate/status')).json()); } catch { /* kapi okunamadi */ }
 }
 
 function renderCaseStrip(total) {
