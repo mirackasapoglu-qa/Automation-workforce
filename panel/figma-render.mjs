@@ -9,6 +9,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { figmaForRoute, FIGMA_FILE, FIGMA_ROUTES } from "./figma-map.mjs";
+import { noteResponse } from "./figma-quota.mjs";
 
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
 
@@ -46,10 +47,9 @@ async function fetchTree(nodeId) {
   const t = token();
   if (!t) throw new Error("~/.figma-credentials yok");
   // SIG sorgu: frame id/ad/boyut icin yeterli, tam agactan cok daha ucuz
-  const res = await fetch(
-    `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(nodeId)}&depth=2`,
-    { headers: { "X-Figma-Token": t } },
-  );
+  const url = `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(nodeId)}&depth=2`;
+  const res = await fetch(url, { headers: { "X-Figma-Token": t } });
+  noteResponse(url, res, `figma-render ${nodeId}`);
   if (res.status === 429) {
     const ra = res.headers.get("retry-after");
     throw new Error(
@@ -108,11 +108,16 @@ export async function renderForRoute(routePath) {
     };
   }
 
-  let frame;
-  try {
-    frame = await resolveFrame(map.node, map.frame);
-  } catch (e) {
-    return { error: `${map.page}: ${e.message}`, map };
+  // frameId haritada varsa agac cagrisi YAPMA (429 riski + MCP kotasi ayda 6)
+  let frame = map.frameId
+    ? { id: map.frameId, name: map.frame ?? map.page, w: map.w ?? 0, h: map.h ?? 0 }
+    : null;
+  if (!frame) {
+    try {
+      frame = await resolveFrame(map.node, map.frame);
+    } catch (e) {
+      return { error: `${map.page}: ${e.message}`, map };
+    }
   }
   if (!frame) return { error: `${map.page}: CANVAS altinda FRAME bulunamadi`, map };
 
@@ -123,10 +128,10 @@ export async function renderForRoute(routePath) {
 
   const t = token();
   if (!t) return { error: "~/.figma-credentials yok", map };
-  const res = await fetch(
-    `https://api.figma.com/v1/images/${FIGMA_FILE}?ids=${encodeURIComponent(frame.id)}&format=png&scale=1`,
-    { headers: { "X-Figma-Token": t } },
-  );
+  const imgUrl = `https://api.figma.com/v1/images/${FIGMA_FILE}` +
+    `?ids=${encodeURIComponent(frame.id)}&format=png&scale=1`;
+  const res = await fetch(imgUrl, { headers: { "X-Figma-Token": t } });
+  noteResponse(imgUrl, res, `figma-render ${frame.id}`);
   if (!res.ok) return { error: `Figma images ${res.status}`, map };
   const url = Object.values((await res.json()).images ?? {})[0];
   if (!url) return { error: "render URL alinamadi", map };
@@ -142,9 +147,11 @@ export function cachedRoutes() {
   const has = (prefix, id) => files.includes(`${prefix}_${FIGMA_FILE}_${id.replace(":", "_")}.json`) ||
                               files.includes(`${prefix}_${FIGMA_FILE}_${id.replace(":", "_")}.png`);
   return FIGMA_ROUTES.map((r) => {
-    const tree = has("filetree", r.node) || has("shallow", r.node);
+    const tree = has("filetree", r.node) || has("shallow", r.node) || Boolean(r.frameId);
     let render = false;
-    if (tree) {
+    if (r.frameId) {
+      render = has("render", r.frameId);
+    } else if (tree) {
       try {
         const fr = resolveFrameSync(r.node, r.frame);
         render = fr ? has("render", fr.id) : false;

@@ -20,9 +20,11 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { chromium } from "@playwright/test";
-import dotenv from "dotenv";
+import { loadEnv } from "../env.mjs";
+import { noteResponse } from "../panel/figma-quota.mjs";
+import { PROJECT } from "../panel/project.mjs";
 
-dotenv.config();
+loadEnv();
 
 // ----------------------------------------------------------------- ayarlar
 const arg = (name, fallback) => {
@@ -54,7 +56,13 @@ const TOKEN = figmaToken();
  * tekrar çekmesin diye disk önbelleği zorunlu. `--refresh` ile atlanır.
  */
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
-const CACHE_TTL_MS = Number(process.env.FIGMA_CACHE_TTL_MS ?? 7 * 24 * 60 * 60 * 1000);
+/**
+ * ⚠️ TTL KASITLI OLARAK 1 YIL. Eskiden 7 gundu ve bu bir tuzak: Figma kotasi
+ * kapaliyken (REST veri hacmi limiti / MCP View seat'te ayda 6 cagri) bayatlayan
+ * onbellek yeniden cekilemiyor ve diff KOMPLE calismaz hale geliyor. Diskteki
+ * agaclar tek varligimiz — tasarim degisirse onbellegi elle sil, sureyle degil.
+ */
+const CACHE_TTL_MS = Number(process.env.FIGMA_CACHE_TTL_MS ?? 365 * 24 * 60 * 60 * 1000);
 const REFRESH = process.argv.includes("--refresh");
 fs.mkdirSync(CACHE_DIR, { recursive: true });
 
@@ -83,6 +91,8 @@ async function figma(pathAndQuery, cacheKey) {
   const res = await fetch(`https://api.figma.com${pathAndQuery}`, {
     headers: { "X-Figma-Token": TOKEN },
   });
+  // Kova durumunu not et — panel preflight'i yoklama yapmadan buradan okuyor.
+  noteResponse(pathAndQuery, res, `figma-diff ${NODE_ID}`);
   if (res.status === 429) {
     const retry = res.headers.get("retry-after");
     throw new Error(
@@ -194,53 +204,84 @@ function findNode(node, id, depth = 0) {
 }
 
 /**
- * ⚠️ FIGMA MALİYET TABANLI RATE LIMIT — çekim stratejisi buna göre kurulu:
- *  - `/v1/files/:key/nodes` tam ağaç için 429 veriyor, retry-after GÜNLER sürüyor
- *  - `/v1/files/:key?ids=<canvas>` tam ağacı verir ama PAHALI: sayfadaki TÜM frame'leri
- *    getirir (Main Page = 7,2 MB, 17 frame). Bütçeyi bu tüketti.
- *  - Doğrusu iki adım: (a) `?ids=<canvas>&depth=2` ile SIĞ sorgu → frame id'leri öğren,
- *    (b) `?ids=<frameId>` ile yalnızca hedef frame'in ağacını çek.
- * İkisi de 7 gün disk önbelleğinde tutulur.
+ * ⚠️ FIGMA RATE LIMIT = İSTEK SAYISI, PAYLOAD DEĞİL (2026-08-24'te doğrulandı).
+ *
+ * Kullandığımız üç uç (`GET /v1/files`, `/v1/files/:key/nodes`, `/v1/images`) hepsi
+ * **Tier 1** ve limit koltuk tipine bağlı: View/Collab **6/AY**, Dev/Full **10-20/dk**.
+ * 7,2 MB'lık çağrı da 33 KB'lık çağrı da **1 istek** sayılıyor.
+ *
+ * Bu yüzden eski "sığ sorgu ucuz, iki adımda git" doktrini YANLIŞTI: 1 istek yerine
+ * 2 harcıyordu. Doğru strateji istek sayısını düşürmek:
+ *  1. `frameId` profilde varsa hiç çözme — doğrudan frame ağacını iste (1 istek)
+ *  2. Önbellekte varsa 0 istek
+ *  3. Çoklu rota gerekiyorsa `figma-prewarm.mjs` kullan: `ids=f1,…,f10` ile
+ *     10 rota 3 istekte hazırlanıyor (rota başına ayrı koşum 20+ istek eder)
+ * Önbellek TTL'i 1 yıl; tasarım değişince elle sil (`lastModified`e bak).
  */
-// Tam ağaç zaten önbellekteyse (eski koşumlardan) onu kullan — yeni çağrı yapma.
-const cachedDeep = cacheRead(`filetree_${FILE_KEY}_${NODE_ID}`);
-const shallow =
-  cachedDeep ??
-  (await figma(
-    `/v1/files/${FILE_KEY}?ids=${encodeURIComponent(NODE_ID)}&depth=2`,
-    `shallow_${FILE_KEY}_${NODE_ID}`,
-  ));
-const canvasDoc = findNode(shallow.document, NODE_ID);
-if (!canvasDoc) throw new Error(`${NODE_ID} düğümü ağaçta bulunamadı`);
 
-let target = canvasDoc;
-if (canvasDoc.type === "CANVAS") {
-  const frames = (canvasDoc.children ?? []).filter((c) => c.type === "FRAME");
-  target =
-    (FRAME_NAME && frames.find((f) => f.name === FRAME_NAME)) ??
-    frames
-      .slice()
-      .sort(
-        (a, b) => (b.absoluteBoundingBox?.width ?? 0) - (a.absoluteBoundingBox?.width ?? 0),
-      )[0];
-  if (!target) throw new Error("CANVAS altında FRAME bulunamadı");
-  console.log(
-    `  sayfa "${canvasDoc.name}" → seçilen frame: "${target.name}" (${frames.length} frame arasından)`,
-  );
+/**
+ * 0) PROFİL KISAYOLU — sığ sorguyu tamamen atlar.
+ * Profildeki rota eşlemesinde `frameId` doluysa canvas→frame çözümü GEREKMİYOR;
+ * o çözüm zaten bir kez yapılıp profile yazıldı. Kısayol rota başına 1 istek ve
+ * ~2,5 sn ağ gecikmesi kazandırıyor.
+ */
+const mappedRoute = (PROJECT.figma?.routes ?? []).find(
+  (r) => (r.node === NODE_ID || r.frameId === NODE_ID) && r.frameId,
+);
+
+let frameDoc = null;
+let frameId = null;
+
+if (mappedRoute && !FRAME_NAME) {
+  frameId = mappedRoute.frameId;
+  console.log(`  profilden: "${mappedRoute.frame}" (${frameId}) — sığ sorgu atlandı`);
+} else {
+  // Frame adı elle verildiyse ya da profil boşsa canvas'ı çözmek gerekiyor.
+  const cachedDeep = cacheRead(`filetree_${FILE_KEY}_${NODE_ID}`);
+  const shallow =
+    cachedDeep ??
+    (await figma(
+      `/v1/files/${FILE_KEY}?ids=${encodeURIComponent(NODE_ID)}&depth=2`,
+      `shallow_${FILE_KEY}_${NODE_ID}`,
+    ));
+  const canvasDoc = findNode(shallow.document, NODE_ID);
+  if (!canvasDoc) throw new Error(`${NODE_ID} düğümü ağaçta bulunamadı`);
+
+  let target = canvasDoc;
+  if (canvasDoc.type === "CANVAS") {
+    const frames = (canvasDoc.children ?? []).filter((c) => c.type === "FRAME");
+    target =
+      (FRAME_NAME && frames.find((f) => f.name === FRAME_NAME)) ??
+      frames
+        .slice()
+        .sort(
+          (a, b) => (b.absoluteBoundingBox?.width ?? 0) - (a.absoluteBoundingBox?.width ?? 0),
+        )[0];
+    if (!target) throw new Error("CANVAS altında FRAME bulunamadı");
+    console.log(
+      `  sayfa "${canvasDoc.name}" → seçilen frame: "${target.name}" (${frames.length} frame arasından)`,
+    );
+  }
+  frameId = target.id;
+  // Tam ağaçtan geldiyse metin katmanları elimizde — ek istek gerekmez.
+  if ((target.children ?? []).length) frameDoc = target;
 }
 
-const frameId = target.id;
-// Sığ sorgudan sadece frame kimliğini öğrendik; metin katmanları için o frame'in
-// ağacını ayrıca çekiyoruz (tüm sayfayı çekmekten çok daha ucuz).
-// Tam ağaçtan geldiysek frame'in metin katmanları elimizde — ek çağrı GEREKMEZ.
-let frameDoc = target;
-if (!(target.children ?? []).length) {
+// Frame ağacı: önbellekte varsa 0 istek, yoksa 1 istek.
+if (!frameDoc) {
   const frameTree = await figma(
     `/v1/files/${FILE_KEY}?ids=${encodeURIComponent(frameId)}`,
     `frametree_${FILE_KEY}_${frameId}`,
   );
-  frameDoc = findNode(frameTree.document, frameId) ?? target;
+  frameDoc = findNode(frameTree.document, frameId);
+  if (!frameDoc) throw new Error(`frame ${frameId} ağaçta bulunamadı`);
 }
+
+/**
+ * Rapor başlıklarında kullanılan frame adı. Profil kısayolunda canvas hiç
+ * çözülmediği için `target` yok — ad ya ağaçtan ya profilden gelir.
+ */
+const frameName = frameDoc?.name ?? mappedRoute?.frame ?? "frame";
 const frameW = Math.round(frameDoc.absoluteBoundingBox?.width ?? 1440);
 const frameH = Math.round(frameDoc.absoluteBoundingBox?.height ?? 0);
 console.log(`  frame boyutu: ${frameW} x ${frameH}`);
@@ -280,9 +321,32 @@ function shrink(buf, tag) {
 }
 
 // 3) canlı sayfa
+/**
+ * ⚠️ OTURUM DURUMU — `--state member` OLMADAN LOGIN GEREKTİREN ROTA ÖLÇÜLEMEZ.
+ *
+ * Burada eskiden yalnızca kapı cookie'si set ediliyordu. `/hesabim` gibi login
+ * arkasındaki bir rotada canlı taraf `/giris`'e yönleniyor ve diff, hesap
+ * sayfasının TÜM metinlerini "canlıda yok" diye raporluyordu — 29 uydurma bulgu
+ * (ölçüm 2026-08-24). Sessiz yanlış veri, hiç veri olmamasından kötü.
+ *
+ * ⚠️⚠️ ÜYE OTURUMU DOSYADAN OKUNAMAZ. Kaydedilmiş üye `storageState`i ikinci bir
+ * context'te ÇALIŞMAZ: Tepe Home'un auth_token'ı kullanımda döndüğü (rotate)
+ * için cache'lenmiş state login'e düşer — repoda ölçülmüş ve CLAUDE.md'de
+ * "en sık yapılan hata" olarak geçiyor. Suite de bu yüzden `test-user.json`
+ * kullanmıyor: `tests/fixtures.ts → memberPage` KAPI state'inden başlayıp
+ * CANLI LOGIN yapıyor. Buradaki akış onun birebir karşılığı; o dosya değişirse
+ * burası da güncellenmeli.
+ */
+const STATE = (arg("--state", "guest") || "guest").toLowerCase();
 const viewport = { width: Math.min(Math.max(frameW, 360), 1920), height: 1000 };
 const browser = await chromium.launch({ channel: "chrome" });
-const context = await browser.newContext({ viewport, baseURL: BASE_URL });
+
+const gateState = `playwright/.auth/${ENV}-gate.json`;
+const context = await browser.newContext({
+  viewport,
+  baseURL: BASE_URL,
+  ...(fs.existsSync(gateState) ? { storageState: gateState } : {}),
+});
 // Geçici erişim kapısı sadece bir bayrak cookie'si — doğrudan set etmek en güvenilir yol
 await context.addCookies([
   {
@@ -293,9 +357,55 @@ await context.addCookies([
   },
 ]);
 const page = await context.newPage();
+
+/**
+ * Üye girişi — `tests/fixtures.ts → loginAsMember` ile aynı akış.
+ * Doğrulama sadece "login'e yönlenmedi" değil: e-postanın sayfada görünmesi.
+ */
+if (STATE === "member") {
+  const email = process.env.TEST_EMAIL;
+  const pass = process.env.TEST_PASSWORD;
+  if (!email || !pass) throw new Error("TEST_EMAIL / TEST_PASSWORD .env içinde yok");
+  await page.goto(`${BASE_URL}/giris?redirect=%2Fhesabim`, {
+    waitUntil: "domcontentloaded",
+    timeout: 60_000,
+  });
+  await page.waitForTimeout(3000);
+  await page.locator('input[name="email"]:visible').first().fill(email);
+  await page.locator('input[name="password"]:visible').first().fill(pass);
+  await page
+    .getByRole("button", { name: "GİRİŞ YAP", exact: true })
+    .first()
+    .click({ timeout: 15_000 });
+  await page.waitForTimeout(6000);
+  const body = (await page.locator("body").innerText()).toLowerCase();
+  if (!body.includes(email.toLowerCase()) && page.url().includes("/giris")) {
+    throw new Error("üye girişi doğrulanamadı — TEST_EMAIL / TEST_PASSWORD kontrol et");
+  }
+  console.log(`  oturum: üye (canlı login, ${email})`);
+}
+
 await page.goto(BASE_URL + ROUTE, { waitUntil: "domcontentloaded", timeout: 60_000 });
 await page.locator("footer").first().waitFor({ state: "attached", timeout: 30_000 }).catch(() => {});
 await page.waitForTimeout(2500);
+
+/**
+ * OTURUM/KAPI DOĞRULAMASI — ölçmeden önce doğru sayfada olduğumuzu kanıtla.
+ * Yanlış sayfada ölçüm yapıp bulgu üretmek en pahalı hata; burada DURUYORUZ.
+ */
+{
+  const url = page.url();
+  const txt = await page.locator("body").innerText().catch(() => "");
+  if (/Geçici Erişim/.test(txt)) {
+    throw new Error("kapı kapalı — `npm run panel` içindeki kapı yenileme koşumunu çalıştır");
+  }
+  if (/\/giris|\/kayit-ol/.test(url) && !/\/giris|\/kayit-ol/.test(ROUTE)) {
+    throw new Error(
+      `canlı taraf login'e yönlendi (${url}). ${ROUTE} üye oturumu istiyor — ` +
+        `\`--state member\` ile koş. Oturum varsa süresi dolmuş olabilir.`,
+    );
+  }
+}
 // lazy içerik
 for (let i = 0; i < 6; i++) {
   await page.mouse.wheel(0, 1400);
@@ -569,7 +679,7 @@ await browser.close();
 
 // 5) rapor
 const html = `<!doctype html>
-<html lang="tr"><head><meta charset="utf-8"><title>Figma diff — ${esc(target.name)} ↔ ${esc(ROUTE)}</title>
+<html lang="tr"><head><meta charset="utf-8"><title>Figma diff — ${esc(frameName)} ↔ ${esc(ROUTE)}</title>
 <style>
   :root { --fg:#18181b; --mut:#6b7280; --line:#e4e4e7; --card:#fafafa; --ok:#0f766e; --no:#b91c1c; --warn:#a16207 }
   @media (prefers-color-scheme:dark){:root{--fg:#ededed;--mut:#a1a1aa;--line:#27272a;--card:#17181b;--ok:#34d399;--no:#f87171;--warn:#fbbf24}}
@@ -596,7 +706,7 @@ const html = `<!doctype html>
   input[type=range]{width:280px}
   .scroll{overflow-x:auto}
 </style></head><body><div class="wrap">
-<h1>Figma diff — ${esc(target.name)} ↔ <span class="mono">${esc(ROUTE)}</span></h1>
+<h1>Figma diff — ${esc(frameName)} ↔ <span class="mono">${esc(ROUTE)}</span></h1>
 <div class="sub">${new Date().toLocaleString("tr-TR")} · dosya <b>Tepe Home UI/UX Design</b> ·
 frame ${frameW}×${frameH} · canlı ${esc(BASE_URL + ROUTE)} (viewport ${viewport.width}px)</div>
 
@@ -677,7 +787,7 @@ ${Object.entries(figFills)
 
 <h2>5. Görsel karşılaştırma</h2>
 <div class="side">
-  <figure><figcaption>Figma — ${esc(target.name)} · <b style="color:#e11d48">kırmızı kutular: canlıda bulunamayan metinler</b> (numaralar 2. tablo)</figcaption>
+  <figure><figcaption>Figma — ${esc(frameName)} · <b style="color:#e11d48">kırmızı kutular: canlıda bulunamayan metinler</b> (numaralar 2. tablo)</figcaption>
     <img src="data:${design.mime};base64,${design.b64}" alt="Figma tasarımı"></figure>
   <figure><figcaption>Canlı — ${esc(ROUTE)} · <b style="color:#e11d48">kırmızı kutular: spec farkı olan öğeler</b> (numaralar 1. tablo)</figcaption>
     <img src="data:${live.mime};base64,${live.b64}" alt="Canlı sayfa"></figure>
@@ -700,7 +810,7 @@ console.log(`Rapor: ${OUT}`);
 const summary = {
   file: FILE_KEY,
   node: NODE_ID,
-  frame: target.name,
+  frame: frameName,
   route: ROUTE,
   frameSize: { w: frameW, h: frameH },
   liveHeight: null,

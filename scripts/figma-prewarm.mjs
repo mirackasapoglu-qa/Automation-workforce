@@ -10,19 +10,29 @@
  *   3) `/v1/images?ids=<frameId>` → PNG render
  * Zaten önbellekte olanı atlar, çağrılar arasında bekler, 429 görünce DURUR.
  *
- * Kullanım: node scripts/figma-prewarm.mjs [--only "My Cart,Checkout"] [--delay 6]
+ * Kullanım: node scripts/figma-prewarm.mjs [--only "My Cart,Checkout"] [--delay 6] [--renders-only]
+ *
+ * `panel/figma-map.mjs` içinde frameId dolu olan rotalar için 1) adımı hiç
+ * çalışmaz; `--renders-only` ile 2) da atlanır → tek `/v1/images` çağrısı.
  */
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { FIGMA_ROUTES, FIGMA_FILE } from "../panel/figma-map.mjs";
+import { noteResponse } from "../panel/figma-quota.mjs";
 
 const arg = (n, d) => {
   const i = process.argv.indexOf(n);
   return i > -1 ? process.argv[i + 1] : d;
 };
 const ONLY = (arg("--only", "") || "").split(",").map((s) => s.trim()).filter(Boolean);
-const DELAY = Number(arg("--delay", 6)) * 1000;
+/**
+ * Çağrılar arası bekleme. VARSAYILAN 0: Dev/Full koltukta Tier-1 limiti 10-20/dk
+ * ve prewarm toplamda 3 istek yapıyor — beklemenin koruduğu bir şey yok, sadece
+ * 12 sn boşa gidiyordu. View/Collab koltukta (6/ay) `--delay 6` ile yavaşlat.
+ */
+const DELAY = Number(arg("--delay", 0)) * 1000;
+const RENDERS_ONLY = process.argv.includes("--renders-only");
 const CACHE = path.join(process.cwd(), "panel-data", "figma-cache");
 fs.mkdirSync(CACHE, { recursive: true });
 
@@ -38,6 +48,7 @@ class RateLimited extends Error {}
 
 async function api(url) {
   const res = await fetch(url, { headers: { "X-Figma-Token": TOKEN } });
+  noteResponse(url, res, "figma-prewarm");
   if (res.status === 429) {
     const ra = Number(res.headers.get("retry-after") ?? 0);
     throw new RateLimited(
@@ -69,10 +80,19 @@ let skipped = 0;
  */
 const routes = FIGMA_ROUTES.filter((r) => !ONLY.length || ONLY.includes(r.page));
 
-// ---- 1) sığ ağaç: tüm dosya, tek çağrı
+// ---- 0) haritada frameId olan rotalar: hicbir cagri gerekmez
+const mapped = routes.filter((r) => r.frameId);
+const unmapped = routes.filter((r) => !r.frameId);
+const targets = mapped.map((r) => ({ ...r, frameName: r.frame ?? r.page, w: r.w ?? 0, h: r.h ?? 0 }));
+for (const t of targets) console.log(`0) ${t.page.padEnd(26)} → haritadan "${t.frameName}" (${t.frameId})`);
+
+// ---- 1) sığ ağaç: yalnizca frameId'si BILINMEYEN rota varsa
 const shallowKey = `shallowfile_${FIGMA_FILE}_depth2`;
-let fileTree;
-if (fs.existsSync(kp(shallowKey, "json"))) {
+let fileTree = null;
+if (!unmapped.length) {
+  console.log("1) sığ dosya ağacı: gerekmiyor (tüm rotaların frameId'si haritada)");
+  skipped++;
+} else if (fs.existsSync(kp(shallowKey, "json"))) {
   fileTree = JSON.parse(fs.readFileSync(kp(shallowKey, "json"), "utf8"));
   console.log("1) sığ dosya ağacı: önbellekten");
   skipped++;
@@ -82,12 +102,12 @@ if (fs.existsSync(kp(shallowKey, "json"))) {
   fs.writeFileSync(kp(shallowKey, "json"), JSON.stringify(fileTree));
   calls++;
   console.log(`1) sığ dosya ağacı: çekildi (${Math.round(JSON.stringify(fileTree).length / 1024)} KB, 1 çağrı)`);
-  await sleep(DELAY);
+  if (DELAY) await sleep(DELAY);
 }
 
-// ---- frame'leri çöz (ağ çağrısı YOK)
-const targets = [];
-for (const r of routes) {
+// ---- frameId'si bilinmeyenleri sığ ağaçtan çöz (ağ çağrısı YOK)
+for (const r of unmapped) {
+  if (!fileTree) break;
   const canvas = findNode(fileTree.document, r.node);
   if (!canvas) {
     console.log(`   ⚠️  ${r.page}: düğüm ${r.node} sığ ağaçta yok, atlanıyor`);
@@ -110,9 +130,10 @@ for (const r of routes) {
 }
 
 // ---- 2) frame ağaçları: eksik olanları TEK çağrıda
-const needTree = targets.filter((t) => !fs.existsSync(kp(`frametree_${FIGMA_FILE}_${t.frameId}`, "json")));
+// --renders-only: panel yalnizca PNG istiyorsa agac cagrisini tamamen atla
+const needTree = RENDERS_ONLY ? [] : targets.filter((t) => !fs.existsSync(kp(`frametree_${FIGMA_FILE}_${t.frameId}`, "json")));
 if (!needTree.length) {
-  console.log("2) frame ağaçları: hepsi önbellekte");
+  console.log(RENDERS_ONLY ? "2) frame ağaçları: atlandı (--renders-only)" : "2) frame ağaçları: hepsi önbellekte");
   skipped++;
 } else {
   const ids = needTree.map((t) => t.frameId).join(",");
@@ -124,7 +145,7 @@ if (!needTree.length) {
     if (sub) fs.writeFileSync(kp(`frametree_${FIGMA_FILE}_${t.frameId}`, "json"), JSON.stringify({ document: sub }));
   }
   console.log(`2) frame ağaçları: ${needTree.length} frame tek çağrıda çekildi (${Math.round(JSON.stringify(tree).length / 1024)} KB)`);
-  await sleep(DELAY);
+  if (DELAY) await sleep(DELAY);
 }
 
 // ---- 3) render'lar: eksik olanları TEK çağrıda
