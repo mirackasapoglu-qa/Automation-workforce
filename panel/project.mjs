@@ -72,6 +72,8 @@ export const PROJECT = {
    * Bkz. panel/connectors/index.mjs. Profil demezse orada makul varsayilan var.
    */
   connectors: mod.connectors ?? null,
+  /** Oturum sagligini olcen kimlik cookie adlari (bkz. panel/sessions.mjs). */
+  authCookies: mod.authCookies ?? [],
   env: { var: null, default: "test", ordersVar: null, ...(mod.env ?? {}) },
   issuePrefixes: mod.issuePrefixes ?? [],
   knownIssuePrefix: mod.knownIssuePrefix ?? null,

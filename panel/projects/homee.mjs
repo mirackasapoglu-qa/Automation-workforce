@@ -53,6 +53,13 @@ export const connectors = {
   chat: null, // Slack bildirimi henüz yok
 };
 
+/**
+ * Oturumun kimlik cookie'si. Kasa oturum sağlığını YALNIZCA buna bakarak
+ * ölçer; verilmezse "dolmuşları yok say" sezgisine düşer (bkz. sessions.mjs).
+ * Bu ortamda "Geçici Erişim" kapısı bu cookie'yi veriyor, ömrü ~24 saat.
+ */
+export const authCookies = ["temporary_auth_verified"];
+
 export const issuePrefixes = ["HOMEE", "MAC"];
 
 /** `tests/known-issues.ts` içindeki id öneki (senaryo önericinin oracle kaynağı). */

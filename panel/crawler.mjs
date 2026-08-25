@@ -22,6 +22,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PROJECT, activeEnv } from "./project.mjs";
+import * as sessions from "./sessions.mjs";
 
 const USER_AGENT = "QAPanelBot/1.0 (+yerel kapsam haritasi tarayicisi)";
 const NAV_TIMEOUT_MS = 20_000;
@@ -320,10 +321,16 @@ function isOwnHost(targetUrl, projectBaseUrl) {
   try { return new URL(targetUrl).host === new URL(projectBaseUrl).host; } catch { return false; }
 }
 
+/**
+ * Hedef için oturum — artık OTURUM KASASI çözüyor (panel/sessions.mjs).
+ *
+ * Fark: eskiden yalnızca projenin kendi kapı dosyası kullanılabiliyordu, yani
+ * sadece tek ürün taranabiliyordu. Kasa host bazlı olduğu için artık oturumu
+ * kaydedilmiş HER site taranabilir — "her URL çalışsın" hedefinin kimlik tarafı.
+ * Güvenlik kuralı aynı: oturum yalnızca KENDİ host'una takılır.
+ */
 function sessionStateFor(targetUrl, projectBaseUrl) {
-  if (!isOwnHost(targetUrl, projectBaseUrl)) return null;
-  const file = path.join(process.cwd(), "playwright", ".auth", `${activeEnv()}-gate.json`);
-  return fs.existsSync(file) ? file : null;
+  return sessions.resolveFor(targetUrl, projectBaseUrl);
 }
 
 // ---------------- iş yönetimi ----------------
@@ -343,7 +350,11 @@ export function startCrawlJob({ url, maxDepth = 2, maxPages = 15, requireLogin =
     needsLogin: Boolean(requireLogin),
     loginConfirmed: false,
     startedAt: new Date().toISOString(),
-    /** Kapı oturumu kullanıldı mı — arayüzde ve log'da görünsün. */
+    /** Hangi oturum kullanıldı ve ne kadar ömrü kaldı — arayüzde görünsün. */
+    session: (() => {
+      const s = sessionStateFor(url, projectBaseUrl);
+      return s ? { source: s.source, hoursLeft: s.hoursLeft, status: s.status } : null;
+    })(),
     usingSession: Boolean(sessionStateFor(url, projectBaseUrl)),
     /**
      * robots.txt atlandı mı. YALNIZCA projenin kendi host'unda mümkün:
@@ -358,7 +369,7 @@ export function startCrawlJob({ url, maxDepth = 2, maxPages = 15, requireLogin =
     depth, pages,
     requireLogin: Boolean(requireLogin),
     interactWithUI: Boolean(interactWithUI),
-    storageState: sessionStateFor(url, projectBaseUrl),
+    storageState: sessionStateFor(url, projectBaseUrl)?.storageState ?? null,
     ignoreRobots: Boolean(ignoreRobots) && isOwnHost(url, projectBaseUrl),
   })
     .catch((e) => { job.status = "error"; job.error = `Beklenmeyen hata: ${e.message}`; });
@@ -433,6 +444,23 @@ async function crawl(job, { depth: maxDepth, pages: maxPages, requireLogin, inte
           job.error = "Giriş için ayrılan süre (10 dakika) doldu. Tekrar deneyin.";
           return;
         }
+      }
+      /**
+       * Giriş tamamlandı: oturumu KASAYA YAZ. Aksi halde her tarama insandan
+       * yeniden giriş isterdi ve "her URL çalışsın" pratikte çalışmazdı.
+       */
+      try {
+        const kayit = sessions.save({
+          host: new URL(job.startUrl).host,
+          label: new URL(job.startUrl).host,
+          state: await context.storageState(),
+        });
+        job.session = { source: `kasa:${kayit.host}`, hoursLeft: kayit.hoursLeft, status: kayit.status };
+        job.sessionSaved = true;
+      } catch (e) {
+        // Kaydedilemese de tarama devam etmeli; yalnızca bir dahaki sefere
+        // yine giriş istenir. Hata iş kaydında görünür.
+        job.sessionSaveError = e.message;
       }
       job.status = "running";
     }

@@ -149,6 +149,34 @@ export function openSitemapImportModal() {
       + 'Yine de canlı sistemlerde beklenmedik yan etkiler doğurabilir — mümkünse test ortamında kullan; taramayı da yavaşlatır.';
     body.appendChild(interactHint);
 
+    /**
+     * Oturum kasası bilgisi. Kullanıcının en sık düştüğü tuzak buydu: korumalı
+     * bir siteyi oturumsuz tarayınca her sayfa giriş/kapı ekranı döner, hata
+     * verilmez ve ağaç sessizce çöp olur. Artık taramadan ÖNCE söylüyoruz.
+     */
+    const sessionHint = document.createElement('div');
+    sessionHint.className = 'sitemap-field-hint';
+    sessionHint.textContent = '';
+    body.appendChild(sessionHint);
+
+    let sessionTimer = null;
+    const oturumKontrol = () => {
+      const val = urlField.value.trim();
+      if (!/^https?:\/\//.test(val)) { sessionHint.textContent = ''; return; }
+      fetch('/api/session/for?url=' + encodeURIComponent(val))
+        .then(r => r.json())
+        .then(d => {
+          sessionHint.textContent = d.found
+            ? `✓ Bu adres için kayıtlı oturum var (${d.source}${d.hoursLeft === null ? '' : `, ~${d.hoursLeft} saat`}) — giriş gerekmez.`
+            : 'Bu adres için kayıtlı oturum yok. Site giriş istiyorsa aşağıdaki kutuyu işaretle; oturum bir kez açılıp kaydedilir.';
+        })
+        .catch(() => { sessionHint.textContent = ''; });
+    };
+    urlField.addEventListener('input', () => {
+      clearTimeout(sessionTimer);
+      sessionTimer = setTimeout(oturumKontrol, 500);
+    });
+
     const robotsWrap = document.createElement('label');
     robotsWrap.className = 'sitemap-checkbox-row';
     const robotsCheckbox = document.createElement('input');
@@ -195,6 +223,14 @@ export function openSitemapImportModal() {
     current.textContent = job.currentUrl || '';
     body.appendChild(current);
 
+    if (job.session || job.sessionSaved) {
+      const oturum = document.createElement('div');
+      oturum.className = 'sitemap-field-hint';
+      oturum.textContent = (job.sessionSaved ? 'Oturum kaydedildi · ' : '')
+        + (job.session ? `oturum: ${job.session.source}${job.session.hoursLeft === null ? '' : ` (~${job.session.hoursLeft} saat)`}` : '');
+      body.appendChild(oturum);
+    }
+
     const cancelBtn = document.createElement('button');
     cancelBtn.type = 'button';
     cancelBtn.className = 'btn';
@@ -222,6 +258,12 @@ export function openSitemapImportModal() {
       + 'girme — yalnızca açılan gerçek tarayıcı penceresinde, doğrudan sitenin kendi giriş ekranına gir. Giriş bitince '
       + 'aşağıdaki butona tıkla.';
     body.appendChild(msg);
+
+    const kasaNot = document.createElement('div');
+    kasaNot.className = 'sitemap-field-hint';
+    kasaNot.textContent = 'Oturum bu adres için kaydedilecek; sonraki taramalarda ve testlerde yeniden giriş istenmeyecek. '
+      + 'Şifren kaydedilmez — yalnızca sitenin verdiği oturum çerezleri saklanır.';
+    body.appendChild(kasaNot);
 
     const continueBtn = document.createElement('button');
     continueBtn.type = 'button';

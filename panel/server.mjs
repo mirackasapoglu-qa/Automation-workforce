@@ -69,6 +69,7 @@ import { preflight } from "./preflight.mjs";
 import { tracker } from "./connectors/index.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
+import * as sessions from "./sessions.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
   readHistory,
@@ -732,6 +733,54 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: true, ...info });
     }
 
+    /* ---------------- Oturum kasasi ----------------
+     * Kimlik dogrulamayi UYGULAMA YAPMAZ: gorunur pencere acilir, kisi sitenin
+     * kendi ekraninda giris yapar, olusan oturum kasaya yazilir. Sifre panele
+     * hic girilmez.
+     */
+    if (p === "/api/sessions") return send(res, 200, { sessions: sessions.list() });
+
+    if (p === "/api/session/for") {
+      const target = url.searchParams.get("url") ?? "";
+      const r = sessions.resolveFor(target, BASE_URL);
+      return send(res, 200, r
+        ? { found: true, source: r.source, hoursLeft: r.hoursLeft, status: r.status }
+        : { found: false });
+    }
+
+    if (p === "/api/session/start" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { url: target, label } = await readBody(req);
+      const out = sessions.startLogin({ url: String(target ?? ""), label });
+      if (out.ok) audit({ event: "session-login-start", host: out.host });
+      return send(res, out.ok ? 200 : 400, out);
+    }
+
+    if (p === "/api/session/status") {
+      const j = sessions.getLogin(url.searchParams.get("id") ?? "");
+      return send(res, 200, j ? { ok: true, job: j } : { ok: false, error: "Is bulunamadi." });
+    }
+
+    if (p === "/api/session/confirm" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      sessions.confirmLogin((await readBody(req)).id ?? "");
+      return send(res, 200, { ok: true });
+    }
+
+    if (p === "/api/session/cancel" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      sessions.cancelLogin((await readBody(req)).id ?? "");
+      return send(res, 200, { ok: true });
+    }
+
+    if (p === "/api/session/remove" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { host } = await readBody(req);
+      const silindi = sessions.remove(String(host ?? ""));
+      audit({ event: "session-remove", host, silindi });
+      return send(res, 200, { ok: silindi });
+    }
+
     /**
      * Kapsam agacindaki bir dugumden GERCEK kosum tetikler.
      *
@@ -1207,7 +1256,7 @@ const server = http.createServer(async (req, res) => {
             detail: "okunamadi",
             credential: gateFile,
           };
-      const checks = await preflight([gate]);
+      const checks = await preflight([gate, sessions.preflightRow()]);
       // `passive` satirlar (Slack/Linear gibi gosterim amacli olanlar) genel
       // duruma katilmaz — panelin isleyisi onlara bagli degil.
       const active = checks.filter((c) => !c.passive);
