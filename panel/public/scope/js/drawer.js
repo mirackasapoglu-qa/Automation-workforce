@@ -369,6 +369,59 @@ export function renderDrawer() {
       });
     };
     aiActions.appendChild(aiBtn);
+
+    /**
+     * Doğrudan üretim. Yukarıdaki düğme prompt'u KOPYALATIR; bu düğme modeli
+     * panelde çağırır ve case'leri düğüme yazar. Kopyala-yapıştır adımı,
+     * 39 case'e karşı 3 koşum çıkmasının sebebiydi.
+     */
+    const genBtn = document.createElement('button');
+    genBtn.type = 'button';
+    genBtn.className = 'btn btn-primary';
+    genBtn.disabled = selectedTestTypes.size === 0;
+    genBtn.title = selectedTestTypes.size === 0
+      ? 'Önce en az bir test türü seç'
+      : 'Model panelde çağrılır, üretilen case\'ler taslak olarak bu düğüme yazılır';
+    genBtn.innerHTML = ICON.sparkle + '<span>Otomatik üret</span>';
+    genBtn.onclick = async () => {
+      const eski = genBtn.innerHTML;
+      genBtn.disabled = true;
+      genBtn.innerHTML = '<span>Üretiliyor…</span>';
+      const uyari = document.createElement('div');
+      uyari.className = 'sitemap-field-hint';
+      uyari.style.whiteSpace = 'pre-line';
+      aiActions.parentNode.appendChild(uyari);
+      try {
+        const res = await fetch('/api/scope/testcases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
+          body: JSON.stringify({
+            nodeId: drawerNode.id,
+            types: [...selectedTestTypes],
+            limit: 5,
+          }),
+        });
+        const data = await res.json();
+        if (!data.ok) {
+          // Kimlik/paket eksikse ÇÖZÜMÜ göster — sessiz başarısızlık değil.
+          uyari.textContent = data.error || 'Üretilemedi.';
+          return;
+        }
+        await loadPersisted();
+        const taze = findNode(state.tree, drawerNode.id);
+        if (taze) state.drawerNode = taze;
+        state.drawerTab = 'testcase';
+        renderContent();
+        renderDrawer();
+      } catch (e) {
+        uyari.textContent = `Panel sunucusuna ulaşılamadı: ${e.message}`;
+      } finally {
+        genBtn.disabled = false;
+        genBtn.innerHTML = eski;
+      }
+    };
+    aiActions.appendChild(genBtn);
+
     if (collectSubtreeTestCases(drawerNode).some(e => e.tc.steps.length > 0)) {
       const runBtn = document.createElement('button');
       runBtn.type = 'button';

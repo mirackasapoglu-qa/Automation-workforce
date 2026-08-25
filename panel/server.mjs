@@ -70,6 +70,7 @@ import { tracker } from "./connectors/index.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
+import { generateForNode } from "./testcase-gen.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
   readHistory,
@@ -731,6 +732,64 @@ const server = http.createServer(async (req, res) => {
       const info = writeTree(body.tree);
       audit({ event: "scope-tree-save", nodes: info.nodes });
       return send(res, 200, { ok: true, ...info });
+    }
+
+    /**
+     * Kapsam agacindaki dugum icin TEST CASE URET.
+     *
+     * Flowscope'un kendi dugmesi modele gidecek prompt'u uretip kullanicidan
+     * kopyala-yapistir bekliyordu; olculdu, kimse yapistirmiyor (39 case / 3
+     * kosum). Burada model sunucuda cagriliyor ve case'ler dogrudan dugume
+     * yaziliyor. Uretilenler TASLAK: kosum kaydi yok, "gecti" secilemez.
+     */
+    if (p === "/api/scope/testcases" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { nodeId, types, limit } = await readBody(req);
+      audit({ event: "testcase-gen", nodeId, types });
+      try {
+        const out = await generateForNode({ nodeId, types, limit });
+        audit({ event: "testcase-gen-result", nodeId, written: out.written, skipped: out.skipped.length });
+        broadcast("log", { stream: "out", line: `[case] ${out.node}: ${out.written} case uretildi` });
+        return send(res, 200, { ok: true, ...out });
+      } catch (e) {
+        audit({ event: "testcase-gen-error", nodeId, code: e.code ?? null, message: e.message.slice(0, 200) });
+        return send(res, e.code === "NO_CREDENTIALS" ? 428 : e.code === "NO_SDK" ? 501 : 502,
+          { ok: false, error: e.message, code: e.code ?? null });
+      }
+    }
+
+    /**
+     * Coklu dugum icin uretim. Tarama 131 dugum getirdiginde tek tek basmak
+     * anlamsiz; ama maliyet gorunur olsun diye UST SINIR var ve her dugumun
+     * sonucu ayri raporlanir.
+     */
+    if (p === "/api/scope/testcases/batch" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { nodeIds, types, limit } = await readBody(req);
+      const liste = (nodeIds ?? []).slice(0, 25);
+      if (!liste.length) return send(res, 400, { ok: false, error: "nodeIds bos." });
+      audit({ event: "testcase-gen-batch", count: liste.length });
+      const sonuc = [];
+      let toplamIn = 0, toplamOut = 0;
+      for (const id of liste) {
+        try {
+          const o = await generateForNode({ nodeId: id, types, limit });
+          toplamIn += o.usage?.input_tokens ?? 0;
+          toplamOut += o.usage?.output_tokens ?? 0;
+          sonuc.push({ nodeId: id, node: o.node, written: o.written, skipped: o.skipped.length });
+          broadcast("log", { stream: "out", line: `[case] ${o.node}: ${o.written} case` });
+        } catch (e) {
+          sonuc.push({ nodeId: id, error: e.message.slice(0, 160), code: e.code ?? null });
+          // Kimlik yoksa sonraki dugumlerde de olmayacak — bosuna deneme.
+          if (e.code === "NO_CREDENTIALS" || e.code === "NO_SDK") break;
+        }
+      }
+      const kesildi = (nodeIds ?? []).length - liste.length;
+      return send(res, 200, {
+        ok: true, sonuc,
+        usage: { input_tokens: toplamIn, output_tokens: toplamOut },
+        note: kesildi > 0 ? `${kesildi} dugum ust sinir (25) nedeniyle atlandi` : null,
+      });
     }
 
     /* ---------------- Oturum kasasi ----------------
