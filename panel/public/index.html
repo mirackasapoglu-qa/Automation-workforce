@@ -708,18 +708,15 @@
   /* =========================================================================
      DARALTILABILIR YAN PANEL
      ========================================================================= */
-  aside{position:relative}
-  #sbToggle{position:absolute;top:12px;right:12px;width:26px;height:26px;padding:0;margin:0;
+  #sbToggle{width:28px;height:28px;padding:0;margin:0;flex-shrink:0;
     display:inline-flex;align-items:center;justify-content:center;border-radius:8px;
-    border:1px solid var(--line);background:var(--card);color:var(--mut);z-index:5}
-  #sbToggle svg{width:14px;height:14px;transition:transform var(--t)}
+    border:1px solid var(--line);background:var(--card);color:var(--mut)}
+  #sbToggle svg{width:15px;height:15px;transition:transform var(--t)}
   #sbToggle:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
-  aside .tabs{margin-top:26px}
 
   /* --- daraltilmis durum --- */
   body.sb-collapsed main{grid-template-columns:64px minmax(0,1fr)}
   body.sb-collapsed aside{padding:16px 10px;overflow:visible}
-  body.sb-collapsed #sbToggle{right:50%;transform:translateX(50%)}
   body.sb-collapsed #sbToggle svg{transform:rotate(180deg)}
   /* Etiketler, sayaclar ve yardimci bloklar gizlenir; ikon kalir. */
   /* ⚠️ Etiket bir METIN DUGUMU (element degil): `> :not(.nav-ic){display:none}`
@@ -802,6 +799,14 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 <body>
 <header>
   <!-- Tasarim: HQ rozeti + kirilim · ortada komut kutusu · sagda durum -->
+  <!-- Daraltma dugmesi ust seritte: yan panelin tepesinde tek basina bir
+       serit isgal ediyordu ve altinda olu bir bant kaliyordu. -->
+  <button id="sbToggle" type="button" onclick="toggleSidebar()"
+          title="Yan paneli daralt/genislet ( [ )" aria-label="Yan paneli daralt">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 6l-6 6 6 6"/>
+    </svg>
+  </button>
   <span class="hq-badge" aria-hidden="true">HQ</span>
   <span class="crumb"><span class="crumb-root" id="panelTitle">QA Paneli</span><span class="crumb-sep">/</span><span class="crumb-leaf" id="crumbLeaf">Genel bakis</span></span>
 
@@ -832,14 +837,6 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
 <main>
   <aside>
-    <!-- Daraltma: gizlemek yerine IKON SERIDINE iner — gezinme kaybolmaz,
-         icerik ~230px genisler (Site sekmesindeki iki iframe icin onemli). -->
-    <button id="sbToggle" type="button" onclick="toggleSidebar()"
-            title="Yan paneli daralt/genislet ( [ )" aria-label="Yan paneli daralt">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M15 6l-6 6 6 6"/>
-      </svg>
-    </button>
     <!-- Tasarim: sekmeler sol menude, dikey nav olarak. -->
     <div class="tabs" role="tablist" aria-label="Panel bolumleri">
       <button data-tab="overview" aria-selected="true" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>Genel bakis</button>
