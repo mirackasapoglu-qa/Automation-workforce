@@ -3141,5 +3141,68 @@ loadScenarioContext();
 loadCases();
 
 </script>
+<style id="nc-motion-2">
+/* ==== Mikro-animasyon seti 2 ==== */
+@keyframes ncBlink{0%,55%{opacity:1}56%,100%{opacity:0}}
+@keyframes ncShake{0%,100%{transform:none}25%{transform:translateX(-2px)}75%{transform:translateX(2px)}}
+@keyframes ncPopIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+/* canlı log: akış sürerken yanıp sönen imleç */
+pre#log.live::after,#ovLiveLog.live::after{content:"▍";color:var(--acc);animation:ncBlink 1s steps(1) infinite}
+/* başarısız rozeti dikkat için bir kez silkinir */
+.b.no,.st.failed{animation:ncShake .38s ease}
+.b.ok,.st.passed{animation:ncPopIn .3s ease}
+/* koşum butonları: hover'da içeri kayar */
+#runs .body button:hover:not(:disabled){padding-left:16px}
+#runs .body button{transition:background var(--t),border-color var(--t),color var(--t),box-shadow var(--t),padding-left var(--t)}
+/* istatistik kutuları: hover'da hafif yükselme + parlama */
+.c:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(0,0,0,.25),0 0 12px var(--acc-dim)}
+/* tema geçişi: renkler yumuşak akar (tıklama anında JS sınıf ekler) */
+html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4s ease,border-color .4s ease,box-shadow .4s ease !important}
+@media (prefers-reduced-motion:reduce){
+  pre#log.live::after,#ovLiveLog.live::after{animation:none}
+  .b.no,.st.failed,.b.ok,.st.passed{animation:none}
+  html.theme-anim, html.theme-anim *{transition:none !important}
+}
+</style>
+<script id="nc-motion-2-js">
+/* Sayılar yerine oturmadan önce kısa sayaçla artar; log aktıkça imleç yanar;
+   tema düğmesi renkleri yumuşak geçirir. Hepsi gözlemci tabanlı — panel JS'ine dokunmaz. */
+(function(){
+  if (matchMedia('(prefers-reduced-motion:reduce)').matches) return;
+  const ease = p => 1 - Math.pow(1 - p, 3);
+  function countUp(el){
+    const raw = (el.textContent || '').trim();
+    if (!/^\d{1,6}$/.test(raw)) return;
+    const target = +raw; if (!target) return;
+    el.dataset.c = '1';
+    const t0 = performance.now(), dur = 480;
+    (function step(now){
+      const p = Math.min(1, (now - t0) / dur);
+      el.textContent = String(Math.round(target * ease(p)));
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+  const scan = root => root.querySelectorAll('.c .n:not([data-c]), .strip .v:not([data-c]), .ov-kpi .n:not([data-c])').forEach(countUp);
+  new MutationObserver(muts => {
+    for (const m of muts) for (const n of m.addedNodes)
+      if (n.nodeType === 1) { if (n.matches?.('.n,.v') && !n.dataset.c) countUp(n); scan(n); }
+  }).observe(document.body, { childList: true, subtree: true });
+  scan(document);
+  for (const id of ['log', 'ovLiveLog']) {
+    const log = document.getElementById(id);
+    if (!log) continue;
+    let t;
+    new MutationObserver(() => {
+      log.classList.add('live'); clearTimeout(t);
+      t = setTimeout(() => log.classList.remove('live'), 2500);
+    }).observe(log, { childList: true });
+  }
+  const tb = document.getElementById('themeBtn');
+  if (tb) tb.addEventListener('click', () => {
+    document.documentElement.classList.add('theme-anim');
+    setTimeout(() => document.documentElement.classList.remove('theme-anim'), 450);
+  }, true);
+})();
+</script>
 </body>
 </html>
