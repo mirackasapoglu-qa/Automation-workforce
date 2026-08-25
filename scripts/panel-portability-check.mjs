@@ -42,11 +42,25 @@ function projectTokens() {
   return [...tokens].filter((t) => t.length >= 3);
 }
 
+/**
+ * Cekirdek = panel/ altindaki TUM .mjs, `projects/` HARIC (profil zaten proje
+ * bilgisi tasir, denetlenmesi anlamsiz). Alt dizinler de taranir: connectors/
+ * eklendiginde burasi duz `readdirSync` oldugu icin sessizce kapsam disinda
+ * kalmisti — kor nokta bir daha olusmasin diye rekursif.
+ */
 function coreFiles() {
   const out = [];
-  for (const f of fs.readdirSync(PANEL)) {
-    if (f.endsWith(".mjs") && !f.endsWith(".test.mjs")) out.push(path.join(PANEL, f));
-  }
+  const walk = (dir) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (e.isDirectory()) {
+        if (e.name === "projects" || e.name === "public" || e.name === "node_modules") continue;
+        walk(path.join(dir, e.name));
+        continue;
+      }
+      if (e.name.endsWith(".mjs") && !e.name.endsWith(".test.mjs")) out.push(path.join(dir, e.name));
+    }
+  };
+  walk(PANEL);
   const pub = path.join(PANEL, "public");
   if (fs.existsSync(pub)) {
     for (const f of fs.readdirSync(pub)) {

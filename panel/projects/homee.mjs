@@ -35,6 +35,22 @@ export const env = {
  *  - HOMEE-00X → repo içi bilinen ürün hatası (`tests/known-issues.ts`)
  *  - MAC-0000  → Jira kartı
  */
+/**
+ * Hangi yeteneği hangi servis karşılıyor.
+ *
+ * Panel çekirdeği "Jira" demez, "tracker" der (bkz. panel/connectors/index.mjs).
+ * Bu proje Jira kullanıyor; Linear'a geçmek için tek satır: tracker: "linear".
+ * `null` bırakılan yetenek kapalıdır — connector listesinde "kullanılmıyor"
+ * görünür ve panelin genel durumunu etkilemez.
+ */
+export const connectors = {
+  tracker: "jira",
+  design: "figma",
+  ai: "anthropic",
+  device: "mobai",
+  chat: null, // Slack bildirimi henüz yok
+};
+
 export const issuePrefixes = ["HOMEE", "MAC"];
 
 /** `tests/known-issues.ts` içindeki id öneki (senaryo önericinin oracle kaynağı). */
