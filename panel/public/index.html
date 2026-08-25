@@ -174,6 +174,9 @@
   /* NOT: inline "display:grid" verilirse hidden bayragi EZILIR; ustteki
      [hidden]{display:none!important} kurali bunu global olarak garantiliyor. */
   #dShots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  #shotSyncWrap{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--mut);
+    margin:0 0 6px;cursor:pointer}
+  #shotSyncWrap input{width:auto;margin:0}
   @media (max-width:900px){#dShots{grid-template-columns:1fr}}
 
   /* ---- bilgi butonu ----------------------------------------------------- */
@@ -1224,15 +1227,18 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <pre id="dLog" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;
         max-height:150px;overflow:auto;font:11.5px/1.4 ui-monospace,monospace;margin:0 0 10px;white-space:pre-wrap">Bir rota icin diff alin...</pre>
       <p class="mono err" id="dShotsErr"></p>
+      <label id="shotSyncWrap" class="mono" title="Iki panel birlikte kaysin (oransal)">
+        <input type="checkbox" id="shotSync" checked> es zamanli kaydir
+      </label>
       <div id="dShots" hidden>
         <figure style="margin:0">
           <figcaption class="mono" style="margin-bottom:4px">Tasarim — <b style="color:#e11d48">kirmizi: canlida bulunamayan metinler</b></figcaption>
-          <div style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
+          <div class="shotpane" data-pane="design" style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
             <img id="dShotDesign" style="width:100%;display:block" alt="isaretli tasarim"></div>
         </figure>
         <figure style="margin:0">
           <figcaption class="mono" style="margin-bottom:4px">Canli — <b style="color:#e11d48">kirmizi: spec farki olan ogeler</b></figcaption>
-          <div style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
+          <div class="shotpane" data-pane="live" style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
             <img id="dShotLive" style="width:100%;display:block" alt="isaretli canli"></div>
         </figure>
       </div>
@@ -1841,6 +1847,44 @@ function runForCurrent() {
   if (!id) return;
   startRun(id);
 }
+
+
+/**
+ * Tasarim/canli panellerinde ES ZAMANLI KAYDIRMA.
+ *
+ * ORANSAL eslestirme: iki gorselin yuksekligi ayni degil (tasarim frame'i
+ * 5681px, canli sayfa baska). Piksel bazli eslemede alt kisimda kayma birikir;
+ * oran korunursa "tasarimin %40'i" ile "canlinin %40'i" yan yana kalir.
+ *
+ * `kilit` bayragi geri besleme dongusunu keser: b'yi programla kaydirmak
+ * b'nin scroll olayini tetikler, o da a'yi kaydirmaya calisirdi.
+ */
+(function shotSync() {
+  let kilit = false;
+  const oran = (el) => {
+    const pay = el.scrollHeight - el.clientHeight;
+    return pay > 0 ? el.scrollTop / pay : 0;
+  };
+  const uygula = (kaynak, hedef) => {
+    if (kilit || !$('#shotSync')?.checked) return;
+    kilit = true;
+    const pay = hedef.scrollHeight - hedef.clientHeight;
+    hedef.scrollTop = oran(kaynak) * pay;
+    // Yatay kaydirma da eslesin (gorseller tam genislikte, genelde 0 kalir).
+    const yPay = hedef.scrollWidth - hedef.clientWidth;
+    if (yPay > 0) {
+      const kPay = kaynak.scrollWidth - kaynak.clientWidth;
+      hedef.scrollLeft = (kPay > 0 ? kaynak.scrollLeft / kPay : 0) * yPay;
+    }
+    requestAnimationFrame(() => { kilit = false; });
+  };
+  document.addEventListener('scroll', (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLElement) || !el.classList?.contains('shotpane')) return;
+    const digeri = [...document.querySelectorAll('.shotpane')].find((x) => x !== el);
+    if (digeri) uygula(el, digeri);
+  }, true);   // scroll BALONLASMAZ — capture fazinda dinliyoruz
+})();
 
 // ---------------- Tasarim diff ----------------
 async function matchFigma(path) {
