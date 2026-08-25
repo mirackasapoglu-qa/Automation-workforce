@@ -705,6 +705,67 @@
   aside .tabs button[aria-selected=true] .nav-ic{opacity:1;color:var(--acc)}
 
 </style>
+
+<style id="nc-motion">
+/* ==== Mikro-animasyonlar (Nocturne) ==== */
+@keyframes ncTabIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes ncLogIn{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+@keyframes ncNumPop{0%{opacity:0;transform:scale(.92)}60%{transform:scale(1.03)}100%{opacity:1;transform:none}}
+@keyframes ncTipIn{from{opacity:0;transform:translateY(-4px) scale(.97)}to{opacity:1;transform:none}}
+@keyframes ncGlowPulse{0%,100%{box-shadow:0 0 0 0 var(--acc-dim)}50%{box-shadow:0 0 0 6px transparent}}
+/* sekme geçişi: içerik yumuşak girer (hidden kalkınca animasyon yeniden oynar) */
+section > [id^="tab-"]:not([hidden]){animation:ncTabIn .28s cubic-bezier(.2,.7,.2,1) both}
+/* liste/tablolar: satırlar sırayla belirir (ilk 12 satır kademeli) */
+.caserow:nth-child(1){animation-delay:.02s}.caserow:nth-child(2){animation-delay:.05s}
+.caserow:nth-child(3){animation-delay:.08s}.caserow:nth-child(4){animation-delay:.11s}
+.caserow:nth-child(5){animation-delay:.14s}.caserow:nth-child(6){animation-delay:.17s}
+table tr{animation:ncTabIn .3s both}
+table tr:nth-child(2){animation-delay:.04s}table tr:nth-child(3){animation-delay:.08s}
+table tr:nth-child(4){animation-delay:.12s}table tr:nth-child(5){animation-delay:.16s}
+table tr:nth-child(6){animation-delay:.2s}table tr:nth-child(7){animation-delay:.24s}
+table tr:nth-child(8){animation-delay:.28s}table tr:nth-child(9){animation-delay:.32s}
+table tr:nth-child(10){animation-delay:.36s}
+/* canlı log: her satır sağdan süzülür */
+pre#log span{display:inline-block;width:100%;animation:ncLogIn .22s ease both}
+/* istatistik sayıları: yenilenince hafif pop */
+.c .n,.strip .v{animation:ncNumPop .38s ease both}
+/* bilgi kutusu: aşağı açılırken belirir */
+.tipbox{animation:ncTipIn .16s ease both}
+/* açılır bloklar (spec, koşum grubu, senaryo vb.): gövde yumuşak iner */
+details[open] > .body,details[open] > #sgBody,details[open] > #kiBody,details[open] > #dfBody,
+details[open] > #odBody,details[open] > #recBody,details[open] > #bugBody{animation:ncTabIn .24s ease both}
+/* koşan koşum ve azalan kapı: dikkat çeken nabız */
+#gatePill.warn,#gatePill.expired,#gatePill.missing{animation:pulse 1.5s ease-in-out infinite}
+#activePill.good{animation:ncGlowPulse 1.8s ease-out infinite, pulse 1.8s ease-in-out infinite}
+/* etkileşim: butonlarda yumuşak parlama, sekmelerde kayma */
+button{transition:background var(--t),border-color var(--t),color var(--t),transform var(--t),box-shadow var(--t)}
+aside .tabs button{transition:background var(--t),color var(--t),box-shadow var(--t),padding-left var(--t)}
+aside .tabs button:hover{padding-left:14px}
+tr{transition:background var(--t)}
+input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
+/* hareket azaltma tercihi her şeyi kapatır (orijinal kural da destekliyor) */
+@media (prefers-reduced-motion:reduce){
+  section > [id^="tab-"]:not([hidden]),table tr,pre#log span,.c .n,.strip .v,.tipbox,
+  details[open] > *,#gatePill,#activePill{animation:none !important}
+  aside .tabs button:hover{padding-left:11px}
+}
+
+/* ---- Ayni niyetin yeni ekranlara tasinmasi -------------------------------
+   Tasarim dosyasi "Genel bakis" ekranindan onceki surumden turetilmis; asagidaki
+   secicilerin karsiligi orada yoktu. Kural setini degistirmiyoruz, YENI
+   yuzeylere ayni davranisi veriyoruz. */
+.ov-row{animation:ncTabIn .3s both}
+.ov-row:nth-child(2){animation-delay:.04s}.ov-row:nth-child(3){animation-delay:.08s}
+.ov-row:nth-child(4){animation-delay:.12s}.ov-row:nth-child(5){animation-delay:.16s}
+.ov-row:nth-child(6){animation-delay:.2s}
+.ov-kpi .n{animation:ncNumPop .38s ease both}
+.ov-chip{animation:ncTabIn .28s both}
+.ov-live-log .ln{animation:ncLogIn .22s ease both}
+#cmdMenu:not([hidden]){animation:ncTipIn .14s ease both}
+@media (prefers-reduced-motion:reduce){
+  .ov-row,.ov-kpi .n,.ov-chip,.ov-live-log .ln,#cmdMenu{animation:none !important}
+}
+</style>
 </head>
 <body>
 <header>
