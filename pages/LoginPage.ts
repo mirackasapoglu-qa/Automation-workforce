@@ -14,8 +14,9 @@ export class LoginPage extends BasePage {
   constructor(page: Page) {
     super(page);
     this.heading = page.locator('h1:visible:has-text("Giriş Yap")').first();
-    this.emailInput = page.locator('input[name="email"]:visible').first();
-    this.passwordInput = page.locator('input[name="password"]:visible').first();
+    // Alan adlari 2026-08'de degisti (email -> login-email); iki ad da kabul edilir.
+    this.emailInput = page.locator('input[name="email"]:visible, input[name="login-email"]:visible').first();
+    this.passwordInput = page.locator('input[name="password"]:visible, input[name="login-password"]:visible').first();
     this.rememberMe = page.locator("#login-remember-me").first();
     // "SMS İLE GİRİŞ YAP" da "GİRİŞ YAP" içeriyor → exact name şart
     this.submitButton = page.getByRole("button", { name: "GİRİŞ YAP", exact: true }).first();
@@ -28,8 +29,27 @@ export class LoginPage extends BasePage {
     await this.goto(`/giris?redirect=${encodeURIComponent(redirect)}`);
   }
 
-  async login(email: string, password: string) {
+  /**
+   * E-posta + sifre alanlarini doldurur.
+   *
+   * ⚠️ Alanlar `readonly` aciliyor (otomatik doldurmaya karsi) ve readonly
+   * yalnizca TIKLAYINCA kalkiyor. Dogrudan `fill()` "element is not editable"
+   * ile 30sn bekleyip duser — bu yuzden dolduran her yer bu method'u kullanmali.
+   */
+  async fillCredentials(email: string, password: string) {
+    await this.emailInput.click();
     await this.emailInput.fill(email);
+    await this.passwordInput.click();
+    await this.passwordInput.fill(password);
+  }
+
+  async login(email: string, password: string) {
+  // ⚠️ Alanlar `readonly` acilıyor (otomatik doldurmaya karsi); readonly
+  // yalnizca TIKLAYINCA kalkiyor. Once click, sonra fill — aksi halde
+  // Playwright "element is not editable" ile 30sn bekleyip dusuyor.
+    await this.emailInput.click();
+    await this.emailInput.fill(email);
+    await this.passwordInput.click();
     await this.passwordInput.fill(password);
     await this.submitButton.click({ timeout: 15_000 });
     await this.page.waitForTimeout(6000);

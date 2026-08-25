@@ -66,8 +66,17 @@ async function memberLogin(page: Page, baseURL: string) {
   });
   await page.waitForTimeout(3500);
 
-  await page.locator('input[name="email"]').first().fill(email);
-  await page.locator('input[name="password"]').first().fill(password);
+  // Giris formu alan adlari 2026-08'de degisti (email -> login-email). Iki adi
+  // da kabul ediyoruz ki ortamlar arasi fark ya da geri alma suite'i kirmasin.
+  // ⚠️ Alanlar `readonly` acilıyor (otomatik doldurmaya karsi); readonly
+  // yalnizca TIKLAYINCA kalkiyor. Once click, sonra fill — aksi halde
+  // Playwright "element is not editable" ile 30sn bekleyip dusuyor.
+  const emailInput = page.locator('input[name="email"], input[name="login-email"]').first();
+  const passwordInput = page.locator('input[name="password"], input[name="login-password"]').first();
+  await emailInput.click();
+  await emailInput.fill(email);
+  await passwordInput.click();
+  await passwordInput.fill(password);
   await page.getByRole("button", { name: /^GİRİŞ YAP$/i }).first().click();
   await page.waitForTimeout(7000);
 }

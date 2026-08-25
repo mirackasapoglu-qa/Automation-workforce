@@ -26,8 +26,7 @@ test.describe("20 - Giriş (pozitif / negatif)", () => {
     await login.open();
 
     // "admin" geçerli bir e-posta değil → format uyarısı beklenir
-    await login.emailInput.fill("admin");
-    await login.passwordInput.fill("password123");
+    await login.fillCredentials("admin", "password123");
     const msg = await login.submitAndCatchMessage(/geçerli bir e-posta/i);
 
     expect(msg, "e-posta format uyarısı gösterilmedi").not.toBeNull();
@@ -39,8 +38,7 @@ test.describe("20 - Giriş (pozitif / negatif)", () => {
     const login = new LoginPage(page);
     await login.open();
 
-    await login.emailInput.fill(TEST_EMAIL || "qa-yok@example.com");
-    await login.passwordInput.fill("KesinlikleYanlisSifre123!");
+    await login.fillCredentials(TEST_EMAIL || "qa-yok@example.com", "KesinlikleYanlisSifre123!");
 
     // Mesaj ~1.2 sn sonra çıkıp kaybolan bir toast → poll ederek yakala
     const msg = await login.submitAndCatchMessage(

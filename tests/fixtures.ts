@@ -22,8 +22,15 @@ export async function loginAsMember(page: Page) {
     timeout: 60_000,
   });
   await page.waitForTimeout(3000);
-  await page.locator('input[name="email"]:visible').first().fill(TEST_EMAIL);
-  await page.locator('input[name="password"]:visible').first().fill(TEST_PASSWORD);
+  // ⚠️ Alanlar `readonly` acilıyor (otomatik doldurmaya karsi); readonly
+  // yalnizca TIKLAYINCA kalkiyor. Once click, sonra fill — aksi halde
+  // Playwright "element is not editable" ile 30sn bekleyip dusuyor.
+  const emailInput = page.locator('input[name="email"]:visible, input[name="login-email"]:visible').first();
+  const passwordInput = page.locator('input[name="password"]:visible, input[name="login-password"]:visible').first();
+  await emailInput.click();
+  await emailInput.fill(TEST_EMAIL);
+  await passwordInput.click();
+  await passwordInput.fill(TEST_PASSWORD);
   await page.getByRole("button", { name: "GİRİŞ YAP", exact: true }).first().click({ timeout: 15_000 });
   await page.waitForTimeout(6000);
 
