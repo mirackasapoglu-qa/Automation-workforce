@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { HomePage } from "../pages/HomePage";
 import { CategoryPage } from "../pages/CategoryPage";
+import { BasePage } from "../pages/BasePage";
 import { KNOWN_BROKEN_ROUTES, LISTING_EMPTY, MENU_ROUTES } from "./routes";
 import { KNOWN_ISSUES } from "./known-issues";
 
@@ -82,6 +83,20 @@ test.describe("02 - Navigasyon ve rota sağlığı", () => {
     ).toHaveLength(0);
   });
 
+  /**
+   * 2026-08-20 denetimi: header'da hiçbir yere gitmeyen `/#` anchor'ı bulundu.
+   * Ölü anchor klavye ile gezinenler için tuzak: focus alır, iş yapmaz.
+   */
+  test("header'da ölü anchor (/# veya boş href) yok", async ({ page }) => {
+    const p = new BasePage(page);
+    await p.goto("/");
+
+    const dead = await page.$$eval("header a[href], nav a[href]", (as) =>
+      [...new Set(as.map((a) => a.getAttribute("href") ?? "").filter((h) => h === "#" || h === "/#" || h === ""))],
+    );
+    expect(dead, `ölü anchor(lar): ${dead.join(", ")}`).toHaveLength(0);
+  });
+
   test("logo anasayfaya döner", async ({ page }) => {
     const cat = new CategoryPage(page);
     await cat.open("/tum-urunler");
@@ -94,6 +109,8 @@ test.describe("02 - Navigasyon ve rota sağlığı", () => {
 test.describe("02b - Domain sızması", () => {
   /**
    * Test ortamındaki sayfalar PROD domain'ine link vermemeli.
+   * BİLİNEN HATA HOMEE-005 (aynı kök neden, daha geniş kapsam: yalnızca /arama değil,
+   * PersonaClick widget'ı barındıran her sayfa).
    * Bilinen sorun: PersonaClick öneri widget'ı prod.tepehome.com.tr'ye link veriyor
    * (özellikle sonuçsuz aramada). Bu test sızmayı raporlar.
    */

@@ -1,5 +1,5 @@
-import dotenv from "dotenv";
-dotenv.config();
+import { loadEnv } from "../env.mjs";
+loadEnv();
 
 export const ENV = (process.env.HOMEE_ENV ?? "test").toLowerCase();
 

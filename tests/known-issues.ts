@@ -13,8 +13,9 @@ export const KNOWN_ISSUES = {
   /** Ürün detay sayfasında JS hatası: "parameters is not iterable" */
   productDetailConsoleError: {
     id: "HOMEE-001",
-    where: "/tepe-sap-test-yeni-urun-p-1099765 (ürün detay)",
-    detail: 'pageerror: "parameters is not iterable"',
+    where: "SAP test ürünleri (varyantsız PDP): /tepe-sap-test-yeni-urun-p-1099765, /test-deneme-urun-test1-p-1099766",
+    detail:
+      'pageerror: "parameters is not iterable" — 2026-08-20 denetimi: 2 SAP test PDP\'sinde 3/3 koşumda çıkıyor, varyantlı /anchor-… PDP\'sinde ÇIKMIYOR',
   },
   /**
    * /magazalar sayfasında kırık görsel (test CDN).
@@ -40,6 +41,13 @@ export const KNOWN_ISSUES = {
    */
   checkoutContractsNotLoading: {
     id: "HOMEE-004",
+    /**
+     * ⚠️ MAC-7268 2026-08-22'de "Tamam"a taşındı (Sinem Baysel), ama hata ARALIKLI:
+     * son 8 ölçülebilir koşumun 1'inde tekrarladı. Kartın kapanması testin
+     * susturulması anlamına GELMEZ — assertion duruyor, tekrar ederse suite
+     * kırmızı olur ve kartın yeniden açılması gerekir.
+     */
+    jira: "MAC-7268",
     where: "/odeme",
     detail:
       '"Mesafeli satış sözleşmesi yüklenemedi." + "Ön bilgilendirme formu yüklenemedi."',
@@ -47,6 +55,7 @@ export const KNOWN_ISSUES = {
   /**
    * Arama sonuçlarının TAMAMI prod domain'ine link veriyor.
    * Ölçüm (2026-08-18): /arama?q=koltuk → 50/50 link, scroll sonrası 100/100 link
+   * Ölçüm (2026-08-20): tam scroll sonrası 350/350 link (%100), site içi link 0
    * https://prod.tepehome.com.tr/...?recommended_by=full_search
    * Sonuçsuz aramada da 8 öneri kartı aynı şekilde prod'a gidiyor.
    */
@@ -54,7 +63,7 @@ export const KNOWN_ISSUES = {
     id: "HOMEE-005",
     where: "/arama?q=<herhangi>",
     detail:
-      "Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor",
+      "Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor. 2026-08-20: tam scroll sonrasi 350/350 kart, site ici link 0",
   },
   /**
    * Arama alaka sorunu.
@@ -76,5 +85,58 @@ export const KNOWN_ISSUES = {
     where: "/tepe-sap-test-yeni-urun-p-1099765 (oneri kartlari)",
     detail:
       "5 gorsel naturalWidth=0 donuyor, ornek: tepehome-cdn/product/41/images/1001728-1_400x400.jpg",
+  },
+  /**
+   * Varyantlı ürün detayında null'dan URL kuruluyor: GET /null?v=0.2 → 404.
+   * Ölçüm (2026-08-20): 3/3 koşumda deterministik. SAP test ürünlerinde YOK,
+   * yalnızca varyantlı üründe — muhtemelen varyant/renk asset'i.
+   */
+  pdpNullAssetRequest: {
+    id: "HOMEE-009",
+    where: "/anchor-kare-orta-sehpa-p-anc03sh756t763 (varyantlı ürün detay)",
+    detail:
+      "Sayfa https://redesign-prod.test.tepehome.com.tr/null?v=0.2 istegi atiyor ve 404 aliyor; URL null bir degerden kuruluyor",
+  },
+  /**
+   * Sonuçsuz aramada JS crash.
+   * Ölçüm (2026-08-20): 3/3 koşumda deterministik. HOMEE-006 (alaka sorunu) ile
+   * ilgisi yok — bu ayrı bir çalışma zamanı hatası.
+   */
+  emptySearchPageError: {
+    id: "HOMEE-010",
+    where: "/arama?q=<sonucsuz>",
+    detail:
+      "pageerror: \"Cannot read properties of null (reading 'getBoundingClientRect')\" — HOMEE-006'dan bagimsiz",
+  },
+  /**
+   * Havale/EFT açıklama bloğunda üç ayrı hata (ölçüm 2026-08-22, /odeme).
+   *  1) BOŞ DEĞER: "Havelenizi yaparken gönderen bölümünde mutlaka "" adını
+   *     kullanınız." — isim gelmesi gereken yer boş çift tırnak olarak basılıyor,
+   *     yani kullanıcıya hangi adı yazacağı söylenmiyor.
+   *  2) YAZIM: "Havelenizi" → "Havalenizi".
+   *  3) OLMAYAN ARAYÜZ: "Aşağıdaki menüden ... banka IBAN numarasını seçip
+   *     'Siparişi Tamamla' tuşuna basınız" deniyor; sayfada seçilebilir banka
+   *     menüsü YOK (select 0, combobox/listbox 0 — ölçüldü) ve butonun adı
+   *     "ÖDEME YAP".
+   */
+  transferCopyMismatch: {
+    id: "HOMEE-011",
+    jira: "MAC-7303",
+    where: "/odeme → HAVALE / EFT",
+    detail:
+      "Havale aciklama blogunda 3 hata: (1) gonderen adi bos cift tirnak olarak basiliyor, (2) 'Havelenizi' yazim hatasi, (3) metin var olmayan banka secim menusune ve 'Siparisi Tamamla' butonuna yonlendiriyor (gercek buton: ODEME YAP)",
+  },
+  /**
+   * Sepet sayfası, basket yanıtı items>0 döndükten SONRA da bir süre boş durumu
+   * gösteriyor (badge 0 + "Sepetiniz boş"); satır navigasyon olmadan, kendiliğinden
+   * geliyor. Ölçüm 2026-08-22: 12 turun 2'sinde (~%17), ~15 sn içinde toparladı.
+   * Veri kaybı YOK. Suite bu yüzden boşluk kararını API'ye soruyor (CartPage).
+   */
+  cartEmptyStateRace: {
+    id: "HOMEE-012",
+    jira: "MAC-7304",
+    where: "/sepet",
+    detail:
+      "Basket API items:1 dondukten sonra da sayfa bir sure 'Sepetiniz bos' gosteriyor ve badge 0 okuyor; satir navigasyon olmadan sonradan geliyor (12 turda 2)",
   },
 } as const;

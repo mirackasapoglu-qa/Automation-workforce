@@ -131,4 +131,51 @@ test.describe("06 - Sepet", () => {
     await cart.open();
     expect(await cart.lineCount(), "iki ürün için iki satır beklenir").toBe(2);
   });
+
+  /**
+   * KAPSAM BOŞLUĞU KAPATMA (2026-08-22): adet=1'de "Azalt" butonu DEVRE DIŞI.
+   * 2026-08-21 checkout denetimi bunu "buton tıklanamadı" diye hata sandı;
+   * ölçüm doğru davranış olduğunu gösterdi (adet 2'ye çıkınca etkinleşiyor).
+   * Bu test o davranışı kilitler — disabled kalkarsa (adet 0'a düşürülebilir hale
+   * gelirse) test fail eder.
+   */
+  test("adet 1 iken azalt butonu devre dışı, 2 iken etkin", async ({ page }) => {
+    test.setTimeout(150_000);
+    const product = new ProductPage(page);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const cart = new CartPage(page);
+    await cart.open();
+    await expect(cart.decreaseButtons.first(), "adet 1'de azalt etkin olmamalı").toBeDisabled();
+
+    await cart.increaseFirstLine();
+    await expect(cart.decreaseButtons.first(), "adet 2'de azalt etkin olmalı").toBeEnabled();
+  });
+
+  /**
+   * KAPSAM BOŞLUĞU KAPATMA (2026-08-22): satın alma limiti.
+   * `deneme` ürününde limit 1 — artırma denemesi API'de 406 alıyor ve kullanıcıya
+   * mesaj gösteriliyor. Toast KAYBOLAN türde, bu yüzden poll eden yardımcı şart.
+   * Beklenen: adet ve toplam DEĞİŞMEZ + kullanıcı bilgilendirilir (sessiz kalmaz).
+   */
+  test("satın alma limiti dolu üründe artırma engellenir ve kullanıcı bilgilendirilir", async ({
+    page,
+  }) => {
+    test.setTimeout(150_000);
+    const product = new ProductPage(page);
+    await product.open(TEST_PRODUCTS.deneme);
+    await product.addToCart();
+
+    const cart = new CartPage(page);
+    await cart.open();
+    const before = await cart.subtotal();
+
+    const message = await cart.increaseAndCatchMessage(/en fazla \d+ adet/i);
+
+    expect(await cart.subtotal(), "limit aşıldı ama ara toplam değişti").toBe(before);
+    expect(message, "limit mesajı kullanıcıya gösterilmiyor (sessiz hata)").toMatch(
+      /en fazla \d+ adet/i,
+    );
+  });
 });

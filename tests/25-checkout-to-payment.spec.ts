@@ -3,6 +3,7 @@ import { ProductPage } from "../pages/ProductPage";
 import { CartPage } from "../pages/CartPage";
 import { CheckoutPage } from "../pages/CheckoutPage";
 import { TEST_PRODUCTS } from "./routes";
+import { KNOWN_ISSUES } from "./known-issues";
 import { ORDERS_ALLOWED } from "../pages/authState";
 
 /**
@@ -121,5 +122,153 @@ test.describe("25 - Ödeme adımı (sipariş tamamlanmaz)", () => {
     await expect(async () => {
       await checkout.submitOrder();
     }).rejects.toThrow(/ALLOW_HOMEE_ORDERS/);
+  });
+
+  /**
+   * KAPSAM BOŞLUĞU KAPATMA (2026-08-22 checkout denetimi).
+   * Denetim bu 5 şeyi ÖLÇTÜ ama hiçbir test assert etmiyordu: havale banka bloğu,
+   * kredi kartı formu, sözleşme↔buton matrisi, özet↔buton tutar tutarlılığı,
+   * fatura adresi varsayılanı. Locator'lar `.checkout-probe.mjs` ölçümünden geliyor.
+   */
+  test("havale seçilince banka hesabı bilgileri ve kopyala butonları gelir", async ({
+    memberPage,
+  }) => {
+    test.setTimeout(180_000);
+    const product = new ProductPage(memberPage);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const checkout = new CheckoutPage(memberPage);
+    await checkout.open();
+    await checkout.selectPaymentMethod("havale");
+
+    const { banka, alici, iban } = await checkout.bankTransferDetails();
+    expect(banka, "havale bloğunda banka adı yok").toBeTruthy();
+    expect(alici, "havale bloğunda alıcı ünvanı yok").toBeTruthy();
+    /*
+     * IBAN "TR" + rakamlar (boşluklu yazılabilir). Uzunluk 20-25 aralığında
+     * bırakıldı — çünkü TEST ORTAMINDAKİ değer geçerli bir TR IBAN'ı DEĞİL:
+     * TR1000012345678901234567890 = TR + 25 hane (geçerli TR IBAN'ı TR + 24 hane,
+     * toplam 26 karakter). Ölçüldü 2026-08-22. Bu bir kukla test verisi olduğu
+     * için suite'i kırmızıya çekmiyoruz; FINDINGS.md → Gözlemler'de kayıtlı.
+     * Prod'a çıkacak gerçek IBAN için burayı /^TR\d{24}$/ yap.
+     */
+    expect(iban?.replace(/\s/g, ""), `IBAN formatı beklenmedik: ${iban}`).toMatch(
+      /^TR\d{20,25}$/,
+    );
+    await expect(checkout.copyIbanButton, "IBAN kopyala butonu yok").toBeVisible();
+    await expect(checkout.copyRecipientButton, "alıcı kopyala butonu yok").toBeVisible();
+  });
+
+  test("kredi kartı seçilince kart formu ve taksit bölümü gelir", async ({ memberPage }) => {
+    test.setTimeout(180_000);
+    const product = new ProductPage(memberPage);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const checkout = new CheckoutPage(memberPage);
+    await checkout.open();
+    await checkout.selectPaymentMethod("kredi");
+
+    // Kart bilgisi GİRİLMİYOR — yalnızca formun geldiği doğrulanıyor.
+    await expect(checkout.cardNumberInput, "kart numarası alanı yok").toBeVisible();
+    await expect(checkout.cardExpiryInput, "son kullanma alanı yok").toBeVisible();
+    await expect(checkout.cardCvcInput, "CVC alanı yok").toBeVisible();
+    await expect(checkout.cardHolderInput, "kart sahibi alanı yok").toBeVisible();
+    await expect(checkout.installmentsHeading, "taksit bölümü yok").toBeVisible();
+  });
+
+  test("sözleşme onayı ÖDEME YAP'ı etkinleştirir, kaldırınca tekrar kilitler", async ({
+    memberPage,
+  }) => {
+    test.setTimeout(180_000);
+    const product = new ProductPage(memberPage);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const checkout = new CheckoutPage(memberPage);
+    await checkout.open();
+    await checkout.selectPaymentMethod("havale");
+
+    // Onay yokken kilitli olmalı — asıl koruma bu
+    expect(await checkout.contractsCheckbox.isChecked(), "sözleşme baştan onaylı gelmemeli").toBe(
+      false,
+    );
+    expect(await checkout.payButtonEnabled(), "onay yokken ÖDEME YAP etkin olmamalı").toBe(false);
+
+    await checkout.acceptContracts();
+    expect(await checkout.payButtonEnabled(), "onay verildi ama ÖDEME YAP etkinleşmedi").toBe(true);
+
+    // Test hijyeni: değiştirdiğimiz durumu geri alıyoruz ve geri aldığımızı ölçüyoruz
+    await checkout.revokeContracts();
+    expect(await checkout.payButtonEnabled(), "onay kaldırıldı ama ÖDEME YAP etkin kaldı").toBe(
+      false,
+    );
+  });
+
+  test("sipariş özeti toplamı ödeme butonundaki tutarla aynı", async ({ memberPage }) => {
+    test.setTimeout(180_000);
+    const product = new ProductPage(memberPage);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const checkout = new CheckoutPage(memberPage);
+    await checkout.open();
+
+    const summary = await checkout.summaryTotal();
+    const onButton = await checkout.payButtonAmount();
+    expect(summary, "sipariş özetinde Toplam okunamadı").not.toBeNull();
+    expect(onButton, `özet=${summary} buton=${onButton}`).toBe(summary);
+  });
+
+  test("fatura adresi varsayılan olarak teslimat adresiyle aynı işaretli", async ({
+    memberPage,
+  }) => {
+    test.setTimeout(180_000);
+    const product = new ProductPage(memberPage);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const checkout = new CheckoutPage(memberPage);
+    await checkout.open();
+
+    await expect(
+      checkout.billingSameCheckbox,
+      "fatura adresi varsayılanı işaretli gelmiyor",
+    ).toBeChecked();
+  });
+
+  /**
+   * BİLİNEN HATA HOMEE-011: havale açıklaması var olmayan bir banka seçim
+   * menüsünü ve "Siparişi Tamamla" adlı bir butonu anlatıyor.
+   */
+  test("havale açıklaması sayfada var olan arayüzü anlatıyor", async ({ memberPage }) => {
+    test.fail(
+      true,
+      `${KNOWN_ISSUES.transferCopyMismatch.id}: ${KNOWN_ISSUES.transferCopyMismatch.detail}`,
+    );
+    test.setTimeout(180_000);
+    const product = new ProductPage(memberPage);
+    await product.open(TEST_PRODUCTS.sapTest);
+    await product.addToCart();
+
+    const checkout = new CheckoutPage(memberPage);
+    await checkout.open();
+    await checkout.selectPaymentMethod("havale");
+
+    const body = await memberPage.locator("body").innerText();
+    const menuTarifi = /Aşağıdaki menüden.*banka.*seçip/i.test(body);
+    const yokOlanButon = /Siparişi Tamamla/i.test(body);
+    const gercekButonVar = /ÖDEME YAP/.test(body);
+    const bankaMenusuVar = (await memberPage.locator("select:visible").count()) > 0;
+
+    expect(
+      menuTarifi && !bankaMenusuVar,
+      "açıklama seçilebilir banka menüsü tarif ediyor ama sayfada menü yok",
+    ).toBe(false);
+    expect(
+      yokOlanButon && gercekButonVar,
+      "açıklama 'Siparişi Tamamla' butonuna yönlendiriyor ama buton 'ÖDEME YAP'",
+    ).toBe(false);
   });
 });

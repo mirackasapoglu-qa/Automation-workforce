@@ -1,9 +1,9 @@
 import { chromium, FullConfig, BrowserContext, Page } from "@playwright/test";
 import fs from "fs";
 import path from "path";
-import dotenv from "dotenv";
+import { loadEnv } from "./env.mjs";
 
-dotenv.config();
+loadEnv();
 
 /**
  * Homee iki katmanlı kimlik doğrulama arkasında:

@@ -26,7 +26,9 @@ test.describe("08 - Statik / kurumsal sayfalar", () => {
     const p = new BasePage(page);
     const problems: string[] = [];
 
-    for (const route of STATIC_ROUTES.slice(0, 5)) {
+    // 2026-08-20 denetimi: 10/10 statik rota kırık görselsiz → kapsam tam listeye
+    // açıldı (önceden ilk 5 ile sınırlıydı, yarısı hiç ölçülmüyordu).
+    for (const route of STATIC_ROUTES) {
       await p.goto(route.path);
       const broken = await page.$$eval("img", (imgs) =>
         imgs
@@ -38,5 +40,27 @@ test.describe("08 - Statik / kurumsal sayfalar", () => {
     }
 
     expect(problems, `kırık görseller:\n${problems.join("\n")}`).toHaveLength(0);
+  });
+
+  /**
+   * 2026-08-20 denetimi: 10 statik rotanın 10'unda uygulama kaynaklı konsol
+   * hatası YOK. Bu test o yeşil durumu kilitler — bir statik sayfa JS hatası
+   * almaya başlarsa burada yakalanır. `test.fail()` yok, gerçekten geçmesi bekleniyor.
+   */
+  test("statik sayfalarda uygulama kaynaklı konsol hatası yok", async ({ page }) => {
+    test.setTimeout(180_000);
+    const errors = BasePage.collectConsoleErrors(page);
+    const p = new BasePage(page);
+    const problems: string[] = [];
+
+    for (const route of STATIC_ROUTES) {
+      const before = errors.length;
+      await p.goto(route.path);
+      await page.waitForTimeout(1500);
+      const fresh = BasePage.appErrorsOnly(errors.slice(before));
+      if (fresh.length) problems.push(`${route.path}: ${fresh.slice(0, 2).join(" | ")}`);
+    }
+
+    expect(problems, `konsol hataları:\n${problems.join("\n")}`).toHaveLength(0);
   });
 });

@@ -1,7 +1,8 @@
 import { defineConfig, devices } from "@playwright/test";
-import dotenv from "dotenv";
+import { loadEnv } from "./env.mjs";
 
-dotenv.config();
+// dotenv yerine sifir bagimlilikli yukleyici (bkz. env.mjs)
+loadEnv();
 
 const env = (process.env.HOMEE_ENV ?? "test").toLowerCase();
 const validEnvs = ["test", "staging", "prod", "local"] as const;

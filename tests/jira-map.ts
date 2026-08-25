@@ -74,14 +74,23 @@ export const CARD_MAP: JiraCardMapping[] = [
     title: "Tepe - Checkout - Redesign",
     specs: ["25-checkout-to-payment.spec.ts"],
     coverage: "partial",
-    note: "Ödeme adımına kadar; sipariş tamamlanmıyor. HOMEE-004 (sözleşme metinleri) bu kartta",
+    note:
+      "Ödeme adımına kadar; sipariş tamamlanmıyor. Kapsam (2026-08-22): bölümler, " +
+      "havale banka bloğu, kredi kartı formu, sözleşme↔ÖDEME YAP matrisi, tutar tutarlılığı. " +
+      "HOMEE-004 → MAC-7268, HOMEE-011 → MAC-7303 (2026-08-22'de açıldı). " +
+      "İndirim kodu adımı kapsam dışı",
   },
   {
     key: "MAC-7076",
     title: "Tepe - Order Confirmation Page - Redesign",
-    specs: [],
-    coverage: "none",
-    note: "Sipariş tamamlanmadığı için test edilemiyor — ALLOW_HOMEE_ORDERS=1 + test kartı gerekir",
+    specs: ["26-order-transfer.spec.ts"],
+    coverage: "partial",
+    note:
+      "HAVALE akışı kapsandı, yeşil koşum 2026-08-22 (ORD-20260821-122521; sipariş no UTC " +
+      "tarihli. İlk gerçek sipariş 2026-08-21: ORD-20260821-896094). " +
+      "'Ödemeniz bekleniyor' + banka/IBAN ekranı doğrulandı. ⚠️ Spec GERÇEK SİPARİŞ AÇAR, " +
+      "ALLOW_HOMEE_ORDERS=1 olmadan skip. KREDİ KARTI ile tamamlama hâlâ kapsam dışı — " +
+      "test kartı bilgisi gerekiyor",
   },
   {
     key: "MAC-7077",

@@ -130,22 +130,21 @@ export class CategoryPage extends BasePage {
     return [...new Set(opts)];
   }
 
-  /** Listedeki fiyatlar (₺1.234,56 → 1234.56). */
+  /** Listedeki fiyatlar. "₺1.234,56" ve "1.234,56 ₺" → 1234.56 */
   async prices(): Promise<number[]> {
     const raw = await this.page.evaluate(() => {
       const out: string[] = [];
       document.querySelectorAll("span, div, p, strong, b").forEach((e) => {
         if (e.children.length === 0) {
           const t = (e.textContent ?? "").trim();
-          if (/^₺\s?[\d.,]+$/.test(t)) out.push(t);
+          if (/^(?:₺\s*[\d.,]+|[\d.,]+\s*₺)$/.test(t)) out.push(t);
         }
       });
       return out;
     });
     return raw
-      .map((t) => t.replace(/[₺\s]/g, ""))
-      .map((s) => Number(s.replace(/\./g, "").replace(",", ".")))
-      .filter((n) => !Number.isNaN(n) && n > 0);
+      .map((t) => BasePage.moneyIn(t))
+      .filter((n): n is number => n !== null && n > 0);
   }
 
   async assertHasProducts(min = 1) {

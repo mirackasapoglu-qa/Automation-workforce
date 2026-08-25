@@ -164,6 +164,33 @@ export class BasePage {
     await this.settle(2000);
   }
 
+  /**
+   * ₺ TUTARI OKUMA — YERLEŞİM İKİ TÜRLÜ, İKİSİNİ DE KABUL ET.
+   *
+   * Site tutarsız: ödeme butonu "₺4.200 - ÖDEME YAP" (önde), sepet özeti
+   * "4.000,00 ₺" (arkada). POM'ların hepsi ₺'yi ÖNDE varsayıyordu ve sepet
+   * satırlarında `null` dönüyordu.
+   *
+   * ⚠️ ASIL TEHLİKE SESSİZ GEÇEN TESTLER: `expect(await cart.subtotal())
+   * .toBe(await product.priceValue())` ikisi de null olduğu için YEŞİL
+   * veriyordu. Fiyat karşılaştıran her assert'in bu yardımcıdan geçmesi lazım.
+   * (Ölçüm 2026-08-24: 3 test kırmızı, en az 2 assert yanlış yeşil.)
+   *
+   * "4.000,00 ₺" → 4000, "₺4.200" → 4200, "Birim: 1.234,56 ₺" → 1234.56
+   */
+  static moneyIn(text: string): number | null {
+    const m = text.match(/₺\s*([\d.,]+)|([\d.,]+)\s*₺/);
+    const raw = m?.[1] ?? m?.[2];
+    if (!raw) return null;
+    const n = Number(raw.replace(/\./g, "").replace(",", "."));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  /** Satırın TAMAMI bir tutar mı (liste fiyatlarını ayıklarken kullanılır). */
+  static isMoneyOnly(text: string): boolean {
+    return /^(?:₺\s*[\d.,]+|[\d.,]+\s*₺)$/.test(text.trim());
+  }
+
   static collectConsoleErrors(page: Page): string[] {
     const errors: string[] = [];
     page.on("console", (m) => {

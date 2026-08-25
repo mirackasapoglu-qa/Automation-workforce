@@ -97,20 +97,26 @@ export class ProductPage extends BasePage {
     await this.page.waitForTimeout(1200);
   }
 
-  /** Ürün fiyatı (sayfadaki ilk ₺ değeri). */
+  /**
+   * Ürün fiyatı (sayfadaki ilk ₺ değeri).
+   *
+   * ⚠️ Eskiden yalnızca "₺1.234,56" biçimini kabul ediyordu; site fiyatı
+   * "1.234,56 ₺" olarak da yazıyor ve o durumda `null` dönüyordu. `null`
+   * dönmesi testleri kırmıyor, SESSİZCE YEŞİL veriyordu: sepet ara toplamı da
+   * aynı sebeple null olduğu için `toBe()` karşılaştırması null==null geçiyordu.
+   * Yerleşim mantığı tek yerde: `BasePage.moneyIn` / `isMoneyOnly`.
+   */
   async priceValue(): Promise<number | null> {
     const raw = await this.page.evaluate(() => {
       const els = [...document.querySelectorAll("span, div, p, strong, b")];
       for (const e of els) {
         if (e.children.length === 0) {
           const t = (e.textContent ?? "").trim();
-          if (/^₺\s?[\d.,]+$/.test(t)) return t;
+          if (/^(?:₺\s*[\d.,]+|[\d.,]+\s*₺)$/.test(t)) return t;
         }
       }
       return "";
     });
-    if (!raw) return null;
-    const n = Number(raw.replace(/[₺\s]/g, "").replace(/\./g, "").replace(",", "."));
-    return Number.isNaN(n) ? null : n;
+    return raw ? BasePage.moneyIn(raw) : null;
   }
 }

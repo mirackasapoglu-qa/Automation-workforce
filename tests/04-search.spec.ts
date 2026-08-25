@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { CategoryPage } from "../pages/CategoryPage";
+import { BasePage } from "../pages/BasePage";
 import { SEARCH_TERMS } from "./routes";
 import { KNOWN_ISSUES } from "./known-issues";
 
@@ -88,5 +89,48 @@ test.describe("04 - Arama", () => {
       relevant.length,
       `ilk 5 sonuçta "${SEARCH_TERMS.hit}" geçen ürün yok: ${first5.map((h) => h.split("/").pop()).join(", ")}`,
     ).toBeGreaterThan(0);
+  });
+
+  /**
+   * BİLİNEN HATA HOMEE-010: sonuçsuz aramada JS crash —
+   * "Cannot read properties of null (reading 'getBoundingClientRect')".
+   * Ölçüm 2026-08-20: 3/3 koşumda deterministik. HOMEE-006'dan bağımsız.
+   */
+  test("sonuçsuz aramada JS hatası yok", async ({ page }) => {
+    test.fail(
+      true,
+      `${KNOWN_ISSUES.emptySearchPageError.id}: ${KNOWN_ISSUES.emptySearchPageError.detail}`,
+    );
+    const errors = BasePage.collectConsoleErrors(page);
+    const cat = new CategoryPage(page);
+    await cat.open(`/arama?q=${SEARCH_TERMS.miss}`);
+    await page.waitForTimeout(3000);
+
+    const appErrors = BasePage.appErrorsOnly(errors);
+    expect(appErrors, `Konsol hataları:\n${appErrors.join("\n")}`).toHaveLength(0);
+  });
+
+  /**
+   * BİLİNEN HATA HOMEE-005: sonuçlu aramanın yanı sıra SONUÇSUZ aramada da
+   * öneri kartları prod domain'ine gidiyor (ölçüm 2026-08-20: 8/8 kart).
+   * Üstteki test yalnızca sonuçlu aramayı ölçüyordu.
+   */
+  test("sonuçsuz arama öneri kartları site içi link veriyor", async ({ page }) => {
+    test.fail(
+      true,
+      `${KNOWN_ISSUES.searchResultsLinkToProd.id}: ${KNOWN_ISSUES.searchResultsLinkToProd.detail}`,
+    );
+    const cat = new CategoryPage(page);
+    await cat.open(`/arama?q=${SEARCH_TERMS.miss}`);
+    await page.waitForTimeout(3000);
+
+    const all = await page.locator('a[href*="-p-"]').evaluateAll((as) =>
+      as.map((a) => a.getAttribute("href") ?? ""),
+    );
+    const external = [...new Set(all.filter((h) => !h.startsWith("/")))];
+    expect(
+      external,
+      `${external.length}/${all.length} öneri kartı dış domain'e gidiyor, örn: ${external[0]}`,
+    ).toHaveLength(0);
   });
 });
