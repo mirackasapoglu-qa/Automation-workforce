@@ -87,7 +87,7 @@
   --neutral: #6b6d80;
   --progress: #6f61c0;
 
-  --shadow: 0 1px 2px rgba(36, 38, 58, .08), 0 8px 22px rgba(36, 38, 58, .10);
+  --shadow: 0 1px 2px rgba(36, 38, 58, .08), 0 8px 22px rgba(36, 38, 58, .1);
 }
 
 /**
