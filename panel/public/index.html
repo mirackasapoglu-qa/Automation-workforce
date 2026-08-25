@@ -3330,5 +3330,62 @@ html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4
   }, true);
 })();
 </script>
+<style id="nc-toast-css">
+@keyframes ncToastIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+#ncToast{position:fixed;right:22px;bottom:22px;width:340px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--sh);padding:16px;z-index:80;animation:ncToastIn .35s cubic-bezier(.2,.7,.2,1) both;
+  font-size:12.5px;color:var(--fg)}
+#ncToast .hd{display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px}
+#ncToast .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+#ncToast .x{margin-left:auto;background:none;border:0;color:var(--mut);cursor:pointer;font-size:15px;width:auto;padding:0 2px}
+#ncToast .bd{color:var(--mut);margin:8px 0 12px;line-height:1.5}
+#ncToast .row2{display:flex;gap:8px}
+#ncToast .row2 button{width:auto;margin:0;padding:6px 13px;font-size:12px}
+@media (prefers-reduced-motion:reduce){#ncToast{animation:none}}
+</style>
+<script id="nc-toast">
+/* Koşum bitti toast'ı: canlı log'daki "=== bitti (cikis kodu N…" satırını yakalar,
+   son koşumun özetini çıkarıp sağ altta kart gösterir. Panel JS'ine dokunmaz. */
+(function(){
+  const logEl = document.getElementById('log');
+  if (!logEl) return;
+  let shown = '';
+  function show(fail, pass, code){
+    document.getElementById('ncToast')?.remove();
+    const t = document.createElement('div');
+    t.id = 'ncToast'; t.setAttribute('role','status');
+    const ok = code === 0;
+    const title = (fail!=null && pass!=null) ? pass + ' geçti, ' + fail + ' kaldı'
+      : ok ? 'başarıyla tamamlandı' : 'hata ile bitti (çıkış ' + code + ')';
+    t.innerHTML =
+      '<div class="hd"><span class="dot" style="background:var(' + (ok ? '--ok' : '--no') + ')"></span>' +
+      'Koşum bitti — ' + title + '<button class="x" title="Kapat">×</button></div>' +
+      '<div class="bd">' + (ok ? 'Tüm case\'ler temiz. Ayrıntılar Son sonuçlar sekmesinde.'
+        : 'Başarısız case\'ler Son sonuçlar sekmesinde işaretli — oradan bug kartı açabilirsin.') + '</div>' +
+      '<div class="row2"><button id="ncToastGo">Sonuçları gör</button></div>';
+    document.body.appendChild(t);
+    t.querySelector('.x').onclick = () => t.remove();
+    t.querySelector('#ncToastGo').onclick = () => {
+      document.querySelector('.tabs button[data-tab=results]')?.click();
+      t.remove();
+    };
+    setTimeout(() => { if (document.getElementById('ncToast') === t) t.remove(); }, 15000);
+  }
+  new MutationObserver(() => {
+    const txt = logEl.textContent || '';
+    const m = txt.match(/=== bitti \(cikis kodu (\d+)[^)]*\)\s*===\s*$/);
+    if (!m || m[0] === shown) return;
+    shown = m[0];
+    /* Playwright HATASIZ kosumda "N failed, N passed" YAZMAZ, yalnizca
+       "N passed" yazar; tek desene bakinca temiz kosumda sayi cikmiyor ve
+       kart "basariyla tamamlandi" diyordu. Ikinci desen o durumu yakalar. */
+    const sum = txt.match(/(\d+) failed, (\d+) passed/);
+    const onlyPass = !sum && txt.match(/(\d+) passed\b/);
+    show(sum ? +sum[1] : (onlyPass ? 0 : null),
+         sum ? +sum[2] : (onlyPass ? +onlyPass[1] : null),
+         +m[1]);
+  }).observe(logEl, { childList: true, subtree: true, characterData: true });
+})();
+</script>
 </body>
 </html>
