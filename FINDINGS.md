@@ -97,9 +97,12 @@ Form alanlarında `required` niteliği de yok (`adınız`, `soyadınız`, `e-pos
 **Nerede:** `/odeme`
 **Belirti:** "Mesafeli satış sözleşmesi yüklenemedi." + "Ön bilgilendirme formu yüklenemedi."
 **Etki:** Kullanıcı onaylamak zorunda olduğu sözleşmeleri okuyamıyor — mevzuat açısından riskli.
-**Yan etki:** Sözleşmeler yüklenemediğinde onay checkbox'ı
-`name="checkout-contracts-accepted"` niteliğini de **kaybediyor** (DOM'da isimsiz checkbox
-olarak kalıyor). Otomasyon ve erişilebilirlik açısından ayrıca sorunlu.
+**Yan etki (2026-08-22'de düzeltildi):** Önce "sözleşmeler yüklenemediğinde onay
+checkbox'ı `name` niteliğini kaybediyor" diye kaydedilmişti. Ölçüm bunu çürüttü:
+`/odeme` sayfasındaki **iki checkbox'ın da `name` niteliği hiç yok** —
+`#checkout-billing-same` ve `#checkout-contracts-accepted`, sözleşmelerin sorunsuz
+yüklendiği koşumda bile. Yani `name` eksikliği bu hatanın yan etkisi değil, ayrı ve
+sürekli bir durum. Suite artık ikisini de ID ile bağlıyor.
 **Sıklık:** 3 koşumun 2'sinde tekrarlandı (bir koşumda yüklendi).
 **Test:** `25-checkout-to-payment.spec.ts` → "sözleşme metinleri yüklenir" —
 `test.fail()` ile susturulmadı; **açık hata olduğu için suite'te kırmızı duruyor.**
@@ -178,6 +181,80 @@ ama en azından hero başlığı ve CTA'nın metin olarak var olması beklenir.
 
 ---
 
+## HOMEE-011 — Havale açıklama bloğunda 3 hata · [MAC-7303](https://machinarium.atlassian.net/browse/MAC-7303)
+
+**Nerede:** `/odeme` → `HAVALE / EFT`
+
+**Belirti 1 — gönderen adı boş basılıyor (en ciddi):**
+> "Havelenizi yaparken gönderen bölümünde mutlaka **""** adını kullanınız."
+
+İsim gelmesi gereken yer boş çift tırnak olarak render ediliyor. Kullanıcıya "şu adı kullan"
+deniyor ama ad yazılmıyor — havalede gönderen adı eşleşmesi tahsilat için kritik.
+Muhtemelen ayarlardan/servisten gelen bir alanın boş dönmesi.
+
+**Belirti 2 — yazım hatası:** "Havelenizi" → "Havalenizi".
+
+**Belirti 3 — olmayan arayüz:** Açıklama metni şunu diyor:
+> "Aşağıdaki menüden havale göndermek istediğiniz banka IBAN numarasını seçip
+> **"Siparişi Tamamla"** tuşuna basınız."
+
+Oysa sayfada (ölçüldü 2026-08-22):
+- **seçilebilir banka menüsü yok** — tek bir banka bloğu var; ölçüm: sayfada `select` 0,
+  görünür `select` 0, `role=combobox|listbox` 0. Yalnızca "Alıcı adını kopyala" ve
+  "IBAN'ı kopyala" butonları var
+- buton adı **"ÖDEME YAP"**, "Siparişi Tamamla" diye bir buton yok
+
+**Etki:** Kullanıcı ekranda olmayan bir adımı arıyor. Havale, para transferini kullanıcının
+elle yaptığı yöntem olduğu için talimat metninin doğru olması kritik.
+**Sıklık:** Deterministik (ölçülen her koşumda).
+**Test:** `25-checkout-to-payment.spec.ts` → "havale açıklaması sayfada var olan arayüzü
+anlatıyor" — `test.fail()` ile takipte; metin düzelirse test kırmızı olur ve kayıt silinir.
+
+---
+
+## ÇÖZÜLDÜ (2026-08-22) — "Sepete eklenen ürün bazen sepette görünmüyor"
+
+Belirti: `SEPETE EKLE` sonrası badge artıyor ama `/sepet` "Sepetiniz boş" gösteriyor.
+Üç tam koşumda 1–2 case düşürdü, her seferinde farklı case → başta "kararsız test" sanıldı.
+
+**Kök neden ikiye ayrıldı.**
+
+### 1. Suite hatası (asıl sebep, düzeltildi)
+
+`CartPage.waitForRendered()` boşluk kararını **DOM'a** dayandırıyordu: `badge === 0`
+(ve sonradan eklenen `/Sepetiniz boş/` metni) görünce "sepet gerçekten boş" deyip dönüyordu.
+Oysa o metin **sayfa yüklenirken de ekranda duruyor** — yani geçici yükleme durumu,
+"boş sepet" kanıtı sanılıyordu. `clear()` aynı tuzağa düşüyordu: görünür kaldır butonu
+kalmayınca bitmiş sayıp çıkıyor, sepette ürün kalıyor ve **sonraki** test
+"sepette zaten 1 ürün var" diye patlıyordu.
+
+Düzeltme: boşluk kararı artık **uygulamanın kendi basket yanıtına** dayanıyor
+(`watchBasket()`, navigasyondan önce kurulan response dinleyicisi). API "0 satır"
+demedikçe boşluğa inanılmıyor; API ürün olduğunu söylüyorsa satır boyanana kadar
+beklenip, süre dolarsa **sessizce geçmek yerine hata fırlatılıyor**.
+
+Doğrulama: tanı spec'i (12 tur) düzeltmeden önce 2 kayıp veriyordu, sonra **12/12 temiz**.
+
+### 2. Ürün tarafı bulgu — [MAC-7304](https://machinarium.atlassian.net/browse/MAC-7304)
+
+Ölçüm, sayfanın **API yanıtı geldikten sonra bile** boş durumu göstermeye devam ettiğini
+kanıtladı. Düşen iki turda ağ trafiği birebir şöyleydi:
+
+```
+POST /v1/baskets            -> 200, items: 1      (ekleme başarılı)
+GET  /v1/baskets/<id>       -> 200, items: 1      (sepet fazı, 1. çağrı)
+GET  /v1/baskets/<id>       -> 200, items: 1      (sepet fazı, 2. çağrı)
+   ...bu anda ekran: 0 satır, badge 0, "Sepetiniz boş"
+   ...satır ~15 sn içinde NAVİGASYON OLMADAN geldi
+```
+
+Yani veri kaybı yok, kalıcı hata yok — ama kullanıcı, sepetinde ürün varken birkaç saniye
+**"Sepetiniz boş"** görüyor (12 turun 2'sinde, ~%17). Header badge de o pencerede 0 okuyor.
+Muhtemel sebep: boş durum, basket yanıtı çözülmeden render ediliyor ve yeniden render
+gecikiyor. Kanıt: `panel-data/diag-add.json`, `panel-data/evidence/diag-bos-sepet-tur*.png`.
+
+**Kart: MAC-7304** (2026-08-22, Okan Atayurt'a atandı, iki kanıt görseli ekli).
+
 ## Ürün hatası SANILAN ama olmayan davranışlar
 
 İlk koşumlarda hata gibi görünen, keşifle doğrulandığında **doğru çalıştığı** anlaşılan davranışlar.
@@ -191,6 +268,8 @@ Not ediliyor ki ekip bunları boşuna kovalamasın:
 | "Ödeme yöntemleri render olmuyor" | `/odeme` adresine **doğrudan gidilemiyor**; sepette ürün olsa bile `/sepet`e yönlendiriyor. Checkout oturumu "ÖDEME ADIMINA GEÇİN" butonuyla açılıyor. Tasarım gereği. |
 | "Adres silinemiyor" | Silme iki aşamalı: kartın "Sil" butonu → `[role=dialog]` onayı ("Bu adresi silmek istediğinize emin misiniz? Bu işlem geri alınamaz."). Doğru çalışıyor. |
 | "Favori eklenmiyor" | Favori butonu **toggle**; ürün zaten favorideyse etiketi "Favorilerden çıkar" oluyor. Ayrıca favori listesi lazy yükleniyor. Doğru çalışıyor. |
+| "Sepette adet artırınca toplam değişmiyor" | Ürünün **satın alma limiti** var. `deneme` (1099766) ürününde limit 1 → `PUT /v1/baskets/<id>` **406** dönüyor ve **"Bu üründen en fazla 1 adet ekleyebilirsiniz."** mesajı gösteriliyor. Mesaj kaybolan toast olduğu için 2026-08-21 denetimi "sessiz hata" sandı. Limitsiz üründe (`sapTest`) artırma sorunsuz çalışıyor (4.000 → 8.000). Doğru çalışıyor. |
+| "Sepette Azalt butonu tıklanamıyor" | Adet **1 iken buton kasıtlı olarak `disabled`** (adet 0'a düşürülemiyor, silme için ayrı "Ürünü kaldır" butonu var). Adet 2'ye çıkınca etkinleşiyor. Doğru çalışıyor. |
 
 ## Gözlemler (hata sayılmayan, ama not edilmesi gerekenler)
 
@@ -209,3 +288,43 @@ Not ediliyor ki ekip bunları boşuna kovalamasın:
    göremiyor.
 6. **Backend:** FE'nin konuştuğu API `https://ecom-api.test.tepehome.com.tr`
    (`POST /auth/login` yanlış kimlikte 401). İleride API seviyesinde test yazılabilir.
+7. **Test ortamındaki havale IBAN'ı geçerli bir TR IBAN'ı değil:**
+   `/odeme` → HAVALE / EFT bloğunda `TR1000012345678901234567890` yazıyor — bu
+   **TR + 25 hane**, geçerli TR IBAN'ı ise TR + 24 hane (toplam 26 karakter).
+   Kukla test verisi olduğu varsayılıyor; **prod'a çıkmadan gerçek IBAN ile
+   değiştirilmeli ve doğrulanmalı.** `25-checkout-to-payment.spec.ts` şu an
+   `/^TR\d{20,25}$/` ile geçiyor, gerçek veri gelince `/^TR\d{24}$/` yapılmalı.
+8. **`/odeme` sayfasındaki iki checkbox'ın da `name` niteliği yok**
+   (`#checkout-billing-same`, `#checkout-contracts-accepted`). Form gönderimi JS
+   ile yapıldığı için çalışıyor ama otomasyon ve erişilebilirlik için isimlendirme
+   beklenirdi. Suite ID ile bağlıyor.
+9. **Sepet özeti basket yenilemesinde yeniden mount oluyor.** `/sepet` ve `/odeme`
+   sayfalarında "Ara toplam" / "Toplam" satırı, arka planda dönen
+   `GET /v1/baskets` + `/api/auth/set-cookies` + `/api/auth/get-token` turlarında
+   bir an DOM'dan çıkıyor; header sepet badge'i de aynı anda kayboluyor.
+   Kullanıcı için görünür etkisi kısa bir "zıplama", ama otomasyon için gerçek bir
+   sorun: 2026-08-22'de 5 tam koşumda 4 ayrı test tek seferlik okuma yüzünden düştü
+   ("ara toplam okunamadı", "sepete eklenen ürün sepette görünmüyor"). Suite artık
+   poll ediyor (`CartPage.moneyNear`, `CheckoutPage.summaryTotal`, `waitForRendered`)
+   — ama **uygulama tarafında gereksiz token/basket yenileme trafiği** ayrıca
+   incelenmeye değer (denetimde de "aşırı auth token yenilemesi" olarak çıkmıştı).
+10. **Checkout/sepet dokunma hedefleri WCAG 2.2 AA'ya UYGUN — "25 ihlal" iddiası yanlıştı.**
+   2026-08-21 denetimi 44x44 (Apple iOS kılavuzu / WCAG AAA) eşiğiyle ölçüp `/odeme`'de
+   "25 küçük dokunma hedefi" saymıştı. AA eşiği **24x24** (2.5.8) ve iki muafiyeti var
+   (satır içi metin linkleri; hedefin etrafında 24px boşluk varsa geçer).
+   Doğru ölçütle yeniden ölçüldü (2026-08-22, masaüstü 1440x900 + mobil 412x915):
+
+   | Sayfa | Hedef | <24px | **AA ihlali** | <44px |
+   |---|---|---|---|---|
+   | masaüstü `/sepet` | 59 | 25 | **0** | 48 |
+   | masaüstü `/odeme` | 30 | 12 | **0** | 24 |
+   | mobil `/sepet` | 42 | 6 | **0** | 33 |
+   | mobil `/odeme` | 18 | 6 | **0** | 13 |
+
+   Yani **uyum sorunu yok**; ama 44x44 tavsiyesini karşılamayan hedef sayısı yüksek
+   (mobil `/odeme`'de 18 hedefin 13'ü) — bu bir tasarım kalitesi notu, hata değil.
+   Ölçüm dosyası: `panel-data/a11y-checkout.json`.
+11. **Mobil `/odeme`'de etkileşimli öğe sayısı masaüstünün yarısı** (18 ↔ 30).
+   Farkın bir kısmı header'ın masaüstü linkleri ve footer'dan geliyor, ama mobilde
+   gerçekten eksik bir kontrol olup olmadığı doğrulanmadı — mobil kapsam onaylanırsa
+   ilk bakılacak yer burası.

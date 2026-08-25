@@ -97,7 +97,7 @@ e-postasının göründüğünü** de assert eder.
    `click` yapma.
 
 7. **Sepet bazen bayat render dönüyor** — header badge'inde ürün varken liste boş geliyor.
-   `CartPage.open()` çelişkiyi görürse bir kez reload eder; kendi başına `/sepet`e gitme.
+   `CartPage.open()` çelişkiyi görürse reload eder (bkz. madde 12); kendi başına `/sepet`e gitme.
 
 8. **Hata mesajları kaybolan TOAST.** Yanlış şifre → "Lütfen e-posta adresinizi ya da şifrenizi
    kontrol edin." mesajı ~1.2 sn sonra çıkıp kayboluyor. Sabit bekleyip gövdeye bakan test mesajı
@@ -105,6 +105,35 @@ e-postasının göründüğünü** de assert eder.
 
 9. **Geçici script'i repo kökünde yaz** (`.probe.mjs`), scratchpad'de değil —
    `@playwright/test` modül çözümlemesi dosya konumuna göre çalışır. İş bitince sil.
+
+10. **`/odeme` bölüm başlıkları:** h2 olarak "İletişim Bilgileri", "Teslimat Adresi
+    Bilgileri", **"Ödeme Bilgileri"**, "Sipariş Özeti". "Ödeme yöntemi" diye bir başlık
+    YOK — POM 2026-08-22'ye kadar onu arıyordu ve hiç eşleşmiyordu.
+
+11. **Checkout checkbox'larının `name`'i yok, ID ile bağla:** `#checkout-billing-same`
+    (fatura adresi, varsayılan işaretli) ve `#checkout-contracts-accepted` (sözleşme onayı).
+    `input[type="checkbox"]`'a düşen seçici İLK kutuyu (fatura) yakalar → sözleşme hiç
+    işaretlenmez, "ÖDEME YAP" disabled kalır ve sebebi görünmez. Sözleşme input'u `sr-only`
+    1x1 olduğu için `check()` timeout'a düşebilir; `focus()` + `Space` çalışıyor
+    (`CheckoutPage.acceptContracts()` bunu zaten yapıyor).
+    Kart alanları: `#checkout-card-number` / `-expiry` / `-cvc` / `-holder`.
+
+12. **`/sepet`'te "boş sepet" kararını ASLA DOM'dan verme — API'ye sor.**
+    Sayfa, basket yanıtı `items: 1` döndükten SONRA bile saniyelerce (ölçüm: ~15 sn'ye kadar)
+    `badge 0` + "Sepetiniz boş" gösterebiliyor; satır sonradan, navigasyon olmadan geliyor.
+    Bu yüzden `badge === 0` veya "Sepetiniz boş" metni **boşluk kanıtı değildir** — suite
+    2026-08-22'ye kadar tam bu yüzden her koşumda 1-2 case kaybediyordu.
+    `CartPage` artık navigasyondan önce bir response dinleyicisi kuruyor (`watchBasket()`)
+    ve boşluğa yalnızca API 0 satır bildirirse inanıyor; API ürün derken satır gelmezse
+    sessizce geçmiyor, hata fırlatıyor. `clear()` de aynı doğrulamayı yapıyor (yoksa sepette
+    ürün bırakıp SONRAKİ testi düşürüyordu). Kendi başına `/sepet`e gitme, `CartPage.open()` kullan.
+    Ayrıca sipariş özeti ("Ara toplam") satırlardan sonra boyanıyor; para okuyucuları
+    (`moneyNear`, `summaryTotal`) bu yüzden poll ediyor.
+
+13. **Sepette adet kontrolleri:** adet 1'de "Azalt" **kasıtlı disabled**; satın alma limiti
+    dolu üründe artırma `PUT /v1/baskets/<id>` → **406** alır ve kaybolan bir toast
+    ("Bu üründen en fazla 1 adet ekleyebilirsiniz.") gösterilir. İkisi de doğru davranış —
+    hata sanılmasın. `deneme` (1099766) ürününün limiti 1, `sapTest` (1099765) limitsiz.
 
 ## API katmanı (ileride API testi için)
 
@@ -154,6 +183,31 @@ Aynı mantığın liste hâli `tests/routes.ts` içinde: `KNOWN_BROKEN_ROUTES` (
 Raporlarken **bilinen hatayı gerçek başarısızlıkla karıştırma**: `expectedStatus === "failed"`
 olan test "BİLİNEN HATA"dır. `scripts/create-test-report.cjs` bu ayrımı yapar.
 
+## Koşum sonucunu case defterine işlemek
+
+Panelin "Case'ler" sekmesi case listesini **spec dosyalarını parse ederek** kurar —
+yeni test yazınca elle kayıt gerekmez, otomatik görünür. Ama koşum geçmişi
+(`panel-data/case-history.json`) ayrı: eskiden yalnızca **panelden** tetiklenen koşumlar
+deftere işleniyordu, CLI koşumları kaybediliyordu. Artık:
+
+```bash
+npx playwright test tests/06-cart.spec.ts --project=chromium   # --reporter VERME
+npm run history:merge                                          # koşumdan HEMEN SONRA
+```
+
+⚠️ İki tuzak (ikisi de ölçüldü 2026-08-22):
+1. **`--reporter=line` config'deki json reporter'ı devre dışı bırakır** →
+   `test-results/results.json` hiç yazılmaz, işlenecek sonuç kalmaz.
+   `--reporter=line,json` de yetmez: `outputFile` ayarı da düştüğü için JSON stdout'a akar.
+   Defter işlenecekse **`--reporter` bayrağını hiç kullanma.**
+2. **`playwright test --list` de `results.json`'ı EZER** ve testleri sonuçsuz yazar.
+   `mergeHistory()` artık bu satırları atlıyor (`status === "unknown"`), ama `--list`
+   sonrası gerçek sonuç kaybolur — merge'i koşumun hemen ardından çalıştır.
+
+Defter mantığı `panel/case-history.mjs` içinde (panel ve CLI aynı fonksiyonu çağırır);
+case başına son `HISTORY_KEEP=20` koşum saklanır, `0ms + hatasız failed` kayıtları
+"ölçüm değil" sayılıp orana katılmaz.
+
 ## Test hijyeni (zorunlu)
 
 - **Mutasyon yapan her test başlangıç durumunu geri alır** ve geri aldığını **ölçerek** doğrular
@@ -166,7 +220,103 @@ olan test "BİLİNEN HATA"dır. `scripts/create-test-report.cjs` bu ayrımı yap
 - Test verisi oluşturursan ayırt edilebilir isim ver (`QA-ADRES-<timestamp>`) ve sonunda temizle.
 - İletişim / bülten formları **gerçek gönderim yapmaz**, sadece validasyon doğrulanır.
 
+## Ayağa kaldırma
+
+**"Panel ayağa kaldır" = `npm run up`** — panel ve landing/onboarding sitesi BİRLİKTE kalkar.
+Sadece paneli isteyen özel bir durum yoksa `npm run panel` tek başına kullanılmaz.
+
+| Adres | Ne |
+|---|---|
+| `http://localhost:4646` | QA Paneli |
+| `http://localhost:4647` | site proxy (iframe) |
+| `http://localhost:4321/` | Landing |
+| `http://localhost:4321/onboarding` | Başlangıç rehberi |
+
+`scripts/up.mjs` detayları: landing kaynağı `../homee-panel-site` (`LANDING_DIR` ile
+değişir), **dev sunucusu değil `vite preview`** kullanılır — gösterime giden şey
+production build'i olsun diye; `dist/` yoksa önce build alınır. Dolu portta o servis
+başlatılmaz (çalışan süreci öldürmez). Ctrl-C ikisini birden kapatır.
+
+⚠️ Port kontrolü IPv4 **ve** IPv6'yı birlikte dener: `vite preview` yalnızca `::1`'e
+bağlanabiliyor, sadece `127.0.0.1` denemek "açılmadı" diye yanlış uyarı basıyordu.
+
+### Kotasız tasarım diff'i
+
+`npm run figma:diff -- --list` → önbellekteki **26 ekran frame'i** (font/punto/metin katmanlarıyla).
+`npm run figma:diff -- --frame 1082:193 --route /magazalar` → canlıyı yakalar, diff'i basar.
+**Figma API'sine hiç çağrı yapmaz** — `panel-data/figma-cache/` içindeki düğüm ağaçlarını okur.
+
+Script'e üç ders gömülü, çıkarma:
+1. **Türkçe normalizasyon**: `"İ".toLowerCase()` → `i` + birleşik nokta verir; naif karşılaştırma
+   "SİPARİŞLERİM"i eşleştiremez. Tek koşumda **12 yanlış pozitif** üretti. Çözüm: NFD + `\p{Mn}` at, sonra küçült.
+2. **Durum eşitleme**: boş sepet ile ürünlü tasarım frame'ini karşılaştırmak 14 uydurma "eksik" üretir.
+   `--state member` ile üye oturumu kullanılır.
+3. **Dinamik içerik**: tasarımda örnek veri var (ürün adı, fiyat, mağaza adı). Fiyat/sayı içerenler
+   otomatik ayıklanır, kalanlar için `--ignore <regex>`.
+
+Etkisi ölçüldü: aynı frame'de elle yapılan diff 32–36 "eksik" verirken script **6** veriyor.
+
 ## QA Paneli
+
+**Panel SIFIR çalışma-zamanı bağımlılığıyla açılır — `node_modules` hiç olmasa bile.**
+(Doğrulandı 2026-08-22: panel boş bir dizine kopyalanıp `node panel/server.mjs` ile
+açıldı, `/api/specs` → 200.) İki değişiklik bunu sağlıyor:
+
+1. **`dotenv` kaldırıldı** → `env.mjs` içindeki `loadEnv()`; altında Node'un yerleşik
+   `process.loadEnvFile()`'ı var. Ölçülen iki davranış: (a) mevcut ortam değişkenini
+   **ezmiyor**, yani `ALLOW_HOMEE_ORDERS=1 npx playwright test …` çalışmaya devam eder
+   (guard buna bağlı olduğu için ölçmeden dokunulmadı); (b) `.env` yoksa dotenv'in
+   aksine **ENOENT fırlatıyor** — bu yüzden çağrı guard'lı, dosya yoksa uygulama açılır.
+   Yeni bir dosya env okuyacaksa `import { loadEnv } from "./env.mjs"` kullan, dotenv ekleme.
+2. **`@anthropic-ai/sdk`** artık `optionalDependencies` ve **tembel** yükleniyor
+   (`scenario-suggest.mjs → loadSdk()`).
+Gerekçe: statik import olduğu sürece, paket kurulu olmayan bir projede panel
+**açılışta ölüyordu** (`Cannot find package '@anthropic-ai/sdk'`) — bozulan tek bir
+buton değil, panelin tamamıydı. Aynı tuzak `dotenv` için de vardı: `devDependencies`'te
+durduğu hâlde çalışma zamanında import ediliyordu. Panel başka projelere taşınacağı için model çağrısı
+opsiyonel: paket yoksa yalnızca senaryo önerici ve perf yorumlama kapalı kalır;
+koşumlar, case defteri, Jira, kanıt, rapor etkilenmez.
+
+`/api/scenarios/context` iki eksiği AYRI raporlar — `sdkReady` (paket kurulu mu) ve
+`authReady` (kimlik var mı). Engel sırası da yapısaldan yapılandırmaya doğru:
+SDK yoksa `NO_SDK`, varsa ama kimlik yoksa `NO_CREDENTIALS`. Tersi sırada, SDK'sız
+kurulumda kullanıcıya "kimlik yok" deniyor ve yanlış yere baktırıyordu.
+
+
+
+### Proje profili (panel çekirdeği proje adı bilmez)
+
+**Değişmez:** `panel/*.mjs` ve `panel/public/index.html` içinde proje adı, Jira anahtarı,
+Figma dosyası, host ya da rota/kart eşlemesi **geçmez**. Hepsi tek yerde:
+
+```
+panel/projects/homee.mjs   # proje profili — tüm proje bilgisi burada
+panel/project.mjs          # yükleyici (çekirdek profili buradan okur)
+panel/runs.json            # koşum whitelist'i — .env gibi proje başına değişir
+```
+
+`npm run panel:check` bunu **ölçerek** doğrular: profilden proje işaretlerini çıkarır
+(profil adı, Jira anahtarı, host, dayanak önekleri) ve çekirdekte arar; bulursa çıkış
+kodu 1. Yeni bir proje sabiti eklerken çekirdeğe değil profile yaz.
+
+Profilde ne var: `id` · `title` · `env` (hangi ortam değişkeni, sipariş guard'ının adı) ·
+`issuePrefixes` / `knownIssuePrefix` · `apiHostMatch` · `jira` (host, proje, epic, tip id,
+özel alanlar, `views` JQL'leri) · `figma` (dosya + rota→frame) · `routes`
+(`rules`, `specRuns`, `cardSpecs`) · `quickRoutes` · `scenarioPresets`.
+
+Başka projeye taşıma: `panel/` + `env.mjs`'i kopyala, `panel/projects/<yeni>.mjs` yaz,
+`panel/runs.json`'ı o suite'in komutlarıyla değiştir. Profil dizininde tek dosya varsa
+otomatik seçilir; birden fazlaysa `PANEL_PROJECT` şart (tahmin edilmez).
+
+Ortam değişkeni adları da profilden: çekirdek `HOMEE_ENV` / `ALLOW_HOMEE_ORDERS`
+adlarını bilmez, `env.var` / `env.ordersVar` üzerinden okur. `PANEL_ENV` ve
+`ALLOW_ORDERS` her zaman ezer. ⚠️ Sipariş guard'ının kendisi suite tarafında
+(`26-order-transfer.spec.ts`); panel yalnızca **gösterir**, profilde adı değiştirmek
+guard'ı bozar.
+
+Panel ↔ iframe `postMessage` protokolü de projeden bağımsız: `qa-nav`, `qa-scroll`,
+`qa-rec*`, `data-qa-assert-hover` (eski `homee-*` adları 2026-08-24'te değişti).
+localStorage anahtarları `qa-panel-*` — tema/headless tercihi bir kez sıfırlandı.
 
 `npm run panel` → `http://localhost:4646` (`PANEL_PORT` ile değişir).
 
@@ -258,29 +408,52 @@ Panelden: **Tasarım diff** sekmesi ya da **Site (canlı)** sekmesindeki "Tasari
 **Piksel diff YAPILMIYOR** (tasarım↔kod arasında gürültü: font hinting, gerçek ürün görselleri,
 dinamik fiyat). Üç ölçüm: metin varlığı · spec (font/boyut/kalınlık/renk) · yan yana + saydamlık.
 
-### Figma çekim maliyeti (yanmış bir bütçenin dersi)
+### Figma rate limit: istek SAYISI, payload değil
 
-**Yapılmaması gereken:** `?ids=<canvas>` ile tam sayfa ağacını çekmek. Sayfadaki TÜM
-frame'leri getirir — Main Page = **7,2 MB / 17 frame**. İki-üç böyle çağrı bütçeyi bitiriyor
-ve `retry-after` **~109 saat** dönüyor (ölçüldü 2026-08-19).
+Kullandığımız üç uç (`GET /v1/files`, `/v1/files/:key/nodes`, `/v1/images`) hepsi **Tier 1**
+ve **tek sayaç** paylaşıyor. Limit **koltuk tipine** bağlı:
 
-**Doğru sıra (maliyetten ucuza):**
-1. `?ids=<canvas>&depth=2` → sığ, sadece frame kimlik/ad/boyut (~70 KB)
-2. `?ids=<frameId>` → yalnızca hedef frame'in ağacı (metin katmanları)
-3. `/v1/images?ids=<frameId>` → PNG render
+| Koltuk | Tier 1 REST | MCP |
+|---|---|---|
+| View / Collab | **6 / ay** | 6 / ay |
+| Dev / Full (Professional) | **10-20 / dakika** | 200/gün, 15/dk |
 
-Hepsi `panel-data/figma-cache/` içinde **7 gün** önbellekte. Tam ağaç zaten önbellekteyse
-frame ondan çözülür, yeni çağrı yapılmaz.
+⚠️ **7,2 MB'lık çağrı da 33 KB'lık çağrı da 1 istek.** Bu yüzden eski doktrin
+("payload pahalı, sığ sorgu ucuz, iki adımda git") **yanlıştı** — 1 istek yerine 2
+harcıyordu. 19 Ağustos'ta bütçeyi yakan şey dosya boyutu değil, çağrı sayısıydı.
+Aynı sebeple **panelin preflight yoklaması** başlı başına bir sızıntıydı: 15 dakika
+önbellekli canlı probe, ayda 6 istekte panel açık dururken 90 dakikada bütçeyi bitirir.
+Kaldırıldı (bkz. `panel/figma-quota.mjs`).
 
-**`ids` VİRGÜLLE ÇOKLU ID KABUL EDİYOR** — bunu baştan kullanmadığım için bütçe yandı.
-10 rotanın tamamı **3 çağrıda** hazırlanabiliyor:
-1. `files?depth=2` → tüm dosya sığ (~70 KB), 26 sayfanın frame kimlikleri
-2. `files?ids=f1,f2,…,f10` → yalnızca gereken frame'lerin ağacı (toplu)
-3. `images?ids=f1,…,f10` → 10 render tek istekte
+**Doğru strateji — istek sayısını düşür:**
+1. `frameId` profilde varsa canvas çözme yok, doğrudan frame ağacı → **1 istek**
+   (`figma-diff.mjs` bunu otomatik yapıyor: "profilden: ... — sığ sorgu atlandı")
+2. Önbellekte varsa → **0 istek**
+3. Çoklu rota → `figma-prewarm.mjs`: `ids=f1,...,f10` ile **10 rota 3 istekte**
+   (rota başına ayrı koşum 20+ istek eder)
+
+```bash
+node scripts/figma-prewarm.mjs                 # 10 rota, 3 istek, bekleme yok
+node scripts/figma-prewarm.mjs --delay 6       # View/Collab koltukta yavaşlat
+node scripts/figma-prewarm.mjs --renders-only  # yalnız PNG, ağaç çağrısı yok
+```
+
+Önbellek `panel-data/figma-cache/` içinde **1 yıl** (`FIGMA_CACHE_TTL_MS`). Süre kasıtlı
+olarak uzun: kota kapalıyken bayatlayan önbellek yenilenemiyor ve diff komple durur.
+**Tasarım değişince elle sil** — `GET /v1/files/:key?depth=1` ile `lastModified`e bak
+(1 istek). 23 Ağustos'taki değişikliği 24'üne kadar fark etmedik, iki diff bayat ağaca
+karşı ölçülmüştü; bayat dosyalar `figma-cache/bayat-2026-08-19/` altında arşivde.
 
 ⚠️ **Rate limit HESAP başına, token başına değil** (ölçüldü: aynı hesabın ikinci token'ı da
-aynı `retry-after` ile 429 verdi). Aynı hesapta yeni token üretmek işe yaramaz; **başka bir
-Figma hesabından** token gerekir.
+aynı `retry-after` ile 429 verdi). Yeni token üretmek işe yaramaz; koltuğu yükselt.
+
+**429 durumu nereden okunur:** `panel-data/quota-notes.json`. Yoklama YOK — gerçek çağrı
+yapan her yer sonucu not ediyor (`panel/figma-quota.mjs -> noteResponse`), panel nottan
+okuyor. Üst şeritte `Figma /files` ve `Figma /images` satırları.
+
+```bash
+node -e "import('./panel/preflight.mjs').then(async m=>{for(const c of await m.preflight())console.log(c.state,c.label,c.detail)})"
+```
 
 **API'siz çare — elle export:** bütçe tükendiğinde yan yana görünümü PNG ile besle:
 ```bash
@@ -298,11 +471,10 @@ node scripts/figma-prewarm.mjs --only "My Cart"   # tek sayfa
 Tamamlananı atlar, 429 görünce durur ve kaldığı yerden devam edebilir.
 `GET /api/figma/cache` hangi rotanın hazır olduğunu söyler; panel hata mesajında da listeler.
 
-⚠️ **Figma rate limit maliyet tabanlı.** `/v1/files/:key/nodes` ucu tam ağaç için 429 veriyor ve
-`retry-after` **günler** sürebiliyor (ölçüldü: 396.900 sn). Bu yüzden:
-- `/v1/files/:key?ids=<node>` ucu kullanılıyor (aynı ağacı tam derinlikte döner, farklı kovada)
-- yanıt + PNG render `panel-data/figma-cache/` içinde **6 saat** önbellekte (`FIGMA_CACHE_TTL_MS`)
-- `--refresh` önbelleği atlar — **kotayı yakabilir, dikkatli kullan**
+⚠️ **429 cezası uzun.** `retry-after` gün mertebesinde dönüyor (ölçüldü: 396.900 ve 372.976 sn).
+View/Collab koltukta ayda 6 istek olduğu için pencere neredeyse aylık. Bu yüzden:
+- `/v1/files/:key?ids=<node>` ucu kullanılıyor (`/nodes` ile aynı sayaç, aynı tier)
+- `--refresh` önbelleği atlar — **istek harcar, tasarım gerçekten değiştiyse kullan**
 
 **İşaretli snapshot (kırmızı kutu):** diff, farkları kutulayıp numaralandırarak iki PNG üretir —
 `<slug>-tasarim-isaretli.png` (canlıda **bulunamayan** metinlerin Figma'daki yeri) ve
@@ -318,6 +490,23 @@ Eşleştirme tuzakları ve çözümleri:
   kalıbıyla ayıklanır ve "gürültü" kovasına konur
 
 ## Jira
+
+⚠️ **Kimlik dosyasındaki host YANLIŞ Jira'yı gösterir.** `~/.jira-credentials` içinde
+`JIRA_HOST=https://nadirgold.atlassian.net` yazıyor — o NadirGold projesinin host'u.
+Homee/MAC işleri **`https://machinarium.atlassian.net`** üzerinde; `panel/jira.mjs` host'u
+kendi içinde sabitliyor. Elle REST çağrısı yazarken kimlik dosyasının host'unu kullanma,
+sessizce 0 sonuç alırsın (ölçüldü 2026-08-22: `key = MAC-7268` bile boş döndü).
+
+⚠️ **Statü geçişine iliştirilen yorum sessizce kaybolur.** `POST /transitions` gövdesine
+`update.comment[].add` koymak hata vermez ama geçiş ekranında yorum alanı tanımlı
+değilse yorum hiç yazılmaz (ölçüldü 2026-08-22: MAC-7248/7251 geçti, gerekçe kayboldu).
+`panel/jira.mjs → transition()` artık yorumu **ayrı** `postComment` çağrısıyla yazıyor.
+
+⚠️ **Panelin "Test kolonu" görünümü alt görevleri kaçırıyor.** `VIEWS.test` JQL'i
+`parent = <epic>` diyor; Test statüsündeki alt görevler epic'in değil hikâyelerin çocuğu
+oluyor (ör. MAC-7248/7251 → üst kart MAC-7074) ve panelde hiç görünmüyor.
+
+
 
 Kimlik: `~/.jira-credentials` (`JIRA_EMAIL`, `JIRA_TOKEN`). **Host NadirGold'dan farklı:**
 `https://machinarium.atlassian.net` (nadirgold.atlassian.net'te Tepe projesi YOK).
@@ -335,6 +524,36 @@ Kartlarda `Project` özel alanı (`customfield_10072`) = `TEPEHOME`, sprint alan
   `61` Ready For Release · `71` Blocked · `81` Failed · `91` Test Blocked · `5` Move to Release for Stage
 - Bug isim kalıbı (ekibin kullandığı): **`TEPE - Redesign > <Alan> > <problem>`**
 - Kart ↔ spec eşlemesi: **`tests/jira-map.ts`** (`CARD_MAP`). Yeni kart geldiğinde buraya ekle.
+
+### Kart açma (2026-08-20'de 14 kart açarken öğrenilenler)
+
+**Oluşturma ile sorgulama farklı ad ister — en can sıkıcı tuzak bu:**
+
+| İşlem | Doğru | Yanlış |
+|---|---|---|
+| `POST /rest/api/3/issue` | `issuetype: { id: "10009" }` | `{ name: "Bug" }` → 400 |
+| JQL | `issuetype = Bug` | `issuetype = Hata` → **0 sonuç** |
+
+`10009` = "Hata" tipinin id'si. Ada güvenmek iki yönden de kırılgan; `panel/jira.mjs` → `JIRA.bugTypeId`.
+
+**`customfield_10072` ("Project") ZORUNLU.** Verilmezse oluşturma
+`400 "Project: Project gerekiyor."` ile düşer — hata mesajı `project` alanını suçluyor gibi görünür
+ama kastettiği bu özel alandır. Değerimiz **TEPEHOME**, id **`10136`**.
+
+**`assignee` görünen adla ÇALIŞMAZ**, accountId şart — hem JQL'de hem API'de:
+`assignee = "Ahmet Baş"` → 0 sonuç. Ahmet Baş = `712020:599f45e8-6b35-4b92-91cf-e60095e05d77`.
+Atanabilir kullanıcılar: `/rest/api/3/user/assignable/search?project=MAC`
+(`/user/search` bu instance'ta boş dönüyor). Dikkat: listede **Ahmet Ertuğral** da var, karıştırma.
+Atamayı oluşturma gövdesinde göndermek yerine ayrı uçtan yap: `PUT /issue/<KEY>/assignee`.
+
+**Ek yükleme** multipart + `X-Atlassian-Token: no-check` ister (`panel/jira.mjs` → `attachFile`).
+⚠️ Görseli açıklamanın **içine gömmek çalışmıyor**: ADF `mediaSingle`/`media` düğümü ek id'siyle
+`ATTACHMENT_VALIDATION_ERROR`, `collection` olmadan `INVALID_INPUT` veriyor. Bunun yerine
+`/rest/api/3/attachment/content/<id>` adresine **tıklanabilir link** olarak yorumla.
+
+**⚠️ Konu SİLME izni yok (403).** Doğrulama için kart açıp sonra silmeyi planlama — silemezsin.
+Smoke test gerekiyorsa başlığa `[GEÇERSİZ - OTOMASYON TEST KAYDI]` yaz, atamayı kaldır,
+`31` (Tamam) geçişine al ve yorumla açıkla.
 
 **Yazma kuralı:** `postComment`, `transition`, `createBug` uçları panelde **onay diyaloğu arkasında**;
 otomatik yazma yok. Bir koşum sonucunu Jira'ya yazmadan önce kullanıcıya göster.
