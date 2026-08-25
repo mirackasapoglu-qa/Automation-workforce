@@ -371,8 +371,17 @@ if (STATE === "member") {
     timeout: 60_000,
   });
   await page.waitForTimeout(3000);
-  await page.locator('input[name="email"]:visible').first().fill(email);
-  await page.locator('input[name="password"]:visible').first().fill(pass);
+  // ⚠️ Giris formu 2026-08'de degisti: alan adlari `login-email`/`login-password`
+  // oldu VE alanlar otomatik doldurmaya karsi `readonly` aciliyor — readonly
+  // yalnizca TIKLAYINCA kalkiyor. Dogrudan fill() "element is not editable" ile
+  // 30sn bekleyip duser; bu yuzden tasarim diff'i korumali rotalarda (/hesabim,
+  // /odeme) cikis 1 ile oluyordu. tests/fixtures.ts ile ayni akis.
+  const emailInput = page.locator('input[name="email"]:visible, input[name="login-email"]:visible').first();
+  const passwordInput = page.locator('input[name="password"]:visible, input[name="login-password"]:visible').first();
+  await emailInput.click();
+  await emailInput.fill(email);
+  await passwordInput.click();
+  await passwordInput.fill(pass);
   await page
     .getByRole("button", { name: "GİRİŞ YAP", exact: true })
     .first()
