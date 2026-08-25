@@ -518,11 +518,101 @@
   /* ---- iframe / gorsel panolari ---------------------------------------- */
   iframe{border:1px solid var(--line);border-radius:var(--r);background:#fff}
   figure img{display:block;width:100%}
+  /* =========================================================================
+     KAPSAM DILI — panelin bilesenleri /scope ekraninin diliyle giydirildi.
+     Blok EN SONDA: once denedigimiz "erken koy" yaklasimi calismadi, cunku
+     sonraki orijinal kurallar geri eziyordu (aktif sekme cyan zemin uzerine
+     cyan yazi olup okunmaz hale gelmisti). Ayni ozgullukte son yazan kazanir.
+     Markup'a dokunulmadi (tek istisna: baslik blogu).
+     ========================================================================= */
+
+  /* --- baslik: logo karesi + iki satirli kimlik --- */
+  .hd-logo{width:36px;height:36px;border-radius:11px;flex-shrink:0;display:inline-flex;
+    align-items:center;justify-content:center;color:var(--accent);
+    background:linear-gradient(135deg,var(--accent-dim),transparent);
+    border:1px solid color-mix(in srgb,var(--accent) 30%,transparent)}
+  .hd-logo svg{width:19px;height:19px}
+  .hd-id{display:flex;flex-direction:column;line-height:1.15;margin-right:4px}
+  .hd-sub{font-size:11.5px;color:var(--text-muted);margin-top:1px}
+
+  /* --- dugmeler: kapsam .btn kalibi --- */
+  button:not(.tip){border-radius:10px;padding:8px 14px;font-weight:600;font-size:12.5px;
+    background:var(--surface);border-color:var(--border);
+    transition:border-color .15s,background .15s,transform .08s}
+  button:not(.tip):hover:not(:disabled){border-color:var(--border-strong);background:var(--surface-raised);color:var(--text)}
+  button:not(.tip):active:not(:disabled){transform:scale(.96)}
+
+  /* --- ust serit pill'leri: yuvarlak, yuzey zeminli --- */
+  header .pill{border-radius:999px;padding:6px 12px;background:var(--surface);
+    border:1px solid var(--border);color:var(--text-muted);font-weight:600}
+
+  /* --- sekmeler: alt cizgi yerine view-switch --- */
+  .tabs{gap:2px;border-bottom:0;background:var(--surface);border:1px solid var(--border);
+    border-radius:12px;padding:3px;display:inline-flex;width:auto;margin-bottom:18px}
+  .tabs button{border:0;border-radius:9px;padding:7px 13px;font-weight:600;font-size:12.5px;
+    background:transparent;color:var(--text-muted);width:auto;margin:0}
+  .tabs button:hover{background:var(--surface-raised);color:var(--text);border-color:transparent}
+  .tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-on);border-color:transparent}
+  .tabs button[aria-selected=true] .tc{background:color-mix(in srgb,var(--accent-on) 22%,transparent);color:var(--accent-on)}
+
+  /* --- ozet seridi: tek satir yerine stat-tile izgarasi --- */
+  .strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;
+    background:transparent;border:0;padding:0;margin:0 0 14px}
+  .strip .cell{position:relative;flex-direction:column;gap:6px;padding:12px 14px;
+    border:1px solid var(--border);border-right:1px solid var(--border);border-radius:14px;
+    background:var(--surface);overflow:hidden}
+  .strip .cell:last-child{padding-right:14px}
+  /* Sol renk cubugu sayinin anlamindan turer (.v.ok/.no/.sk/.mut). */
+  .strip .cell::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--neutral)}
+  .strip .cell:has(.v.ok)::before{background:var(--good)}
+  .strip .cell:has(.v.no)::before{background:var(--fail)}
+  .strip .cell:has(.v.sk)::before{background:var(--warn)}
+  .strip .cell:has(.v.mut)::before{background:var(--accent)}
+  .strip .k{order:2;font-size:10.5px;letter-spacing:.5px;color:var(--text-muted);margin:0}
+  .strip .v{order:1;font-size:22px;font-weight:700;line-height:1}
+  .strip .v:not(.ok):not(.no):not(.sk):not(.mut){color:var(--text)}
+
+  /* --- yan panel kosumlari: node-row karti --- */
+  aside{background:var(--bg);border-right:1px solid var(--border)}
+  /* ⚠️ `button.tip` HARIC: o 19px yuvarlak bir ipucu dugmesi, kart degil.
+     Ilk denemede kapsam disi birakilmayinca satirlar bozuldu. */
+  #runs button:not(.tip), #sideParam button:not(.tip), #sideIssues button:not(.tip){
+    border-radius:12px;padding:9px 11px;background:var(--surface);
+    border:1px solid var(--border);border-left:3px solid var(--border);
+    width:100%;text-align:left;font-size:12.5px}
+  #runs button:not(.tip):hover:not(:disabled){border-color:var(--border-strong);border-left-color:var(--accent);
+    box-shadow:0 6px 20px rgba(0,0,0,.28);transform:translateY(-1px)}
+  /* tipwrap bir flex satiri; asil dugme buyusun, ipucu sabit kalsin. */
+  #runs .tipwrap{display:flex;width:100%;gap:6px}
+  #runs .tipwrap > button:not(.tip){flex:1;min-width:0}
+  /* --- spec satirlari: kapsam ekranindaki node-row --- */
+  details.spec{border-radius:12px;border-left:3px solid var(--border);
+    transition:border-color .15s,box-shadow .15s,transform .15s}
+  details.spec:hover{border-color:var(--border-strong);border-left-color:var(--accent);
+    box-shadow:0 6px 20px rgba(0,0,0,.28);transform:translateY(-1px)}
+  /* Sol cubuk satirin DURUMUNDAN turer — kapsam agacindaki mantigin aynisi. */
+  details.spec:has(.st.failed){border-left-color:var(--fail)}
+  details.spec:has(.st.passed){border-left-color:var(--good)}
+  details.spec:has(.st.skipped){border-left-color:var(--warn)}
+  details.spec>summary{padding:10px 12px}
+
+  .grp{color:var(--text-muted);letter-spacing:.5px}
+  .grp::after{background:var(--border)}
+
 </style>
 </head>
 <body>
 <header>
-  <h1 id="panelTitle">QA Paneli</h1>
+  <!-- Kapsam ekraniyla ayni kimlik blogu: logo karesi + baslik + alt baslik. -->
+  <span class="hd-logo" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M9 3v6l3 3 3-3V3"/><circle cx="12" cy="17" r="4"/>
+    </svg>
+  </span>
+  <span class="hd-id">
+    <h1 id="panelTitle">QA Paneli</h1>
+    <span class="hd-sub">Kosum, kanit ve kart takibi</span>
+  </span>
   <span class="pill" id="envPill" role="status" aria-atomic="true">yukleniyor...</span>
   <span class="pill" id="orderPill" role="status" aria-atomic="true"></span>
   <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
