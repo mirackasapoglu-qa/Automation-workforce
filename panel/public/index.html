@@ -968,7 +968,13 @@
       <div class="strip" id="perfStrip"></div>
       <div class="row">
         <span class="mono" id="perfMeta"></span>
-        <button style="width:auto;margin:0" onclick="loadPerf()">Yenile</button>
+        <!-- ⚠️ "Yenile" YALNIZCA diskteki olcumu yeniden okur; olcum YAPMAZ.
+             Bu ayrim gorunur olmali: veriler 5 gun eskiyken yenile'ye basip
+             hicbir seyin degismemesi kafa karistiriyordu. Olcumu baslatan
+             ayri bir dugme var ve whitelist'li kosum motorunu kullaniyor. -->
+        <button style="width:auto;margin:0" onclick="loadPerf()" title="Diskteki son olcumu yeniden okur (olcum yapmaz)">Yenile</button>
+        <button id="perfRunBtn" style="width:auto;margin:0" onclick="runPerfSweep()"
+                title="33 rotayi bastan olcer (~6-8 dk). Kapi oturumunu kullanir, veri degistirmez.">Yeniden olc</button>
         <button id="paBtn" onclick="analyzePerf()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
             <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3"/><circle cx="12" cy="12" r="3.2"/>
@@ -1591,7 +1597,14 @@ $('#qCase').addEventListener('input', renderCases);
 $('#qFilter').addEventListener('change', renderCases);
 
 // kosum bitince durumlar guncellenir
-es.addEventListener('run-end', () => { if (!$('#tab-cases').hidden) loadCases(); loadGateStatus(); });
+es.addEventListener('run-end', () => {
+  if (!$('#tab-cases').hidden) loadCases();
+  loadGateStatus();
+  // Perf olcumu bittiyse tabloyu tazele ve dugmeyi geri ac.
+  const pb = $('#perfRunBtn');
+  if (pb) { pb.disabled = false; pb.textContent = 'Yeniden olc'; }
+  if (!$('#tab-perf').hidden) loadPerf();
+});
 
 // ---------------- parametreli kosum ----------------
 async function loadSpecs() {
@@ -2300,6 +2313,26 @@ const BUDGET = {
   api:  { warn: 10,   bad: 15,   label: 'API', unit: '', src: 'panel butcesi: iyi ≤10, zayif >15' },
 };
 function perfClass(v, b) { return v == null ? '' : v >= b.bad ? 'no' : v >= b.warn ? 'sk' : 'ok'; }
+
+/**
+ * Perf olcumunu BASLATIR (whitelist'li kosum motoru uzerinden).
+ * Bitince run-end olayi Perf sekmesini kendiliginden tazeler.
+ */
+async function runPerfSweep() {
+  const b = $('#perfRunBtn');
+  if (!confirm('33 rota bastan olculecek (~6-8 dk). Bu sirada baska kosum baslatilamaz. Devam?')) return;
+  b.disabled = true;
+  const eski = b.textContent;
+  b.textContent = 'olculuyor...';
+  try {
+    const r = await post('/api/run', { id: 'perf-sweep', headless: true });
+    if (!r.ok) { alert(r.error || 'Baslatilamadi'); b.disabled = false; b.textContent = eski; return; }
+    document.querySelector('.tabs button[data-tab=log]').click();
+  } catch (e) {
+    alert('Panel sunucusuna ulasilamadi: ' + e.message);
+    b.disabled = false; b.textContent = eski;
+  }
+}
 
 async function loadPerf() {
   $('#perfRoutes').innerHTML = '<tr><td class="mono">yükleniyor...</td></tr>';

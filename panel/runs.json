@@ -1,222 +1,231 @@
 {
-  "runs": {
-    "guest-all": {
-      "label": "Misafir seti (01-09, headless)",
-      "cmd": "npx",
-      "args": [
-        "playwright",
-        "test",
-        "tests/0",
-        "--project=chromium"
-      ],
-      "group": "misafir",
-      "tip": "Misafir seti: 01–09 spec'leri, login gerektirmeyen 49 case. Headless (pencere açılmaz), ~12 dk. Sepet testleri kendi verisini temizler."
-    },
-    "member-all": {
-      "label": "Uye seti (20-25, headless)",
-      "cmd": "npx",
-      "args": [
-        "playwright",
-        "test",
-        "tests/2",
-        "--project=chromium"
-      ],
-      "group": "uye",
-      "tip": "Üye seti: 20–25, 18 case. Her test kendi UI login'ini yapar (~8 sn/test), çünkü Homee üye oturumu paylaşılamıyor. Adres ve favori oluşturur, sonunda siler. ~10 dk."
-    },
-    "test-anasayfa": {
-      "label": "01 Anasayfa (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:anasayfa"
-      ],
-      "group": "misafir",
-      "tip": "01-homepage.spec.ts — 5 case: sayfa yükleme, ürün kartları, header öğeleri, footer bülten alanı, konsol hatası. Tarayıcı pencerisi açılır. ~40 sn."
-    },
-    "test-menu": {
-      "label": "02 Navigasyon + rota sagligi (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:menu"
-      ],
-      "group": "misafir",
-      "tip": "02-navigation.spec.ts — 7 case: mega menü, 15 rotanın 404 taraması, bilinen kırık link ve boş kategori baseline'ları, prod domain sızması. ~1,5 dk."
-    },
-    "test-liste": {
-      "label": "03 Kategori/liste (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:liste"
-      ],
-      "group": "misafir",
-      "tip": "03-category-listing.spec.ts — 7 case: liste/sayaç tutarlılığı, filtre paneli, renk filtresi uygulama, sıralama, DAHA FAZLA GÖSTER. ~1,5 dk."
-    },
-    "test-arama": {
-      "label": "04 Arama (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:arama"
-      ],
-      "group": "misafir",
-      "tip": "04-search.spec.ts — 5 case: header aramasi, sonuç başlığı, boş sonuç mesajı, sonuç kartlarının prod'a link vermesi (HOMEE-005), alaka. ~1 dk."
-    },
-    "test-urun": {
-      "label": "05 Urun detay (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:urun"
-      ],
-      "group": "misafir",
-      "tip": "05-product-detail.spec.ts — 5 case: başlık/SKU/fiyat tutarlılığı, sekmeler, taksit, kırık görsel, konsol hatası (HOMEE-001). ~1 dk."
-    },
-    "test-sepet": {
-      "label": "06 Sepet (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:sepet"
-      ],
-      "group": "misafir",
-      "tip": "06-cart.spec.ts — 7 case: sepete ekleme, adet artır/azalt matematiği (1 adet=X → 2 adet=2X), satır silme, iki ürün. Her test sepeti boşaltarak biter. ~3 dk."
-    },
-    "test-magaza": {
-      "label": "07 Magazalar (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:magaza"
-      ],
-      "group": "misafir",
-      "tip": "07-stores.spec.ts — 2 case: mağaza listesi yüklenmesi ve mağaza arama filtresi. ~40 sn."
-    },
-    "test-statik": {
-      "label": "08 Statik sayfalar (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:statik"
-      ],
-      "group": "misafir",
-      "tip": "08-static-pages.spec.ts — 10 statik sayfanın başlığı + kırık görsel taraması (HOMEE-002). ~2 dk."
-    },
-    "test-form": {
-      "label": "09 Formlar (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:form"
-      ],
-      "group": "misafir",
-      "tip": "09-forms.spec.ts — 3 case: bülten geçersiz e-posta, iletişim formu render, boş gönderim validasyonu (HOMEE-003). GERÇEK form göndermez. ~1 dk."
-    },
-    "test-rota": {
-      "label": "10 Rota sagligi (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:rota"
-      ],
-      "group": "misafir",
-      "tip": "10-route-health.spec.ts: 5 case. 2026-08-20 rota denetiminin kod hali — KNOWN_BROKEN_ROUTES hala 404 mu, LISTING_EMPTY hala bos mu, urun donmesi beklenen rotalar doluyor mu, statik rotalar 404 vermiyor mu, misafir korumali hesap rotalarinda login'e yonleniyor mu. Homee 404'te de HTTP 200 dondugu icin tespit DOM'dan yapiliyor. Mutasyon yok, ~6 dk."
-    },
-    "test-login": {
-      "label": "20 Giris pozitif/negatif (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:login"
-      ],
-      "group": "uye",
-      "tip": "20-login.spec.ts — 6 case: giriş yöntemleri, e-posta format uyarısı, yanlış şifre, boş form, doğru giriş, korumalı sayfa yönlendirmesi. Mesajlar kaybolan toast olduğu için poll eder. ~3 dk."
-    },
-    "test-hesabim": {
-      "label": "21 Hesabim ozeti (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:hesabim"
-      ],
-      "group": "uye",
-      "tip": "21-account-overview.spec.ts — 5 case: hesap özeti, tüm alt sayfalar, siparişler/favoriler boş durumu, çıkış (onay diyaloğu dahil). ~1,5 dk."
-    },
-    "test-adres": {
-      "label": "22 Adres yonetimi (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:adres"
-      ],
-      "group": "uye",
-      "tip": "22-addresses.spec.ts — 3 case: form açılışı, boş form validasyonu, QA-ADRES-… adresi oluşturup listede doğrulayıp SİLER (silmeyi ölçerek doğrular). VERİ DEĞİŞTİRİR ama geri alır. ~2 dk."
-    },
-    "test-favori": {
-      "label": "23 Favoriler (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:favori"
-      ],
-      "group": "uye",
-      "tip": "23-favorites.spec.ts — 2 case: favoriye ekle → listede gör → kaldır. Ürünün başlangıçtaki favori durumunu geri yükler. VERİ DEĞİŞTİRİR ama geri alır. ~1,5 dk."
-    },
-    "test-siparis": {
-      "label": "24 Siparisler/iadeler (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:siparis"
-      ],
-      "group": "uye",
-      "tip": "24-orders.spec.ts — 3 case: siparişlerim, iadelerim (API hata durumu kontrolü), hesap özetinde sipariş bloğu. Hesapta sipariş yoksa boş durum doğrulanır. ~1 dk."
-    },
-    "test-odeme": {
-      "label": "25 Odeme adimi - siparis TAMAMLANMAZ (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:odeme"
-      ],
-      "group": "uye",
-      "tip": "25-checkout-to-payment.spec.ts — 6 case: sepetten ödeme adımına geçiş, tutar eşitliği, ödeme yöntemleri, sözleşme metinleri (HOMEE-004), guard kontrolü. SİPARİŞ TAMAMLANMAZ — 'ÖDEME YAP' butonuna basılmaz. ~3 dk."
-    },
-    "report": {
-      "label": "HTML rapor uret (son kosumdan)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "report:create"
-      ],
-      "group": "rapor",
-      "tip": "Son koşumun test-results/results.json dosyasından HTML rapor üretir. Test KOŞMAZ, sadece rapor yazar."
-    },
-    "test-havale": {
-      "label": "26 HAVALE ile siparis TAMAMLAR (headed)",
-      "cmd": "npm",
-      "args": [
-        "run",
-        "test:havale"
-      ],
-      "group": "uye",
-      "tip": "⚠️ GERCEK SIPARIS ACAR. ALLOW_HOMEE_ORDERS=1 yoksa komple SKIP edilir. Havale secildigi icin para cekilmez (siparis 'odeme bekliyor' durumunda kalir) ama siparis kaydi olusur ve otomasyonla IPTAL EDILEMEZ — OrdersPage'de iptal akisi yok. Tek SAP test urunu, 1 adet, kosum basina TEK siparis. Sipariş no + banka/IBAN ekrani panel-data/evidence/26-havale-*.png olarak kaydedilir."
-    },
-    "gate-refresh": {
-      "label": "Kapi oturumunu yenile",
-      "cmd": "npx",
-      "args": [
-        "playwright",
-        "test",
-        "tests/08-static-pages.spec.ts",
-        "--project=chromium",
-        "-g",
-        "privacy"
-      ],
-      "group": "rapor",
-      "tip": "Tek hafif case kosarak global-setup'i tetikler ve playwright/.auth/<env>-gate.json'i yeniler. Kapi cookie'si ~24 saatte doluyor; dolunca butun sayfalar 'Gecici Erisim' ekranini gosterir ve olcumler sessizce yanlis olur. ~45 sn."
-    }
+ "runs": {
+  "guest-all": {
+   "label": "Misafir seti (01-09, headless)",
+   "cmd": "npx",
+   "args": [
+    "playwright",
+    "test",
+    "tests/0",
+    "--project=chromium"
+   ],
+   "group": "misafir",
+   "tip": "Misafir seti: 01–09 spec'leri, login gerektirmeyen 49 case. Headless (pencere açılmaz), ~12 dk. Sepet testleri kendi verisini temizler."
+  },
+  "member-all": {
+   "label": "Uye seti (20-25, headless)",
+   "cmd": "npx",
+   "args": [
+    "playwright",
+    "test",
+    "tests/2",
+    "--project=chromium"
+   ],
+   "group": "uye",
+   "tip": "Üye seti: 20–25, 18 case. Her test kendi UI login'ini yapar (~8 sn/test), çünkü Homee üye oturumu paylaşılamıyor. Adres ve favori oluşturur, sonunda siler. ~10 dk."
+  },
+  "test-anasayfa": {
+   "label": "01 Anasayfa (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:anasayfa"
+   ],
+   "group": "misafir",
+   "tip": "01-homepage.spec.ts — 5 case: sayfa yükleme, ürün kartları, header öğeleri, footer bülten alanı, konsol hatası. Tarayıcı pencerisi açılır. ~40 sn."
+  },
+  "test-menu": {
+   "label": "02 Navigasyon + rota sagligi (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:menu"
+   ],
+   "group": "misafir",
+   "tip": "02-navigation.spec.ts — 7 case: mega menü, 15 rotanın 404 taraması, bilinen kırık link ve boş kategori baseline'ları, prod domain sızması. ~1,5 dk."
+  },
+  "test-liste": {
+   "label": "03 Kategori/liste (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:liste"
+   ],
+   "group": "misafir",
+   "tip": "03-category-listing.spec.ts — 7 case: liste/sayaç tutarlılığı, filtre paneli, renk filtresi uygulama, sıralama, DAHA FAZLA GÖSTER. ~1,5 dk."
+  },
+  "test-arama": {
+   "label": "04 Arama (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:arama"
+   ],
+   "group": "misafir",
+   "tip": "04-search.spec.ts — 5 case: header aramasi, sonuç başlığı, boş sonuç mesajı, sonuç kartlarının prod'a link vermesi (HOMEE-005), alaka. ~1 dk."
+  },
+  "test-urun": {
+   "label": "05 Urun detay (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:urun"
+   ],
+   "group": "misafir",
+   "tip": "05-product-detail.spec.ts — 5 case: başlık/SKU/fiyat tutarlılığı, sekmeler, taksit, kırık görsel, konsol hatası (HOMEE-001). ~1 dk."
+  },
+  "test-sepet": {
+   "label": "06 Sepet (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:sepet"
+   ],
+   "group": "misafir",
+   "tip": "06-cart.spec.ts — 7 case: sepete ekleme, adet artır/azalt matematiği (1 adet=X → 2 adet=2X), satır silme, iki ürün. Her test sepeti boşaltarak biter. ~3 dk."
+  },
+  "test-magaza": {
+   "label": "07 Magazalar (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:magaza"
+   ],
+   "group": "misafir",
+   "tip": "07-stores.spec.ts — 2 case: mağaza listesi yüklenmesi ve mağaza arama filtresi. ~40 sn."
+  },
+  "test-statik": {
+   "label": "08 Statik sayfalar (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:statik"
+   ],
+   "group": "misafir",
+   "tip": "08-static-pages.spec.ts — 10 statik sayfanın başlığı + kırık görsel taraması (HOMEE-002). ~2 dk."
+  },
+  "test-form": {
+   "label": "09 Formlar (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:form"
+   ],
+   "group": "misafir",
+   "tip": "09-forms.spec.ts — 3 case: bülten geçersiz e-posta, iletişim formu render, boş gönderim validasyonu (HOMEE-003). GERÇEK form göndermez. ~1 dk."
+  },
+  "test-rota": {
+   "label": "10 Rota sagligi (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:rota"
+   ],
+   "group": "misafir",
+   "tip": "10-route-health.spec.ts: 5 case. 2026-08-20 rota denetiminin kod hali — KNOWN_BROKEN_ROUTES hala 404 mu, LISTING_EMPTY hala bos mu, urun donmesi beklenen rotalar doluyor mu, statik rotalar 404 vermiyor mu, misafir korumali hesap rotalarinda login'e yonleniyor mu. Homee 404'te de HTTP 200 dondugu icin tespit DOM'dan yapiliyor. Mutasyon yok, ~6 dk."
+  },
+  "test-login": {
+   "label": "20 Giris pozitif/negatif (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:login"
+   ],
+   "group": "uye",
+   "tip": "20-login.spec.ts — 6 case: giriş yöntemleri, e-posta format uyarısı, yanlış şifre, boş form, doğru giriş, korumalı sayfa yönlendirmesi. Mesajlar kaybolan toast olduğu için poll eder. ~3 dk."
+  },
+  "test-hesabim": {
+   "label": "21 Hesabim ozeti (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:hesabim"
+   ],
+   "group": "uye",
+   "tip": "21-account-overview.spec.ts — 5 case: hesap özeti, tüm alt sayfalar, siparişler/favoriler boş durumu, çıkış (onay diyaloğu dahil). ~1,5 dk."
+  },
+  "test-adres": {
+   "label": "22 Adres yonetimi (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:adres"
+   ],
+   "group": "uye",
+   "tip": "22-addresses.spec.ts — 3 case: form açılışı, boş form validasyonu, QA-ADRES-… adresi oluşturup listede doğrulayıp SİLER (silmeyi ölçerek doğrular). VERİ DEĞİŞTİRİR ama geri alır. ~2 dk."
+  },
+  "test-favori": {
+   "label": "23 Favoriler (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:favori"
+   ],
+   "group": "uye",
+   "tip": "23-favorites.spec.ts — 2 case: favoriye ekle → listede gör → kaldır. Ürünün başlangıçtaki favori durumunu geri yükler. VERİ DEĞİŞTİRİR ama geri alır. ~1,5 dk."
+  },
+  "test-siparis": {
+   "label": "24 Siparisler/iadeler (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:siparis"
+   ],
+   "group": "uye",
+   "tip": "24-orders.spec.ts — 3 case: siparişlerim, iadelerim (API hata durumu kontrolü), hesap özetinde sipariş bloğu. Hesapta sipariş yoksa boş durum doğrulanır. ~1 dk."
+  },
+  "test-odeme": {
+   "label": "25 Odeme adimi - siparis TAMAMLANMAZ (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:odeme"
+   ],
+   "group": "uye",
+   "tip": "25-checkout-to-payment.spec.ts — 6 case: sepetten ödeme adımına geçiş, tutar eşitliği, ödeme yöntemleri, sözleşme metinleri (HOMEE-004), guard kontrolü. SİPARİŞ TAMAMLANMAZ — 'ÖDEME YAP' butonuna basılmaz. ~3 dk."
+  },
+  "report": {
+   "label": "HTML rapor uret (son kosumdan)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "report:create"
+   ],
+   "group": "rapor",
+   "tip": "Son koşumun test-results/results.json dosyasından HTML rapor üretir. Test KOŞMAZ, sadece rapor yazar."
+  },
+  "test-havale": {
+   "label": "26 HAVALE ile siparis TAMAMLAR (headed)",
+   "cmd": "npm",
+   "args": [
+    "run",
+    "test:havale"
+   ],
+   "group": "uye",
+   "tip": "⚠️ GERCEK SIPARIS ACAR. ALLOW_HOMEE_ORDERS=1 yoksa komple SKIP edilir. Havale secildigi icin para cekilmez (siparis 'odeme bekliyor' durumunda kalir) ama siparis kaydi olusur ve otomasyonla IPTAL EDILEMEZ — OrdersPage'de iptal akisi yok. Tek SAP test urunu, 1 adet, kosum basina TEK siparis. Sipariş no + banka/IBAN ekrani panel-data/evidence/26-havale-*.png olarak kaydedilir."
+  },
+  "gate-refresh": {
+   "label": "Kapi oturumunu yenile",
+   "cmd": "npx",
+   "args": [
+    "playwright",
+    "test",
+    "tests/08-static-pages.spec.ts",
+    "--project=chromium",
+    "-g",
+    "privacy"
+   ],
+   "group": "rapor",
+   "tip": "Tek hafif case kosarak global-setup'i tetikler ve playwright/.auth/<env>-gate.json'i yeniler. Kapi cookie'si ~24 saatte doluyor; dolunca butun sayfalar 'Gecici Erisim' ekranini gosterir ve olcumler sessizce yanlis olur. ~45 sn."
   }
+ },
+ "perf-sweep": {
+  "label": "Performans olcumu (33 rota)",
+  "cmd": "node",
+  "args": [
+   "scripts/perf-sweep.mjs"
+  ],
+  "group": "rapor",
+  "tip": "scripts/perf-sweep.mjs — baseline rotalarinin tamamini gezip her biri icin LCP/load/TTFB, istek ve API sayisi, mukerrer endpoint, 4xx-5xx ve konsol hatasi olcer. Cikti panel-data/perf/<rota>.json; Perf sekmesi bunu okur. Kapi oturumunu kullanir, mutasyon YAPMAZ. ~6-8 dk."
+ }
 }
