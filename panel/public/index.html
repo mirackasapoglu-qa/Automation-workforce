@@ -300,10 +300,17 @@
   #cxWrap{position:relative;display:inline-flex}
   /* Kapsam baglantisi: connectors dugmesiyle ayni yukseklik/renk dili.
      `button` degil `a` — yeni sekmede acilabilsin diye. */
-  #scopeLink{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;margin-right:6px;
-    border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--fg);
-    font-size:12px;text-decoration:none;line-height:1.6}
-  #scopeLink:hover{border-color:var(--acc)}
+  /* Kapsam dugmesi digerlerinden AYRISIR: yanindakiler durum gostergesi
+     (pasif bilgi), bu ise bir gecis eylemi. Accent konturu + tonlu zemin. */
+  #scopeLink{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;margin-right:8px;
+    border:1px solid color-mix(in srgb,var(--acc) 55%,var(--line));border-radius:9px;
+    background:var(--acc-dim);color:var(--acc);font-size:12.5px;font-weight:600;
+    text-decoration:none;line-height:1.5;transition:background var(--t),border-color var(--t),box-shadow var(--t)}
+  #scopeLink:hover{border-color:var(--acc);box-shadow:0 0 14px var(--acc-dim);color:var(--acc)}
+  .sl-mark{display:inline-flex;width:20px;height:20px;border-radius:6px;flex-shrink:0;
+    align-items:center;justify-content:center;background:var(--acc-dim);
+    border:1px solid color-mix(in srgb,var(--acc) 35%,transparent)}
+  .sl-mark svg{width:13px;height:13px}
   #cxPanel{position:absolute;z-index:60;top:calc(100% + 8px);right:0;
     width:min(440px,calc(100vw - 32px));
     max-height:min(74vh,640px);overflow-y:auto;background:var(--card);border:1px solid var(--line);
@@ -826,7 +833,18 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
        baslikta degil, connectors panelinde ve tooltip'te duruyor. -->
   <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
   <span class="pill" id="orderPill" role="status" aria-atomic="true" hidden></span>
-  <a id="scopeLink" href="/scope" title="Kapsam agaci — urun hiyerarsisi, durum ve test case'ler">kapsam</a>
+  <!-- Kapsam: panelin ikinci yuzune (Flowscope) gecis. Logo kapsam ekraninin
+       KENDI isaretinden alindi (scope/js/constants.js → ICON.logo) — uydurma
+       degil, gidilen yerle ayni. -->
+  <a id="scopeLink" href="/scope" title="Kapsam agaci — urun hiyerarsisi, durum ve test case'ler">
+    <span class="sl-mark" aria-hidden="true">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+        <circle cx="4.5" cy="4.5" r="1.9"/><circle cx="15.5" cy="4.5" r="1.9"/><circle cx="10" cy="15.5" r="1.9"/>
+        <path d="M6 5.8 9 13.2"/><path d="M14 5.8 11 13.2"/>
+      </svg>
+    </span>
+    <span>Kapsam</span>
+  </a>
   <span id="cxWrap">
     <button id="cxBtn" type="button" onclick="pfPanelToggle()"
             title="Bağlantılar — kimlik, kota ve çözüm adımları"><span class="cx-badge"></span>connectors</button>
