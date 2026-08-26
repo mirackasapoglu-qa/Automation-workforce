@@ -506,6 +506,57 @@ button { font-family: inherit; }
   height: auto;
 }
 
+/* ── Tasarim / canli karsilastirmasi ────────────────────────────────────────
+   Tek kolonlu bant: surgu ise yarayacak kadar genislik gerekiyor, iki kolona
+   sikistirinca kayma (asil anlatilan sey) gorunmez oluyordu. */
+/* `.shot-band:nth-child(even)` (0,2,0) tek sinifli kurali yiyor; bu yuzden
+   iki sinif birlikte yaziliyor. */
+.shot-band.cmp-band { grid-template-columns: 1fr; gap: 26px; }
+/* Tek kolonda metin ONCE gelsin: donusumlu dizilim kurali (`order: 2`) bu bantta
+   metni gorselin ALTINA atiyordu. */
+.shot-band.cmp-band .shot-copy,
+.shot-band.cmp-band > div { order: 0; }
+.cmp-wrap {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000000;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.cmp-wrap img { display: block; width: 100%; height: auto; }
+/* Canli kare tasarimin UZERINDE; opacity JS'ten geliyor. */
+.cmp-wrap img + img { position: absolute; inset: 0; height: 100%; object-fit: cover; }
+.cmp-tag {
+  position: absolute;
+  top: 12px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid var(--border-soft);
+  font-size: 11.5px;
+  letter-spacing: -0.01em;
+  color: #e8e8e8;
+}
+.cmp-tag.l { left: 12px; }
+.cmp-tag.r { right: 12px; }
+.cmp-range {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.cmp-range input {
+  flex: 1;
+  min-width: 0;
+  accent-color: #ffffff;
+  cursor: pointer;
+}
+/* Etiketler kirpilmasin: surgu flex:1 ile buyurken "canli" kesiliyordu. */
+.cmp-range > span { flex: none; white-space: nowrap; }
+
 .showcase-end {
   max-width: 1180px;
   margin: 0 auto;
@@ -675,7 +726,11 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
   }
   .stat { white-space: normal; }
 
-  .shot-band {
+  /* ⚠️ `:nth-child(even)` KURALI DA EZILMELI: tek sinifli `.shot-band` (0,1,0)
+     ozgullukte kaybediyordu, yani cift numarali bantlar (Olcum, Kayit) telefonda
+     iki daracik kolona sikisiyordu — olculdu: 390px ekranda 178px + 146px. */
+  .shot-band,
+  .shot-band:nth-child(even) {
     grid-template-columns: 1fr;
     gap: 26px;
     padding: 64px 20px;
@@ -837,6 +892,37 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
       </div>
     </section>
 
+    <section class="shot-band cmp-band" id="diff">
+      <div class="shot-copy reveal">
+        <span class="shot-label">Tasarım</span>
+        <h2>Figma ile canlı, <em>aynı kare</em></h2>
+        <p>
+          Sürgüyü kaydır: solda tasarımın render'ı, sağda canlı sayfa. Panel bunu metin
+          düzeyinde de yapıyor — tasarımda olup canlıda bulunmayan metinler kırmızı
+          işaretlenir, render'lar <code>panel-data/figma-cache/</code> içinde kalır ve
+          panel çevrimdışı çalışır.
+        </p>
+        <span class="shot-note">
+          Ölçüldü: aynı frame'de elle yapılan diff 32–36 “eksik” verirken script 6 veriyor.
+          Türkçe normalizasyon (<code>"İ".toLowerCase()</code>) atlanınca tek koşumda 12 yanlış pozitif çıkıyordu.
+        </span>
+      </div>
+      <div class="reveal">
+        <div class="cmp-wrap" id="cmp">
+          <img src="/shots/diff-tasarim.jpg" alt="Anasayfa — Figma tasarımı" width="760" height="897" loading="lazy" decoding="async">
+          <img src="/shots/diff-canli.jpg" alt="Anasayfa — canlı sayfa" width="760" height="897" loading="lazy" decoding="async" id="cmpLive">
+          <span class="cmp-tag l" id="cmpTagL">Figma 50%</span>
+          <span class="cmp-tag r" id="cmpTagR">Canlı 50%</span>
+        </div>
+        <label class="cmp-range">
+          <span>tasarım</span>
+          <input type="range" min="0" max="100" value="50" id="cmpRange"
+                 aria-label="Tasarım ve canlı sayfa arasında geçiş">
+          <span>canlı</span>
+        </label>
+      </div>
+    </section>
+
     <div class="showcase-end">
       <h2>Ölçmediğin şeyi <em>iddia etme</em>.</h2>
       <p>
@@ -909,6 +995,26 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
         if (r.top < window.innerHeight && r.bottom > 0) el.classList.add("in");
       });
     });
+  }
+
+  /* ── Tasarim / canli surgusu ───────────────────────────────────────────
+     Iki kare ust uste; surgu canli olanin opacity'sini suruyor. Baslangic %50
+     KASITLI: sayfa acildiginda ikisinin ayni olmadigi hemen gorunsun.
+     Surgu yoksa (eski tarayici, JS kapali) canli kare CSS'ten %100 gorunur
+     kalir — yani bant bos degil, sadece etkilesimsiz. */
+  var range = document.getElementById("cmpRange");
+  var live = document.getElementById("cmpLive");
+  if (range && live) {
+    var tagL = document.getElementById("cmpTagL");
+    var tagR = document.getElementById("cmpTagR");
+    var apply = function () {
+      var v = Number(range.value);
+      live.style.opacity = String(v / 100);
+      if (tagL) tagL.textContent = "Figma " + (100 - v) + "%";
+      if (tagR) tagR.textContent = "Canlı " + v + "%";
+    };
+    range.addEventListener("input", apply);
+    apply();
   }
 
   /* Menu kodu KALDIRILDI: nav, burger ve backdrop landing'den cikti (bkz.
