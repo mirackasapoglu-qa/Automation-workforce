@@ -326,6 +326,37 @@ otomatik yazmak kartın altına çöp bırakır.
 panel yeniden başlatılmadan etkili olsun diye. Sabit nesne olduğu sürece düzenleme
 sessizce eski eşlemeyle koşum tetikliyordu.
 
+### Koşum kaydı: video, trace, canlı izleme
+
+`playwright.config.ts` içinde **`video` hiç tanımlı değildi** (Playwright varsayılanı
+`off`) ve `trace: "on-first-retry"` yerelde retry 0 olduğu için **pratikte hiç trace
+üretmiyordu** — panelden koşan biri geriye dönüp izleyecek hiçbir şey bulamıyordu.
+Şimdi ikisi de ortamdan okunuyor:
+
+```ts
+video: (process.env.PW_VIDEO || "retain-on-failure"),
+trace: (process.env.PW_TRACE || "retain-on-failure"),
+```
+
+- Varsayılan `retain-on-failure`: **geçen testte kayıt yoktur, bu normaldir.** Panel
+  bunu mesajda söylüyor, yoksa "kayıt çalışmıyor" sanılıyor.
+- Kart akışı ① altındaki **`⏺ kayıt al`** kutusu `record: true` gönderir → koşum
+  süreci `PW_VIDEO=on PW_TRACE=on` ile başlar (her test kaydedilir).
+- **`👁 canlı izle`** kutusu headless'ı kapatır: tarayıcı penceresi açılır. Playwright
+  canlı akış yayınlamıyor; panel içinde canlı görüntü ancak CDP screencast ile olur,
+  o ayrı bir iş.
+- `GET /api/artifacts[?spec=]` kayıtları listeler, `/artifact/<yol>` servis eder
+  (yol normalize edilir, `test-results` dışına çıkan ve `.webm|.zip|.png` olmayan
+  istek 403). Panel videoyu gömülü oynatır; `trace aç` → `npx playwright show-trace`
+  (koşum motoruna sokulmadı: bu bir görüntüleyici, "aktif koşum" durumunu kirletmez).
+- **Disk:** 5 testlik tek kayıtlı koşum **44 MB** bıraktı. `POST /api/artifacts/clear`
+  (panelde `kayıtları sil`) klasörleri siler, `results.json`'a **dokunmaz** — o sonucun
+  kendisi, silinse case defteri ve kart özetleri körleşir.
+
+⚠️ `ordersEnv()` sunucuda tanımlı ama **hiçbir yerde kullanılmıyor**: panelin "sipariş
+tamamlama" override'ı koşum sürecine geçmiyor. Kayıt işi sırasında farkedildi;
+guard'a dokunmak ayrı bir karar olduğu için bilinçli olarak eklenmedi.
+
 ### AI özellikleri: anahtarsız yol (Claude Code'a kopyala-yapıştır)
 
 Panelin üç AI özelliği de (**Senaryo öner**, **perf AI yorumu**, **kapsam ağacında test

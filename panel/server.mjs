@@ -510,7 +510,16 @@ let scopeRun = null; // { nodeId, runId, specs }
  * "surekli browser aciliyor" derken bunu goruyor. Anahtar panelde, kosum
  * tanimlarini degistirmeye gerek yok.
  */
-function startRun(runId, params, headless = false) {
+/**
+ * KAYIT AYARI. Panelden gelen `record` bayragi video+trace'i HER teste acar
+ * (`on`); verilmezse config varsayilani (`retain-on-failure`) gecerli kalir.
+ * Sabit olarak `on` yapmadik: 33 rotalik sweep'te yuzlerce MB ve belirgin
+ * yavaslama demek.
+ */
+const recordEnv = (record) =>
+  record ? { PW_VIDEO: "on", PW_TRACE: "on" } : {};
+
+function startRun(runId, params, headless = false, record = false) {
   if (active) return { ok: false, error: `Zaten kosuyor: ${active.id}` };
 
   let cmd;
@@ -580,7 +589,14 @@ function startRun(runId, params, headless = false) {
 
   const child = spawn(cmd, args, {
     cwd: ROOT,
-    env: { ...process.env, FORCE_COLOR: "0" },
+    /*
+     * NOT: `ordersEnv()` BILINCLI OLARAK burada DEGIL. Tanimli ama hicbir yerde
+     * kullanilmiyor (olculdu 2026-08-26): yani panelin "siparis tamamlama"
+     * override'i kosum surecine gecmiyor. Buraya eklemek yikici siparis
+     * testlerinin davranisini degistirir — guard'a dokunmak ayri bir karar,
+     * kayit ozelligiyle birlikte sessizce yapilmamali.
+     */
+    env: { ...process.env, FORCE_COLOR: "0", ...recordEnv(record) },
     shell: false, // kabuk YOK — argv olarak gecirilir
   });
 
@@ -590,6 +606,7 @@ function startRun(runId, params, headless = false) {
     label,
     argv: [cmd, ...args],
     params: params ?? null,
+    record: record || undefined,
   });
 
   active = { id: runId, label, child, startedAt: Date.now(), lines: [] };
@@ -773,6 +790,116 @@ const server = http.createServer(async (req, res) => {
       const type = MIME[path.extname(file)] ?? "application/octet-stream";
       res.writeHead(200, { "content-type": type, "cache-control": "no-store" });
       return res.end(fs.readFileSync(file));
+    }
+
+    /**
+     * KOSUM KAYITLARI (video / trace / ekran goruntusu).
+     *
+     * Playwright her test icin `test-results/<spec>-<baslik>-<proje>/` altina
+     * yaziyor: video.webm, trace.zip, test-failed-1.png. Panel bunlari
+     * gostermiyordu, yani kayit acilsa bile kimse bulamazdi.
+     *
+     * `spec` verilirse yalnizca o spec'in klasorleri donuyor — kart detayinda
+     * kartin spec'lerine suzmek icin.
+     */
+    if (p === "/api/artifacts") {
+      const dir = path.join(ROOT, "test-results");
+      const specFilter = url.searchParams.get("spec");
+      if (!fs.existsSync(dir)) return send(res, 200, { ok: true, rows: [] });
+      const rows = [];
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (!e.isDirectory()) continue;
+        const klasor = path.join(dir, e.name);
+        const dosyalar = fs.readdirSync(klasor).filter((f) => /\.(webm|zip|png)$/i.test(f));
+        if (!dosyalar.length) continue;
+        /*
+         * Klasor adi "03-category-listing-urun-listesi-render-olur-chromium"
+         * gibi: spec adi bastaki parca ama ".spec.ts" yok. Spec'i eslemek icin
+         * dosya adinin govdesini kullaniyoruz.
+         */
+        const specAdi = (specFilter || "").replace(/\.spec\.ts$/, "");
+        if (specFilter && !e.name.startsWith(specAdi)) continue;
+        const st = fs.statSync(klasor);
+        rows.push({
+          dir: e.name,
+          at: st.mtime.toISOString(),
+          video: dosyalar.find((f) => f.endsWith(".webm")) ?? null,
+          trace: dosyalar.find((f) => f.endsWith(".zip")) ?? null,
+          shots: dosyalar.filter((f) => f.endsWith(".png")),
+        });
+      }
+      rows.sort((a, b) => b.at.localeCompare(a.at));
+      return send(res, 200, { ok: true, rows: rows.slice(0, 60) });
+    }
+
+    /**
+     * Kayit dosyasini servis eder. Video oynatici HTTP ister; dosyayi diskten
+     * okuyup vermek yeterli. YOL KONTROLU sart: normalize sonrasi
+     * test-results dizininin disina cikan istek reddediliyor.
+     */
+    if (p.startsWith("/artifact/")) {
+      const rel = decodeURIComponent(p.slice("/artifact/".length));
+      const root = path.join(ROOT, "test-results");
+      const file = path.normalize(path.join(root, rel));
+      if (!file.startsWith(root + path.sep)) return send(res, 403, { error: "yol reddedildi" });
+      if (!/\.(webm|zip|png)$/i.test(file)) return send(res, 403, { error: "bu tur servis edilmiyor" });
+      if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, { error: "yok" });
+      const MIME = { ".webm": "video/webm", ".zip": "application/zip", ".png": "image/png" };
+      res.writeHead(200, {
+        "content-type": MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream",
+        "content-length": fs.statSync(file).size,
+        "cache-control": "no-store",
+      });
+      return res.end(fs.readFileSync(file));
+    }
+
+    /**
+     * KAYITLARI SIL. Tek kayitli kosum ~44 MB birakiyor (olculdu: 5 test,
+     * video+trace). `results.json` DOKUNULMAZ — o sonucun kendisi, kayit degil;
+     * silinse case defteri ve kart ozetleri korlesirdi.
+     */
+    if (p === "/api/artifacts/clear" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const dir = path.join(ROOT, "test-results");
+      let silinen = 0;
+      let bayt = 0;
+      if (fs.existsSync(dir)) {
+        for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+          if (!e.isDirectory()) continue;
+          const full = path.join(dir, e.name);
+          for (const f of fs.readdirSync(full)) {
+            try { bayt += fs.statSync(path.join(full, f)).size; } catch { /* yok */ }
+          }
+          fs.rmSync(full, { recursive: true, force: true });
+          silinen++;
+        }
+      }
+      audit({ event: "artifacts-clear", dirs: silinen, bytes: bayt });
+      return send(res, 200, { ok: true, dirs: silinen, mb: Math.round(bayt / 1048576) });
+    }
+
+    /**
+     * Trace'i Playwright'in kendi goruntuleyicisinde acar (yerel GUI).
+     * Whitelist'li kosum motorunu KULLANMIYOR: bu bir test kosumu degil,
+     * goruntuleyici; kosum motoruna sokmak "aktif kosum" durumunu kirletirdi.
+     */
+    if (p === "/api/trace/open" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { file } = await readBody(req);
+      const root = path.join(ROOT, "test-results");
+      const full = path.normalize(path.join(root, String(file ?? "")));
+      if (!full.startsWith(root + path.sep) || !full.endsWith(".zip"))
+        return send(res, 403, { ok: false, error: "yol reddedildi" });
+      if (!fs.existsSync(full)) return send(res, 404, { ok: false, error: "trace yok" });
+      const ch = spawn("npx", ["playwright", "show-trace", full], {
+        cwd: ROOT,
+        env: { ...process.env },
+        detached: true,
+        stdio: "ignore",
+      });
+      ch.unref();
+      audit({ event: "trace-open", file: String(file) });
+      return send(res, 200, { ok: true, opened: String(file) });
     }
 
     if (p === "/api/scope/tree" && req.method === "GET") {
@@ -2353,8 +2480,8 @@ ${testBlock}
 
     if (p === "/api/run" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      const { id, params, headless } = await readBody(req);
-      return send(res, 200, startRun(id, params, Boolean(headless)));
+      const { id, params, headless, record } = await readBody(req);
+      return send(res, 200, startRun(id, params, Boolean(headless), Boolean(record)));
     }
 
     if (p === "/api/stop" && req.method === "POST") {

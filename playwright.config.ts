@@ -44,7 +44,20 @@ export default defineConfig({
     // Varsayılan: MİSAFİR oturumu (sadece "Geçici Erişim" kapısı geçilmiş).
     // Üye testleri (20+) kendi içinde member state'e geçer — bkz. pages/authState.ts
     storageState: `playwright/.auth/${env}-gate.json`,
-    trace: "on-first-retry",
+    /*
+     * KAYIT: video ve trace ortamdan ayarlanabilir.
+     *
+     * `video` daha once HIC tanimli degildi, yani Playwright varsayilani `off`:
+     * kosumdan geriye izlenecek hicbir sey kalmiyordu. `trace` ise
+     * "on-first-retry" idi ve yerelde retry 0 oldugu icin PRATIKTE hic trace
+     * uretmiyordu — panelden kosan biri hata ayiklayacak kanit bulamiyordu.
+     *
+     * Varsayilan `retain-on-failure`: gecen testte disk ve sure harcamaz,
+     * dusen testin videosu ve trace'i kalir. Panelden "her testi kaydet"
+     * secilirse PW_VIDEO/PW_TRACE=on gelir.
+     */
+    video: (process.env.PW_VIDEO || "retain-on-failure"),
+    trace: (process.env.PW_TRACE || "retain-on-failure"),
     screenshot: "only-on-failure",
     actionTimeout: 20_000,
     navigationTimeout: 60_000,

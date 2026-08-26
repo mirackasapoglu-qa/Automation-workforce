@@ -766,6 +766,9 @@
   .cf-radios{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px;font-size:12.5px}
   .cf-radios label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
   .cf-radios input{width:auto;margin:0}
+  .cf-art{margin-top:10px;padding:8px;border:1px solid var(--line);border-radius:var(--r-sm)}
+  .cf-art-t{font-size:11px;color:var(--mut);margin-bottom:6px;word-break:break-all}
+  .cf-art video{width:100%;max-width:520px;border-radius:var(--r-xs);display:block;background:#000}
   #jCard .okc{color:var(--ok)}
   #jCard .w{color:var(--mut)}
 </style>
@@ -1558,11 +1561,20 @@ async function load() {
   $('#issuesCnt').textContent = document.querySelectorAll('#issues .issue').length || '';
 }
 
-async function startRun(id) {
+/**
+ * @param {string} id whitelist kosum id'si
+ * @param {{live?: boolean, record?: boolean}} [opt]
+ *   live   → headless KAPALI: tarayici penceresi acilir, kosumu canli izlersin
+ *            (Playwright canli akis yayinlamiyor; canli izlemenin yolu bu).
+ *   record → video + trace HER teste acilir (PW_VIDEO/PW_TRACE=on).
+ */
+async function startRun(id, opt = {}) {
   $('#log').textContent = '';
   document.querySelector('.tabs button[data-tab=log]').click();
-  const r = await post('/api/run', { id, headless: HEADLESS });
-  if (!r.ok) appendLog('PANEL HATASI: ' + r.error, true);
+  const headless = opt.live ? false : HEADLESS;
+  const r = await post('/api/run', { id, headless, record: !!opt.record });
+  if (!r.ok) { appendLog('PANEL HATASI: ' + r.error, true); return; }
+  appendLog(`-- ${id} basladi${opt.live ? ' · canli (pencere aciliyor)' : ''}${opt.record ? ' · kayit acik' : ''} --`);
 }
 
 $('#stopBtn').onclick = async () => {
@@ -2161,9 +2173,24 @@ async function openCard(key) {
         <div class="cf-title">KOŞ</div>
         ${(c.runs && c.runs.length)
           ? `<div class="row" style="margin-bottom:6px">${c.runs.map(r =>
-              `<button style="width:auto" onclick="startRun('${r.runId}')">▸ ${esc(r.label)}</button>`).join('')}</div>`
+              `<button style="width:auto" onclick="startCardRun('${r.runId}')">▸ ${esc(r.label)}</button>`).join('')}</div>
+             <!-- Secenekler dugme DEGIL kutu: kosum basina iki dugme koymak
+                  3 kosumlu bir kartta 6 dugme demekti. -->
+             <div class="cf-radios" style="margin:0 0 2px">
+               <label title="Tarayici penceresi acilir, kosumu canli izlersin (headless kapali)">
+                 <input type="checkbox" id="cfLive"> 👁 canlı izle</label>
+               <label title="Video + trace HER teste acilir; bitince 'kayıtları göster' ile listelenir">
+                 <input type="checkbox" id="cfRec"> ⏺ kayıt al</label>
+             </div>`
           : `<p class="mono" style="margin:0 0 6px"><span class="w">bu kartın otomatik testi yok</span></p>`}
         <p class="mono" style="margin:0">${kosumSatiri}</p>
+        <div class="row cf-sec" style="margin-top:6px">
+          <button style="width:auto" onclick="loadArtifacts('${c.key}')">⏵ kayıtları göster</button>
+          <button style="width:auto" onclick="clearArtifacts()"
+                  title="test-results altindaki tum video/trace/ekran goruntusu klasorlerini siler (results.json kalir)">kayıtları sil</button>
+          <span class="mono" id="cfArtState"></span>
+        </div>
+        <div id="cfArtBox"></div>
         <div class="row cf-sec">
           <span class="mono">${c.runs?.length ? 'eksik mi?' : 'başlamak için:'}</span>
           <button style="width:auto" onclick="openCardGen('${c.key}')">✦ Case üret</button>
@@ -2213,6 +2240,77 @@ async function openCard(key) {
     </div>`;
   decorateTips(box);
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * Kart akisindaki kosum dugmesi: ustteki iki secenek kutusunu okur.
+ * Ayri bir fonksiyon olmasi kasitli — panelin diger yerlerindeki `startRun`
+ * cagrilari (Kosumlar sekmesi, rota eslemesi) bu kutulari BILMIYOR ve
+ * onlarin davranisi degismesin.
+ */
+function startCardRun(runId) {
+  startRun(runId, {
+    live: !!document.getElementById('cfLive')?.checked,
+    record: !!document.getElementById('cfRec')?.checked,
+  });
+}
+
+/**
+ * KOSUM KAYITLARI. Playwright her test icin `test-results/<klasor>/` altina
+ * video.webm / trace.zip / test-failed-*.png yaziyor; panel bunlari gostermezse
+ * kayit acilsa bile kimse bulamiyor.
+ *
+ * Varsayilan `retain-on-failure`: gecen testte kayit YOKTUR, bu normaldir —
+ * mesajda bunu soyluyoruz, yoksa "kayit calismiyor" sanilir.
+ */
+async function loadArtifacts(cardKey) {
+  const box = $('#cfArtBox');
+  const st = $('#cfArtState');
+  st.className = 'mono';
+  st.textContent = 'okunuyor…';
+  const specs = (CARD?.mapping?.specs ?? []);
+  const sorgu = specs.length ? '?spec=' + encodeURIComponent(specs[0]) : '';
+  const d = await (await fetch('/api/artifacts' + sorgu)).json();
+  const rows = d.rows ?? [];
+  if (!rows.length) {
+    st.textContent = specs.length
+      ? `${specs[0]} için kayıt yok — varsayılan ayar sadece DÜŞEN testi kaydeder ("⏺ kayıtla koş" hepsini kaydeder)`
+      : 'kayıt yok';
+    box.innerHTML = '';
+    return;
+  }
+  st.textContent = `${rows.length} kayıt`;
+  box.innerHTML = rows.slice(0, 6).map(r => `
+    <div class="cf-art">
+      <div class="mono cf-art-t">${esc(r.dir)}<span class="w"> · ${esc(r.at.slice(11, 16))}</span></div>
+      ${r.video ? `<video controls preload="metadata" src="/artifact/${encodeURIComponent(r.dir + '/' + r.video)}"></video>` : ''}
+      <div class="row cf-sec" style="margin-top:6px">
+        ${r.trace ? `<button style="width:auto" onclick="openTrace('${esc(r.dir)}/${esc(r.trace)}')">trace aç</button>` : '<span class="mono w">trace yok</span>'}
+        ${r.shots.length ? r.shots.map(sh => `<a class="mono" href="/artifact/${encodeURIComponent(r.dir + '/' + sh)}" target="_blank">${esc(sh)}</a>`).join(' · ') : ''}
+      </div>
+    </div>`).join('');
+}
+
+/** Kayitlari siler. Onay sart: kanit siliyor ve geri donusu yok. */
+async function clearArtifacts() {
+  if (!confirm('test-results altindaki TUM kayit klasorleri (video, trace, ekran goruntusu) silinecek.\n'
+    + 'Sonuc dosyasi (results.json) kalir. Devam?')) return;
+  const st = $('#cfArtState');
+  st.className = 'mono';
+  st.textContent = 'siliniyor…';
+  const d = await post('/api/artifacts/clear', {});
+  st.textContent = d.ok ? `${d.dirs} klasör silindi · ${d.mb} MB` : (d.error || 'silinemedi');
+  $('#cfArtBox').innerHTML = '';
+}
+
+/** Trace'i Playwright goruntuleyicisinde acar (yerel pencere). */
+async function openTrace(file) {
+  const st = $('#cfArtState');
+  st.className = 'mono';
+  st.textContent = 'trace açılıyor (ayrı pencere)…';
+  const d = await post('/api/trace/open', { file });
+  st.textContent = d.ok ? 'trace penceresi açıldı' : (d.error || 'açılamadı');
+  if (!d.ok) st.className = 'mono err';
 }
 
 /** Acik kartin son verisi — adimlar arasinda tekrar istek atmamak icin. */
