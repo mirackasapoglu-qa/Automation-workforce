@@ -743,6 +743,31 @@
   main{transition:grid-template-columns var(--t)}
   @media (prefers-reduced-motion:reduce){main{transition:none}}
 
+
+  /* ---- Kart detayi: 3 adimli akis ----
+     Ikincil her sey adimin icinde ve KAPALI; amac ekranin sirali okunmasi. */
+  .cf-head{padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .cf-ctx{margin-top:8px}
+  .cf-ctx>summary{cursor:pointer;font:500 11.5px var(--mono);letter-spacing:.08em;
+    text-transform:uppercase;color:var(--mut);list-style:none}
+  .cf-ctx>summary::-webkit-details-marker{display:none}
+  .cf-ctx>summary::before{content:"▸ ";display:inline-block;transition:transform var(--t)}
+  .cf-ctx[open]>summary::before{content:"▾ "}
+  .cf-ctx pre{margin:8px 0 0;max-height:260px;overflow:auto}
+  .cf-step{display:flex;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+  .cf-step:last-child{border-bottom:0}
+  .cf-num{flex:none;width:24px;height:24px;border-radius:999px;display:grid;place-items:center;
+    border:1px solid var(--line);background:var(--card2);font:600 12px var(--mono);color:var(--mut)}
+  .cf-body{flex:1;min-width:0}
+  .cf-title{font:600 11px var(--mono);letter-spacing:.12em;color:var(--mut);margin-bottom:8px}
+  .cf-sec{margin:8px 0 0;align-items:center}
+  .cf-sec .mono{color:var(--mut);font-size:11px}
+  .cf-fail{margin-top:6px;font:12px var(--mono);color:var(--no)}
+  .cf-radios{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:8px;font-size:12.5px}
+  .cf-radios label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+  .cf-radios input{width:auto;margin:0}
+  #jCard .okc{color:var(--ok)}
+  #jCard .w{color:var(--mut)}
 </style>
 
 <style id="nc-motion">
@@ -2084,56 +2109,167 @@ async function loadCards() {
   } catch (e) { $('#jTable').innerHTML = `<tr><td class="mono err">${esc(e.message)}</td></tr>`; }
 }
 
+/**
+ * KART DETAYI = 3 ADIMLI AKIS (① KOS → ② KARAR → ③ YAZ)
+ *
+ * Eski hali her seyi ayni anda aciyordu: 5 bolum, 7 dugme, 10 secenekli statu
+ * listesi ve 2000 karakterlik yorum tek dikey yigin halinde tablonun ALTINDA
+ * duruyordu (olculdu). Karti dogrulamak sirali bir istir; ekran da o sirayi
+ * gostersin. Ikincil olan her sey (esleme, istem uret, yorum onizleme, kartin
+ * metni) ADIMIN ICINDE ve KAPALI baslar.
+ */
 async function openCard(key) {
   const box = $('#jCard');
   box.hidden = false;
   box.innerHTML = '<p class="mono">yükleniyor...</p>';
   const c = await (await fetch('/api/jira/card/' + key)).json();
   if (c.error) { box.innerHTML = `<p class="mono err">${esc(c.error)}</p>`; return; }
+  CARD = c;
+
+  const lr = c.lastRun;
+  const kosumSatiri = lr
+    ? `<span class="${lr.failed ? 'err' : 'okc'}">${lr.passed}/${lr.total} geçti</span>`
+      + `${lr.failed ? ` · <span class="err">${lr.failed} başarısız</span>` : ''}`
+      + `${lr.skipped ? ` · ${lr.skipped} atlandı` : ''}`
+      + ` · ${lr.durationMs ? Math.round(lr.durationMs / 1000) + ' sn' : '—'}`
+      + ` · ${esc((lr.startedAt || '').slice(11, 16))}`
+      + (lr.isLatest ? '' : ' <span class="w">(daha yeni bir koşum var)</span>')
+      + (lr.failedTitles?.length
+          ? `<div class="cf-fail">${lr.failedTitles.map(t => `✗ ${esc(t)}`).join('<br>')}</div>` : '')
+    : '<span class="w">bu kart için koşum kaydı yok</span>';
+
+  const metin = [
+    c.description ? `AÇIKLAMA\n${c.description}` : '',
+    ...(c.comments || []).map(m => `${m.author} · ${(m.created || '').slice(0, 16).replace('T', ' ')}\n${m.text}`),
+  ].filter(Boolean).join('\n\n———\n\n');
+
   box.innerHTML = `
-    <h2 style="margin-top:0">${esc(c.key)} — ${esc(c.summary)}</h2>
-    <p class="mono">${esc(c.status)} · ${esc(c.type)} · ${esc(c.assignee||'atanmamış')} ·
-       ${esc((c.sprint||[]).join(', '))} · <a href="${c.url}" target="_blank">Jira'da aç</a></p>
-    ${c.description ? `<pre>${esc(c.description.slice(0,1200))}</pre>` : ''}
-    <h2>Bu kartin testleri</h2>
-    ${(c.runs && c.runs.length)
-      ? `<div class="row">${c.runs.map(r => `<button style="width:auto" onclick="startRun('${r.runId}')">${esc(r.label)}</button>`).join('')}</div>
-         <p class="mono">spec: ${esc(c.runs.map(r=>r.spec).join(', '))}</p>`
-      : '<p class="mono">Bu kart icin otomatik test yok — asagidan spec esleyebilir ya da kartin metninden test case uretebilirsin.</p>'}
-    <div class="row" style="align-items:center">
-      <span class="mono" style="color:var(--mut)">esleme: ${esc(c.mapping?.source || 'yok')}${
-        c.mapping?.specs?.length ? ` (${esc(c.mapping.specs.join(', '))})` : ' (spec yok)'}</span>
-      <button style="width:auto" onclick="openMapEditor('${c.key}')">Eslemeyi duzenle</button>
-      <button style="width:auto" onclick="openCardGen('${c.key}')">Test case uret</button>
+    <div class="cf-head">
+      <h2 style="margin:0">${esc(c.key)} — ${esc(c.summary)}</h2>
+      <p class="mono" style="margin:4px 0 0">${esc(c.status)} · ${esc(c.type)} · ${esc(c.assignee || 'atanmamış')}
+        ${(c.sprint || []).length ? '· ' + esc(c.sprint.join(', ')) : ''}
+        · <a href="${c.url}" target="_blank">Jira'da aç</a></p>
+      <details class="cf-ctx">
+        <summary>kartın metni${(c.comments || []).length ? ` · ${c.comments.length} yorum` : ' · yorum yok'}</summary>
+        <pre>${esc(metin || '(kartta metin yok)')}</pre>
+      </details>
     </div>
-    <div id="jMapBox"></div>
-    <div id="jGenBox"></div>
-    <h2>Yorumlar (${c.comments.length})</h2>
-    ${c.comments.length ? c.comments.map(m => `<div class="issue"><div class="id">${esc(m.author)}
-       <span class="w">${esc((m.created||'').slice(0,16).replace('T',' '))}</span></div>
-       <div style="font-size:12.5px;white-space:pre-wrap">${esc(m.text)}</div></div>`).join('')
-      : '<p class="mono">yorum yok</p>'}
-    <h2>Yorum yaz</h2>
-    <div class="row">
-      <button style="width:auto" onclick="fillFromRun('${c.key}')"
-              title="Son kosum sonucundan sablonlu yorum uretir — Jira'ya YAZMAZ, metni asagiya doldurur">Kosum sonucundan doldur</button>
-      <button style="width:auto" onclick="fillFromVerdict('${c.key}')"
-              title="Bu karta bagli verdict kaydindan yorum uretir (Verdict sekmesinde 'Kart' alanini doldur)">Verdict'ten doldur</button>
-      <span class="mono" id="jDraftState"></span>
+
+    <div class="cf-step">
+      <div class="cf-num">1</div>
+      <div class="cf-body">
+        <div class="cf-title">KOŞ</div>
+        ${(c.runs && c.runs.length)
+          ? `<div class="row" style="margin-bottom:6px">${c.runs.map(r =>
+              `<button style="width:auto" onclick="startRun('${r.runId}')">▸ ${esc(r.label)}</button>`).join('')}</div>`
+          : `<p class="mono" style="margin:0 0 6px"><span class="w">bu kartın otomatik testi yok</span></p>`}
+        <p class="mono" style="margin:0">${kosumSatiri}</p>
+        <div class="row cf-sec">
+          <span class="mono">${c.runs?.length ? 'eksik mi?' : 'başlamak için:'}</span>
+          <button style="width:auto" onclick="openCardGen('${c.key}')">✦ Case üret</button>
+          <button style="width:auto" onclick="openMapEditor('${c.key}')">eşle
+            <span class="mono">(${esc(c.mapping?.source || 'yok')})</span></button>
+        </div>
+        <div id="jGenBox"></div>
+        <div id="jMapBox"></div>
+      </div>
     </div>
-    <textarea id="jComment" rows="8" placeholder="Test sonucu / adımlar / beklenen-gerçekleşen"></textarea>
-    <div class="row">
-      <button style="width:auto" onclick="sendComment('${c.key}')">Jira'ya gönder</button>
+
+    <div class="cf-step">
+      <div class="cf-num">2</div>
+      <div class="cf-body">
+        <div class="cf-title">KARAR</div>
+        <div class="cf-radios">
+          ${[['pass', 'geçti'], ['fail', 'hata var'], ['blocked', 'test edilemedi'], ['known-issue', 'bilinen hata']]
+            .map(([v, l]) => `<label><input type="radio" name="cfVerdict" value="${v}"> ${l}</label>`).join('')}
+        </div>
+        <textarea id="cfNote" rows="3" placeholder="Not: neyi doğruladın, neresi bozuk, neden bloke"></textarea>
+        <div class="row cf-sec">
+          <button style="width:auto" onclick="saveCardVerdict('${c.key}')">Kararı kaydet</button>
+          <span class="mono" id="cfVState">yerel kayıt · Jira'ya gitmez</span>
+        </div>
+      </div>
     </div>
-    <h2>Statü geçişi</h2>
-    <div class="row">
-      <select id="jTrans" style="width:auto;min-width:200px">
-        ${c.transitions.map(t => `<option value="${t.id}">${esc(t.name)} → ${esc(t.to)}</option>`).join('')}
-      </select>
-      <button class="danger" style="width:auto" onclick="doTransition('${c.key}')">Statüyü değiştir</button>
+
+    <div class="cf-step">
+      <div class="cf-num">3</div>
+      <div class="cf-body">
+        <div class="cf-title">YAZ</div>
+        <div class="row" style="align-items:center">
+          <button style="width:auto" onclick="commentStep('${c.key}')" id="cfSend">Yorumu hazırla</button>
+          <select id="jTrans" style="width:auto;min-width:180px"
+                  onchange="$('#jTransBtn').disabled = !this.value">
+            <option value="">statü değişmesin</option>
+            ${c.transitions.map(t => `<option value="${t.id}">${esc(t.name)} → ${esc(t.to)}</option>`).join('')}
+          </select>
+          <!-- Statu degisimi geri alinamaz; secim yapilmadikca dugme KAPALI.
+               Onceki halinde bos secimle tiklamak sunucuya bos id gonderiyordu. -->
+          <button class="danger" id="jTransBtn" disabled style="width:auto"
+                  onclick="doTransition('${c.key}')">Statüyü uygula</button>
+          <span class="mono" id="jDraftState"></span>
+        </div>
+        <textarea id="jComment" rows="7" hidden placeholder="Yorum metni"></textarea>
+      </div>
     </div>`;
   decorateTips(box);
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/** Acik kartin son verisi — adimlar arasinda tekrar istek atmamak icin. */
+let CARD = null;
+
+/**
+ * ② KARAR → yerel verdict kaydi. Anahtar KART ANAHTARI: kart bazli karar
+ * arandiginda tek yerde durur, Verdict sekmesindeki kart dugmesi de bunu bulur.
+ */
+async function saveCardVerdict(key) {
+  const secili = document.querySelector('input[name=cfVerdict]:checked');
+  const st = $('#cfVState');
+  if (!secili) { st.className = 'mono err'; st.textContent = 'önce bir karar seç'; return; }
+  st.className = 'mono';
+  st.textContent = 'kaydediliyor…';
+  const d = await post('/api/verdicts', {
+    key, card: key, scope: CARD?.summary || '', status: secili.value, note: $('#cfNote').value,
+  });
+  st.textContent = d.key
+    ? `kaydedildi: ${d.status} · ${(d.updatedAt || '').slice(11, 16)} · Jira'ya gitmedi`
+    : (d.error || 'kaydedilemedi');
+}
+
+/**
+ * ③ YAZ — iki tikli gonderim. Ilk tik metni HAZIRLAR ve gosterir (kosum ozeti
+ * + varsa kayitli karar), ikinci tik gonderir. Yorum geri alinamaz bir iz;
+ * "gonder" dedigi anda gitmesi, yanlis kosumun ozetini karta cakma riski.
+ */
+async function commentStep(key) {
+  const ta = $('#jComment');
+  const btn = $('#cfSend');
+  const st = $('#jDraftState');
+  if (ta.hidden || !ta.value.trim()) {
+    st.className = 'mono';
+    st.textContent = 'hazırlanıyor…';
+    const parcalar = [];
+    const run = await (await fetch('/api/jira/comment-draft?key=' + encodeURIComponent(key))).json();
+    if (run.ok) parcalar.push(run.text);
+    const vs = await (await fetch('/api/verdicts')).json();
+    const bagli = vs.filter(v => (v.card || '').toUpperCase() === key.toUpperCase());
+    if (bagli.length) {
+      const vd = await (await fetch('/api/jira/verdict-draft?verdict=' + encodeURIComponent(bagli[0].key))).json();
+      if (vd.ok) parcalar.push(vd.text);
+    }
+    if (!parcalar.length) {
+      st.className = 'mono err';
+      st.textContent = run.error || 'yazacak bir şey yok — koş ya da karar kaydet';
+      return;
+    }
+    ta.value = parcalar.join('\n\n———\n\n');
+    ta.hidden = false;
+    btn.textContent = 'Jira\'ya gönder';
+    st.className = 'mono';
+    st.textContent = 'metni düzenleyebilirsin · gönder demedikçe Jira\'ya gitmez';
+    return;
+  }
+  sendComment(key);
 }
 
 /**
@@ -2326,6 +2462,7 @@ async function sendComment(key) {
 
 async function doTransition(key) {
   const id = $('#jTrans').value;
+  if (!id) { $('#jDraftState').className = 'mono err'; $('#jDraftState').textContent = 'önce bir statü seç'; return; }
   const label = $('#jTrans').selectedOptions[0].textContent;
   if (!confirm(`${key} kartı "${label}" yapılacak. Onaylıyor musun?`)) return;
   const r = await post('/api/jira/transition', { key, transitionId: id });

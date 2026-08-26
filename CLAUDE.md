@@ -277,6 +277,20 @@ açıldı, `/api/specs` → 200.) İki değişiklik bunu sağlıyor:
 
 ### Jira: kart → doğrulama hattı
 
+Kart detayı **3 adımlı akış**: ① KOŞ → ② KARAR → ③ YAZ. Önceki hâli 5 bölümü,
+7 düğmeyi, 10 seçenekli statü listesini ve 2000 karakterlik yorumu aynı anda açıyordu
+(kart yüksekliği ~2500px). Şimdi 551px: kartın metni ve yorumlar katlanmış, üretim ve
+eşleme adım ①'in içinde, yorum alanı hazırlanana kadar gizli.
+
+- ① `card.lastRun` (sunucuda hesaplanır) tek satır: `7/7 geçti · 95 sn · 12:10`.
+  Kayıt **kartın koşum id'lerine göre** eşleşir (`<runId>-*`) — ilk hâlinde journal'ın
+  en yeni kaydı alınıyordu, kartla ilgisiz bir koşumun süresi kartın sonucu gibi
+  görünebiliyordu. `failedTitles` yalnızca o koşum EN SON koşumsa doldurulur
+  (`results.json` tek dosya, her koşumda üzerine yazılıyor).
+- ② karar → yerel verdict kaydı (`key = kart anahtarı`), Jira'ya gitmez.
+- ③ **iki tıklı gönderim**: ilk tık metni hazırlar (koşum özeti + varsa karar) ve
+  gösterir, ikinci tık gönderir. Statü düğmesi seçim yapılmadıkça **disabled**.
+
 Kart detayı (`/api/jira/card/<KEY>`) dört şeyi tek ekrana getiriyor: kartın metni,
 **kartı doğrulayan koşumlar** (tek tıkla tetiklenir), yorumlar, statü geçişleri.
 Üstüne eklenen dört yetenek:

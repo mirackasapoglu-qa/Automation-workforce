@@ -1145,6 +1145,54 @@ const server = http.createServer(async (req, res) => {
       }));
       // Esleme nereden geliyor (profil mi panel mi) — arayuz bunu gosteriyor.
       card.mapping = mappingFor(key);
+      /*
+       * SON KOSUM OZETI. Arayuzdeki 3 adimli akisin 1. adimi tek satirda
+       * "7/7 gecti · 120 sn · 11:06" diyor; bu sayilari istemcide iki ayri
+       * uctan toplamak (sonuclar + journal) her kart acilisinda iki istek
+       * demekti. Kartin spec'lerine SUZULMUS olarak burada hesapliyoruz —
+       * suzgec bossa `matched: 0` gelir ve arayuz "bu kartin testi kosulmadi"
+       * diyebilir (yanlislikla baska bir grubun sonucunu kartin sonucu
+       * saymamak icin).
+       */
+      /*
+       * Kayit KARTIN KOSUMLARINA gore eslestiriliyor (id'ler `<runId>-<rastgele>`).
+       * Ilk halinde journal'in en yeni "done" kaydi aliniyordu; kartla ilgisiz bir
+       * kosumun suresini kartin sonucu gibi gostermek mumkundu.
+       */
+      const gecmis = runJournal.list(30);
+      const kartRunIds = (card.runs ?? []).map((r) => r.runId);
+      const kayit = gecmis.find(
+        (k) => k.counts && kartRunIds.some((id) => String(k.id).startsWith(id + "-")),
+      );
+      if (kayit) {
+        /*
+         * failedTitles yalnizca bu kosum EN SON kosum ise doldurulur:
+         * test-results/results.json tek dosya, her kosumda uzerine yaziliyor —
+         * daha eski bir kosumun basliklarini oradan okumak baska kosumun
+         * sonucunu kartin altina yazmak olurdu.
+         */
+        const enSon = gecmis[0]?.id === kayit.id;
+        const specs = card.mapping.specs ?? [];
+        const rows = enSon && specs.length
+          ? (lastResults()?.rows ?? []).filter((r) => specs.includes(r.file))
+          : [];
+        card.lastRun = {
+          runId: kayit.id,
+          isLatest: enSon,
+          total: kayit.counts.total ?? null,
+          passed: kayit.counts.passed ?? 0,
+          failed: kayit.counts.failed ?? 0,
+          skipped: kayit.counts.skipped ?? 0,
+          startedAt: kayit.startedAt ?? null,
+          durationMs: kayit.durationMs ?? null,
+          failedTitles: rows
+            .filter((r) => r.status === "failed" || r.status === "timedOut")
+            .slice(0, 5)
+            .map((r) => r.title),
+        };
+      } else {
+        card.lastRun = null;
+      }
       return send(res, 200, card);
     }
 
