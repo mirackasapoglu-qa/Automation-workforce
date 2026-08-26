@@ -157,6 +157,50 @@ function draftFile(name) {
   return { base, full };
 }
 
+/**
+ * BAYAT SUREC TESPITI.
+ *
+ * Panelin arayuzu (public/*.html) her istekte DISKTEN okunuyor, sunucu kodu ise
+ * surec basladiginda bir kere yukleniyor. Yani `git pull` ya da bir duzenleme
+ * sonrasi tarayicidaki arayuz YENI, calisan sunucu ESKI olabiliyor — kullanici
+ * yeni bir dugmeye basiyor ve "Bilinmeyen uc: /api/..." goruyor. Bu 2026-08-26'da
+ * gerceklesti: arayuz kart bazli test case uretimini gosteriyordu ama 3 saat once
+ * baslatilmis surecte o uc yoktu.
+ *
+ * Cozum: panel dosyalarinin en yeni degisiklik zamani surecin basladigi andan
+ * SONRA ise arayuz bunu bir seritte soyluyor. Tarih karsilastirmasi yeterli;
+ * icerik hash'i almak her istekte butun panel dizinini okumak demekti.
+ */
+const BOOT_MS = Date.now();
+const PANEL_DIR = path.join(ROOT, "panel");
+
+function newestPanelMtime() {
+  let newest = 0;
+  const walk = (dir) => {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      // panel-data surekli yaziliyor (verdict, kanit, log) — surum sinyali degil.
+      if (e.name === "node_modules" || e.name.startsWith(".")) continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) walk(full);
+      else {
+        try { newest = Math.max(newest, fs.statSync(full).mtimeMs); } catch { /* silinmis olabilir */ }
+      }
+    }
+  };
+  walk(PANEL_DIR);
+  return newest;
+}
+
+/** 5 sn onbellek: serit her sayfa yuklemesinde soruyor, dizin taramasi bedava degil. */
+let mtimeCache = { at: 0, value: 0 };
+function panelMtime() {
+  if (Date.now() - mtimeCache.at < 5000) return mtimeCache.value;
+  mtimeCache = { at: Date.now(), value: newestPanelMtime() };
+  return mtimeCache.value;
+}
+
 const TOKEN_FILE = path.join(DATA_DIR, ".panel-token");
 const PANEL_TOKEN = (() => {
   if (process.env.PANEL_TOKEN) return process.env.PANEL_TOKEN;
@@ -1385,6 +1429,22 @@ const server = http.createServer(async (req, res) => {
      * Onkosullar: disa bagimli her sey tek yerde. Kapi durumu da buraya katilir
      * ki ust barda tek serit olsun.
      */
+    /**
+     * Surum/tazelik bilgisi. `stale: true` = panel dosyalari bu surec
+     * baslatildiktan SONRA degismis; arayuzun bildigi uclar sunucuda
+     * olmayabilir. Arayuz bunu seritte gosteriyor.
+     */
+    if (p === "/api/version") {
+      const newest = panelMtime();
+      return send(res, 200, {
+        startedAt: new Date(BOOT_MS).toISOString(),
+        uptimeSec: Math.round((Date.now() - BOOT_MS) / 1000),
+        newestFileAt: newest ? new Date(newest).toISOString() : null,
+        stale: newest > BOOT_MS,
+        env: ENV,
+      });
+    }
+
     if (p === "/api/preflight") {
       const gateRes = await fetch(`http://127.0.0.1:${PORT}/api/gate/status`)
         .then((r) => r.json())

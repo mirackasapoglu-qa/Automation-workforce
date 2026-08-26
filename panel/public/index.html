@@ -1308,6 +1308,16 @@ async function post(url, body) {
   const out = await res.json().catch(() => ({ ok: false, error: 'yanit okunamadi' }));
   // 403 = token eskimis (sunucu yeniden baslatilmis). Sayfayi yenilemek toplanmis
   // kayit adimlarini SILER, o yuzden yenile demiyoruz — kurtarma yolunu soyluyoruz.
+  /*
+   * "Bilinmeyen uc" = calisan SUNUCU o ucu tanimiyor, arayuz taniyor. Kriptik
+   * mesaji tek basina gostermek kullaniciyi kodda hata aramaya itiyordu
+   * (olculdu 2026-08-26); asil sebep neredeyse her zaman eski surec.
+   */
+  if (typeof out.error === 'string' && out.error.startsWith('Bilinmeyen uc')) {
+    out.error += ' — panel sunucusu ESKI olabilir. Terminalde Ctrl-C, sonra `npm run up`.';
+    out.code = 'STALE_SERVER';
+    checkPanelVersion();
+  }
   if (res.status === 403) {
     out.error = 'Panel token eskimis (sunucu yeniden baslatilmis). '
       + (typeof REC_STEPS !== 'undefined' && REC_STEPS.length
@@ -3607,6 +3617,39 @@ function renderScenarios(d) {
     (bad ? `<h2 style="margin-top:14px">Kapıda elenenler</h2>${bad}` : '') +
     (a.note ? `<p class="mono">${esc(a.note)}</p>` : '');
 }
+
+/**
+ * BAYAT SUREC SERIDI
+ *
+ * Arayuz diskten, sunucu kodu surecten geliyor; ikisi ayrisabiliyor. Sunucu
+ * `stale` diyorsa (panel dosyalari surecten sonra degismis) ust tarafa kalici
+ * bir serit basiyoruz — yoksa kullanici yeni bir dugmeye basip "Bilinmeyen uc"
+ * goruyor ve sebebini kodda ariyor.
+ */
+async function checkPanelVersion() {
+  try {
+    const v = await (await fetch('/api/version')).json();
+    const old = document.getElementById('staleBar');
+    if (!v.stale) { old?.remove(); return; }
+    if (old) return;
+    const bar = document.createElement('div');
+    bar.id = 'staleBar';
+    bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;padding:9px 14px;'
+      + 'background:#3a2a06;color:#ffe9b3;border-top:1px solid #7a5a12;font-size:12.5px;'
+      + 'display:flex;gap:10px;align-items:center;justify-content:center';
+    const dk = Math.max(1, Math.round((Date.now() - new Date(v.startedAt)) / 60000));
+    bar.innerHTML = `<b>Panel sunucusu eski.</b> Surec ${dk} dk once basladi, panel dosyalari daha sonra degisti`
+      + ` — yeni dugmeler "Bilinmeyen uc" verebilir. Terminalde <code>Ctrl-C</code>, sonra <code>npm run up</code>.`;
+    const close = document.createElement('button');
+    close.textContent = 'kapat';
+    close.style.cssText = 'width:auto;margin:0;padding:3px 9px;font-size:11px';
+    close.onclick = () => bar.remove();
+    bar.appendChild(close);
+    document.body.appendChild(bar);
+  } catch { /* /api/version yoksa surec cok eski; post() yine uyariyor */ }
+}
+checkPanelVersion();
+setInterval(checkPanelVersion, 5 * 60 * 1000);
 
 // Baglami kendi blogunda yukle: `load()` daha erken bir <script> blogunda kosuyor,
 // oradan cagirmak "not defined" veriyordu (bu blok henuz ayristirilmamis oluyor).
