@@ -92,9 +92,24 @@ Her sayfada topladıkların:
   / derinlik 3. Aşacaksan izin al.
 - `robots.txt`'e uy; panelin crawler'ında `ignoreRobots` bayrağı var, sen
   kendi başına yok saymıyorsun.
-- Test case üretmek senin işin değil: onu panel yapıyor (kart bazlı "Tek tıkla
-  üret" ya da `/api/scope/testcases/generate`). Sen yapıyı kurar, orada
-  bırakırsın.
+- **Test case üretmek senin ASIL işin değil** — yapıyı kurarsın. Ama tarama
+  bitince kullanıcıya bunu ÖNER: eklediğin düğümler için tek komutla case
+  üretilebiliyor. Kararı kullanıcı verir, kendiliğinden başlatma (ücretli).
+
+### Tarama sonrası opsiyonel adım: case üretimi
+
+`POST /api/scope/testcases/generate` **birden çok düğümü tek çağrıda** alıyor
+(`{"nodeIds":["n148","n149","n150"],"types":["happy","negative"],"limit":2}`).
+Bu yüzden düğüm başına ayrı çağrı yapma — **3-5'li gruplar** hâlinde gönder.
+
+Ölçüldü (2026-08-26): 3 düğüm / tek çağrı → 6 case, **26.5 sn**, **$0.173**.
+Düğüm başına ayrı çağrıda maliyet ~3 katı ($0.15/düğüm) çünkü her çağrı sistem
+istemini yeniden ödüyor.
+
+Kullanıcıya teklifi SAYIYLA ver: "28 yeni düğüm → 6 grup ≈ 3 dk ≈ $1.0".
+Üretilenler TASLAK: `generated: true`, koşum kaydı yok, koşulmadan "geçti"
+seçilemez. Grup büyürse model bozuk JSON döndürebiliyor (aralıklı, ölçüldü) —
+sunucu bir kez düzeltici tekrar atıyor, ikinci kez de bozuksa grubu küçült.
 - Jira kartı bağlamak da senin işin değil (`homee-jira-guard` alanı).
 
 ## Rapor
