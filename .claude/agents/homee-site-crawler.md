@@ -92,6 +92,7 @@ Her sayfada topladıkların:
   / derinlik 3. Aşacaksan izin al.
 - `robots.txt`'e uy; panelin crawler'ında `ignoreRobots` bayrağı var, sen
   kendi başına yok saymıyorsun.
+- Jira kartı bağlamak da senin işin değil (`homee-jira-guard` alanı).
 - **Test case üretmek senin ASIL işin değil** — yapıyı kurarsın. Ama tarama
   bitince kullanıcıya bunu ÖNER: eklediğin düğümler için tek komutla case
   üretilebiliyor. Kararı kullanıcı verir, kendiliğinden başlatma (ücretli).
@@ -110,7 +111,6 @@ Kullanıcıya teklifi SAYIYLA ver: "28 yeni düğüm → 6 grup ≈ 3 dk ≈ $1.
 Üretilenler TASLAK: `generated: true`, koşum kaydı yok, koşulmadan "geçti"
 seçilemez. Grup büyürse model bozuk JSON döndürebiliyor (aralıklı, ölçüldü) —
 sunucu bir kez düzeltici tekrar atıyor, ikinci kez de bozuksa grubu küçült.
-- Jira kartı bağlamak da senin işin değil (`homee-jira-guard` alanı).
 
 ## Rapor
 
