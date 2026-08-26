@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { AlertTriangle, ArrowRight, Terminal } from "lucide-react";
 import Navbar from "../components/Navbar";
@@ -141,6 +141,89 @@ function StepCard({ step, i }: { step: Step; i: number }) {
   );
 }
 
+/**
+ * TASARIM KARSILASTIRMASI
+ *
+ * Panelin "Tasarim diff" sekmesinin ne yaptigini ANLATMAK yerine GOSTERIYOR:
+ * ayni rotanin Figma render'i ve canli sayfasi ust uste, saydamlik surgusuyle.
+ * Iki gorsel de gercek: render `panel-data/figma-cache/` icinden, canli kare
+ * kapi oturumuyla cekildi (ikisi de 1440 genislik, ustten 1700px kirpildi).
+ */
+function DesignCompare() {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const [mix, setMix] = useState(50);
+
+  return (
+    <motion.section
+      ref={ref}
+      initial={{ opacity: 0, y: 40 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.7 }}
+      className="mt-16 liquid-glass rounded-3xl p-6 md:p-10"
+    >
+      <p className="text-white/40 text-xs tracking-widest uppercase mb-3">Tasarım karşılaştırması</p>
+      <h3 className="text-white text-2xl md:text-3xl tracking-tight mb-4 serif">
+        Figma ile canlı, <em className="italic text-white/50">aynı kare</em>
+      </h3>
+      <p className="text-white/60 text-sm md:text-base leading-relaxed max-w-3xl">
+        Sürgüyü kaydır: solda tasarım, sağda canlı. Panel bunu metin düzeyinde de yapıyor —
+        tasarımda olup canlıda bulunmayan metinler kırmızı işaretlenir, render'lar
+        <code className="text-white/80"> panel-data/figma-cache/</code> içinde kalır ve panel
+        çevrimdışı çalışır.
+      </p>
+
+      <div className="mt-6 relative overflow-hidden rounded-2xl border border-white/10 bg-black">
+        <img src="/shots/diff-tasarim.jpg" alt="Anasayfa — Figma tasarımı" className="block w-full" />
+        <img
+          src="/shots/diff-canli.jpg"
+          alt="Anasayfa — canlı sayfa"
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ opacity: mix / 100 }}
+        />
+        <div className="absolute top-3 left-3 rounded-full bg-black/70 px-3 py-1 text-[11px] text-white/80">
+          Figma {100 - mix}%
+        </div>
+        <div className="absolute top-3 right-3 rounded-full bg-black/70 px-3 py-1 text-[11px] text-white/80">
+          Canlı {mix}%
+        </div>
+      </div>
+
+      <label className="mt-5 flex items-center gap-4 text-white/50 text-xs">
+        <span className="shrink-0">tasarım</span>
+        <input
+          type="range"
+          min={0}
+          max={100}
+          value={mix}
+          onChange={(e) => setMix(Number(e.target.value))}
+          aria-label="Tasarım ve canlı sayfa arasında geçiş"
+          className="w-full accent-white"
+        />
+        <span className="shrink-0">canlı</span>
+      </label>
+
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        {[
+          ["Türkçe normalizasyon", "\u201CI\u0307\u201D.toLowerCase() birleşik nokta veriyor; naif karşılaştırma tek koşumda 12 yanlış pozitif üretti. NFD + \\p{Mn} atılıp küçültülüyor."],
+          ["Durum eşitleme", "Boş sepetle ürünlü tasarımı karşılaştırmak 14 uydurma eksik üretiyor; üye oturumu ile koşuluyor."],
+          ["Dinamik içerik", "Tasarımdaki örnek veri (fiyat, ürün adı) otomatik ayıklanır, kalanı --ignore ile susturulur."],
+        ].map(([b, a]) => (
+          <div key={b} className="rounded-2xl bg-white/[0.03] px-4 py-3">
+            <p className="text-white/80 text-xs tracking-widest uppercase mb-2">{b}</p>
+            <p className="text-white/50 text-xs leading-relaxed">{a}</p>
+          </div>
+        ))}
+      </div>
+
+      <p className="mt-5 text-white/40 text-xs leading-relaxed">
+        Ölçüldü: aynı frame'de elle yapılan diff 32–36 “eksik” verirken script <strong className="text-white/70">6</strong> veriyor.
+        Figma'nın iki ayrı kotası var — REST veri hacmine göre keser, MCP View seat'te ayda 6 çağrı.
+      </p>
+    </motion.section>
+  );
+}
+
 export default function Onboarding() {
   const headRef = useRef(null);
   const headIn = useInView(headRef, { once: true, margin: "-100px" });
@@ -201,6 +284,8 @@ export default function Onboarding() {
             <StepCard key={s.n} step={s} i={i} />
           ))}
         </div>
+
+        <DesignCompare />
 
         <div className="mt-16 flex flex-col md:flex-row items-center justify-between gap-6 liquid-glass rounded-3xl p-8 md:p-10">
           <div>
