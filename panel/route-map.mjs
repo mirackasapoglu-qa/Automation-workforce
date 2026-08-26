@@ -9,10 +9,17 @@
  * whitelist'indeki id'ler olmalı — whitelist dışı komut çalışmaz.
  */
 import { PROJECT } from "./project.mjs";
+import { cardSpecs } from "./card-map.mjs";
 
 export const ROUTE_RULES = PROJECT.routes.rules;
 export const SPEC_RUNS = PROJECT.routes.specRuns;
-export const CARD_SPECS = PROJECT.routes.cardSpecs;
+/**
+ * ⚠️ SABİT DEĞİL, FONKSİYON: kart→spec eşlemesi panelden de düzenlenebiliyor
+ * (`panel-data/card-specs.json`). Sabit bir nesne olarak dışa verilseydi panel
+ * yeniden başlatılana kadar düzenleme etkisiz kalırdı — sessizce eski eşlemeyle
+ * koşum tetiklenirdi. Çağıran her seferinde okur.
+ */
+export const CARD_SPECS = cardSpecs;
 
 export function matchRoute(pathname = "/") {
   const p = (pathname.split("#")[0] || "/").replace(/\/+$/, "") || "/";
@@ -25,7 +32,7 @@ export function matchRoute(pathname = "/") {
 
 /** Bir kart için tetiklenebilir koşumları döner. */
 export function runsForCard(key) {
-  const specs = CARD_SPECS[key] ?? [];
+  const specs = cardSpecs()[key] ?? [];
   const seen = new Set();
   const runs = [];
   for (const spec of specs) {

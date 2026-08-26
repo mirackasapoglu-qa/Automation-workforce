@@ -145,7 +145,7 @@ function nextId(tree, prefix) {
  * Üretilen case'leri düğüme yazar. Aynı başlık varsa ATLAR.
  * @returns {{written:number, skipped:string[]}}
  */
-export function applyCases(tree, node, cases) {
+export function applyCases(tree, node, cases, { jiraKey = null } = {}) {
   const at = new Date().toISOString();
   const mevcut = new Set((node.testCases ?? []).map((t) => (t.title ?? "").trim().toLowerCase()));
   const skipped = [];
@@ -163,6 +163,12 @@ export function applyCases(tree, node, cases) {
       /** Üretildi işareti: elle yazılan ve otomatik koşan case'lerden ayrı. */
       generated: true,
       source: "ai",
+      /**
+       * Hangi Jira kartından üretildi. Kart bazlı üretimde dolu; kapsam
+       * ağacından üretilenlerde null. İzlenebilirlik için: case'in neden var
+       * olduğunu sonradan sormak zorunda kalmamak.
+       */
+      jiraKey,
       caseType: c.type ?? null,
       steps: (c.steps ?? []).map((s) => ({
         id: nextId(tree, "tcs"),
@@ -216,10 +222,77 @@ export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4 
 }
 
 /**
+ * BİR JIRA KARTI için istem kurar.
+ *
+ * Neden ayrı bir fonksiyon: kart bazlı üretimde bağlamın merkezi düğüm değil
+ * KART — özeti, açıklaması ve yorumlarında kabul kriterleri geçiyor. Düğüm
+ * bağlamı yine ekleniyor (sayfadaki bölümler, mevcut case'ler, tekrar
+ * üretmemesi için), ama kartın metni önce geliyor: model neyi doğrulaması
+ * gerektiğini oradan öğreniyor.
+ *
+ * Düğüm ZORUNLU: üretilen case bir yere yazılacak; hedefsiz üretim, "case'ler
+ * nereye gitti" sorusuyla sonuçlanır.
+ *
+ * @param {{card: object, nodeId: string, types?: string[], limit?: number}} arg
+ */
+export function buildCardPrompt({ card, nodeId, types = ["happy", "negative"], limit = 4 }) {
+  if (!card?.key) throw new Error("Kart bilgisi yok.");
+  if (!nodeId) throw new Error("Hedef düğüm seçilmeli — case'ler oraya yazılacak.");
+  const { tree } = readTree();
+  const node = findNode(tree, nodeId);
+  if (!node) throw new Error("Hedef düğüm bulunamadı.");
+  const secilen = normalizeTypes(types);
+  if (!secilen.length) throw new Error("En az bir test türü seçilmeli.");
+
+  const ctx = buildContext(tree, node);
+  const yorumlar = (card.comments ?? []).slice(-5);
+
+  const kart = [
+    `### Jira kartı: ${card.key} — ${card.summary ?? ""}`,
+    `Statü: ${card.status ?? "—"} · Tip: ${card.type ?? "—"}`
+      + (card.assignee ? ` · Atanan: ${card.assignee}` : ""),
+    card.url ? `Bağlantı: ${card.url}` : "",
+    card.description
+      ? `\nKart açıklaması (KABUL KRİTERİ BURADA OLABİLİR, birebir oku):\n${String(card.description).slice(0, 4000)}`
+      : "\nKart açıklaması boş — yalnızca başlığa ve düğüm bağlamına dayan, kabul kriteri UYDURMA.",
+    yorumlar.length
+      ? `\nSon yorumlar (${yorumlar.length}):\n`
+        + yorumlar.map((m) => `- ${m.author ?? "?"}: ${String(m.text ?? "").slice(0, 400)}`).join("\n")
+      : "",
+  ].filter(Boolean).join("\n");
+
+  const prompt = [
+    SYSTEM,
+    "",
+    "Aşağıdaki Jira kartını doğrulayan test case'leri yaz. Kartın kapsamı dışına ÇIKMA:",
+    "kartla ilgisi olmayan genel sayfa testleri üretme.",
+    "",
+    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+    `{"items":[{"nodeId":"${nodeId}","cases":[{"title":"...","type":"happy|negative|...",`
+      + `"steps":[{"action":"...","expected":"..."}]}]}]}`,
+    "",
+    "---",
+    kart,
+    "",
+    "---",
+    `### Yazılacağı düğüm (${nodeId})`,
+    renderUser(ctx, secilen, limit),
+  ].join("\n");
+
+  return {
+    prompt,
+    card: { key: card.key, summary: card.summary ?? "" },
+    node: { id: nodeId, name: node.name, yol: ctx.yol },
+    types: secilen,
+    limit,
+  };
+}
+
+/**
  * Claude Code'un dondurdugu JSON'u agaca yazar.
  * @param {{items: {nodeId: string, cases: object[]}[]}} girdi
  */
-export function applyFromModel({ items }) {
+export function applyFromModel({ items, card = null }) {
   if (!Array.isArray(items) || !items.length) throw new Error("items boş.");
   const { tree } = readTree();
   const sonuc = [];
@@ -227,7 +300,8 @@ export function applyFromModel({ items }) {
   for (const it of items) {
     const node = findNode(tree, it.nodeId);
     if (!node) { sonuc.push({ nodeId: it.nodeId, error: "düğüm bulunamadı" }); continue; }
-    const out = applyCases(tree, node, it.cases ?? []);
+    // Kart anahtarı istekle gelebilir (kart bazlı üretim) ya da item'da olabilir.
+    const out = applyCases(tree, node, it.cases ?? [], { jiraKey: it.card ?? card ?? null });
     toplam += out.written;
     sonuc.push({ nodeId: it.nodeId, node: node.name, written: out.written, skipped: out.skipped.length });
   }

@@ -1275,6 +1275,9 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <div class="row" style="display:block;max-width:520px">
         <input id="vKey" placeholder="Kayit anahtari (orn. 06-sepet)">
         <input id="vScope" placeholder="Kapsam (orn. /sepet adet artirma)">
+        <!-- Kart alani: verdict'i Jira karti yorumuna cevirebilmek icin.
+             Bos birakilabilir; o zaman kayit yalniz yerelde kalir. -->
+        <input id="vCard" placeholder="Jira karti (orn. MAC-7074) — opsiyonel">
         <select id="vStatus">
           <option value="">Durum sec...</option>
           <option value="pass">pass</option>
@@ -1592,6 +1595,7 @@ async function loadResults() {
 
 async function saveVerdict() {
   const body = { key: $('#vKey').value.trim(), scope: $('#vScope').value.trim(),
+                 card: $('#vCard').value.trim().toUpperCase(),
                  status: $('#vStatus').value, note: $('#vNote').value };
   if (!body.key) return alert('Kayit anahtari zorunlu');
   await post('/api/verdicts', body);
@@ -1602,11 +1606,29 @@ async function saveVerdict() {
 async function loadVerdicts() {
   const list = await (await fetch('/api/verdicts')).json();
   $('#vTable').innerHTML = list.length
-    ? '<tr><th>Anahtar</th><th>Durum</th><th>Kapsam</th><th>Not</th><th>Guncelleme</th></tr>' +
+    ? '<tr><th>Anahtar</th><th>Durum</th><th>Kapsam</th><th>Kart</th><th>Not</th><th>Guncelleme</th></tr>' +
       list.map(v => `<tr><td class="mono">${esc(v.key)}</td><td>${esc(v.status)}</td>
-        <td>${esc(v.scope)}</td><td>${esc(v.note)}</td>
+        <td>${esc(v.scope)}</td>
+        <td class="mono">${v.card
+          ? `<button style="width:auto;margin:0;padding:3px 8px;font-size:11px" onclick="verdictToCard('${esc(v.card)}')"
+               title="Karti acar ve bu verdict'i yorum taslagi olarak doldurur">${esc(v.card)} →</button>`
+          : '—'}</td>
+        <td>${esc(v.note)}</td>
         <td class="mono">${esc((v.updatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('')
     : '<tr><td class="mono">Kayit yok</td></tr>';
+}
+
+/**
+ * Verdict → kart. Jira sekmesine gecip karti acar ve verdict'ten yorum
+ * taslagini doldurur. Gonderme hala kartin altindaki tek dugmede: verdict
+ * kaydini otomatik yoruma cevirmek, henuz bitmemis bir karari Jira'ya
+ * dusurebilirdi.
+ */
+async function verdictToCard(cardKey) {
+  document.querySelector('.tabs button[data-tab=jira]').click();
+  await openCard(cardKey);
+  await fillFromVerdict(cardKey);
+  $('#jComment').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // ---------------- Case'ler (spec basina dropdown) ----------------
@@ -2067,14 +2089,29 @@ async function openCard(key) {
     ${(c.runs && c.runs.length)
       ? `<div class="row">${c.runs.map(r => `<button style="width:auto" onclick="startRun('${r.runId}')">${esc(r.label)}</button>`).join('')}</div>
          <p class="mono">spec: ${esc(c.runs.map(r=>r.spec).join(', '))}</p>`
-      : '<p class="mono">Bu kart icin otomatik test yok (tests/jira-map.ts icinde kapsam: none)</p>'}
+      : '<p class="mono">Bu kart icin otomatik test yok — asagidan spec esleyebilir ya da kartin metninden test case uretebilirsin.</p>'}
+    <div class="row" style="align-items:center">
+      <span class="mono" style="color:var(--mut)">esleme: ${esc(c.mapping?.source || 'yok')}${
+        c.mapping?.specs?.length ? ` (${esc(c.mapping.specs.join(', '))})` : ' (spec yok)'}</span>
+      <button style="width:auto" onclick="openMapEditor('${c.key}')">Eslemeyi duzenle</button>
+      <button style="width:auto" onclick="openCardGen('${c.key}')">Test case uret</button>
+    </div>
+    <div id="jMapBox"></div>
+    <div id="jGenBox"></div>
     <h2>Yorumlar (${c.comments.length})</h2>
     ${c.comments.length ? c.comments.map(m => `<div class="issue"><div class="id">${esc(m.author)}
        <span class="w">${esc((m.created||'').slice(0,16).replace('T',' '))}</span></div>
        <div style="font-size:12.5px;white-space:pre-wrap">${esc(m.text)}</div></div>`).join('')
       : '<p class="mono">yorum yok</p>'}
     <h2>Yorum yaz</h2>
-    <textarea id="jComment" rows="5" placeholder="Test sonucu / adımlar / beklenen-gerçekleşen"></textarea>
+    <div class="row">
+      <button style="width:auto" onclick="fillFromRun('${c.key}')"
+              title="Son kosum sonucundan sablonlu yorum uretir — Jira'ya YAZMAZ, metni asagiya doldurur">Kosum sonucundan doldur</button>
+      <button style="width:auto" onclick="fillFromVerdict('${c.key}')"
+              title="Bu karta bagli verdict kaydindan yorum uretir (Verdict sekmesinde 'Kart' alanini doldur)">Verdict'ten doldur</button>
+      <span class="mono" id="jDraftState"></span>
+    </div>
+    <textarea id="jComment" rows="8" placeholder="Test sonucu / adımlar / beklenen-gerçekleşen"></textarea>
     <div class="row">
       <button style="width:auto" onclick="sendComment('${c.key}')">Jira'ya gönder</button>
     </div>
@@ -2087,6 +2124,150 @@ async function openCard(key) {
     </div>`;
   decorateTips(box);
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+/**
+ * KART TARAFI YARDIMCILARI
+ *
+ * Uc islev de TASLAK uretir, Jira'ya yazmaz: metin `#jComment`e dolar,
+ * gonderme yine tek yerden (`sendComment`) ve onayla oluyor. Sebep basit —
+ * yorum kalici bir iz; yanlis kosumun ozetini otomatik yazmak geri alinamaz.
+ */
+async function fillFromRun(key) {
+  const st = $('#jDraftState');
+  st.textContent = 'kosum sonucu okunuyor…';
+  try {
+    const d = await (await fetch('/api/jira/comment-draft?key=' + encodeURIComponent(key))).json();
+    if (!d.ok) { st.className = 'mono err'; st.textContent = d.error || 'taslak uretilemedi'; return; }
+    $('#jComment').value = d.text;
+    st.className = 'mono';
+    st.textContent = d.specs?.length ? `spec: ${d.specs.join(', ')}` : 'esleme yok — tum kosum';
+  } catch (e) { st.className = 'mono err'; st.textContent = e.message; }
+}
+
+async function fillFromVerdict(key) {
+  const st = $('#jDraftState');
+  st.textContent = 'verdict araniyor…';
+  try {
+    const list = await (await fetch('/api/verdicts')).json();
+    const bagli = list.filter(v => (v.card || '').toUpperCase() === key.toUpperCase());
+    if (!bagli.length) {
+      st.className = 'mono err';
+      st.textContent = `${key} kartina bagli verdict yok — Verdict sekmesinde "Kart" alanini doldur`;
+      return;
+    }
+    // Birden fazlaysa EN GUNCEL kayit: verdict listesi updatedAt'e gore sirali geliyor.
+    const d = await (await fetch('/api/jira/verdict-draft?verdict=' + encodeURIComponent(bagli[0].key))).json();
+    if (!d.ok) { st.className = 'mono err'; st.textContent = d.error; return; }
+    $('#jComment').value = d.text;
+    st.className = 'mono';
+    st.textContent = `verdict: ${bagli[0].key} (${bagli[0].status})`
+      + (bagli.length > 1 ? ` · ${bagli.length - 1} eski kayit daha var` : '');
+  } catch (e) { st.className = 'mono err'; st.textContent = e.message; }
+}
+
+/**
+ * Kart → spec eslemesi. Profil kaynak; buradaki duzenleme panel-data'ya
+ * dusuyor ve profille birlesiyor (bkz. panel/card-map.mjs). "Profile don"
+ * override'i siler.
+ */
+async function openMapEditor(key) {
+  const box = $('#jMapBox');
+  box.innerHTML = '<p class="mono">yukleniyor…</p>';
+  const [specs, map] = await Promise.all([
+    (await fetch('/api/specs')).json(),
+    (await fetch('/api/jira/map')).json(),
+  ]);
+  const cur = new Set((map.rows.find(r => r.key === key)?.specs) ?? []);
+  box.innerHTML = `
+    <div class="row" style="display:block;max-width:560px;border:1px solid var(--line);border-radius:8px;padding:10px">
+      <p class="sg-hint" style="margin-top:0">Bu karti dogrulayan spec'ler. Bos birakmak "otomatik testi yok" demektir.</p>
+      <select id="jMapSel" multiple size="10" style="width:100%">
+        ${specs.map(sp => `<option value="${esc(sp.file)}"${cur.has(sp.file) ? ' selected' : ''}>${esc(sp.file)} — ${esc(sp.describe || '')}</option>`).join('')}
+      </select>
+      <div class="row" style="margin:8px 0 0;align-items:center">
+        <button style="width:auto" onclick="saveMapping('${key}')">Kaydet</button>
+        <button style="width:auto" onclick="saveMapping('${key}', true)" title="Panel override'ini siler, profildeki eslemeye doner">Profile don</button>
+        <span class="mono" id="jMapState"></span>
+      </div>
+      <div id="jMapSnippet"></div>
+    </div>`;
+}
+
+async function saveMapping(key, reset = false) {
+  const sel = $('#jMapSel');
+  const specs = [...sel.selectedOptions].map(o => o.value);
+  const st = $('#jMapState');
+  st.className = 'mono';
+  st.textContent = 'kaydediliyor…';
+  const d = await post('/api/jira/map', reset ? { key, reset: true } : { key, specs });
+  if (!d.ok) { st.className = 'mono err'; st.textContent = d.error || 'kaydedilemedi'; return; }
+  st.textContent = `${d.source} · ${d.specs.length} spec`;
+  // Kalici hale getirmek isteyen icin profile yapistirilacak metin.
+  $('#jMapSnippet').innerHTML = d.snippet
+    ? `<p class="sg-hint" style="margin:8px 0 4px">Kalici olmasi icin profile yapistir:</p>
+       <textarea rows="4" readonly>${esc(d.snippet)}</textarea>`
+    : '';
+  openCard(key); // kart detayi esleme ve kosum dugmelerini yeniden cizsin
+}
+
+/** Kartin metninden test case uretimi — hedef dugum secilir, istem Claude Code'a gider. */
+async function openCardGen(key) {
+  const box = $('#jGenBox');
+  box.innerHTML = '<p class="mono">kapsam agaci okunuyor…</p>';
+  const t = await (await fetch('/api/scope/tree')).json();
+  const flat = [];
+  (function walk(arr, yol) {
+    for (const n of arr ?? []) {
+      const p = yol ? `${yol} › ${n.name}` : n.name;
+      flat.push({ id: n.id, yol: p });
+      walk(n.children, p);
+    }
+  })(t.tree ?? t);
+  if (!flat.length) { box.innerHTML = '<p class="mono err">Kapsam agaci bos — once modul/sayfa ekle.</p>'; return; }
+  box.innerHTML = `
+    <div class="row" style="display:block;max-width:560px;border:1px solid var(--line);border-radius:8px;padding:10px">
+      <p class="sg-hint" style="margin-top:0">Kartin ozeti, aciklamasi ve son yorumlari + secilen dugumun baglami
+        tek isteme giriyor. Uretilen case'ler <b>taslak</b>: kosum kaydi yok, karta bagli olarak isaretlenir.</p>
+      <select id="jGenNode" style="width:100%">
+        ${flat.map(n => `<option value="${esc(n.id)}">${esc(n.yol)}</option>`).join('')}
+      </select>
+      <div class="row" style="margin:8px 0 0;align-items:center">
+        <label class="mono" style="font-size:11px;color:var(--mut)">en fazla
+          <select id="jGenLimit" style="width:auto;margin-left:5px">
+            <option>3</option><option selected>4</option><option>6</option><option>8</option>
+          </select>
+        </label>
+        <button style="width:auto" onclick="cardGenPrompt('${key}')">Istem uret</button>
+        <span class="mono" id="jGenState"></span>
+      </div>
+      <div id="jGenFlow"></div>
+    </div>`;
+}
+
+async function cardGenPrompt(key) {
+  const nodeId = $('#jGenNode').value;
+  const limit = Number($('#jGenLimit').value);
+  const st = $('#jGenState');
+  st.className = 'mono';
+  st.textContent = 'istem hazirlaniyor…';
+  const d = await post('/api/jira/testcases/prompt', { key, nodeId, limit,
+    types: ['happy', 'negative', 'regression', 'ui'] });
+  if (!d.ok) { st.className = 'mono err'; st.textContent = d.error || 'istem uretilemedi'; return; }
+  st.textContent = `${d.card.key} → ${d.node.yol}`;
+  promptFlow($('#jGenFlow'), {
+    prompt: d.prompt,
+    pasteHint: 'Claude Code\'un dondurdugu JSON\'u buraya yapistir — case\'ler agaca taslak olarak yazilir.',
+    placeholder: '{"items":[{"nodeId":"' + nodeId + '","cases":[...]}]}',
+    applyLabel: 'Case\'leri agaca yaz',
+    onApply: async (json) => {
+      // Kart anahtari SUNUCUYA gonderiliyor: uretilen her case'e islenip
+      // "bu case neden var" sorusunun cevabi kayitta kaliyor.
+      const out = await post('/api/scope/testcases/apply', { ...json, card: key });
+      if (!out.ok) throw new Error(out.error || 'yazilamadi');
+      return `${out.written} case yazildi (kart: ${key}). Case'ler TASLAK — kosulmadan "gecti" secilemez.`;
+    },
+  });
 }
 
 async function sendComment(key) {

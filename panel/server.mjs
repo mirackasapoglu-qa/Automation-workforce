@@ -70,7 +70,9 @@ import { tracker } from "./connectors/index.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
-import { buildPrompt, applyFromModel } from "./testcase-gen.mjs";
+import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
+import { runCommentDraft, verdictCommentDraft } from "./jira-report.mjs";
+import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
@@ -283,8 +285,10 @@ function listSpecs() {
         };
       });
 
-      // Bu spec'i kullanan Jira kartlari (CARD_SPECS ters haritasi)
-      const cards = Object.entries(CARD_SPECS)
+      // Bu spec'i kullanan Jira kartlari (esleme ters haritasi).
+      // CARD_SPECS artik FONKSIYON: panelden yapilan esleme duzenlemesi
+      // yeniden baslatma beklemeden burada da gorunsun.
+      const cards = Object.entries(CARD_SPECS())
         .filter(([, specs]) => specs.includes(file))
         .map(([key]) => key);
 
@@ -643,6 +647,12 @@ function saveVerdict(body) {
     key,
     scope: body.scope ?? existing.scope ?? "",
     status: body.status ?? existing.status ?? "",
+    /**
+     * Bagli Jira karti (opsiyonel). Verdict artik karta yorum olarak
+     * gonderilebiliyor; hangi karta gidecegi kayitta durmali, yoksa her
+     * gonderimde elle yazmak gerekiyordu. Bicim profilden geliyor (issueRe).
+     */
+    card: (body.card ?? existing.card ?? "").trim(),
     note: body.note ?? existing.note ?? "",
     evidence: body.evidence ?? existing.evidence ?? [],
     env: ENV,
@@ -1088,7 +1098,104 @@ const server = http.createServer(async (req, res) => {
         ...r,
         label: RUNS[r.runId]?.label ?? r.runId,
       }));
+      // Esleme nereden geliyor (profil mi panel mi) — arayuz bunu gosteriyor.
+      card.mapping = mappingFor(key);
       return send(res, 200, card);
+    }
+
+    /**
+     * KART → TEST CASE istemi (anahtarsiz yol, kart baglamiyla).
+     * Kartin ozeti/aciklamasi/yorumlari + hedef dugumun baglami tek isteme
+     * giriyor; donen JSON mevcut /api/scope/testcases/apply ucundan aynen
+     * yaziliyor (tek yazma yolu — kapi ve id sayaci orada).
+     */
+    if (p === "/api/jira/testcases/prompt" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { key, nodeId, types, limit } = await readBody(req);
+      if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
+      try {
+        const card = await getCard(String(key));
+        if (card.error) return send(res, 502, { ok: false, error: card.error });
+        const out = buildCardPrompt({
+          card,
+          nodeId,
+          types,
+          limit: Math.min(Math.max(Number(limit) || 4, 1), 12),
+        });
+        audit({ event: "jira-testcase-prompt", key, nodeId, types: out.types.length });
+        return send(res, 200, { ok: true, ...out });
+      } catch (e) {
+        audit({ event: "jira-testcase-prompt-error", key, message: e.message.slice(0, 200) });
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /**
+     * KOSUM SONUCU → yorum TASLAGI. Jira'ya YAZMAZ; metni dondurur, gonderme
+     * yine /api/jira/comment ucundan ve onayla oluyor (bkz. jira-report.mjs).
+     */
+    if (p === "/api/jira/comment-draft") {
+      const key = url.searchParams.get("key");
+      if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
+      try {
+        const specs = mappingFor(key).specs;
+        const text = runCommentDraft({
+          key,
+          specs,
+          results: lastResults(),
+          env: ENV,
+          baseURL: BASE_URL,
+        });
+        return send(res, 200, { ok: true, text, specs });
+      } catch (e) {
+        return send(res, e.code === "NO_RESULTS" ? 409 : 400, {
+          ok: false,
+          error: e.message,
+          code: e.code ?? null,
+        });
+      }
+    }
+
+    /** VERDICT → yorum TASLAGI. Ayni ilke: metin doner, gonderme ayri. */
+    if (p === "/api/jira/verdict-draft") {
+      const vkey = url.searchParams.get("verdict");
+      if (!vkey) return send(res, 400, { ok: false, error: "verdict zorunlu" });
+      try {
+        const text = verdictCommentDraft(readVerdict(vkey));
+        return send(res, 200, { ok: true, text });
+      } catch (e) {
+        return send(res, 404, { ok: false, error: e.message, code: e.code ?? null });
+      }
+    }
+
+    /**
+     * KART → SPEC ESLEMESI. Profil kaynak; panelden yapilan duzenleme
+     * panel-data/card-specs.json'a dusuyor ve profille birlesiyor
+     * (gerekce: card-map.mjs basligi). `specs` bos dizi = "testi yok".
+     */
+    if (p === "/api/jira/map") {
+      if (req.method === "POST") {
+        if (!requireAuth(req, res)) return;
+        const { key, specs, reset } = await readBody(req);
+        if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
+        if (reset) {
+          const vardi = clearMapping(String(key));
+          audit({ event: "jira-map-reset", key, vardi });
+          return send(res, 200, { ok: true, ...mappingFor(String(key)), snippet: mapSnippet() });
+        }
+        if (!Array.isArray(specs))
+          return send(res, 400, { ok: false, error: "specs dizisi bekleniyor" });
+        // Var olmayan spec adi kabul edilmez: yazim hatasi, kart detayinda
+        // sessizce "testi yok" gorunmesine yol aciyordu.
+        const gecerli = new Set(listSpecs().map((x) => x.file));
+        const hatali = specs.filter((x) => !gecerli.has(x));
+        if (hatali.length)
+          return send(res, 400, { ok: false, error: `tests/ altinda yok: ${hatali.join(", ")}` });
+        setMapping(String(key), specs);
+        audit({ event: "jira-map-set", key, specs: specs.length });
+        return send(res, 200, { ok: true, ...mappingFor(String(key)), snippet: mapSnippet() });
+      }
+      return send(res, 200, { ok: true, rows: listMapping(), snippet: mapSnippet() });
     }
 
     // ---------------- Jira: YAZMA (yalnizca panelden tetiklenir) ----------------

@@ -276,7 +276,10 @@ export function renderDrawerTestCasesTab(node) {
       summary.className = 'drawer-note-meta testcase-meta testcase-card-summary';
       summary.onclick = toggleCase;
       const summaryText = document.createElement('span');
+      // Kart bazli uretilen case'te kaynak kart gorunur: "bu case neden var"
+      // sorusunun cevabi listede dursun, drawer'i acmak gerekmesin.
       summaryText.textContent = `${tc.steps.length} adım` + (tc.runs.length ? ` · ${tc.runs.length} koşum` : '')
+        + (tc.jiraKey ? ` · kart: ${tc.jiraKey}` : '')
         + ` · Güncellendi: ${formatNoteDate(tc.updatedAt)}`;
       summary.appendChild(summaryText);
       if (isTestCaseRunStale(tc)) {

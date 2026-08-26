@@ -275,6 +275,28 @@ açıldı, `/api/specs` → 200.) İki değişiklik bunu sağlıyor:
    paket de yok: `npm uninstall @anthropic-ai/sdk` ile kaldırıldı. Aynı tuzak `dotenv`
    için de vardı — `devDependencies`'te durduğu hâlde çalışma zamanında import ediliyordu.
 
+### Jira: kart → doğrulama hattı
+
+Kart detayı (`/api/jira/card/<KEY>`) dört şeyi tek ekrana getiriyor: kartın metni,
+**kartı doğrulayan koşumlar** (tek tıkla tetiklenir), yorumlar, statü geçişleri.
+Üstüne eklenen dört yetenek:
+
+| Ne | Uç | Not |
+|---|---|---|
+| Kart → test case üretimi | `POST /api/jira/testcases/prompt` | Kartın özeti + açıklaması + son 5 yorumu + hedef düğümün bağlamı tek isteme girer; yazma yine `/api/scope/testcases/apply` (tek yazma yolu). Üretilen case'e `jiraKey` işlenir. |
+| Koşum sonucu → yorum taslağı | `GET /api/jira/comment-draft?key=` | Satırlar **kartın spec'lerine göre süzülür**; süzgeç boşsa "bu kartın spec'lerinden test yok" uyarısı basar. |
+| Verdict → yorum taslağı | `GET /api/jira/verdict-draft?verdict=` | Verdict kaydına `card` alanı eklendi; Verdict tablosundaki kart düğmesi Jira sekmesine geçip taslağı doldurur. |
+| Kart ↔ spec eşleme editörü | `GET/POST /api/jira/map` | Profil kaynak; panelden yapılan düzenleme `panel-data/card-specs.json`'a düşer ve profille **birleşir**. `snippet()` profile yapıştırılacak metni üretir. |
+
+**⚠️ Taslak üretimi göndermeden AYRI.** Hiçbiri Jira'ya yazmaz; metin `#jComment`e
+dolar, gönderme tek yerden (`POST /api/jira/comment`) ve onayla olur. Gerekçe: yorum
+kalıcı ve geri alınamaz bir iz — yanlış ortamda/yanlış filtreyle koşulmuş bir sonucu
+otomatik yazmak kartın altına çöp bırakır.
+
+`route-map.mjs → CARD_SPECS` artık **sabit değil fonksiyon**: eşleme düzenlemesi
+panel yeniden başlatılmadan etkili olsun diye. Sabit nesne olduğu sürece düzenleme
+sessizce eski eşlemeyle koşum tetikliyordu.
+
 ### AI özellikleri: anahtarsız yol (Claude Code'a kopyala-yapıştır)
 
 Panelin üç AI özelliği de (**Senaryo öner**, **perf AI yorumu**, **kapsam ağacında test
