@@ -678,12 +678,20 @@ otomatik yazma yok. Bir koşum sonucunu Jira'ya yazmadan önce kullanıcıya gö
 | `homee-backend-reviewer` | `panel/*.mjs` — yeni uç, yol kontrolü, token, whitelist, sıfır bağımlılık kuralı |
 | `homee-jira-guard` | Jira/tracker'a dokunan her değişiklik — kimlik sızması, ADF, taslak↔gönderim ayrımı |
 | `homee-pm-analyst` | kapsam ağacından `docs/feature-inventory.md` + `docs/product-brief.md` üretir |
+| `homee-site-crawler` | siteyi kapı oturumuyla gezip kapsam ağacına düğüm ekler — **yıkıcı butona basmaz** |
 
-Beş yeni agent Murat'ın Flowscope deposundan (`muratkocacik-machinarium/Flowscope`)
+Altı yeni agent Murat'ın Flowscope deposundan (`muratkocacik-machinarium/Flowscope`)
 **fikir olarak** alındı; dosyaları kopyalanmadı — oradaki agent'lar `localhost:8934`
 + localStorage üzerine yazılmış, bizde veri sunucuda. Uyarlamada bu reponun ölçülmüş
 tuzakları gömüldü (CSS özgüllüğü, journal `endedAt`, `CARD_SPECS` fonksiyon olmalı,
 taslak↔gönderim ayrımı).
+
+`homee-site-crawler`'da bir kural **bilinçli olarak tersine çevrildi**: Murat'ın
+agent'ı test ortamında gerçek Kaydet/Gönder/Talep Oluştur butonlarına basıp akışı
+tamamlıyor. Bu repoda yıkıcı işlem guard arkasında ve açılan sipariş geri
+alınamıyor (iptal akışı POM'da yok) — bizim agent akışı **açar, göndermez**;
+geri alınabilir bir mutasyon gerekiyorsa önce izin ister, sonunda geri alır ve
+geri aldığını ölçer.
 
 `homee-pm-analyst`'in girdisi `node scripts/scope-snapshot.mjs` çıktısı:
 `docs/scope-tree.json` (147 düğüm + özet). **Bu dosya gitignore'da** — müşteri
