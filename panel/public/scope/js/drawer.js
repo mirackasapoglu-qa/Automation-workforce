@@ -13,7 +13,11 @@ import { renderDrawerSubtreeSummary } from './subtree-summary.js';
 import { renderDrawerStatusHistory } from './status-history.js';
 import { renderContent } from './shell.js';
 import { openAiAssistModal } from './ai-assist.js';
+import { openTestCaseRequest } from './testcase-request.js';
 
+// "Test Case İste" için kullanıcının seçtiği test TÜRLERİ. Aşağıdaki `instruction`
+// metinleri artık YALNIZCA pill tooltip'i — modele giden talimat sunucudaki
+// testcase-gen.mjs > TYPES'ta duruyor (prompt orada kuruluyor, tek kaynak).
 // "Test Case İste" için kullanıcının seçtiği test TÜRLERİ — QA mesleğindeki ana test
 // kategorilerinin bağımsız, çoklu-seçilebilir bir kümesi (tek bir "happy/validasyon/ikisi/
 // uçtan uca" ön-kombinasyon değil — herhangi bir alt küme seçilebilir, "Tümü" hepsini açar).
@@ -72,46 +76,6 @@ const TEST_TYPE_META = {
       + 'yaz (uygulanabilirse) — kapsamlı bir pentest değil, temel QA seviyesinde bir kontrol.'
   }
 };
-
-function buildAiAssistPrompt(node, ancestors, testTypes) {
-  const pathStr = ancestors.length ? ancestors.join(' › ') + ' › ' + node.name : node.name;
-  const resourceLinks = node.resourceLinks || [];
-  const liveUrl = resourceLinks.filter(r => r.type === 'link').map(r => r.url).find(Boolean);
-  const figmaUrls = resourceLinks.filter(r => r.type === 'figma').map(r => r.url);
-  const confluenceUrls = resourceLinks.filter(r => r.type === 'confluence').map(r => r.url);
-  const types = (testTypes && testTypes.size ? [...testTypes] : ['happy', 'negative']).filter(k => TEST_TYPE_META[k]);
-  const lines = [
-    `Flowscope projesinde şu bileşen için QA test case'lerini oluştur/güncelle: "${pathStr}" (node id: "${node.id}").`,
-    `İstenen test türleri (${types.length}) — sadece bunları üret, başka tür ekleme:\n`
-      + types.map(k => `- ${TEST_TYPE_META[k].label}: ${TEST_TYPE_META[k].instruction}`).join('\n'),
-  ];
-  if (liveUrl) lines.push(`İlgili canlı sayfa: ${liveUrl}`);
-  if (figmaUrls.length) {
-    lines.push(
-      `Bu karta bağlı Figma tasarımı var: ${figmaUrls.join(', ')} — Figma MCP araçlarıyla (get_design_context / `
-      + `get_screenshot) incele; tasarımdaki durumları (boş/dolu/hata), varyantları ve etkileşimleri test case'lere yansıt. `
-      + `Figma burada birincil kaynak — canlı sayfadan önce buna bak.`
-    );
-  }
-  if (confluenceUrls.length) {
-    lines.push(
-      `Bu karta bağlı Confluence dokümanı var: ${confluenceUrls.join(', ')} — WebFetch ile oku; gereksinimleri, `
-      + `kabul kriterlerini ve varsa uç durumları (edge case) test case'lere yansıt. Confluence burada birincil `
-      + `kaynak — sayfayı gezerek tahmin etmek yerine dokümanda yazana sadık kal.`
-    );
-  }
-  lines.push(
-    `Test case'ler artık ayrı bir dosyada değil, doğrudan bu düğümün kendi "testCases" alanında tutuluyor `
-    + `(Flowscope'un http://localhost:8934 adresindeki tarayıcı localStorage'ı, "flowTool.tree.v2"). `
-    + `Gerekirse önce gerçek sayfayı ziyaret ederek doğrula, sonra tarayıcıda o node'u (id: "${node.id}") bulup `
-    + `testCases dizisine {id: 'tc<sayı>', title, steps: [{id: 'tcs<sayı>', action, expected}], runs: [], `
-    + `status: '⬜', createdAt, updatedAt} şeklinde girişler ekle — "content" alanı artık YOK, her adım kendi `
-    + `action/expected çiftiyle ayrı bir steps girişi (id çakışmasın diye mevcut en yüksek 'tc<sayı>'/'tcs<sayı>'yi `
-    + `bul, ondan devam et), localStorage'a yaz ve sayfayı yenile — aynı yöntemi (javascript_tool ile localStorage `
-    + `okuma/yazma) daha önce site-tree oluştururken kullanmıştık.`
-  );
-  return lines.join('\n\n');
-}
 
 // Kökten node'a kadar olan zinciri (node dahil) döner — bir düğümde canlı sayfa linki
 // yoksa en yakın atada arayabilmek için (buildTestRunPrompt burada kullanıyor).
@@ -353,74 +317,35 @@ export function renderDrawer() {
 
     const aiActions = document.createElement('div');
     aiActions.className = 'qa-analysis-actions';
-    const aiBtn = document.createElement('button');
-    aiBtn.type = 'button';
-    aiBtn.className = 'btn';
-    aiBtn.disabled = selectedTestTypes.size === 0;
-    aiBtn.title = selectedTestTypes.size === 0 ? 'Önce en az bir test türü seç' : '';
-    aiBtn.innerHTML = ICON.sparkle + '<span>Test Case İste (Claude Code)</span>';
-    aiBtn.onclick = () => {
-      const ancestorEntry = flattenWithPath(state.tree, [], []).find(f => f.node.id === drawerNode.id);
-      const ancestors = ancestorEntry ? ancestorEntry.path : [];
-      openAiAssistModal({
-        title: 'Claude Code için mesaj hazır',
-        description: 'Bu mesajı kopyala ve doğrudan Claude Code sohbetine yapıştır — istenen analiz/test case orada yapılacak.',
-        prompt: buildAiAssistPrompt(drawerNode, ancestors, selectedTestTypes),
-      });
-    };
-    aiActions.appendChild(aiBtn);
 
     /**
-     * Doğrudan üretim. Yukarıdaki düğme prompt'u KOPYALATIR; bu düğme modeli
-     * panelde çağırır ve case'leri düğüme yazar. Kopyala-yapıştır adımı,
-     * 39 case'e karşı 3 koşum çıkmasının sebebiydi.
+     * TEK YOL: panel prompt'u kurar, Claude Code case'leri yazar, dönen JSON
+     * aynı modalden ağaca işlenir. Eskiden burada iki düğme vardı — biri
+     * kopyalanacak prompt üretiyordu (ağaca yazma adımı kullanıcıya kalıyordu,
+     * 39 case'e karşı 3 koşum çıkmasının sebebi buydu), diğeri modeli panelde
+     * çağırıyordu (ayrı bir Anthropic anahtarı istiyordu). İkisi de kalktı.
      */
-    const genBtn = document.createElement('button');
-    genBtn.type = 'button';
-    genBtn.className = 'btn btn-primary';
-    genBtn.disabled = selectedTestTypes.size === 0;
-    genBtn.title = selectedTestTypes.size === 0
+    const aiBtn = document.createElement('button');
+    aiBtn.type = 'button';
+    aiBtn.className = 'btn btn-primary';
+    aiBtn.disabled = selectedTestTypes.size === 0;
+    aiBtn.title = selectedTestTypes.size === 0
       ? 'Önce en az bir test türü seç'
-      : 'Model panelde çağrılır, üretilen case\'ler taslak olarak bu düğüme yazılır';
-    genBtn.innerHTML = ICON.sparkle + '<span>Otomatik üret</span>';
-    genBtn.onclick = async () => {
-      const eski = genBtn.innerHTML;
-      genBtn.disabled = true;
-      genBtn.innerHTML = '<span>Üretiliyor…</span>';
-      const uyari = document.createElement('div');
-      uyari.className = 'sitemap-field-hint';
-      uyari.style.whiteSpace = 'pre-line';
-      aiActions.parentNode.appendChild(uyari);
-      try {
-        const res = await fetch('/api/scope/testcases', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
-          body: JSON.stringify({
-            nodeId: drawerNode.id,
-            types: [...selectedTestTypes],
-            limit: 5,
-          }),
-        });
-        const data = await res.json();
-        if (!data.ok) {
-          // Kimlik/paket eksikse ÇÖZÜMÜ göster — sessiz başarısızlık değil.
-          uyari.textContent = data.error || 'Üretilemedi.';
-          return;
-        }
-        await loadPersisted();
+      : 'Prompt üretilir; Claude Code\'un döndürdüğü JSON aynı pencereden bu düğüme yazılır';
+    aiBtn.innerHTML = ICON.sparkle + '<span>Test Case İste (Claude Code)</span>';
+    aiBtn.onclick = () => openTestCaseRequest({
+      nodeIds: [drawerNode.id],
+      types: [...selectedTestTypes],
+      limit: 5,
+      // Yazma sonrası düğümü tazele ve case sekmesini aç — sonucu görmeden kapanmasın.
+      afterApply: () => {
         const taze = findNode(state.tree, drawerNode.id);
         if (taze) state.drawerNode = taze;
         state.drawerTab = 'testcase';
-        renderContent();
         renderDrawer();
-      } catch (e) {
-        uyari.textContent = `Panel sunucusuna ulaşılamadı: ${e.message}`;
-      } finally {
-        genBtn.disabled = false;
-        genBtn.innerHTML = eski;
-      }
-    };
-    aiActions.appendChild(genBtn);
+      },
+    });
+    aiActions.appendChild(aiBtn);
 
     if (collectSubtreeTestCases(drawerNode).some(e => e.tc.steps.length > 0)) {
       const runBtn = document.createElement('button');

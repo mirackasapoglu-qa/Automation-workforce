@@ -1,5 +1,12 @@
 /**
- * Senaryo önerici — QA paneli için.
+ * Senaryo önerici — QA paneli için. **Anahtarsız yol.**
+ *
+ * NEDEN: panel modeli kendisi çağırdığı sürece ikinci bir kimlik istiyordu
+ * (ANTHROPIC_API_KEY ya da `ant auth login` profili). Kullanıcı modeli zaten
+ * Claude Code'da çalıştırıyor. Panel artık iki ucu üstlenir:
+ *   1) buildPrompt()     — bağlamdan (paketler, mevcut senaryolar, dayanak
+ *                          kaynakları) hazır prompt üretir,
+ *   2) applyFromModel()  — Claude Code'un döndürdüğü JSON'u kapıdan geçirir.
  *
  * TASARIM İLKESİ: İstem modeli ikna eder, kapıyı KOD tutar.
  * Kural 1 ("dayanağı olmayan senaryo önerme") dört yerde birden zorlanır:
@@ -8,80 +15,17 @@
  *   3. validate()       → bağlamdaki kaynak listesiyle karşılaştırır
  *   4. assertClean()    → hâlâ kirli bir şey varsa REDDEDER (throw)
  *
- * ⚠️ Katmanlar `suggestScenarios()` içinde koşulsuz çalışır ve senaryo döndüren
- * TEK dış yüzey burasıdır. Katmanları çağrı yoluna değil, veri yoluna koymak
- * kasıtlı: yeni bir uç eklenince kapı atlanamıyor.
+ * ⚠️ Katmanlar `applyFromModel()` içinde koşulsuz çalışır ve senaryo döndüren
+ * TEK dış yüzey burasıdır. Modelin nereden geldiği (API mı, kopyala-yapıştır mı)
+ * kapıyı ilgilendirmez: kapı çağrı yolunda değil, VERİ yolunda. Elle yapıştırılan
+ * JSON de aynı üç katmandan geçer — yapıştırma kapıyı atlamanın yolu değildir.
  */
 import fs from "node:fs";
 import path from "node:path";
 import { PROJECT } from "./project.mjs";
 
-/**
- * ⚠️ SDK STATİK IMPORT EDİLMİYOR — TEMBEL YÜKLENİYOR.
- *
- * Eski hali `import Anthropic from "@anthropic-ai/sdk"` idi. `server.mjs` bu
- * modülü statik çektiği için, paket kurulu değilse panel AÇILIŞTA ölüyordu:
- *   Cannot find package '@anthropic-ai/sdk' imported from scenario-suggest.mjs
- * Bozulan tek bir buton değil, panelin tamamıydı (ölçüldü 2026-08-22, paneli
- * SDK'sız bir dizine kopyalayarak). Panel başka projelere taşınabilir bir ürün
- * olacağı ve o projelerde SDK bulunmayacağı için model çağrısı ARTIK OPSİYONEL:
- * paket yoksa panel çalışır, yalnızca senaryo önerici devre dışı kalır.
- */
-let AnthropicCtor = null;
-async function loadSdk() {
-  if (AnthropicCtor) return AnthropicCtor;
-  const mod = await import("@anthropic-ai/sdk");
-  AnthropicCtor = mod.default ?? mod.Anthropic;
-  if (!AnthropicCtor)
-    throw new Error("@anthropic-ai/sdk beklenen dışa aktarımı vermedi");
-  return AnthropicCtor;
-}
-
-/** perf-analyze de aynı tembel yükleyiciyi kullanır — tek uygulama. */
-export const loadSdkFor = loadSdk;
-
-/** Paket kurulu mu? (Kimlik ayrı konu — bkz. hasCredentials.) */
-export async function hasSdk() {
-  try {
-    await loadSdk();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export const SDK_HINT =
-  "Model çağrısı için `@anthropic-ai/sdk` kurulu değil — senaryo önerici kapalı. " +
-  "Panelin geri kalanı (koşumlar, case defteri, Jira, rapor, kanıt) bundan etkilenmez. " +
-  "İstersen `npm i @anthropic-ai/sdk` ile açılır; ürünün çalışması için gerekli değildir.";
-
 const ROOT = process.cwd();
 const TESTS = path.join(ROOT, "tests");
-
-/**
- * Kimlik var mı? SDK'nin çözüm sırası: ANTHROPIC_API_KEY → ANTHROPIC_AUTH_TOKEN →
- * `ant auth login` ile yazılan profil (~/.config/anthropic). Hiçbiri yoksa
- * `new Anthropic()` kriptik bir İngilizce hata atıyor — onu kullanıcıya
- * göstermek yerine önden tespit edip anlaşılır mesaj veriyoruz.
- */
-export function hasCredentials() {
-  if (process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN)
-    return true;
-  const dir = path.join(process.env.HOME || "", ".config", "anthropic");
-  try {
-    return fs.existsSync(dir) && fs.readdirSync(dir).length > 0;
-  } catch {
-    return false;
-  }
-}
-
-export const AUTH_HINT =
-  "Model çağrısı için kimlik yok. İki yol var: (1) `export ANTHROPIC_API_KEY=sk-...` " +
-  "verip paneli yeniden başlat, ya da (2) `npm i -g @anthropic-ai/ant && ant auth login` " +
-  "ile profil oluştur — SDK profili kendiliğinden okur. Kimlik panele değil ortama verilir.";
-
-export const MODEL = process.env.SCENARIO_MODEL || "claude-opus-5";
-export const MAX_TOKENS = Number(process.env.SCENARIO_MAX_TOKENS || 4000);
 
 // ───────────────────────────────────────────────────────── bağlam
 
@@ -349,105 +293,51 @@ export function gate(rawScenarios, ctx) {
   };
 }
 
-// ───────────────────────────────────────────────────────── çağrı
+// ─────────────────────────────────────────────── prompt · uygulama
 
 /**
- * Senaryo önerir. Bu, senaryo döndüren TEK dış yüzeydir; kapı içinde koşulsuz
- * çalışır. Yeni bir HTTP ucu eklenirse de buradan geçmek zorunda.
+ * Claude Code'a verilecek prompt'u kurar. Model çağrısı YOK — panel yalnızca
+ * bağlamı toplar ve şema talimatını yazar.
+ *
+ * Bağlamda dayanak kaynağı yoksa prompt HİÇ üretilmez: Kural 1 uygulanamıyorsa
+ * modele neye yaslanacağını söyleyemiyoruz, üretilen her senaryo kapıda elenirdi.
  */
-export async function suggestScenarios({
-  request,
-  slug = PROJECT.id,
-  limit = 5,
-  client,
-} = {}) {
+export function buildPrompt({ request, slug = PROJECT.id, limit = 5 } = {}) {
   if (!request || !String(request).trim())
     throw new Error("request bos olamaz");
   const ctx = buildContext({ slug, limit });
   if (!ctx.oracleSources.length) {
-    // Kural 1 uygulanamaz: modele neye dayanacagini soyleyemiyoruz.
-    return {
-      scenarios: [],
-      audit: {
-        received: 0,
-        droppedNoOracle: [],
-        rejectedByContext: [],
-        trimmedByLimit: 0,
-        accepted: 0,
-        note: "baglamda dayanak kaynagi yok — istek modele hic gonderilmedi",
-      },
-      context: ctx,
-    };
-  }
-  /*
-   * SIRA ONEMLI: once YAPISAL engel (paket kurulu mu), sonra YAPILANDIRMA
-   * engeli (kimlik var mi). Tersi sirada, SDK'siz bir kurulumda kullaniciya
-   * "kimlik yok" deniyordu — key'i olsa bile calismayacakken yanlis yere
-   * bakmasina sebep oluyordu (olculdu 2026-08-22).
-   */
-  if (!client && !(await hasSdk())) {
-    const e = new Error(SDK_HINT);
-    e.code = "NO_SDK";
-    throw e;
-  }
-  if (!client && !hasCredentials()) {
-    const e = new Error(AUTH_HINT);
-    e.code = "NO_CREDENTIALS";
-    throw e;
-  }
-  let anthropic;
-  try {
-    if (client) {
-      anthropic = client;
-    } else {
-      const Ctor = await loadSdk(); // paket yoksa buradan NO_SDK ile çıkar
-      anthropic = new Ctor();
-    }
-  } catch (e) {
-    if (/Cannot find package|ERR_MODULE_NOT_FOUND/.test(String(e.message))) {
-      const err = new Error(SDK_HINT);
-      err.code = "NO_SDK";
-      throw err;
-    }
-    const err = new Error(`${AUTH_HINT} (SDK: ${e.message.slice(0, 120)})`);
-    err.code = "NO_CREDENTIALS";
-    throw err;
-  }
-  let res;
-  try {
-    res = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      thinking: { type: "adaptive" },
-      system: renderSystem(limit),
-      messages: [{ role: "user", content: renderUser(ctx, request) }],
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    });
-  } catch (e) {
-    if (e?.status === 401 || e?.status === 403) {
-      const err = new Error(`${AUTH_HINT} (API ${e.status})`);
-      err.code = "NO_CREDENTIALS";
-      throw err;
-    }
-    throw e;
-  }
-  const text = res.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
-  let parsed;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    throw new Error(
-      `Model yapilandirilmis cikti dondurmedi (stop_reason=${res.stop_reason}): ${text.slice(0, 200)}`,
+    const e = new Error(
+      "Baglamda dayanak kaynagi yok — oneri kapali. tests/known-issues.ts, " +
+        "tests/jira-map.ts ya da profildeki Figma rotalari doldurulmali.",
     );
+    e.code = "NO_ORACLE";
+    throw e;
   }
-  const out = gate(parsed.scenarios, ctx);
-  return {
-    ...out,
-    context: ctx,
-    usage: res.usage,
-    stopReason: res.stop_reason,
-  };
+  const prompt = [
+    renderSystem(limit),
+    "",
+    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+    '{"scenarios":[{"suiteId":"...","caseId":"...","title":"...","oracleRef":"...",'
+      + '"tags":["..."],"steps":["..."],"rationale":"..."}]}',
+    "",
+    "---",
+    renderUser(ctx, String(request)),
+  ].join("\n");
+  return { prompt, context: ctx, limit };
+}
+
+/**
+ * Claude Code'un döndürdüğü JSON'u kapıdan geçirir. Senaryo döndüren TEK dış
+ * yüzey burasıdır; `gate()` koşulsuz çalışır.
+ *
+ * ⚠️ Bağlam PROMPT'TAKİYLE aynı yerden (repodan) yeniden okunur, istemcinin
+ * gönderdiğinden değil: yoksa paket/kaynak listesini uydurup kapıyı geçirmek
+ * mümkün olurdu.
+ */
+export function applyFromModel({ scenarios, slug = PROJECT.id, limit = 5 } = {}) {
+  if (!Array.isArray(scenarios))
+    throw new Error("scenarios dizisi bekleniyor");
+  const ctx = buildContext({ slug, limit });
+  return { ...gate(scenarios, ctx), context: ctx };
 }

@@ -1094,13 +1094,15 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
         <button style="width:auto;margin:0" onclick="loadPerf()" title="Diskteki son olcumu yeniden okur (olcum yapmaz)">Yenile</button>
         <button id="perfRunBtn" style="width:auto;margin:0" onclick="runPerfSweep()"
                 title="33 rotayi bastan olcer (~6-8 dk). Kapi oturumunu kullanir, veri degistirmez.">Yeniden olc</button>
-        <button id="paBtn" onclick="analyzePerf()">
+        <button id="paBtn" onclick="perfPrompt()"
+                title="Claude Code icin istem uretir — panel modeli kendisi cagirmaz, anahtar istemez">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
             <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3"/><circle cx="12" cy="12" r="3.2"/>
           </svg>AI yorumu
         </button>
         <span class="mono" id="paState"></span>
       </div>
+      <div id="paFlow"></div>
       <div id="paOut"></div>
       <div id="perfBudget" class="mono" style="margin:0 0 10px;line-height:1.9"></div>
       <h2>Rotalar <span class="mono" style="text-transform:none;letter-spacing:0">— LCP'ye gore sirali</span></h2>
@@ -1125,16 +1127,19 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
         <div id="sgBody">
           <div id="sgCtx"></div>
           <p class="sg-hint">
-            Model yalnızca <b>bağlamda listelenen dayanak kaynaklarına</b> yaslanan senaryo önerebilir.
-            Dayanağı olmayanlar kapıda elenir ve gerekçesiyle aşağıda gösterilir.
+            Panel modeli kendisi çağırmaz — <b>API anahtarı gerekmez</b>: aşağıdaki istem
+            <b>Claude Code'a</b> verilir, dönen JSON aynı yere yapıştırılır.
+            Model yalnızca <b>bağlamda listelenen dayanak kaynaklarına</b> yaslanan senaryo önerebilir;
+            dayanağı olmayanlar — yapıştırılmış olsalar bile — kapıda elenir ve gerekçesiyle aşağıda gösterilir.
           </p>
           <textarea id="sgReq" rows="3" placeholder="Ne için senaryo önerilsin?&#10;Örn: Mağazalar sayfasındaki tasarım açıklarını kapatan senaryolar"></textarea>
           <div class="sg-presets" id="sgPresets"></div>
           <div class="row" style="margin-bottom:0;align-items:center">
-            <button id="sgBtn" onclick="suggestScenarios()">
+            <button id="sgBtn" onclick="scenarioPrompt()"
+                    title="Claude Code icin istem uretir — panel modeli kendisi cagirmaz, anahtar istemez">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M5 12h14M13 6l6 6-6 6"/>
-              </svg>Senaryo öner
+              </svg>İstem üret
             </button>
             <label class="mono" style="font-size:11px;color:var(--mut)">en fazla
               <select id="sgLimit" style="width:auto;margin:0 0 0 5px">
@@ -1143,6 +1148,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
             </label>
             <span id="sgState"></span>
           </div>
+          <div id="sgFlow"></div>
           <div id="sgOut"></div>
         </div>
       </details>
@@ -2424,42 +2430,181 @@ async function createBugCard() {
   }
 }
 
-// ---------------- perf AI yorumu ----------------
+// ---------------- Claude Code kopyala-yapistir turu ----------------
 /**
- * Olcumu modele yorumlatir. Kapi sunucuda: model olcumde olmayan bir rotadan
- * bahsederse bulgu elenir ve burada "elenen" olarak gosterilir.
+ * KOPYALA-YAPISTIR TURU (anahtarsiz yol)
+ *
+ * Panel modeli KENDISI CAGIRMAZ. Eskiden hem senaryo onerici hem perf yorumu
+ * ANTHROPIC_API_KEY (ya da `ant auth login` profili) istiyordu; anahtar yoksa
+ * iki ozellik birden kapaliydi. Kullanici modeli zaten Claude Code'da
+ * calistirdigi icin panele IKINCI bir kimlik koymanin anlami yok:
+ *   1) sunucu baglamdan istemi kurar,
+ *   2) kullanici istemi Claude Code'a verir,
+ *   3) donen JSON ayni kutuya yapistirilir, sunucu KAPIDAN gecirir.
+ *
+ * Kapi hala sunucuda: yapistirmak, uydurma senaryo/rota kabul ettirmenin yolu
+ * degil (bkz. scenario-suggest.mjs → gate, perf-analyze.mjs → gate).
+ *
+ * @param {Element}  mount    akisin cizilecegi konteyner (#sgFlow / #paFlow)
+ * @param {string}   prompt   kopyalanacak istem
+ * @param {string}   pasteHint  2. adimin aciklamasi
+ * @param {string}   placeholder yapistirma alaninin ornegi
+ * @param {string}   applyLabel  uygulama dugmesinin metni
+ * @param {(json:any)=>Promise<string>} onApply  yapistirilan JSON'u uygular
  */
-async function analyzePerf() {
-  const btn = $('#paBtn');
-  btn.disabled = true;
-  $('#paState').textContent = 'model olcumu okuyor…';
-  $('#paOut').innerHTML = '';
-  try {
-    const d = await post('/api/perf/analyze', {});
-    if (d.error) {
-      $('#paOut').innerHTML = d.code === 'NO_CREDENTIALS'
-        ? `<div class="sg-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p>${esc(d.error)}</p></div>`
-        : `<p class="mono err">${esc(d.error)}</p>`;
+function promptFlow(mount, { prompt, pasteHint, placeholder, applyLabel, onApply }) {
+  mount.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'pf-flow';
+
+  const s1 = document.createElement('p');
+  s1.className = 'sg-hint';
+  s1.innerHTML = '<b>1.</b> İstemi kopyala, Claude Code sohbetine yapıştır. Yanıt sadece JSON olacak.';
+  box.appendChild(s1);
+
+  const ta = document.createElement('textarea');
+  ta.rows = 8;
+  ta.readOnly = true;
+  ta.value = prompt;
+  box.appendChild(ta);
+
+  const row1 = document.createElement('div');
+  row1.className = 'row';
+  row1.style.alignItems = 'center';
+  const copy = document.createElement('button');
+  copy.type = 'button';
+  copy.style.width = 'auto';
+  copy.style.margin = '0';
+  copy.textContent = 'İstemi kopyala';
+  copy.onclick = async () => {
+    // Pano izni yoksa (http + eski tarayici) sessizce dusmesin: secip execCommand.
+    try {
+      await navigator.clipboard.writeText(prompt);
+    } catch {
+      ta.removeAttribute('readonly');
+      ta.select();
+      document.execCommand('copy');
+      ta.setAttribute('readonly', 'true');
+    }
+    copy.textContent = 'Kopyalandı';
+    setTimeout(() => { copy.textContent = 'İstemi kopyala'; }, 1500);
+  };
+  row1.appendChild(copy);
+  const chars = document.createElement('span');
+  chars.className = 'mono';
+  chars.style.color = 'var(--mut)';
+  chars.style.fontSize = '11px';
+  chars.textContent = `${prompt.length} karakter`;
+  row1.appendChild(chars);
+  box.appendChild(row1);
+
+  const s2 = document.createElement('p');
+  s2.className = 'sg-hint';
+  s2.innerHTML = `<b>2.</b> ${pasteHint}`;
+  box.appendChild(s2);
+
+  const paste = document.createElement('textarea');
+  paste.rows = 5;
+  paste.placeholder = placeholder;
+  box.appendChild(paste);
+
+  const row2 = document.createElement('div');
+  row2.className = 'row';
+  row2.style.alignItems = 'center';
+  const apply = document.createElement('button');
+  apply.type = 'button';
+  apply.style.width = 'auto';
+  apply.style.margin = '0';
+  apply.textContent = applyLabel;
+  const state = document.createElement('span');
+  state.className = 'mono';
+  state.style.whiteSpace = 'pre-line';
+  apply.onclick = async () => {
+    const ham = paste.value.trim();
+    if (!ham) { state.textContent = 'Önce JSON yapıştır.'; return; }
+    let json;
+    // Model bazen JSON'u ``` blogunda donduruyor — kirilmasin diye soyuluyor.
+    try {
+      json = JSON.parse(ham.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, ''));
+    } catch (e) {
+      state.className = 'mono err';
+      state.textContent = `JSON okunamadı: ${e.message}`;
       return;
     }
-    const sev = { high: 'YUKSEK', medium: 'ORTA', low: 'DUSUK' };
-    $('#paOut').innerHTML =
-      `<div class="pa-sum">${esc(d.summary)}</div>` +
-      d.findings.map(f => `<div class="pa-f ${esc(f.severity)}">
-        <div class="t"><span class="b ${f.severity === 'high' ? 'no' : f.severity === 'medium' ? 'sk' : 'ok'}">${sev[f.severity] ?? f.severity}</span>
-          ${esc(f.title)}${(f.routes || []).length ? `<span class="rt">${f.routes.map(esc).join(' · ')}</span>` : ''}</div>
-        <div class="ev">${esc(f.evidence)}</div>
-        <div class="rc">${esc(f.recommendation)}</div></div>`).join('') +
-      (d.dropped?.length
-        ? `<h2>Kapida elenenler</h2>` + d.dropped.map(x => `<div class="sg-bad"><span class="cid">${esc(x.title)}</span><div class="why">${esc(x.reason)}</div></div>`).join('')
-        : '');
-    $('#paState').textContent = d.stopReason === 'max_tokens' ? 'uyari: yanit kesildi' : '';
+    apply.disabled = true;
+    state.className = 'mono';
+    state.textContent = 'uygulanıyor…';
+    try {
+      state.textContent = (await onApply(json)) || '';
+    } catch (e) {
+      state.className = 'mono err';
+      state.textContent = e.message || 'uygulanamadı';
+    } finally {
+      apply.disabled = false;
+    }
+  };
+  row2.appendChild(apply);
+  row2.appendChild(state);
+  box.appendChild(row2);
+
+  mount.appendChild(box);
+  // Istemin BASI gorunsun: odaklamiyoruz (sayfadan odak calmasin) ama uzun
+  // istemde tarayici kutuyu sonuna kaydirmis halde birakabiliyor.
+  ta.scrollTop = 0;
+}
+
+// ---------------- perf AI yorumu ----------------
+/**
+ * Olcumu Claude Code'a yorumlatir. Kapi sunucuda: model olcumde OLMAYAN bir
+ * rotadan bahsederse bulgu elenir ve burada "elenen" olarak gosterilir —
+ * yanit elle yapistirildigi icin bu kapi daha da onemli.
+ */
+async function perfPrompt() {
+  const btn = $('#paBtn');
+  btn.disabled = true;
+  $('#paState').textContent = 'istem hazırlanıyor…';
+  $('#paOut').innerHTML = '';
+  $('#paFlow').innerHTML = '';
+  try {
+    const d = await post('/api/perf/prompt', {});
+    if (!d.ok) {
+      $('#paOut').innerHTML = `<p class="mono err">${esc(d.error || 'istem üretilemedi')}</p>`;
+      return;
+    }
+    $('#paState').textContent = `${d.routes} rota · Claude Code'a ver`;
+    promptFlow($('#paFlow'), {
+      prompt: d.prompt,
+      pasteHint: 'Claude Code\'un döndürdüğü JSON\'u buraya yapıştır — bulgular kapıdan geçirilip aşağıda listelenir.',
+      placeholder: '{"summary":"...","findings":[{"severity":"high","title":"...","evidence":"...","recommendation":"...","routes":["/"]}]}',
+      applyLabel: 'Bulguları göster',
+      onApply: async (json) => {
+        const out = await post('/api/perf/apply', json);
+        if (!out.ok) throw new Error(out.error || 'bulgular okunamadı');
+        renderPerfFindings(out);
+        return `${out.findings.length} bulgu gosteriliyor`
+          + (out.dropped.length ? `, ${out.dropped.length} kapida elendi` : '');
+      },
+    });
   } catch (e) {
     $('#paOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
   } finally {
     btn.disabled = false;
-    if ($('#paState').textContent === 'model olcumu okuyor…') $('#paState').textContent = '';
   }
+}
+
+/** Kapidan gecen bulgulari cizer. */
+function renderPerfFindings(d) {
+  const sev = { high: 'YUKSEK', medium: 'ORTA', low: 'DUSUK' };
+  $('#paOut').innerHTML =
+    `<div class="pa-sum">${esc(d.summary)}</div>` +
+    d.findings.map(f => `<div class="pa-f ${esc(f.severity)}">
+      <div class="t"><span class="b ${f.severity === 'high' ? 'no' : f.severity === 'medium' ? 'sk' : 'ok'}">${sev[f.severity] ?? f.severity}</span>
+        ${esc(f.title)}${(f.routes || []).length ? `<span class="rt">${f.routes.map(esc).join(' · ')}</span>` : ''}</div>
+      <div class="ev">${esc(f.evidence)}</div>
+      <div class="rc">${esc(f.recommendation)}</div></div>`).join('') +
+    (d.dropped?.length
+      ? `<h2>Kapida elenenler</h2>` + d.dropped.map(x => `<div class="sg-bad"><span class="cid">${esc(x.title)}</span><div class="why">${esc(x.reason)}</div></div>`).join('')
+      : '');
 }
 
 // ---------------- perf ----------------
@@ -3192,14 +3337,6 @@ async function loadScenarioContext() {
       $('#sgBtn').disabled = true;
       return;
     }
-    if (!d.authReady) {
-      $('#sgBtn').disabled = true;
-      $('#sgBtn').title = 'API kimliği yok';
-      $('#sgBody').insertAdjacentHTML('afterbegin',
-        `<div class="sg-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-           stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
-         <p>${esc(d.authHint || 'API kimliği yok.')}</p></div>`);
-    }
     const kinds = {};
     for (const o of d.oracleSources) kinds[o.kind] = (kinds[o.kind] || 0) + 1;
     const label = { 'known-issue': 'bilinen hata', jira: 'Jira kartı', figma: 'Figma frame' };
@@ -3211,25 +3348,43 @@ async function loadScenarioContext() {
   } catch { $('#sgCtx').innerHTML = ''; }
 }
 
-async function suggestScenarios() {
+/**
+ * Senaryo istemini kurar ve kopyala-yapistir turunu acar. Model cagrisi YOK —
+ * anahtar da yok; yanit yapistirildiginda sunucudaki 3 katmanli kapidan gecer.
+ */
+async function scenarioPrompt() {
   const request = $('#sgReq').value.trim();
   if (!request) { $('#sgState').textContent = 'istek metni gerekli'; return; }
   const limit = Number($('#sgLimit').value);
   $('#sgBtn').disabled = true;
-  $('#sgState').textContent = 'model düşünüyor…';
+  $('#sgState').textContent = 'istem hazırlanıyor…';
   $('#sgOut').innerHTML = '';
+  $('#sgFlow').innerHTML = '';
   try {
-    const d = await post('/api/scenarios/suggest', { request, limit });
-    if (d.error) {
+    const d = await post('/api/scenarios/prompt', { request, limit });
+    if (!d.ok) {
       $('#sgState').textContent = '';
-      const warn = d.code === 'NO_CREDENTIALS';
-      $('#sgOut').innerHTML = warn
+      $('#sgOut').innerHTML = d.code === 'NO_ORACLE'
         ? `<div class="sg-warn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><p>${esc(d.error)}</p></div>`
-        : `<p class="mono err">${esc(d.error)}</p>`;
+        : `<p class="mono err">${esc(d.error || 'istem üretilemedi')}</p>`;
       return;
     }
-    renderScenarios(d);
-    $('#sgState').textContent = d.stopReason === 'max_tokens' ? 'uyarı: yanıt max_tokens ile kesildi' : '';
+    $('#sgState').textContent = `${d.oracleSources} dayanak · en fazla ${d.limit} senaryo`;
+    promptFlow($('#sgFlow'), {
+      prompt: d.prompt,
+      pasteHint: 'Claude Code\'un döndürdüğü JSON\'u buraya yapıştır — senaryolar kapıdan geçirilip aşağıda listelenir.',
+      placeholder: '{"scenarios":[{"suiteId":"01-homepage","caseId":"...","title":"...","oracleRef":"...","tags":[],"steps":["..."],"rationale":"..."}]}',
+      applyLabel: 'Senaryoları göster',
+      onApply: async (json) => {
+        const out = await post('/api/scenarios/apply', { scenarios: json.scenarios ?? json, limit: d.limit });
+        if (!out.ok) throw new Error(out.error || 'senaryolar okunamadı');
+        renderScenarios(out);
+        const a = out.audit || {};
+        return `${a.accepted ?? 0} kabul`
+          + (a.droppedNoOracle?.length ? `, ${a.droppedNoOracle.length} dayanaksiz` : '')
+          + (a.rejectedByContext?.length ? `, ${a.rejectedByContext.length} baglam disi` : '');
+      },
+    });
   } catch (e) {
     $('#sgOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
     $('#sgState').textContent = '';

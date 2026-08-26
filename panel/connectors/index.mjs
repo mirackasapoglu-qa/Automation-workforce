@@ -20,7 +20,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { PROJECT } from "../project.mjs";
 
-import * as anthropic from "./anthropic.mjs";
+import * as claudeCode from "./claude-code.mjs";
 import * as figma from "./figma.mjs";
 import * as jira from "./jira.mjs";
 import * as linear from "./linear.mjs";
@@ -28,13 +28,13 @@ import * as mobai from "./mobai.mjs";
 import * as slack from "./slack.mjs";
 
 /** Kayıtlı tüm connector'lar. Yeni servis = bu listeye bir satır. */
-export const ALL = { anthropic, figma, jira, linear, mobai, slack };
+export const ALL = { "claude-code": claudeCode, figma, jira, linear, mobai, slack };
 
 /** Gösterim sırası: önce çekirdek iş (kart/tasarım), sonra yardımcılar. */
-const ORDER = ["anthropic", "figma", "jira", "linear", "mobai", "slack"];
+const ORDER = ["claude-code", "figma", "jira", "linear", "mobai", "slack"];
 
 /** Profil demezse makul varsayılan — paneli mevcut projelerde bozmamak için. */
-const DEFAULT_MAP = { tracker: "jira", design: "figma", ai: "anthropic", device: "mobai", chat: null };
+const DEFAULT_MAP = { tracker: "jira", design: "figma", ai: "claude-code", device: "mobai", chat: null };
 
 /** Bu projenin yetenek → connector eşlemesi. */
 export const MAP = { ...DEFAULT_MAP, ...(PROJECT.connectors ?? {}) };

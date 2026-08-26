@@ -4,8 +4,9 @@
 // durum atamanın anlamı yok.
 import { state } from './state.js';
 import { ICON, STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
-import { findNode, setNodeStatus, persist, loadPersisted } from './data.js';
+import { findNode, setNodeStatus, persist } from './data.js';
 import { renderContent } from './shell.js';
+import { openTestCaseRequest } from './testcase-request.js';
 
 export function toggleSelectMode() {
   state.selectMode = !state.selectMode;
@@ -68,54 +69,23 @@ export function buildBulkBar() {
     bar.appendChild(actions);
 
     /**
-     * TOPLU TEST CASE URETIMI.
+     * TOPLU TEST CASE URETIMI — panel model CAGIRMAZ.
      *
      * Taramanin cikardigi baslik yapisi (h1/h2/h3 → bolum/islev) her dugumde
-     * duruyor; uretici bunu baglam olarak kullaniyor. Tek tek basmak 131
-     * dugumde anlamsiz oldugu icin secili dugumler tek istekte gonderiliyor.
-     * Sunucu UST SINIR uyguluyor (25) ve kimlik yoksa ilk hatada duruyor —
-     * bosuna cagri yapilmiyor.
+     * duruyor; prompt bunu baglam olarak kullaniyor. Tek tek basmak 131 dugumde
+     * anlamsiz oldugu icin secili dugumlerin hepsi tek prompt'a giriyor; donen
+     * JSON ayni modalden agaca yaziliyor.
      */
     const genBtn = document.createElement('button');
     genBtn.type = 'button';
     genBtn.className = 'btn btn-primary';
-    genBtn.innerHTML = ICON.sparkle + '<span>Test case uret</span>';
-    genBtn.title = 'Secili dugumler icin model test case yazar (taslak; kosum kaydi yok)';
-    genBtn.onclick = async () => {
-      const ids = [...state.selectedIds];
-      if (!ids.length) return;
-      if (ids.length > 25 && !confirm(`${ids.length} dugum secili ama tek seferde en fazla 25 islenir. Ilk 25 icin devam edilsin mi?`)) return;
-      const eski = genBtn.innerHTML;
-      genBtn.disabled = true;
-      genBtn.innerHTML = '<span>uretiliyor...</span>';
-      const not = document.createElement('div');
-      not.className = 'bulk-bar-label';
-      not.style.whiteSpace = 'pre-line';
-      bar.appendChild(not);
-      try {
-        const res = await fetch('/api/scope/testcases/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
-          body: JSON.stringify({ nodeIds: ids, types: ['happy', 'negative'], limit: 4 }),
-        });
-        const data = await res.json();
-        if (!data.ok) { not.textContent = data.error || 'Uretilemedi.'; return; }
-        const hata = data.sonuc.find(x => x.error);
-        const yazilan = data.sonuc.reduce((a, x) => a + (x.written || 0), 0);
-        not.textContent = hata
-          // Kimlik/paket eksikse SEBEBI goster — sessizce "0 case" deme.
-          ? `${yazilan} case yazildi, sonra durdu: ${hata.error}`
-          : `${yazilan} case yazildi (${data.sonuc.length} dugum)` +
-            (data.note ? `\n${data.note}` : '') +
-            `\ntoken: ${data.usage.input_tokens} girdi / ${data.usage.output_tokens} cikti`;
-        if (yazilan) { await loadPersisted(); renderContent(); }
-      } catch (e) {
-        not.textContent = `Panel sunucusuna ulasilamadi: ${e.message}`;
-      } finally {
-        genBtn.disabled = false;
-        genBtn.innerHTML = eski;
-      }
-    };
+    genBtn.innerHTML = ICON.sparkle + '<span>Test case iste (Claude Code)</span>';
+    genBtn.title = 'Secili dugumler icin prompt uretir, donen JSON\'u agaca yazar';
+    genBtn.onclick = () => openTestCaseRequest({
+      nodeIds: [...state.selectedIds],
+      types: ['happy', 'negative'],
+      limit: 4,
+    });
     bar.appendChild(genBtn);
 
     const clearBtn = document.createElement('button');

@@ -57,20 +57,20 @@ const ordersEnv = () =>
     : { [PROJECT.env.ordersVar]: ordersOverride ? "1" : "0" };
 import { figmaForRoute } from "./figma-map.mjs";
 import {
-  suggestScenarios,
   buildContext,
-  hasCredentials,
-  hasSdk,
-  AUTH_HINT,
-  SDK_HINT,
+  buildPrompt as buildScenarioPrompt,
+  applyFromModel as applyScenarios,
 } from "./scenario-suggest.mjs";
-import { analyze as analyzePerf } from "./perf-analyze.mjs";
+import {
+  buildPrompt as buildPerfPrompt,
+  applyFromModel as applyPerfFindings,
+} from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker } from "./connectors/index.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
-import { generateForNode } from "./testcase-gen.mjs";
+import { buildPrompt, applyFromModel } from "./testcase-gen.mjs";
 import * as runJournal from "./run-journal.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
 import {
@@ -741,61 +741,36 @@ const server = http.createServer(async (req, res) => {
     }
 
     /**
-     * Kapsam agacindaki dugum icin TEST CASE URET.
+     * TEST CASE URETIMI — tek yol, anahtarsiz.
      *
-     * Flowscope'un kendi dugmesi modele gidecek prompt'u uretip kullanicidan
-     * kopyala-yapistir bekliyordu; olculdu, kimse yapistirmiyor (39 case / 3
-     * kosum). Burada model sunucuda cagriliyor ve case'ler dogrudan dugume
-     * yaziliyor. Uretilenler TASLAK: kosum kaydi yok, "gecti" secilemez.
+     * Panel model CAGIRMAZ (Anthropic anahtari/`ant` profili istemez): yalnizca
+     * secili dugumlerin baglamindan prompt kurar. Kullanici prompt'u Claude
+     * Code'a verir, donen JSON'u /apply agaca yazar. Uretilenler TASLAK:
+     * kosum kaydi yok, "gecti" secilemez.
      */
-    if (p === "/api/scope/testcases" && req.method === "POST") {
+    if (p === "/api/scope/testcases/prompt" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      const { nodeId, types, limit } = await readBody(req);
-      audit({ event: "testcase-gen", nodeId, types });
+      const { nodeIds, types, limit } = await readBody(req);
       try {
-        const out = await generateForNode({ nodeId, types, limit });
-        audit({ event: "testcase-gen-result", nodeId, written: out.written, skipped: out.skipped.length });
-        broadcast("log", { stream: "out", line: `[case] ${out.node}: ${out.written} case uretildi` });
+        const out = buildPrompt({ nodeIds, types, limit });
+        audit({ event: "testcase-prompt", nodes: out.nodes.length });
         return send(res, 200, { ok: true, ...out });
       } catch (e) {
-        audit({ event: "testcase-gen-error", nodeId, code: e.code ?? null, message: e.message.slice(0, 200) });
-        return send(res, e.code === "NO_CREDENTIALS" ? 428 : e.code === "NO_SDK" ? 501 : 502,
-          { ok: false, error: e.message, code: e.code ?? null });
+        return send(res, 400, { ok: false, error: e.message });
       }
     }
 
-    /**
-     * Coklu dugum icin uretim. Tarama 131 dugum getirdiginde tek tek basmak
-     * anlamsiz; ama maliyet gorunur olsun diye UST SINIR var ve her dugumun
-     * sonucu ayri raporlanir.
-     */
-    if (p === "/api/scope/testcases/batch" && req.method === "POST") {
+    if (p === "/api/scope/testcases/apply" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      const { nodeIds, types, limit } = await readBody(req);
-      const liste = (nodeIds ?? []).slice(0, 25);
-      if (!liste.length) return send(res, 400, { ok: false, error: "nodeIds bos." });
-      audit({ event: "testcase-gen-batch", count: liste.length });
-      const sonuc = [];
-      let toplamIn = 0, toplamOut = 0;
-      for (const id of liste) {
-        try {
-          const o = await generateForNode({ nodeId: id, types, limit });
-          toplamIn += o.usage?.input_tokens ?? 0;
-          toplamOut += o.usage?.output_tokens ?? 0;
-          sonuc.push({ nodeId: id, node: o.node, written: o.written, skipped: o.skipped.length });
-          broadcast("log", { stream: "out", line: `[case] ${o.node}: ${o.written} case` });
-        } catch (e) {
-          sonuc.push({ nodeId: id, error: e.message.slice(0, 160), code: e.code ?? null });
-          // Kimlik yoksa sonraki dugumlerde de olmayacak — bosuna deneme.
-          if (e.code === "NO_CREDENTIALS" || e.code === "NO_SDK") break;
-        }
+      const body = await readBody(req);
+      try {
+        const out = applyFromModel(body);
+        audit({ event: "testcase-apply", written: out.written });
+        broadcast("log", { stream: "out", line: `[case] elle uretim: ${out.written} case yazildi` });
+        return send(res, 200, { ok: true, ...out });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
       }
-      const kesildi = (nodeIds ?? []).length - liste.length;
-      return send(res, 200, {
-        ok: true, sonuc,
-        usage: { input_tokens: toplamIn, output_tokens: toplamOut },
-        note: kesildi > 0 ? `${kesildi} dugum ust sinir (25) nedeniyle atlandi` : null,
-      });
     }
 
     /* ---------------- Oturum kasasi ----------------
@@ -1118,45 +1093,60 @@ const server = http.createServer(async (req, res) => {
 
     // ---------------- Jira: YAZMA (yalnizca panelden tetiklenir) ----------------
     /**
-     * Senaryo onerisi. Modele cagri yapar, bu yuzden token korumali ve denetim
-     * kayitli. Senaryolar `suggestScenarios()` icindeki 3 katmanli kapidan gecer;
-     * bu uc kapiyi KENDI basina uygulamiyor — kapi veri yolunda, cagri yolunda degil.
-     * Yeni bir uc eklenirse de ayni fonksiyondan gecmek zorunda.
+     * Senaryo onerisi — ANAHTARSIZ yol. Panel model CAGIRMAZ; iki uc var:
+     *   /prompt → baglamdan Claude Code'a verilecek istemi kurar,
+     *   /apply  → donen JSON'u 3 katmanli kapidan gecirir.
+     * Kapi CAGRI yolunda degil VERI yolunda: elle yapistirilan JSON de ayni
+     * katmanlardan geciyor, yapistirmak kapiyi atlamanin yolu degil.
      */
-    if (p === "/api/scenarios/suggest" && req.method === "POST") {
+    if (p === "/api/scenarios/prompt" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const { request, limit } = await readBody(req);
       if (!request || !String(request).trim()) {
-        return send(res, 400, { error: "request zorunlu" });
+        return send(res, 400, { ok: false, error: "request zorunlu" });
       }
       const lim = Math.min(Math.max(Number(limit) || 5, 1), 10);
-      audit({
-        event: "scenario-suggest",
-        chars: String(request).length,
-        limit: lim,
-      });
       try {
-        const out = await suggestScenarios({
-          request: String(request),
-          limit: lim,
-        });
+        const out = buildScenarioPrompt({ request: String(request), limit: lim });
         audit({
-          event: "scenario-suggest-result",
+          event: "scenario-prompt",
+          chars: String(request).length,
+          limit: lim,
+          oracles: out.context.oracleSources.length,
+        });
+        return send(res, 200, {
+          ok: true,
+          prompt: out.prompt,
+          limit: lim,
+          suites: out.context.suites.length,
+          oracleSources: out.context.oracleSources.length,
+        });
+      } catch (e) {
+        audit({ event: "scenario-prompt-error", code: e.code ?? null, message: e.message.slice(0, 200) });
+        return send(res, e.code === "NO_ORACLE" ? 409 : 400, {
+          ok: false,
+          error: e.message,
+          code: e.code ?? null,
+        });
+      }
+    }
+
+    if (p === "/api/scenarios/apply" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      const lim = Math.min(Math.max(Number(body.limit) || 5, 1), 10);
+      try {
+        const out = applyScenarios({ scenarios: body.scenarios, limit: lim });
+        audit({
+          event: "scenario-apply",
           accepted: out.audit.accepted,
           dropped: out.audit.droppedNoOracle.length,
           rejected: out.audit.rejectedByContext.length,
         });
-        return send(res, 200, out);
+        return send(res, 200, { ok: true, ...out });
       } catch (e) {
-        audit({
-          event: "scenario-suggest-error",
-          code: e.code ?? null,
-          message: e.message.slice(0, 200),
-        });
-        return send(res, e.code === "NO_CREDENTIALS" ? 428 : 502, {
-          error: e.message,
-          code: e.code ?? null,
-        });
+        audit({ event: "scenario-apply-error", message: e.message.slice(0, 200) });
+        return send(res, 400, { ok: false, error: e.message });
       }
     }
 
@@ -1342,35 +1332,50 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { checks, worst, at: new Date().toISOString() });
     }
 
-    /** Perf olcumunu modele yorumlatir. Kapi: uydurma rota gosteren bulgu elenir. */
-    if (p === "/api/perf/analyze" && req.method === "POST") {
+    /**
+     * Perf yorumu — ANAHTARSIZ yol (senaryo onericiyle ayni desen).
+     * Olcum HER IKI ucta da sunucuda okunur, istemciden gelmez: yoksa uydurma
+     * bir rota listesi gonderip "uydurma rota" kapisini gecmek mumkun olurdu.
+     */
+    const readPerf = async () => {
+      const r = await fetch(`http://127.0.0.1:${PORT}/api/perf`);
+      return r.json();
+    };
+
+    if (p === "/api/perf/prompt" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       let perf;
       try {
-        const r = await fetch(`http://127.0.0.1:${PORT}/api/perf`);
-        perf = await r.json();
+        perf = await readPerf();
       } catch (e) {
-        return send(res, 500, { error: `perf verisi okunamadi: ${e.message}` });
+        return send(res, 500, { ok: false, error: `perf verisi okunamadi: ${e.message}` });
       }
-      audit({ event: "perf-analyze", routes: perf.routes?.length ?? 0 });
       try {
-        const out = await analyzePerf(perf);
-        audit({
-          event: "perf-analyze-result",
-          findings: out.findings.length,
-          dropped: out.dropped.length,
-        });
-        return send(res, 200, out);
+        const out = buildPerfPrompt(perf);
+        audit({ event: "perf-prompt", routes: out.routes });
+        return send(res, 200, { ok: true, ...out });
       } catch (e) {
-        audit({
-          event: "perf-analyze-error",
-          code: e.code ?? null,
-          message: e.message.slice(0, 200),
-        });
-        return send(res, e.code === "NO_CREDENTIALS" ? 428 : 502, {
-          error: e.message,
-          code: e.code ?? null,
-        });
+        audit({ event: "perf-prompt-error", message: e.message.slice(0, 200) });
+        return send(res, 409, { ok: false, error: e.message });
+      }
+    }
+
+    if (p === "/api/perf/apply" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      let perf;
+      try {
+        perf = await readPerf();
+      } catch (e) {
+        return send(res, 500, { ok: false, error: `perf verisi okunamadi: ${e.message}` });
+      }
+      try {
+        const out = applyPerfFindings(perf, body);
+        audit({ event: "perf-apply", findings: out.findings.length, dropped: out.dropped.length });
+        return send(res, 200, { ok: true, ...out });
+      } catch (e) {
+        audit({ event: "perf-apply-error", message: e.message.slice(0, 200) });
+        return send(res, 400, { ok: false, error: e.message });
       }
     }
 
@@ -1439,22 +1444,17 @@ const server = http.createServer(async (req, res) => {
       const ctx = buildContext({
         limit: Number(url.searchParams.get("limit")) || 5,
       });
+      /*
+       * Eskiden burada iki eksik daha raporlaniyordu: `sdkReady` (@anthropic-ai/sdk
+       * kurulu mu) ve `authReady` (kimlik var mi). Panel model cagirmadigi icin
+       * ikisi de kalkti — kalan tek onkosul BAGLAM: dayanak kaynagi yoksa oneri
+       * kapali, cunku Kural 1 uygulanamaz.
+       */
       return send(res, 200, {
         suites: ctx.suites.length,
         existingCases: ctx.existingCases.length,
         oracleSources: ctx.oracleSources,
         ready: ctx.oracleSources.length > 0,
-        /*
-         * Panel iki AYRI eksigi ONDEN soyler; kullanici tiklayip kriptik hata
-         * gormesin:
-         *   sdkReady  = @anthropic-ai/sdk kurulu mu (opsiyonel bagimlilik)
-         *   authReady = kimlik var mi
-         * Ikisi de senaryo onericiyi kapatir, panelin geri kalanini etkilemez.
-         */
-        sdkReady: await hasSdk(),
-        sdkHint: (await hasSdk()) ? null : SDK_HINT,
-        authReady: hasCredentials(),
-        authHint: hasCredentials() ? null : AUTH_HINT,
       });
     }
 

@@ -1,22 +1,15 @@
 /**
- * Perf ölçümünü modele yorumlatır.
+ * Perf ölçümünü modele yorumlatır — **anahtarsız yol.**
+ *
+ * NEDEN: panel modeli kendisi çağırdığı sürece ikinci bir kimlik istiyordu.
+ * Artık iki ucu üstlenir: buildPrompt() ölçümden prompt kurar, applyFromModel()
+ * Claude Code'un döndürdüğü JSON'u kapıdan geçirir.
  *
  * Senaryo önericideki kural burada da geçerli: **model veride olmayan şeyi
  * gösteremez.** Orada dayanak kaynağıydı, burada rota adı ve sayı. Model
- * uydurma bir rota ya da ölçmediğimiz bir metrik döndürürse bulgu elenir.
+ * uydurma bir rota ya da ölçmediğimiz bir metrik döndürürse bulgu elenir —
+ * kapı çağrı yolunda değil, VERİ yolunda durur, yapıştırılan JSON de geçer.
  */
-/**
- * SDK burada da TEMBEL yükleniyor — gerekçe scenario-suggest.mjs'de yazılı:
- * statik import, paket kurulu olmayan bir projede paneli açılışta düşürüyordu.
- */
-import {
-  hasCredentials,
-  AUTH_HINT,
-  MODEL,
-  SDK_HINT,
-  loadSdkFor,
-} from "./scenario-suggest.mjs";
-
 export const BUDGET = {
   lcp: { warn: 2500, bad: 4000, unit: "ms", src: "Web Vitals" },
   load: { warn: 3000, bad: 5000, unit: "ms", src: "panel bütçesi" },
@@ -109,61 +102,39 @@ export function gate(out, perf) {
   return { summary: out.summary ?? "", findings: kept.slice(0, 6), dropped };
 }
 
-export async function analyze(perf, { client } = {}) {
+/**
+ * Claude Code'a verilecek prompt'u kurar. Model çağrısı YOK.
+ * Ölçüm yoksa prompt üretilmez: yorumlanacak sayı olmadan model yalnızca
+ * genel geçer laf üretebilir.
+ */
+export function buildPrompt(perf) {
   if (!perf?.routes?.length)
     throw new Error("ölçüm yok — önce scripts/perf-sweep.mjs koşulmalı");
-  if (!client && !(await hasSdk())) {
-    const e = new Error(SDK_HINT);
-    e.code = "NO_SDK";
-    throw e;
-  }
-  if (!client && !hasCredentials()) {
-    const e = new Error(AUTH_HINT);
-    e.code = "NO_CREDENTIALS";
-    throw e;
-  }
-  let anthropic;
-  if (client) {
-    anthropic = client;
-  } else {
-    try {
-      const Ctor = await loadSdkFor();
-      anthropic = new Ctor();
-    } catch (e) {
-      const err = new Error(SDK_HINT);
-      err.code = /Cannot find package|ERR_MODULE_NOT_FOUND/.test(
-        String(e.message),
-      )
-        ? "NO_SDK"
-        : "NO_CREDENTIALS";
-      throw err;
-    }
-  }
-  let res;
-  try {
-    res = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 4000,
-      thinking: { type: "adaptive" },
-      system: SYSTEM,
-      messages: [{ role: "user", content: renderPayload(perf) }],
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    });
-  } catch (e) {
-    if (e?.status === 401 || e?.status === 403) {
-      const err = new Error(`${AUTH_HINT} (API ${e.status})`);
-      err.code = "NO_CREDENTIALS";
-      throw err;
-    }
-    throw e;
-  }
-  const text = res.content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("");
   return {
-    ...gate(JSON.parse(text), perf),
-    usage: res.usage,
-    stopReason: res.stop_reason,
+    prompt: [
+      SYSTEM,
+      "",
+      "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+      '{"summary":"...","findings":[{"severity":"high|medium|low","title":"...",'
+        + '"evidence":"...","recommendation":"...","routes":["..."]}]}',
+      "",
+      "---",
+      renderPayload(perf),
+    ].join("\n"),
+    routes: perf.routes.length,
+    measuredAt: perf.measuredAt ?? null,
   };
+}
+
+/**
+ * Claude Code'un döndürdüğü JSON'u kapıdan geçirir. Bulgu döndüren TEK dış
+ * yüzey burasıdır; ölçüm sunucuda yeniden okunduğu için (istemciden gelmediği
+ * için) uydurma rota listesiyle kapı geçilemez.
+ */
+export function applyFromModel(perf, out) {
+  if (!perf?.routes?.length)
+    throw new Error("ölçüm yok — önce scripts/perf-sweep.mjs koşulmalı");
+  if (!out || typeof out !== "object" || !Array.isArray(out.findings))
+    throw new Error("findings dizisi bekleniyor");
+  return gate(out, perf);
 }

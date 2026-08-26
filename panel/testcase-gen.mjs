@@ -1,38 +1,56 @@
 /**
- * Kapsam ağacındaki bir düğüm için test case ÜRETİCİ.
+ * Kapsam ağacındaki düğümler için test case ÜRETİMİ — anahtarsız yol.
  *
- * NEDEN: Flowscope'un kendi "Test Case İste" düğmesi modele gidecek PROMPT'u
- * üretip kullanıcıdan kopyala-yapıştır bekliyor (kaynak tasarımda API bağlantısı
- * kasıtlı yok). Sonucu ölçülebilir: 39 case'e karşı 3 koşum — kimse yapıştırmıyor.
- * Tarama 131 düğüm getirdiğinde bu iyice imkânsız hale geliyor.
- *
- * Bu modül aynı işi sunucuda yapar ve çıkan case'leri doğrudan düğüme yazar.
- * Model çağrısı `scenario-suggest.mjs`'teki kalıbın aynısı: yapılandırılmış
- * çıktı, aynı hata kodları (NO_SDK / NO_CREDENTIALS).
+ * NEDEN: panelin kendi model çağrısı ANTHROPIC_API_KEY ya da `ant` profili
+ * istiyordu. Kullanıcı modeli zaten Claude Code'da çalıştırıyor; panele ikinci
+ * bir kimlik koymanın anlamı yok. Bu yüzden panel model ÇAĞIRMAZ, iki ucu
+ * üstlenir:
+ *   1) buildPrompt() — seçili düğümlerin bağlamından hazır prompt üretir,
+ *   2) applyFromModel() — Claude Code'un döndürdüğü JSON'u ağaca yazar.
  *
  * ÜRETİLEN CASE'LER TASLAKTIR:
  *  - `generated: true` ile işaretlenir, elle yazılanlardan ayırt edilir.
  *  - Koşum kaydı YOKTUR; yani "geçti" seçilemez (kaynak kural R13/R14).
  *    Üretilmiş bir case, koşulana kadar kanıt değildir.
  */
-import { loadSdkFor, hasSdk, hasCredentials, SDK_HINT, AUTH_HINT, MODEL } from "./scenario-suggest.mjs";
 import { readTree, writeTree, findNode } from "./scope.mjs";
 
-const MAX_TOKENS = Number(process.env.TESTCASE_MAX_TOKENS || 4000);
-
-/** Arayüzdeki test türü anahtarları → modele verilecek açıklama. */
+/**
+ * Arayüzdeki test türü anahtarları → modele verilecek talimat.
+ * Metinler eskiden istemcideki TEST_TYPE_META'da duruyordu; prompt sunucuda
+ * kurulduğu için tek kaynak burası.
+ */
 export const TYPES = {
-  happy: "Happy path — akışın beklenen şekilde tamamlanması",
-  negative: "Negatif / validasyon — hatalı veya eksik girdi",
-  boundary: "Sınır değerler — en az/en çok, 0, taşma",
-  empty: "Boş/dolu veri — liste boşken ve doluyken",
-  regression: "Regresyon — bilinen hataların tekrarı",
-  recovery: "Hata kurtarma — ağ hatası, yeniden deneme",
-  ui: "UI / görsel tutarlılık",
-  a11y: "Erişilebilirlik — klavye, etiket, kontrast",
-  perf: "Performans — yüklenme ve tepki süresi",
-  security: "Güvenlik — yetki, veri sızıntısı",
+  happy: "Happy path — temel, hatasız, başarıyla tamamlanan senaryo(lar) için case yaz (genelde 1-2 case yeterli).",
+  negative: "Negatif / validasyon — zorunlu alan eksikliği, format hatası, izin verilmeyen değer, hata mesajı gibi "
+    + "tespit ettiğin HER validasyon kuralı için ayrı bir case yaz; sayıyı yapay şekilde sınırlama.",
+  boundary: "Sınır değerler — minimum/maksimum uzunluk, 0, negatif değer, aşırı büyük değer (uygulanabilirse).",
+  empty: "Boş/dolu veri — hiç veri yokken (boş durum mesajı) ve çok fazla veri varken (sayfalama, kaydırma) davranış.",
+  regression: "Regresyon — bu düğüme bağlı Jira kartlarına ve durum geçmişine bak; daha önce hataya düşmüş bir "
+    + "davranış varsa tekrar etmediğini doğrulayan case yaz. Geçmişte hata yoksa bu türü ATLA.",
+  recovery: "Hata kurtarma — ağ hatası/timeout/API hatası durumunda kullanıcının ne gördüğü ve toparlanabildiği.",
+  ui: "UI / görsel tutarlılık — responsive davranış, hover/focus/disabled durumları, layout bozulmaları.",
+  a11y: "Erişilebilirlik — klavye ile gezinme, görünür focus, temel okunabilirlik/kontrast.",
+  perf: "Performans — büyük veri setinde yüklenme/kaydırma/render süresi.",
+  security: "Güvenlik — yetkisiz erişim, girdi enjeksiyonu gibi TEMEL kontroller; kapsamlı pentest değil.",
 };
+
+/**
+ * Arayüz bazı türleri başka anahtarla tutuyor (pill'lerin adı değişmesin diye
+ * ikisi de kabul edilir). Eşlenmeyen anahtar sessizce düşerse kullanıcı seçtiği
+ * türün üretilmediğini fark etmiyor — bu yüzden alias var, filtre değil.
+ */
+const ALIAS = { emptyFull: "empty", performance: "perf", accessibility: "a11y" };
+
+/** Seçilen tür anahtarlarını kanonik hale getirir; tanınmayanı atar. */
+export function normalizeTypes(types) {
+  const out = [];
+  for (const t of types ?? []) {
+    const k = ALIAS[t] ?? t;
+    if (TYPES[k] && !out.includes(k)) out.push(k);
+  }
+  return out;
+}
 
 /** Düğümün ağaçtaki yolu — modelin bağlamı anlaması için. */
 function pathOf(tree, id, yol = []) {
@@ -49,11 +67,16 @@ function pathOf(tree, id, yol = []) {
 export function buildContext(tree, node) {
   const yol = pathOf(tree, node.id) ?? [node.name];
   const altBaslıklar = (node.children ?? []).map((c) => `${c.type}: ${c.name}`).slice(0, 40);
+  const kaynaklar = node.resourceLinks ?? [];
   return {
     yol: yol.join(" › "),
     ad: node.name,
     tur: node.type,
     altBaslıklar,
+    // Prompt'un en degerli kismi: tahmin yerine okunacak birincil kaynak.
+    canliUrl: kaynaklar.filter((r) => r.type === "link").map((r) => r.url).find(Boolean) ?? null,
+    figma: kaynaklar.filter((r) => r.type === "figma").map((r) => r.url).filter(Boolean),
+    confluence: kaynaklar.filter((r) => r.type === "confluence").map((r) => r.url).filter(Boolean),
     mevcutCaseler: (node.testCases ?? []).map((t) => t.title).filter(Boolean),
     kartlar: (node.jiraTasks ?? []).map((t) => t.taskId),
     otomatikSpec: node.runRef?.specs ?? [],
@@ -74,43 +97,21 @@ export const SYSTEM = `Bir QA ekibi için test case yazıyorsun. Kurallar:
 6. VERİ DEĞİŞTİREN adımlar (silme, satın alma, şifre değiştirme) için case
    yazacaksan başlığa "[yıkıcı]" ekle ki koşum sırası ayrı değerlendirilsin.`;
 
-export const SCHEMA = {
-  type: "object",
-  properties: {
-    cases: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          title: { type: "string" },
-          type: { type: "string", description: "istenen tür anahtarlarından biri" },
-          steps: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                action: { type: "string" },
-                expected: { type: "string" },
-              },
-              required: ["action", "expected"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["title", "type", "steps"],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["cases"],
-  additionalProperties: false,
-};
-
 export function renderUser(ctx, types, limit) {
   const istenen = types.map((t) => `- ${t}: ${TYPES[t] ?? t}`).join("\n");
   return [
     `Ağaçtaki yol: ${ctx.yol}`,
     `Düğüm: "${ctx.ad}" (tür: ${ctx.tur})`,
+    ctx.canliUrl ? `İlgili canlı sayfa: ${ctx.canliUrl} — gerekirse aç ve gördüğünü doğrula.` : "",
+    ctx.figma?.length
+      ? `Bağlı Figma tasarımı: ${ctx.figma.join(", ")} — Figma MCP araçlarıyla (get_design_context / `
+        + `get_screenshot) incele; durumları (boş/dolu/hata), varyantları ve etkileşimleri case'lere yansıt. `
+        + `Figma burada BİRİNCİL kaynak, canlı sayfadan önce buna bak.`
+      : "",
+    ctx.confluence?.length
+      ? `Bağlı Confluence dokümanı: ${ctx.confluence.join(", ")} — WebFetch ile oku; gereksinimlere ve kabul `
+        + `kriterlerine sadık kal, sayfayı gezerek tahmin etme.`
+      : "",
     ctx.altBaslıklar.length
       ? `Bu sayfada tespit edilen bölüm/işlevler:\n${ctx.altBaslıklar.map((s) => `  - ${s}`).join("\n")}`
       : "Bu düğüm için alt bölüm bilgisi yok — yalnızca ad ve yol üzerinden yaz.",
@@ -180,54 +181,56 @@ export function applyCases(tree, node, cases) {
 }
 
 /**
- * Tek düğüm için case üretir ve ağaca yazar.
- * `client` verilirse model çağrısı onun üzerinden yapılır (test edilebilirlik).
+ * Seçili düğümler için Claude Code'a verilecek prompt'u kurar.
+ * Model çağrısı YOK — panel yalnızca bağlamı toplar.
  */
-export async function generateForNode({ nodeId, types = ["happy", "negative"], limit = 5, client }) {
+export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4 }) {
   const { tree } = readTree();
-  const node = findNode(tree, nodeId);
-  if (!node) throw new Error(`Düğüm bulunamadı: ${nodeId}`);
-
-  const secilen = types.filter((t) => TYPES[t]);
+  const secilen = normalizeTypes(types);
   if (!secilen.length) throw new Error("En az bir test türü seçilmeli.");
 
-  // SIRA ONEMLI: once yapisal engel (paket), sonra yapilandirma (kimlik).
-  if (!client && !(await hasSdk())) { const e = new Error(SDK_HINT); e.code = "NO_SDK"; throw e; }
-  if (!client && !hasCredentials()) { const e = new Error(AUTH_HINT); e.code = "NO_CREDENTIALS"; throw e; }
-
-  let anthropic = client;
-  if (!anthropic) {
-    const Ctor = await loadSdkFor();
-    anthropic = new Ctor();
+  const bloklar = [];
+  const dugumler = [];
+  for (const id of nodeIds ?? []) {
+    const node = findNode(tree, id);
+    if (!node) continue;
+    const ctx = buildContext(tree, node);
+    dugumler.push({ id, name: node.name, yol: ctx.yol });
+    bloklar.push(`### ${id}\n${renderUser(ctx, secilen, limit)}`);
   }
+  if (!bloklar.length) throw new Error("Geçerli düğüm yok.");
 
-  const ctx = buildContext(tree, node);
-  const lim = Math.min(Math.max(Number(limit) || 5, 1), 12);
-  let res;
-  try {
-    res = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      thinking: { type: "adaptive" },
-      system: SYSTEM,
-      messages: [{ role: "user", content: renderUser(ctx, secilen, lim) }],
-      output_config: { format: { type: "json_schema", schema: SCHEMA } },
-    });
-  } catch (e) {
-    if (e?.status === 401 || e?.status === 403) {
-      const err = new Error(`${AUTH_HINT} (API ${e.status})`);
-      err.code = "NO_CREDENTIALS";
-      throw err;
-    }
-    throw e;
+  const prompt = [
+    SYSTEM,
+    "",
+    "Aşağıda bir veya daha fazla düğüm var. HER BİRİ için ayrı test case'ler yaz.",
+    "",
+    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+    '{"items":[{"nodeId":"<düğüm id>","cases":[{"title":"...","type":"happy|negative|...","steps":[{"action":"...","expected":"..."}]}]}]}',
+    "",
+    "---",
+    bloklar.join("\n\n---\n\n"),
+  ].join("\n");
+
+  return { prompt, nodes: dugumler, types: secilen, limit };
+}
+
+/**
+ * Claude Code'un dondurdugu JSON'u agaca yazar.
+ * @param {{items: {nodeId: string, cases: object[]}[]}} girdi
+ */
+export function applyFromModel({ items }) {
+  if (!Array.isArray(items) || !items.length) throw new Error("items boş.");
+  const { tree } = readTree();
+  const sonuc = [];
+  let toplam = 0;
+  for (const it of items) {
+    const node = findNode(tree, it.nodeId);
+    if (!node) { sonuc.push({ nodeId: it.nodeId, error: "düğüm bulunamadı" }); continue; }
+    const out = applyCases(tree, node, it.cases ?? []);
+    toplam += out.written;
+    sonuc.push({ nodeId: it.nodeId, node: node.name, written: out.written, skipped: out.skipped.length });
   }
-
-  const text = res.content.filter((b) => b.type === "text").map((b) => b.text).join("");
-  let parsed;
-  try { parsed = JSON.parse(text); }
-  catch { throw new Error(`Model yapılandırılmış çıktı döndürmedi: ${text.slice(0, 200)}`); }
-
-  const out = applyCases(tree, node, (parsed.cases ?? []).slice(0, lim));
-  if (out.written) writeTree(tree);
-  return { node: node.name, ...out, usage: res.usage ?? null, context: ctx };
+  if (toplam) writeTree(tree);
+  return { written: toplam, sonuc };
 }

@@ -268,21 +268,43 @@ açıldı, `/api/specs` → 200.) İki değişiklik bunu sağlıyor:
    (guard buna bağlı olduğu için ölçmeden dokunulmadı); (b) `.env` yoksa dotenv'in
    aksine **ENOENT fırlatıyor** — bu yüzden çağrı guard'lı, dosya yoksa uygulama açılır.
    Yeni bir dosya env okuyacaksa `import { loadEnv } from "./env.mjs"` kullan, dotenv ekleme.
-2. **`@anthropic-ai/sdk`** artık `optionalDependencies` ve **tembel** yükleniyor
-   (`scenario-suggest.mjs → loadSdk()`).
-Gerekçe: statik import olduğu sürece, paket kurulu olmayan bir projede panel
-**açılışta ölüyordu** (`Cannot find package '@anthropic-ai/sdk'`) — bozulan tek bir
-buton değil, panelin tamamıydı. Aynı tuzak `dotenv` için de vardı: `devDependencies`'te
-durduğu hâlde çalışma zamanında import ediliyordu. Panel başka projelere taşınacağı için model çağrısı
-opsiyonel: paket yoksa yalnızca senaryo önerici ve perf yorumlama kapalı kalır;
-koşumlar, case defteri, Jira, kanıt, rapor etkilenmez.
+2. **Model çağrısı tamamen kalktı** — panel artık AI için **hiçbir bağımlılık ve
+   kimlik istemiyor.** Eskiden `@anthropic-ai/sdk` `optionalDependencies`'te durur ve
+   tembel yüklenirdi (statik import, paket kurulu olmayan bir projede paneli
+   **açılışta** düşürüyordu — bozulan tek bir buton değil panelin tamamıydı). Şimdi
+   paket de yok: `npm uninstall @anthropic-ai/sdk` ile kaldırıldı. Aynı tuzak `dotenv`
+   için de vardı — `devDependencies`'te durduğu hâlde çalışma zamanında import ediliyordu.
 
-`/api/scenarios/context` iki eksiği AYRI raporlar — `sdkReady` (paket kurulu mu) ve
-`authReady` (kimlik var mı). Engel sırası da yapısaldan yapılandırmaya doğru:
-SDK yoksa `NO_SDK`, varsa ama kimlik yoksa `NO_CREDENTIALS`. Tersi sırada, SDK'sız
-kurulumda kullanıcıya "kimlik yok" deniyor ve yanlış yere baktırıyordu.
+### AI özellikleri: anahtarsız yol (Claude Code'a kopyala-yapıştır)
 
+Panelin üç AI özelliği de (**Senaryo öner**, **perf AI yorumu**, **kapsam ağacında test
+case üretimi**) modeli KENDİSİ çağırmaz. Gerekçe: kullanıcı modeli zaten Claude Code'da
+çalıştırıyor, panele ikinci bir kimlik (`ANTHROPIC_API_KEY` ya da `ant auth login`
+profili) koymanın anlamı yok — anahtar yoksa üç özellik birden kapalı kalıyordu.
 
+Desen her üçünde aynı, iki uçlu:
+
+| Özellik | İstem ucu | Uygulama ucu | Kapı |
+|---|---|---|---|
+| Senaryo öner | `POST /api/scenarios/prompt` | `POST /api/scenarios/apply` | `scenario-suggest.mjs → gate()` (3 katman) |
+| Perf yorumu | `POST /api/perf/prompt` | `POST /api/perf/apply` | `perf-analyze.mjs → gate()` (uydurma rota eler) |
+| Test case üretimi | `POST /api/scope/testcases/prompt` | `.../apply` | `testcase-gen.mjs → applyCases()` (taslak işareti) |
+
+İstemcide tek yardımcı var: `index.html → promptFlow()` (kopyala + yapıştır + uygula),
+kapsam ağacında karşılığı `scope/js/testcase-request.js`.
+
+**⚠️ Kapı VERİ yolunda, çağrı yolunda değil.** Yanıt elle yapıştırıldığı için bu daha da
+kritik: `apply` uçları bağlamı (paket listesi, dayanak kaynakları, perf ölçümü)
+**istemciden almaz, sunucuda yeniden okur** — yoksa uydurma bir paket/rota listesi
+göndererek kapı geçilebilirdi. Ölçüldü: 4 senaryoluk yapıştırmada 1 kabul, 3 elendi
+(boş oracleRef · bilinmeyen kaynak · bağlam dışı suiteId).
+
+`/api/scenarios/context` artık tek önkoşul raporluyor: `ready` (bağlamda dayanak kaynağı
+var mı). Eski `sdkReady`/`authReady` alanları ve `NO_SDK`/`NO_CREDENTIALS` kodları kalktı;
+kaynak yoksa istem ucu `NO_ORACLE` döner — Kural 1 uygulanamıyorsa öneri hiç üretilmez.
+
+Connector tarafında `ai` yeteneği `connectors/claude-code.mjs`'e bağlı (eski
+`anthropic.mjs` silindi): kimlik yoklamaz, durumu koşulsuz `ok`.
 
 ### Proje profili (panel çekirdeği proje adı bilmez)
 

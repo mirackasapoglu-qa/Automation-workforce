@@ -48,7 +48,7 @@ export const env = {
 export const connectors = {
   tracker: "jira",
   design: "figma",
-  ai: "anthropic",
+  ai: "claude-code",
   device: "mobai",
   chat: null, // Slack bildirimi henüz yok
 };
