@@ -37,3 +37,8 @@ homee-test-report.html
 # landing (site/) — kaynak izlenir, kurulum ve build cikitisi izlenmez
 site/node_modules/
 site/dist/
+
+# Kapsam agacinin ham anlik goruntusu: musteri urununun ekran envanteri.
+# `origin` (Automation-workforce) PUBLIC — bu dosya oraya gitmemeli.
+# Uretilebilir: node scripts/scope-snapshot.mjs
+docs/scope-tree.json

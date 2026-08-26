@@ -673,6 +673,22 @@ otomatik yazma yok. Bir koşum sonucunu Jira'ya yazmadan önce kullanıcıya gö
 | `homee-env-switcher` | ortam geçişi, kapı/üye oturum kurulumu |
 | `flaky-analyzer` | kararsız test tespiti, N kez koşum |
 | `homee-report-builder` | HTML/PDF koşum raporu |
+| `homee-release-gate` | commit/push öncesi son kontrol — sır, guard, ölçüm, koşum durumu (kod yazmaz) |
+| `homee-frontend-reviewer` | panel arayüzü ve scope ES modülleri — CSS özgüllüğü, state/data ayrımı, tema token'ları |
+| `homee-backend-reviewer` | `panel/*.mjs` — yeni uç, yol kontrolü, token, whitelist, sıfır bağımlılık kuralı |
+| `homee-jira-guard` | Jira/tracker'a dokunan her değişiklik — kimlik sızması, ADF, taslak↔gönderim ayrımı |
+| `homee-pm-analyst` | kapsam ağacından `docs/feature-inventory.md` + `docs/product-brief.md` üretir |
+
+Beş yeni agent Murat'ın Flowscope deposundan (`muratkocacik-machinarium/Flowscope`)
+**fikir olarak** alındı; dosyaları kopyalanmadı — oradaki agent'lar `localhost:8934`
++ localStorage üzerine yazılmış, bizde veri sunucuda. Uyarlamada bu reponun ölçülmüş
+tuzakları gömüldü (CSS özgüllüğü, journal `endedAt`, `CARD_SPECS` fonksiyon olmalı,
+taslak↔gönderim ayrımı).
+
+`homee-pm-analyst`'in girdisi `node scripts/scope-snapshot.mjs` çıktısı:
+`docs/scope-tree.json` (147 düğüm + özet). **Bu dosya gitignore'da** — müşteri
+ürününün ham ekran envanteri ve `origin` remote'u public. Üretilen belgeler
+(`feature-inventory`, `product-brief`) commit edilir.
 
 Panel Jira uçları: `/api/jira/cards?view=test|blocked|epic|bugs`, `/api/jira/card/<KEY>`,
 `POST /api/jira/comment|transition|bug`.
