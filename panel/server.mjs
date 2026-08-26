@@ -72,6 +72,7 @@ import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
 import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
 import { runCommentDraft, verdictCommentDraft } from "./jira-report.mjs";
+import { capture as perfCapture, list as perfHistory, diffRoutes } from "./perf-history.mjs";
 import { askClaude, parseJsonLoose, CLI_HINT } from "./claude-cli.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
@@ -1627,7 +1628,7 @@ const server = http.createServer(async (req, res) => {
       }
       routes.sort((a, b) => (b.lcp ?? 0) - (a.lcp ?? 0));
       const endpoints = [...epMap.values()].sort((a, b) => b.maxMs - a.maxMs);
-      return send(res, 200, {
+      const payload = {
         measuredAt,
         routes,
         endpoints,
@@ -1638,6 +1639,35 @@ const server = http.createServer(async (req, res) => {
           endpoints: endpoints.length,
           dupEndpoints: endpoints.filter((e) => e.dupRoutes > 0).length,
         },
+      };
+      /*
+       * GECMISE YAKALAMA — burada, cunku `panel-data/perf/` her sweep'te
+       * UZERINE yaziliyor ve sweep'i kim kosarsa kossun (panel, script, elle)
+       * bu uc mutlaka okunuyor. `measuredAt` anahtar: ayni olcum iki kez
+       * kaydedilmiyor. Yakalama hatasi olcumu GOLGELEMEZ.
+       */
+      try {
+        perfCapture(payload);
+      } catch (e) {
+        audit({ event: "perf-history-capture-error", message: e.message.slice(0, 160) });
+      }
+      return send(res, 200, payload);
+    }
+
+    /**
+     * PERF GECMISI. Once /api/perf'i icten okuyor: boylece tab acilirken
+     * mevcut olcum de geçmise dusmus oluyor (kullanici "Yenile"ye basmadan).
+     */
+    if (p === "/api/perf/history") {
+      try {
+        const r = await fetch(`http://127.0.0.1:${PORT}/api/perf`);
+        await r.json();
+      } catch { /* olcum okunamadiysa gecmis yine donsun */ }
+      const rows = perfHistory(Number(url.searchParams.get("limit")) || 40);
+      return send(res, 200, {
+        ok: true,
+        rows,
+        diff: rows.length > 1 ? diffRoutes(rows[0], rows[1]) : null,
       });
     }
 

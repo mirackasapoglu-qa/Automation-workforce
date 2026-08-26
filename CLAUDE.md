@@ -326,6 +326,24 @@ otomatik yazmak kartın altına çöp bırakır.
 panel yeniden başlatılmadan etkili olsun diye. Sabit nesne olduğu sürece düzenleme
 sessizce eski eşlemeyle koşum tetikliyordu.
 
+### Perf geçmişi
+
+`panel-data/perf/` her sweep'te **üzerine yazılıyor** — "LCP düzeldi mi" sorusunun
+cevabı hiçbir yerde durmuyordu. `panel/perf-history.mjs` her yeni ölçümü tek satırlık
+özet olarak `panel-data/perf/history.jsonl`'e ekliyor (anahtar `measuredAt`, aynı ölçüm
+iki kez kaydedilmez, en yeni 200 kayıt).
+
+- Yakalama **tembel**: `/api/perf` her okunduğunda çalışıyor, yani sweep'i kim koşarsa
+  koşsun (panel, script, elle) geçmişe düşüyor — sweep sürecine kanca gerekmedi.
+  Yakalama hatası ölçümü gölgelemiyor (try/catch + audit).
+- `GET /api/perf/history` → kayıtlar + son iki ölçümün rota bazlı farkı.
+- Karşılaştırma **yalnızca iki ölçümde de bulunan rotalar** üzerinden: rota listesi
+  profille değişince "sonsuz kötüleşme" satırları çıkıyordu. Yeni/kayıp rotalar ayrı
+  raporlanıyor.
+- Perf sekmesinde "Geçmiş" bölümü: ölçüm başına medyan/p95 LCP, bütçe aşan sayısı,
+  istek/API toplamı, en yavaş rota + hata sinyali (404 + 4xx/5xx + konsol) ve önceki
+  ölçüme göre ▲/▼ farkı. **Perf'te küçük iyidir** — artış kırmızı, düşüş yeşil.
+
 ### Koşum kaydı: video, trace, canlı izleme
 
 `playwright.config.ts` içinde **`video` hiç tanımlı değildi** (Playwright varsayılanı

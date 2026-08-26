@@ -1119,7 +1119,8 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
              Bu ayrim gorunur olmali: veriler 5 gun eskiyken yenile'ye basip
              hicbir seyin degismemesi kafa karistiriyordu. Olcumu baslatan
              ayri bir dugme var ve whitelist'li kosum motorunu kullaniyor. -->
-        <button style="width:auto;margin:0" onclick="loadPerf()" title="Diskteki son olcumu yeniden okur (olcum yapmaz)">Yenile</button>
+        <button style="width:auto;margin:0" onclick="loadPerf();loadPerfHistory()"
+                title="Diskteki son olcumu ve gecmisi yeniden okur (olcum yapmaz)">Yenile</button>
         <button id="perfRunBtn" style="width:auto;margin:0" onclick="runPerfSweep()"
                 title="33 rotayi bastan olcer (~6-8 dk). Kapi oturumunu kullanir, veri degistirmez.">Yeniden olc</button>
         <button id="paBtn" onclick="perfPrompt()"
@@ -1133,6 +1134,23 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <div id="paFlow"></div>
       <div id="paOut"></div>
       <div id="perfBudget" class="mono" style="margin:0 0 10px;line-height:1.9"></div>
+      <details id="phWrap">
+        <summary>
+          <span class="sg-name">Geçmiş</span>
+          <span class="sg-sub" id="phSub">ölçümler arası fark</span>
+          <span class="caret"></span>
+        </summary>
+        <div id="phBody">
+          <p class="sg-hint" style="margin-top:0">
+            Ölçüm dosyaları her sweep'te <b>üzerine yazılıyor</b>; bu tablo her yeni ölçümü
+            görüldüğü anda tek satırlık özet olarak saklıyor
+            (<code>panel-data/perf/history.jsonl</code>). Karşılaştırma yalnızca iki ölçümde de
+            bulunan rotalar üzerinden yapılır — rota listesi değişince yanıltıcı fark çıkmasın.
+          </p>
+          <div class="scroll"><table id="phTable"></table></div>
+          <div id="phDiff"></div>
+        </div>
+      </details>
       <h2>Rotalar <span class="mono" style="text-transform:none;letter-spacing:0">— LCP'ye gore sirali</span></h2>
       <div class="scroll"><table id="perfRoutes"></table></div>
       <h2>Endpoint envanteri <span class="mono" style="text-transform:none;letter-spacing:0">— en yavastan</span></h2>
@@ -1456,6 +1474,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
   if (b.dataset.tab === 'jira') loadCards();
+  if (b.dataset.tab === 'perf') loadPerfHistory();
   if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'perf') loadPerf();
   if (b.dataset.tab === 'overview') renderOverview();
@@ -3104,6 +3123,73 @@ async function runPerfSweep() {
   } catch (e) {
     alert('Panel sunucusuna ulasilamadi: ' + e.message);
     b.disabled = false; b.textContent = eski;
+  }
+}
+
+/**
+ * PERF GECMISI. Her yeni olcum sunucuda yakalaniyor (bkz. perf-history.mjs);
+ * burada yalnizca listeliyor ve son iki olcum arasindaki rota bazli farki
+ * gosteriyoruz. Tek kayit varsa "karsilastirma icin ikinci olcum gerekiyor"
+ * diyoruz — bos tablo gosterip kullaniciyi "bozuk mu" diye dusundurmemek icin.
+ */
+async function loadPerfHistory() {
+  const t = $('#phTable');
+  t.innerHTML = '<tr><td class="mono">yükleniyor…</td></tr>';
+  try {
+    const d = await (await fetch('/api/perf/history')).json();
+    const rows = d.rows || [];
+    $('#phSub').textContent = rows.length
+      ? `${rows.length} ölçüm · en yeni ${(rows[0].measuredAt || '').slice(0, 16).replace('T', ' ')}`
+      : 'kayıt yok';
+    if (!rows.length) {
+      t.innerHTML = '<tr><td class="mono">Henüz kayıt yok — bir perf sweep koşulduğunda burada birikir.</td></tr>';
+      $('#phDiff').innerHTML = '';
+      return;
+    }
+    const ok = (d1, d2) => {
+      if (d1 == null || d2 == null) return '';
+      const f = d1 - d2;
+      // Fark yoksa hicbir sey yazmiyoruz: "0 kötü · 4 zayıf =" gibi metne
+      // yapisan bir isaret tabloyu okunmaz yapiyordu.
+      if (!f) return '';
+      // Perf'te KUCUK iyidir: artis kirmizi, dusus yesil.
+      return f > 0 ? ` <span class="err">▲${f}</span>` : ` <span class="okc">▼${Math.abs(f)}</span>`;
+    };
+    t.innerHTML = '<tr><th>Ölçüm</th><th>Rota</th><th>Medyan LCP</th><th>p95 LCP</th>'
+      + '<th>Bütçe aşan</th><th>İstek</th><th>API</th><th>En yavaş rota</th></tr>'
+      + rows.map((r, i) => {
+        const onceki = rows[i + 1];
+        const b = r.agg?.budget || {};
+        const saglik = (r.agg?.notFound || 0) + (r.agg?.siteErrors || 0) + (r.agg?.consoleErrors || 0);
+        return `<tr>
+          <td class="mono">${esc((r.measuredAt || '').slice(0, 16).replace('T', ' '))}</td>
+          <td class="mono">${r.totals?.routes ?? '—'}</td>
+          <td class="mono">${r.agg?.lcpMedian ?? '—'}${ok(r.agg?.lcpMedian, onceki?.agg?.lcpMedian)}</td>
+          <td class="mono">${r.agg?.lcpP95 ?? '—'}${ok(r.agg?.lcpP95, onceki?.agg?.lcpP95)}</td>
+          <td class="mono">${b.lcpBad ?? 0} kötü · ${b.lcpWarn ?? 0} zayıf${ok(b.lcpBad, onceki?.agg?.budget?.lcpBad)}</td>
+          <td class="mono">${r.totals?.requests ?? '—'}${ok(r.totals?.requests, onceki?.totals?.requests)}</td>
+          <td class="mono">${r.totals?.api ?? '—'}${ok(r.totals?.api, onceki?.totals?.api)}</td>
+          <td class="mono">${esc(r.agg?.worst?.route || '—')} <span class="w">${r.agg?.worst?.lcp ?? ''}</span>
+            ${saglik ? `<span class="err"> · ${saglik} hata sinyali</span>` : ''}</td>
+        </tr>`;
+      }).join('');
+
+    const dif = d.diff;
+    if (!dif) {
+      $('#phDiff').innerHTML = '<p class="sg-hint">Karşılaştırma için ikinci bir ölçüm gerekiyor.</p>';
+      return;
+    }
+    const satir = (x) => `<div class="sg-bad"><span class="cid">${esc(x.route)}</span>
+      <div class="why">${x.oncekiLcp} → ${x.lcp} ms (${x.delta > 0 ? '+' : ''}${x.delta} ms${x.yuzde != null ? `, %${x.yuzde}` : ''})</div></div>`;
+    $('#phDiff').innerHTML =
+      `<p class="sg-hint">Son iki ölçüm · ${dif.karsilastirilan} rota karşılaştırıldı`
+      + `${dif.yeniRota.length ? ` · ${dif.yeniRota.length} yeni rota` : ''}`
+      + `${dif.kayipRota.length ? ` · ${dif.kayipRota.length} rota kayboldu` : ''}</p>`
+      + (dif.kotulesen.length ? `<h2>Kötüleşen</h2>${dif.kotulesen.map(satir).join('')}` : '')
+      + (dif.iyilesen.length ? `<h2>İyileşen</h2>${dif.iyilesen.map(satir).join('')}` : '')
+      + (!dif.kotulesen.length && !dif.iyilesen.length ? '<p class="mono">LCP farkı yok.</p>' : '');
+  } catch (e) {
+    t.innerHTML = `<tr><td class="mono err">${esc(e.message)}</td></tr>`;
   }
 }
 
