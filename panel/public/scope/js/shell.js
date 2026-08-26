@@ -98,12 +98,21 @@ export function importData(file) {
 export function buildHeader() {
   const header = document.createElement('div');
   header.className = 'fw-header';
+  /*
+   * Panelden kapsama gecis tek yonluydu: ust bardaki "Kapsam" dugmesi buraya
+   * getiriyor ama geri donusun tek yolu tarayicinin geri tusuydu — /scope'u
+   * dogrudan (yeni sekmede ya da yer imiyle) acan biri panele hic ulasamiyordu.
+   * Ayni origin oldugu icin kok yeterli: `/`.
+   */
   header.innerHTML = `
     <div class="fw-logo">${ICON.logo}</div>
     <div>
       <div class="fw-title">Flowscope</div>
       <div class="fw-subtitle">Proje bileşenlerini haritalayın, test durumunu izleyin</div>
-    </div>`;
+    </div>
+    <a class="btn fw-back" href="/" title="QA Paneli'ne dön (koşumlar, sonuçlar, Jira, performans)">
+      ${ICON.back}<span>Panele dön</span>
+    </a>`;
   return header;
 }
 

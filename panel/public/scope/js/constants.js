@@ -25,6 +25,7 @@ export const ICON = {
   viewDiagram: '<svg class="icon" viewBox="0 0 20 20"><circle cx="5" cy="5" r="1.7"/><circle cx="15" cy="5" r="1.7"/><circle cx="10" cy="15" r="1.7"/><path d="M5 6.7 10 13.3"/><path d="M15 6.7 10 13.3"/></svg>',
   viewBoard: '<svg class="icon" viewBox="0 0 20 20"><rect x="3" y="3" width="4.2" height="14" rx="1.2"/><rect x="8.9" y="3" width="4.2" height="9.5" rx="1.2"/><rect x="14.8" y="3" width="4.2" height="14" rx="1.2"/></svg>',
   logo: '<svg class="icon" viewBox="0 0 20 20"><circle cx="4.5" cy="4.5" r="1.9"/><circle cx="15.5" cy="4.5" r="1.9"/><circle cx="10" cy="15.5" r="1.9"/><path d="M6 5.8 9 13.2"/><path d="M14 5.8 11 13.2"/></svg>',
+  back: '<svg class="icon" viewBox="0 0 20 20"><path d="M16.5 10H4"/><polyline points="9 4.5 3.5 10 9 15.5"/></svg>',
   link: '<svg class="icon" viewBox="0 0 20 20"><path d="M8 5H4.8A1.8 1.8 0 0 0 3 6.8v8.4A1.8 1.8 0 0 0 4.8 17h8.4A1.8 1.8 0 0 0 15 15.2V12"/><path d="M9 11 16.5 3.5"/><path d="M11.5 3.5H16.5V8.5"/></svg>',
   refresh: '<svg class="icon icon-sm" viewBox="0 0 20 20"><path d="M4 10a6 6 0 0 1 10.2-4.2M16 10a6 6 0 0 1-10.2 4.2"/><polyline points="13.4 3.6 14.4 6.4 11.4 6.8"/><polyline points="6.6 16.4 5.6 13.6 8.6 13.2"/></svg>',
   globe: '<svg class="icon" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M3 10h14"/><path d="M10 3c2.6 2 2.6 12 0 14"/><path d="M10 3c-2.6 2-2.6 12 0 14"/></svg>',
