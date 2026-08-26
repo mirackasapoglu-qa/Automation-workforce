@@ -3,7 +3,7 @@
  * "Panel ayağa kaldır" = QA paneli + landing/onboarding sitesi, birlikte.
  *
  * Panel  : node panel/server.mjs        → 4646 (arayüz) + 4647 (site proxy'si)
- * Landing: vite preview (statik build)  → 4321  (kaynak: ../homee-panel-site)
+ * Landing: vite preview (statik build)  → 4321  (kaynak: site/)
  *
  * Landing için dev sunucusu değil BUILD kullanılıyor: HMR'a ihtiyaç yok,
  * gösterime giden şey production çıktısı olsun. `dist/` yoksa önce build alır.
@@ -15,7 +15,19 @@ import fs from "node:fs";
 import path from "node:path";
 import net from "node:net";
 
-const SITE = process.env.LANDING_DIR || path.resolve(process.cwd(), "..", "homee-panel-site");
+/*
+ * Landing artik BU DEPONUN icinde: `site/`. Eskiden kardes dizindeydi
+ * (`../homee-panel-site`) ve hic git deposu degildi — yani panelin yaninda
+ * durmasina ragmen surum kontrolu yoktu. Cozum sirasi: LANDING_DIR ile elle
+ * gosterilen yol → depo icindeki `site/` → eski kardes dizin (tasimayi
+ * kacirmis bir kopya icin geriye donuk uyum).
+ */
+const SITE = (() => {
+  if (process.env.LANDING_DIR) return process.env.LANDING_DIR;
+  const inRepo = path.resolve(process.cwd(), "site");
+  if (fs.existsSync(path.join(inRepo, "package.json"))) return inRepo;
+  return path.resolve(process.cwd(), "..", "homee-panel-site");
+})();
 const PANEL_PORT = Number(process.env.PANEL_PORT || 4646);
 const PROXY_PORT = PANEL_PORT + 1;
 const SITE_PORT = Number(process.env.LANDING_PORT || 4321);

@@ -1,0 +1,1143 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Homee QA — Ölçülmüş test altyapısı</title>
+<meta name="description" content="88 test case, 33 rotanın performans ölçümü, Jira kartları ve kotasız tasarım diff'i — tek ekranda, ölçülmüş kanıtla.">
+
+<!-- Favicon: logo mark, white. Exact data URI from the spec. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cg transform='rotate(-30 12 12)'%3E%3Ccircle cx='7.3' cy='3.2' r='1.45'/%3E%3Crect x='5.5' y='4.7' width='3.6' height='14.6' rx='1.8'/%3E%3Crect x='14.9' y='4.7' width='3.6' height='14.6' rx='1.8'/%3E%3Ccircle cx='16.7' cy='20.8' r='1.45'/%3E%3C/g%3E%3C/svg%3E">
+
+<!--
+  FONTS — the self-hosted route is not available here: neither `inter.woff2` nor
+  `instrument-serif-italic.woff2` sits next to this file, so the spec's documented
+  fallback is used (Inter variable roman + Instrument Serif italic only).
+  If the WOFF2s are ever dropped in this folder, delete this link and restore the
+  two @font-face blocks — do NOT keep both: a broken local `src` would shadow the
+  hosted family and silently drop us to Times/system-ui.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900&family=Instrument+Serif:ital@1&display=swap">
+
+<style>
+/* ───────────────────────────────────────────────────────────────────────────
+   1. BLACK FIRST. This is the first rule in the sheet and it is !important on
+   purpose: the page must never flash white before the tokens resolve. The body
+   also carries an inline style, and the token-based rule repeats it below.
+   ─────────────────────────────────────────────────────────────────────────── */
+html, body { background: #000000 !important; color: #ffffff; }
+
+html, body {
+  background: #000000;
+  background: var(--bg, #000000);
+  color: #ffffff;
+  color: var(--text, #ffffff);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Tokens (default / ~1440px) ─────────────────────────────────────────── */
+:root {
+  --bg: #000000;
+  --text: #ffffff;
+  --muted: #9a9a9a;
+  --stat: #d8d8d8;
+  --border: rgba(255, 255, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.12);
+
+  --logo: 15.5px;
+  --logo-mark: 22px;
+  --nav: 14px;
+  --nav-h: 40px;
+  --btn: 13.5px;
+  --btn-h: 40px;
+  --hero-btn-h: 42px;
+  --h1: 48px;
+  --lede: 15.5px;
+  --badge: 12.5px;
+  --stat-size: 13.5px;
+  --header-y: 22px;
+  --header-x: 40px;
+  --stats-x: 72px;
+  --stats-y: 36px;
+  --hero-gap: 85px;
+  --copy-max: 860px;
+  --lede-max: 470px;
+
+  --ui: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --serif: "Instrument Serif", "Times New Roman", Times, serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--ui);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  position: relative;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+
+/* ── Layer 4: grain, above everything, inert ────────────────────────────── */
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.045;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+}
+
+/* ── Layer 2: hero background video ─────────────────────────────────────────
+   100% opacity, NO overlay: the `::after` scrim slot stays empty on purpose —
+   dimming the footage was explicitly ruled out. The URL is the one supplied;
+   nothing here is invented.                                                */
+.hero-photo {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  background: #000000;
+}
+.hero-photo video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Layer 3: the page frame ────────────────────────────────────────────── */
+.page {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.header {
+  position: relative;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: var(--header-y) var(--header-x) 10px;
+}
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  justify-self: start;
+  font-size: var(--logo);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+.logo-mark { width: var(--logo-mark); height: var(--logo-mark); flex: none; }
+.logo-suffix { font-weight: 400; }
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: center;
+}
+
+/* Liquid-metal pill */
+.nav-link {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--nav-h);
+  padding: 0 18px;
+  border-radius: 7px;
+  border: 1px solid rgba(198, 198, 198, 0.55);
+  background: linear-gradient(105deg, #050505 0%, #2a2a2a 48%, #4a4a4a 100%);
+  color: #f3f3f3;
+  font-size: var(--nav);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.nav-link::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.16) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+.nav-link:hover::before { transform: translateX(120%); }
+.nav-link:hover {
+  border-color: rgba(235, 235, 235, 0.9);
+  background: linear-gradient(105deg, #111111 0%, #3a3a3a 45%, #6a6a6a 100%);
+  box-shadow: 0 0 18px rgba(200, 210, 230, 0.18);
+}
+
+.header-cta { justify-self: end; }
+
+/* ── Buttons: one liquid-glass language ─────────────────────────────────── */
+.btn {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--btn-h);
+  padding: 0 16px;
+  border-radius: 6px;
+  font-size: var(--btn);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease,
+    color 0.35s ease, filter 0.35s ease;
+}
+.btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 20%, rgba(255, 255, 255, 0.45) 48%, transparent 76%);
+  transform: translateX(-130%);
+  transition: transform 0.65s ease;
+  pointer-events: none;
+}
+.btn:hover::after { transform: translateX(130%); }
+
+.btn-solid {
+  background: linear-gradient(180deg, #ffffff 0%, #e7e7e7 48%, #cfcfcf 100%);
+  color: #111111;
+  border: 1px solid #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+}
+.btn-solid:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6ff 42%, #d5def2 100%);
+  border-color: #f2f6ff;
+  box-shadow: inset 0 1px 0 #ffffff, 0 0 22px rgba(186, 208, 255, 0.35),
+    0 8px 18px rgba(255, 255, 255, 0.12);
+}
+
+.btn-ghost {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.45) 50%, rgba(160, 175, 200, 0.08));
+  color: #ffffff;
+  border: 1px solid rgba(198, 198, 198, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.btn-ghost:hover {
+  background: linear-gradient(135deg, rgba(210, 225, 255, 0.18), rgba(0, 0, 0, 0.35) 48%, rgba(180, 195, 220, 0.16));
+  border-color: rgba(220, 230, 255, 0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 20px rgba(170, 200, 255, 0.22);
+}
+
+/* Hero-level buttons: taller, roomier, and the ghost frosts harder. */
+.btn-hero { height: var(--hero-btn-h); padding: 0 18px; }
+
+.btn-solid.btn-hero:hover {
+  box-shadow: inset 0 1px 0 #ffffff, 0 0 26px rgba(186, 208, 255, 0.4),
+    0 8px 18px rgba(255, 255, 255, 0.14);
+}
+
+.btn-ghost.btn-hero {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.5) 46%, rgba(150, 170, 200, 0.1));
+  border: 1px solid rgba(198, 198, 198, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.btn-ghost.btn-hero:hover {
+  border-color: rgba(220, 230, 255, 0.8);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 24px rgba(170, 200, 255, 0.28);
+}
+
+/* ── Burger (phone only) ────────────────────────────────────────────────── */
+.burger {
+  display: none;
+  /* place-CONTENT, not place-items: a grid's default `align-content: stretch`
+     blows the three auto rows out to ~10.7px each, so the open state's
+     translateY(6.5px) lands nowhere near centre and the X renders as a chevron
+     (measured: bar centres 15px apart instead of 6.5px). */
+  place-content: center;
+  justify-items: center;
+  gap: 5px;
+  width: 42px;
+  height: 42px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: rgba(8, 8, 8, 0.55);
+  cursor: pointer;
+  z-index: 60;
+  transition: background 0.25s ease, border-color 0.25s ease;
+}
+.burger:hover { border-color: rgba(255, 255, 255, 0.32); background: rgba(255, 255, 255, 0.05); }
+.burger span {
+  display: block;
+  width: 16px;
+  height: 1.5px;
+  border-radius: 1px;
+  background: #ffffff;
+  transition: transform 0.25s ease, opacity 0.2s ease;
+}
+body.menu-open .burger span:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
+body.menu-open .burger span:nth-child(2) { opacity: 0; }
+body.menu-open .burger span:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
+
+/* ── Hero: bottom-anchored, not vertically centred ──────────────────────── */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 8px 24px var(--hero-gap);
+  min-height: 0;
+}
+.hero-copy {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: var(--copy-max);
+  width: 100%;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+  padding: 9px 15px;
+  border: 0;
+  border-radius: 5px;
+  background: linear-gradient(90deg, #7d7d7d 0%, #2a2a2a 52%, #0a0a0a 100%);
+  color: #f2f2f2;
+  font-size: var(--badge);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+.badge-star {
+  flex: none;
+  filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.45));
+}
+
+.hero h1 {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--ui);
+  font-size: var(--h1);
+  font-weight: 500;
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+  color: #ffffff;
+}
+.headline-line {
+  display: block;
+  overflow: hidden;
+  padding: 0.06em 0.15em 0.14em;
+}
+.hero h1 em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.08em;
+  letter-spacing: -0.03em;
+  color: var(--muted);
+}
+
+.lede {
+  max-width: var(--lede-max);
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: var(--lede);
+  font-weight: 400;
+  line-height: 1.55;
+  letter-spacing: -0.015em;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+/* ── Stats footer ───────────────────────────────────────────────────────── */
+.stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 var(--stats-x) var(--stats-y);
+  padding-bottom: max(var(--stats-y), env(safe-area-inset-bottom));
+  color: var(--stat);
+}
+.stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: var(--stat-size);
+  letter-spacing: -0.015em;
+  white-space: nowrap;
+}
+.stat-icon { width: 20px; height: 20px; flex: none; }
+.stat-icon-wide { width: 38px; height: 21px; flex: none; }
+
+/* ── Full-screen menu scaffolding (inert on desktop) ────────────────────── */
+.menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(8, 8, 8, 0.42);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.28s ease, visibility 0.28s ease, backdrop-filter 0.28s ease;
+}
+body.menu-open .menu-backdrop {
+  opacity: 1;
+  visibility: visible;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   ENTRANCE MOTION
+   `.appear` RESTS AT OPACITY 1. If animations never run (old engine, blocked
+   compositor, JS off) the page is fully readable — the 0% keyframe only hides
+   things while `animation-fill-mode: both` holds the delay.
+   ─────────────────────────────────────────────────────────────────────────── */
+.appear {
+  opacity: 1;
+  animation-duration: 1.05s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-delay: var(--d, 0.08s);
+}
+.appear--scale { animation-name: in-scale; }
+.appear--soft  { animation-name: in-soft; }
+.appear--mask  { animation-name: in-mask; }
+.appear--pop   { animation-name: in-pop; }
+.appear--btn   { animation-name: in-btn; }
+.appear--side  { animation-name: in-side; }
+.appear--stat  { animation-name: in-stat; }
+
+.lede.appear { animation-duration: 1.25s; }
+
+.badge-star {
+  animation: in-star 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.28s both;
+}
+.hero h1 em {
+  animation: in-em 1.2s cubic-bezier(0.16, 1, 0.3, 1) 0.72s both;
+}
+.hero-photo {
+  animation: in-photo 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.04s both;
+}
+
+/* Landed. Set per element on its own `animationend` (and by the rAF fallback),
+   never globally on a timer — a timer would fight a slow first paint. */
+.appear.is-in,
+.hero-photo.is-in {
+  animation: none;
+  opacity: 1;
+  transform: none;
+  clip-path: none;
+  filter: none;
+}
+
+@keyframes in-scale { from { opacity: 0; transform: scale(0.84); } to { opacity: 1; transform: scale(1); } }
+@keyframes in-soft  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes in-mask  { from { opacity: 0; transform: translateY(40%); } to { opacity: 1; transform: translateY(0); } }
+@keyframes in-pop {
+  0%   { opacity: 0; transform: scale(0.9); }
+  70%  { opacity: 1; transform: scale(1.03); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes in-btn  { from { opacity: 0; transform: translateY(18px) scale(0.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes in-side { from { opacity: 0; transform: translateX(22px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes in-stat { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes in-star {
+  0%   { opacity: 0; transform: scale(0.2) rotate(-50deg); }
+  65%  { opacity: 1; transform: scale(1.2) rotate(8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes in-em {
+  from { opacity: 0.35; filter: blur(4px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+@keyframes in-photo {
+  from { opacity: 0; transform: scale(1.06); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+  .appear, .hero-photo, .hero h1 em, .badge-star {
+    opacity: 1;
+    transform: none;
+    clip-path: none;
+    filter: none;
+  }
+  /* `.reveal` gizlemesi tabakada DAHA SONRA tanimli oldugu icin esit
+     ozgullukte olan bu kurali yerdi — olculdu: hareket azaltmada 12 bolum
+     gorunmez kaliyordu. Burada `!important` sart. */
+  html.js-reveal .reveal,
+  html.js-reveal .reveal:not(.in) {
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+/* ───────────────────────────────────────────────────────────────────────────
+   VITRIN (katlanan cizginin altı)
+   Hero tek kare kaliyor; asagisi ayni dili konusan kaydirmali bolumler.
+   `.hero-photo` SABIT oldugu icin buradaki her bolum kendi siyahini boyar,
+   yoksa video butun sayfanin arkasindan sizardi.
+   ─────────────────────────────────────────────────────────────────────────── */
+.showcase {
+  position: relative;
+  z-index: 1;
+  background: #000000;
+  /* Video ile ilk bolum arasinda sert kesme olmasin. */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.72) 0%, #000000 14%);
+}
+
+.shot-band {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 56px;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 104px var(--header-x);
+  border-top: 1px solid var(--border-soft);
+}
+.shot-band:first-child { border-top: 0; }
+/* Donusumlu dizilim: cift numarali bantlarda gorsel SOLDA. Kolon genislikleri
+   de takas ediliyor — yoksa gorsel dar kolona dusup kuculuyordu (olculdu). */
+.shot-band:nth-child(even) { grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr); }
+.shot-band:nth-child(even) .shot-copy { order: 2; }
+.shot-band:nth-child(even) .shot-frame { order: 1; }
+
+.shot-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #8f8f8f;
+}
+.shot-label::before {
+  content: "";
+  width: 18px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.shot-copy h2 {
+  font-size: clamp(26px, 2.2vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.16;
+  color: #ffffff;
+}
+.shot-copy h2 em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.1em;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+}
+.shot-copy p {
+  margin-top: 14px;
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+  letter-spacing: -0.012em;
+}
+/* Olculmus sayi ya da sert kural: govde metninden ayri dursun. */
+.shot-note {
+  display: block;
+  margin-top: 16px;
+  padding: 11px 14px;
+  border-left: 2px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 0 6px 6px 0;
+  color: #c9c9c9;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.shot-frame {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.5) 55%, rgba(160, 175, 200, 0.05));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+.shot-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.showcase-end {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 96px var(--header-x) 112px;
+  border-top: 1px solid var(--border-soft);
+  text-align: center;
+}
+.showcase-end h2 {
+  font-size: clamp(26px, 2.4vw, 38px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  color: #ffffff;
+}
+.showcase-end h2 em {
+  font-family: var(--serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 1.1em;
+  color: var(--muted);
+}
+.showcase-end p {
+  margin: 12px auto 0;
+  max-width: 52ch;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.showcase code, .shot-note code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.92em;
+  color: #e2e2e2;
+}
+
+.showcase-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+/* ── Kaydirmayla aciliş ────────────────────────────────────────────────────
+   `.reveal` VARSAYILAN OLARAK GORUNUR — hero'daki `.appear` ile ayni ilke.
+   Gizleme yalnizca JS `html.js-reveal` ekledikten sonra devreye giriyor, yani
+   IntersectionObserver yoksa ya da script hic kosmazsa butun vitrin okunur
+   kaliyor (gizleyip acmayi JS'e emanet etmek bos sayfa riski demekti). */
+html.js-reveal .reveal:not(.in) {
+  opacity: 0;
+  transform: translateY(26px);
+}
+.reveal {
+  transition: opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0.985); }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   RESPONSIVE. Order is load-bearing: widths ascend first, then the two
+   short-viewport rules (they must win over width tokens on laptops), then the
+   desktop no-scroll lock, then phone.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+@media (min-width: 1600px) {
+  :root {
+    --logo: 17px; --logo-mark: 24px; --nav: 15px; --nav-h: 44px;
+    --btn: 15px; --btn-h: 44px; --hero-btn-h: 48px;
+    --h1: 64px; --lede: 18px; --badge: 13.5px; --stat-size: 15px;
+    --header-y: 28px; --header-x: 64px; --stats-x: 96px; --stats-y: 44px;
+    --copy-max: 980px; --lede-max: 540px;
+  }
+  .nav-link { padding: 0 20px; }
+  .badge { margin-bottom: 26px; }
+  .lede { margin-top: 22px; }
+  .hero-actions { margin-top: 30px; gap: 12px; }
+  .stat-icon { width: 22px; height: 22px; }
+  .stat-icon-wide { width: 45px; height: 24px; }
+}
+
+@media (min-width: 1920px) {
+  :root {
+    --logo: 18px; --logo-mark: 26px; --nav: 16px; --nav-h: 48px;
+    --btn: 16px; --btn-h: 48px; --hero-btn-h: 52px;
+    --h1: 76px; --lede: 20px; --badge: 14.5px; --stat-size: 16px;
+    --header-y: 32px; --header-x: 80px; --stats-x: 120px; --stats-y: 52px;
+    --copy-max: 1120px; --lede-max: 620px;
+  }
+  .nav { gap: 10px; }
+  .nav-link { padding: 0 22px; }
+  .btn { padding: 0 22px; }
+  .btn-hero { padding: 0 22px; }
+  .badge { padding: 10px 15px; }
+  .stat-icon-wide { width: 48px; height: 26px; }
+}
+
+@media (min-width: 2560px) {
+  :root {
+    --h1: 88px; --lede: 22px; --header-x: 120px; --stats-x: 160px;
+    --copy-max: 1280px; --lede-max: 680px;
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1599px) {
+  :root {
+    --h1: 54px; --lede: 16px; --header-x: 48px; --stats-x: 80px; --copy-max: 900px;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1279px) {
+  :root {
+    --logo: 15px; --nav: 13px; --nav-h: 36px;
+    --btn: 13px; --btn-h: 38px; --hero-btn-h: 40px;
+    --h1: 42px; --lede: 15px; --badge: 12px; --stat-size: 12.5px;
+    --header-y: 16px; --header-x: 28px; --stats-x: 36px; --stats-y: 28px;
+    --hero-gap: 64px; --copy-max: 760px; --lede-max: 440px;
+  }
+  .nav-link { padding: 0 14px; }
+  .badge { margin-bottom: 16px; }
+  .lede { margin-top: 14px; }
+  .hero-actions { margin-top: 20px; }
+}
+
+@media (min-width: 901px) and (max-height: 850px) {
+  :root { --header-y: 14px; --stats-y: 24px; --hero-gap: 48px; --h1: 40px; }
+  .badge { margin-bottom: 12px; }
+  .lede { margin-top: 12px; }
+  .hero-actions { margin-top: 16px; }
+}
+
+@media (min-width: 901px) and (max-height: 720px) {
+  :root {
+    --h1: 34px; --lede: 14px; --hero-gap: 32px; --stats-y: 18px;
+    --nav-h: 30px; --btn-h: 34px; --hero-btn-h: 36px;
+  }
+  .badge { margin-bottom: 8px; }
+}
+
+/* Desktop: the FIRST frame is still exactly one viewport — but the page now
+   scrolls on into the vitrin below. `overflow: hidden` had to go: with content
+   under the fold it would hide it outright. The hero keeps its full-frame
+   composition through `.page`'s fixed height. */
+@media (min-width: 901px) {
+  .page { height: 100vh; height: 100dvh; }
+}
+
+/* ── Phone ──────────────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  html, body { height: auto; overflow-y: auto; }
+  :root {
+    --logo: 16px; --btn: 15px; --btn-h: 46px; --hero-btn-h: 48px;
+    --h1: 36px; --lede: 16.5px; --badge: 13.5px; --stat-size: 15px;
+    --header-y: 16px; --header-x: 18px; --stats-x: 20px; --stats-y: 28px;
+    --hero-gap: 36px;
+  }
+  .header {
+    grid-template-columns: 1fr auto auto;
+    gap: 8px;
+    padding-top: max(var(--header-y), env(safe-area-inset-top));
+    padding-left: max(var(--header-x), env(safe-area-inset-left));
+    padding-right: max(var(--header-x), env(safe-area-inset-right));
+  }
+  .logo, .header-cta, .burger { z-index: 80; }
+  .burger { display: grid; }
+  .menu-backdrop { display: block; }
+
+  .nav {
+    position: fixed;
+    inset: 0;
+    z-index: 45;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: center;
+    gap: 12px;
+    padding: 96px 22px 32px;
+    padding-top: max(96px, calc(env(safe-area-inset-top) + 88px));
+    background: transparent;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.28s ease, visibility 0.28s ease;
+  }
+  body.menu-open .nav { opacity: 1; visibility: visible; pointer-events: auto; }
+  .nav-link { width: 100%; height: 56px; font-size: 19px; border-radius: 10px; }
+  body.menu-open { overflow: hidden; }
+
+  .hero { padding: 20px 20px 64px; align-items: flex-end; }
+  .hero-copy, .lede { max-width: 100%; }
+
+  .stats {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+  .stat { white-space: normal; }
+
+  .shot-band {
+    grid-template-columns: 1fr;
+    gap: 26px;
+    padding: 64px 20px;
+  }
+  /* Tek kolonda metin HER ZAMAN gorselden once gelsin (masaustundeki
+     donusumlu dizilim burada okuma sirasini bozuyordu). */
+  .shot-band:nth-child(even) .shot-copy,
+  .shot-band:nth-child(even) .shot-frame { order: 0; }
+  .shot-copy p { max-width: 100%; }
+  .showcase-end { padding: 64px 20px 80px; }
+}
+
+@media (max-width: 560px) {
+  :root { --h1: 34px; --lede: 16px; --header-x: 16px; }
+  .hero-actions { flex-direction: column; }
+  .hero-actions .btn { width: 100%; }
+}
+</style>
+</head>
+
+<body style="background:#000;color:#fff">
+
+<div class="grain" aria-hidden="true"></div>
+
+<div class="hero-photo" aria-hidden="true">
+  <video autoplay muted loop playsinline preload="auto"
+         src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260818_072341_50851634-bbc3-4c33-9acc-7647d4db44aa.mp4"></video>
+</div>
+
+<div class="page">
+
+  <div class="menu-backdrop" aria-hidden="true"></div>
+
+  <header class="header">
+    <a class="logo appear appear--scale" href="#top" aria-label="Homee QA" style="--d: 0.08s">
+      <svg class="logo-mark" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <g transform="rotate(-30 12 12)">
+          <circle cx="7.3" cy="3.2" r="1.45"/>
+          <rect x="5.5" y="4.7" width="3.6" height="14.6" rx="1.8"/>
+          <rect x="14.9" y="4.7" width="3.6" height="14.6" rx="1.8"/>
+          <circle cx="16.7" cy="20.8" r="1.45"/>
+        </g>
+      </svg>
+      <span>Homee<span class="logo-suffix"> QA</span></span>
+    </a>
+
+    <nav class="nav" id="site-nav" aria-label="Primary">
+      <!--
+        Vesper'in nav baglantilari (#benefits, #faqs ...) tek viewport'ta hicbir
+        yere gitmiyordu. Burada dordu de GERCEK hedef: uc tanesi asagidaki
+        vitrin bolumleri (html'de scroll-behavior: smooth var), dordunculu
+        React onboarding sayfasi.
+      -->
+      <a class="nav-link appear appear--scale" href="#kosum" style="--d: 0.16s">Koşum</a>
+      <a class="nav-link appear appear--soft" href="#olcum" style="--d: 0.28s">Ölçüm</a>
+      <a class="nav-link appear appear--scale" href="#kanit" style="--d: 0.40s">Kanıt</a>
+      <a class="nav-link appear appear--soft" href="/onboarding" style="--d: 0.52s">Başlangıç</a>
+    </nav>
+
+    <a class="btn btn-solid header-cta appear appear--scale" href="http://localhost:4646"
+       target="_blank" rel="noreferrer" style="--d: 0.34s">Denemeye başla</a>
+
+    <button class="burger appear appear--scale" type="button" aria-controls="site-nav"
+            aria-expanded="false" aria-label="Open menu" style="--d: 0.34s">
+      <span></span><span></span><span></span>
+    </button>
+  </header>
+
+  <main class="hero" id="top">
+    <div class="hero-copy">
+
+      <span class="badge appear appear--pop" style="--d: 0.22s">
+        <svg class="badge-star" width="18" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true">
+          <path d="M12 2.6C12.55 2.6 12.88 3.15 13.08 4.7c.62 4.7 1.52 5.6 6.22 6.22 1.55.2 2.1.53 2.1 1.08s-.55.88-2.1 1.08c-4.7.62-5.6 1.52-6.22 6.22-.2 1.55-.53 2.1-1.08 2.1s-.88-.55-1.08-2.1c-.62-4.7-1.52-5.6-6.22-6.22C3.15 12.88 2.6 12.55 2.6 12s.55-.88 2.1-1.08c4.7-.62 5.6-1.52 6.22-6.22C11.12 3.15 11.45 2.6 12 2.6Z"/>
+        </svg>
+        Ölçülmüş QA altyapısı
+      </span>
+
+      <h1>
+        <span class="headline-line appear appear--mask" style="--d: 0.42s">Ölç, sonra <em>iddia et</em>.</span>
+        <span class="headline-line appear appear--mask" style="--d: 0.62s">Kanıt tek ekranda.</span>
+      </h1>
+
+      <p class="lede appear appear--soft" style="--d: 0.82s">
+        88 test case, 33 rotanın performans ölçümü, Jira kartları ve kotasız tasarım diff'i —
+        hepsi tek ekranda, ölçülmüş kanıtla.
+      </p>
+
+      <div class="hero-actions">
+        <a class="btn btn-solid btn-hero appear appear--btn" href="http://localhost:4646"
+           target="_blank" rel="noreferrer" style="--d: 0.96s">Paneli aç</a>
+        <a class="btn btn-ghost btn-hero appear appear--side" href="/onboarding" style="--d: 1.10s">Başlangıç rehberi</a>
+      </div>
+
+    </div>
+  </main>
+
+  <footer class="stats">
+
+    <div class="stat appear appear--stat" style="--d: 1.12s">
+      <svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <defs>
+          <linearGradient id="pillA" x1="3" y1="2" x2="14" y2="22" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#ffffff" stop-opacity="0.38"/>
+            <stop offset="1" stop-color="#3a3a3a" stop-opacity="0.62"/>
+          </linearGradient>
+          <linearGradient id="pillB" x1="3" y1="2" x2="14" y2="22" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stop-color="#3a3a3a" stop-opacity="0.38"/>
+            <stop offset="1" stop-color="#ffffff" stop-opacity="0.62"/>
+          </linearGradient>
+        </defs>
+        <rect x="3.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#pillA)"/>
+        <rect x="13.4" y="2.6" width="7.2" height="18.8" rx="3.6" fill="url(#pillB)"/>
+        <rect x="9.2" y="10.9" width="5.6" height="2.2" rx="1.1" fill="#4a4a4a"/>
+      </svg>
+      <span>88 test case · 17 spec</span>
+    </div>
+
+    <div class="stat appear appear--stat" style="--d: 1.28s">
+      <svg class="stat-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="2.4" y="2.4" width="19.2" height="19.2" rx="6.2" fill="#ffffff"/>
+        <path d="M12 7.1v7.4" stroke="#111111" stroke-width="1.85" stroke-linecap="round" fill="none"/>
+        <path d="M8.15 12.35L12 16.2l3.85-3.85" stroke="#111111" stroke-width="1.85"
+              stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      </svg>
+      <span>33 rotada performans ölçümü</span>
+    </div>
+
+    <div class="stat appear appear--stat" style="--d: 1.44s">
+      <svg class="stat-icon-wide" viewBox="0 0 40 22" aria-hidden="true">
+        <circle cx="10.2" cy="11" r="9.2" fill="#2b2b2b"/>
+        <path d="M6.7 8.5 5.3 5.1l3.3 1.6z" fill="#f4f4f4"/>
+        <path d="M13.7 8.5l1.4-3.4-3.3 1.6z" fill="#f4f4f4"/>
+        <ellipse cx="10.2" cy="12.1" rx="4.15" ry="3.7" fill="#f4f4f4"/>
+        <circle cx="8.9" cy="11.7" r="0.7" fill="#1a1a1a"/>
+        <circle cx="11.5" cy="11.7" r="0.7" fill="#1a1a1a"/>
+
+        <circle cx="20.2" cy="11" r="9.2" fill="#ffffff"/>
+        <circle cx="17.6" cy="9.5" r="1.7" fill="#111111"/>
+        <circle cx="22.8" cy="9.5" r="1.7" fill="#111111"/>
+        <ellipse cx="20.2" cy="12.6" rx="1.1" ry="0.8" fill="#111111"/>
+        <path d="M17.4 14.6c1.5 1.7 4.1 1.7 5.6 0" stroke="#111111" stroke-width="1.2"
+              stroke-linecap="round" fill="none"/>
+
+        <circle cx="30.2" cy="11" r="9.2" fill="#f26b1d"/>
+        <text x="30.2" y="15.1" text-anchor="middle" font-size="12.5" font-weight="700"
+              font-family="Inter, system-ui, sans-serif" fill="#ffffff">e</text>
+      </svg>
+      <span>21 whitelist'li koşum komutu</span>
+    </div>
+
+  </footer>
+
+</div>
+
+<!--
+  VITRIN — katlanan cizginin altı.
+  Gorseller UYDURMA DEGIL: calisan panelin koyu tema ekran goruntuleri
+  (`public/shots/panel-*-dark.jpg`, 2026-08-26'da alindi).
+  ⚠️ panel-kanit-dark.jpg'de kanit galerisi ve ATANAN kolonu KASITLI bulanik:
+  bir kucuk resim e-posta + telefon numarasi, tablo da gercek kisi adlari
+  tasiyordu. Shot'i "bozuk" sanip yeniden almayin — PII geri gelir.
+  Sayilar da olculmus: 88 case / 17 spec panel seridinden, 33 rota
+  /api/perf'ten, 21 komut panel/runs.json whitelist'inden.
+-->
+<div class="showcase">
+
+    <section class="shot-band" id="kosum">
+      <div class="shot-copy reveal">
+        <span class="shot-label">Koşum</span>
+        <h2>Tek ekranda <em>koşum</em> ve canlı log</h2>
+        <p>Sol kolondaki koşumlar <code>panel/runs.json</code> whitelist'inden gelir; spec, başlık filtresi, tekrar sayısı ve headed seçeneğiyle tetiklenir. Log SSE ile akar, koşum bitince özet bildirim düşer.</p>
+        <span class="shot-note">Whitelist dışında hiçbir komut çalışmaz — 21 tanımlı koşum. Yıkıcı işlemler ayrıca guard arkasında.</span>
+      </div>
+      <div class="shot-frame reveal">
+        <img src="/shots/panel-runs-dark.jpg" alt="Homee QA Paneli — koşum listesi ve canlı log (koyu tema)" width="2000" height="1250" loading="lazy" decoding="async">
+      </div>
+    </section>
+    <section class="shot-band" id="olcum">
+      <div class="shot-copy reveal">
+        <span class="shot-label">Ölçüm</span>
+        <h2>33 rotanın <em>performansı</em>, bütçesiyle</h2>
+        <p>33 rota, 3009 istek, 32 endpoint. Eşikler Web Vitals'tan geliyor: LCP ≤2500 ms iyi, >4000 ms zayıf; TTFB ≤800 ms. Bütçe aşımı tabloda renkli, mükerrer endpoint'ler ayrı sayılıyor.</p>
+        <span class="shot-note">Kapı oturumu ~24 saatte sessizce ölüyor ve dolunca tüm ölçüm yanlış çıkıyor — bir kez 33 rotalık sweep'i çöpe attırdı. Üst barda kalan süre sürekli görünür.</span>
+      </div>
+      <div class="shot-frame reveal">
+        <img src="/shots/panel-perf-dark.jpg" alt="Panel — 33 rotanın performans tablosu ve bütçe renkleri" width="2000" height="1250" loading="lazy" decoding="async">
+      </div>
+    </section>
+    <section class="shot-band" id="oneri">
+      <div class="shot-copy reveal">
+        <span class="shot-label">Öneri</span>
+        <h2>Senaryo önerir, <em>dayanaksızı</em> eler</h2>
+        <p>Model 17 paketi, 88 mevcut senaryoyu ve 40 dayanak kaynağını görür. Kural istemde değil KODDA: boş oracleRef süzülür, bağlam dışı suiteId reddedilir, son katmana kirli kayıt gelirse patlar.</p>
+        <span class="shot-note">Artık API anahtarı istemiyor: panel istemi kurar, Claude Code'a verirsin, dönen JSON aynı kapıdan geçer. Ölçüldü — 4 senaryoluk yapıştırmada 1 kabul, 3 elendi.</span>
+      </div>
+      <div class="shot-frame reveal">
+        <img src="/shots/panel-senaryo-dark.jpg" alt="Panel — senaryo öner: Claude Code istemi ve yapıştırma alanı" width="2000" height="1250" loading="lazy" decoding="async">
+      </div>
+    </section>
+    <section class="shot-band" id="kayit">
+      <div class="shot-copy reveal">
+        <span class="shot-label">Kayıt</span>
+        <h2>Gezinmeyi <em>test koduna</em> çevir</h2>
+        <p>Panel içindeki iframe'de gezinirsin; tıklama ve yazmalar sağ kolonda adım olarak birikir, tek tuşla Playwright spec'ine döner. Proxy x-frame-options'ı söküp geçici erişim cookie'sini enjekte eder.</p>
+        <span class="shot-note">Çıktı taslaktır: locator'lar ham gelir, POM'lara elle taşınır. Codegen'i bitirmenin yolu pencereyi kapatmak — süreci öldürmek kodu kaybediyor.</span>
+      </div>
+      <div class="shot-frame reveal">
+        <img src="/shots/panel-kayit-dark.jpg" alt="Panel — Site (canlı) sekmesinde iframe kaydedici" width="2000" height="1250" loading="lazy" decoding="async">
+      </div>
+    </section>
+    <section class="shot-band" id="kanit">
+      <div class="shot-copy reveal">
+        <span class="shot-label">Kanıt</span>
+        <h2>Kart aç, <em>kanıtı</em> ekle</h2>
+        <p>Jira sekmesindeki form şablonlu gelir: ortam, adımlar, gerçekleşen, beklenen, ölçüm. Kanıt galerisi <code>panel-data/evidence/</code> içindeki görselleri gösterir, seçtiklerin karta ek olarak yüklenir.</p>
+        <span class="shot-note">Verdict kaydı diske yazılır (<code>panel-data/verdicts/&lt;KART&gt;.json</code>) ve Jira yorumuna gönderilebilir.</span>
+      </div>
+      <div class="shot-frame reveal">
+        <img src="/shots/panel-kanit-dark.jpg" alt="Panel — Jira kart formu, kanıt galerisi ve kart listesi" width="2000" height="1250" loading="lazy" decoding="async">
+      </div>
+    </section>
+
+    <div class="showcase-end">
+      <h2>Ölçmediğin şeyi <em>iddia etme</em>.</h2>
+      <p>
+        Panel 4646'da, bu sayfa 4321'de, siteyi iframe'de gösteren proxy 4647'de —
+        üçü tek komutla kalkar: <code>npm run up</code>.
+      </p>
+      <div class="showcase-actions">
+        <a class="btn btn-solid btn-hero reveal" href="http://localhost:4646"
+           target="_blank" rel="noreferrer">Paneli aç</a>
+        <a class="btn btn-ghost btn-hero reveal" href="/onboarding">Başlangıç rehberi</a>
+      </div>
+    </div>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var appears = Array.prototype.slice.call(document.querySelectorAll(".appear"));
+  var photo = document.querySelector(".hero-photo");
+  var animated = photo ? appears.concat([photo]) : appears;
+
+  /* Each element lands on its OWN animationend — not one shared timer, which
+     would strand whatever was still mid-flight on a slow first paint. */
+  animated.forEach(function (el) {
+    el.addEventListener("animationend", function () {
+      el.classList.add("is-in");
+    }, { once: true });
+  });
+
+  /* Fallback: if after two frames nothing is actually animating (no
+     getAnimations support, animations blocked, or the engine dropped them),
+     land everything at once. `.appear` already rests visible; this also clears
+     the transforms so nothing sits shifted. */
+  function settle() {
+    animated.forEach(function (el) {
+      var running = false;
+      if (typeof el.getAnimations === "function") {
+        running = el.getAnimations().some(function (a) {
+          return a.playState === "running" || a.playState === "finished";
+        });
+      }
+      if (!running) el.classList.add("is-in");
+    });
+  }
+  requestAnimationFrame(function () { requestAnimationFrame(settle); });
+
+  /* ── Vitrin: kaydirmayla acilis ───────────────────────────────────────
+     `.reveal` CSS'te varsayilan gorunur; gizlemeyi ancak burada aciyoruz
+     (`html.js-reveal`). Boylece IntersectionObserver yoksa ya da bu script
+     hic kosmazsa vitrin bos degil, sadece animasyonsuz gelir. */
+  var reveals = Array.prototype.slice.call(document.querySelectorAll(".reveal"));
+  if (reveals.length && "IntersectionObserver" in window) {
+    document.documentElement.classList.add("js-reveal");
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("in");
+        io.unobserve(entry.target); /* tek yonlu: geri kaydirinca kaybolmasin */
+      });
+    }, { rootMargin: "0px 0px -12% 0px", threshold: 0.15 });
+    reveals.forEach(function (el) { io.observe(el); });
+
+    /* Ilk ekranda zaten gorunen bir sey varsa gozlemci ilk turda halleder;
+       yine de sayfa capayla (#kanit gibi) acilmissa hemen isaretle. */
+    requestAnimationFrame(function () {
+      reveals.forEach(function (el) {
+        var r = el.getBoundingClientRect();
+        if (r.top < window.innerHeight && r.bottom > 0) el.classList.add("in");
+      });
+    });
+  }
+
+  /* ── Menu ────────────────────────────────────────────────────────────── */
+  var burger = document.querySelector(".burger");
+  var nav = document.getElementById("site-nav");
+
+  function setMenu(open) {
+    document.body.classList.toggle("menu-open", open);
+    if (burger) {
+      burger.setAttribute("aria-expanded", open ? "true" : "false");
+      burger.setAttribute("aria-label", open ? "Close menu" : "Open menu");
+    }
+  }
+
+  if (burger) {
+    burger.addEventListener("click", function () {
+      setMenu(!document.body.classList.contains("menu-open"));
+    });
+  }
+
+  if (nav) {
+    nav.addEventListener("click", function (e) {
+      if (e.target && e.target.closest("a")) setMenu(false);
+    });
+  }
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") setMenu(false);
+  });
+
+  /* Rotating to landscape / widening past the phone breakpoint must not leave
+     an invisible open menu holding `overflow: hidden` on the body. */
+  var desktop = window.matchMedia("(min-width: 901px)");
+  function onBreakpoint(e) { if (e.matches) setMenu(false); }
+  if (desktop.addEventListener) desktop.addEventListener("change", onBreakpoint);
+  else if (desktop.addListener) desktop.addListener(onBreakpoint);
+})();
+</script>
+
+</body>
+</html>

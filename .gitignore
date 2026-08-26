@@ -33,3 +33,7 @@ panel-data/.panel-token
 # uretilen HTML raporlari (kaynak degil cikti)
 homee-*-raporu-*.html
 homee-test-report.html
+
+# landing (site/) — kaynak izlenir, kurulum ve build cikitisi izlenmez
+site/node_modules/
+site/dist/
