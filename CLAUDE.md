@@ -326,6 +326,22 @@ otomatik yazmak kartın altına çöp bırakır.
 panel yeniden başlatılmadan etkili olsun diye. Sabit nesne olduğu sürece düzenleme
 sessizce eski eşlemeyle koşum tetikliyordu.
 
+### Panel bildirimleri: `uiToast` / `uiConfirm`
+
+Tarayıcının `alert`/`confirm` kutuları panelin dilini konuşmuyordu ("localhost:4646
+web sitesinin mesajı" başlığı, temasız beyaz kutu, sayfayı kilitliyor). İkisi de
+kaldırıldı — **kodda tek `alert(` veya çıplak `confirm(` kalmadı** (13 + 8 çağrı):
+
+- `uiToast(mesaj, { type: 'info|ok|err', title, ms })` — sağ altta yığın.
+  **Hata toast'ı kendiliğinden kapanmaz** (`ms: 0`): kullanıcı okumadan kaybolması
+  alert'ten daha kötü olurdu. Bilgi/başarı 6 sn.
+- `uiConfirm(mesaj, { title, ok, cancel, danger })` → **`Promise<boolean>`**.
+  Escape ve dışa tıklama = vazgeç, Enter = onay.
+
+⚠️ `uiConfirm` **asenkron**: çağıran `await` etmeli. `if (!uiConfirm(...))` her zaman
+false döner (Promise truthy'dir) ve yıkıcı işlem **onay sormadan** çalışır. Yeni bir
+onay eklerken bu tuzağa dikkat.
+
 ### Perf geçmişi
 
 `panel-data/perf/` her sweep'te **üzerine yazılıyor** — "LCP düzeldi mi" sorusunun
@@ -370,6 +386,11 @@ trace: (process.env.PW_TRACE || "retain-on-failure"),
 - **Disk:** 5 testlik tek kayıtlı koşum **44 MB** bıraktı. `POST /api/artifacts/clear`
   (panelde `kayıtları sil`) klasörleri siler, `results.json`'a **dokunmaz** — o sonucun
   kendisi, silinse case defteri ve kart özetleri körleşir.
+
+`perf-sweep` koşumu whitelist'e eklendi (`node scripts/perf-sweep.mjs --scroll`).
+Perf sekmesindeki "Yeniden ölç" düğmesi bu id'yi çağırıyordu ama `panel/runs.json`'da
+**karşılığı yoktu** — düğme "Whitelist'te yok: perf-sweep" hatası veriyordu, yani panelden
+perf ölçümü hiç başlatılamıyordu (ölçüldü 2026-08-26).
 
 ⚠️ `ordersEnv()` sunucuda tanımlı ama **hiçbir yerde kullanılmıyor**: panelin "sipariş
 tamamlama" override'ı koşum sürecine geçmiyor. Kayıt işi sırasında farkedildi;

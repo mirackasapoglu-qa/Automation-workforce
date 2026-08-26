@@ -1344,6 +1344,74 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 const $ = (s) => document.querySelector(s);
 const PANEL_TOKEN = document.querySelector('meta[name=panel-token]')?.content || '';
 
+/**
+ * BILDIRIMLER — tarayicinin alert/confirm'i yerine panelin kendi dili.
+ *
+ * `alert` kutusu "localhost:4646 web sitesinin mesaji" basligiyla, tema
+ * dısında, sayfayi kilitleyerek cikiyordu. Iki yerine gecen:
+ *   uiToast(...)   → sag altta yigin, kendiliginden kapanir (hata mesajlari
+ *                    kapanmaz: kullanici okumadan kaybolmasin)
+ *   uiConfirm(...) → Promise<boolean> donen onay diyalogu; Escape = vazgec.
+ *
+ * ⚠️ uiConfirm ASENKRON. Cagiran fonksiyon `await` etmeli — `if (!uiConfirm(...))`
+ * her zaman false doner (Promise truthy'dir) ve yikici islem ONAY SORMADAN
+ * calisir. Cagri yerlerini degistirirken bu tuzaga dikkat.
+ */
+function uiToast(mesaj, opt = {}) {
+  const tip = opt.type || 'info';
+  let yigin = document.getElementById('uiToasts');
+  if (!yigin) {
+    yigin = document.createElement('div');
+    yigin.id = 'uiToasts';
+    document.body.appendChild(yigin);
+  }
+  const t = document.createElement('div');
+  t.className = 'ui-toast ' + (tip === 'err' ? 'err' : tip === 'ok' ? 'ok' : '');
+  t.setAttribute('role', tip === 'err' ? 'alert' : 'status');
+  const renk = tip === 'err' ? 'var(--no)' : tip === 'ok' ? 'var(--ok)' : 'var(--acc)';
+  const baslik = opt.title || (tip === 'err' ? 'Hata' : tip === 'ok' ? 'Tamam' : 'Bilgi');
+  t.innerHTML = `<div class="hd"><span class="dot" style="background:${renk}"></span>${esc(baslik)}
+      <button class="x" title="Kapat">×</button></div>
+    <div class="bd">${esc(mesaj)}</div>`;
+  t.querySelector('.x').onclick = () => t.remove();
+  yigin.appendChild(t);
+  // Hata mesaji KENDILIGINDEN KAPANMAZ: kullanici okumadan kaybolmasi,
+  // alert'ten daha kotu bir davranis olurdu.
+  const sure = opt.ms ?? (tip === 'err' ? 0 : 6000);
+  if (sure) setTimeout(() => t.remove(), sure);
+  return t;
+}
+
+/** @returns {Promise<boolean>} */
+function uiConfirm(mesaj, opt = {}) {
+  return new Promise((resolve) => {
+    document.getElementById('uiAsk')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'uiAsk';
+    ov.innerHTML = `<div class="box" role="dialog" aria-modal="true">
+        <h3>${esc(opt.title || 'Onay gerekiyor')}</h3>
+        <div class="msg">${esc(mesaj)}</div>
+        <div class="row3">
+          <button id="uiAskNo">${esc(opt.cancel || 'Vazgeç')}</button>
+          <button id="uiAskYes" class="${opt.danger === false ? '' : 'danger'}">${esc(opt.ok || 'Devam et')}</button>
+        </div>
+      </div>`;
+    const kapat = (cevap) => {
+      document.removeEventListener('keydown', tus);
+      ov.remove();
+      resolve(cevap);
+    };
+    const tus = (e) => { if (e.key === 'Escape') kapat(false); if (e.key === 'Enter') kapat(true); };
+    ov.querySelector('#uiAskNo').onclick = () => kapat(false);
+    ov.querySelector('#uiAskYes').onclick = () => kapat(true);
+    // Dis tiklama = vazgec (yikici islemde kazara onay riski yok).
+    ov.onclick = (e) => { if (e.target === ov) kapat(false); };
+    document.addEventListener('keydown', tus);
+    document.body.appendChild(ov);
+    ov.querySelector('#uiAskYes').focus();
+  });
+}
+
 /** Yazma istekleri: token zorunlu (CSRF ve yerel surec riskini kapatir). */
 async function post(url, body) {
   const res = await fetch(url, {
@@ -1663,7 +1731,7 @@ async function saveVerdict() {
   const body = { key: $('#vKey').value.trim(), scope: $('#vScope').value.trim(),
                  card: $('#vCard').value.trim().toUpperCase(),
                  status: $('#vStatus').value, note: $('#vNote').value };
-  if (!body.key) return alert('Kayit anahtari zorunlu');
+  if (!body.key) return uiToast('Kayıt anahtarı zorunlu.', { type: 'err' });
   await post('/api/verdicts', body);
   $('#vNote').value = '';
   loadVerdicts();
@@ -1868,7 +1936,7 @@ document.addEventListener('input', (e) => { if (e.target.closest('#cGrep') || e.
 
 async function runCustom() {
   const params = customParams();
-  if (!params.specs.length) return alert('En az bir spec sec');
+  if (!params.specs.length) return uiToast('En az bir spec seç.', { type: 'err' });
   document.querySelector('.tabs button[data-tab=log]').click();
   $('#log').textContent = '';
   const r = await post('/api/run', { id: 'custom', params });
@@ -2013,7 +2081,7 @@ async function runDiff(path) {
   const p = path ?? ($('#dPath').value.trim() || '/');
   $('#dPath').value = p;
   const m = await matchFigma(p);
-  if (!m || !m.node) return alert('Bu rota icin Figma frame eslesmesi yok');
+  if (!m || !m.node) return uiToast('Bu rota için Figma frame eşleşmesi yok.', { type: 'err' });
   document.querySelector('.tabs button[data-tab=diff]').click();
   $('#dLog').textContent = '';
   $('#dFrame').hidden = true;
@@ -2312,8 +2380,8 @@ async function loadArtifacts(cardKey) {
 
 /** Kayitlari siler. Onay sart: kanit siliyor ve geri donusu yok. */
 async function clearArtifacts() {
-  if (!confirm('test-results altindaki TUM kayit klasorleri (video, trace, ekran goruntusu) silinecek.\n'
-    + 'Sonuc dosyasi (results.json) kalir. Devam?')) return;
+  if (!await uiConfirm('test-results altındaki TÜM kayıt klasörleri (video, trace, ekran görüntüsü) silinecek.\n'
+    + 'Sonuç dosyası (results.json) kalır.', { title: 'Kayıtları sil', ok: 'Sil' })) return;
   const st = $('#cfArtState');
   st.className = 'mono';
   st.textContent = 'siliniyor…';
@@ -2521,8 +2589,9 @@ async function cardGenOneClick(key) {
   const nodeId = $('#jGenNode').value;
   const limit = Number($('#jGenLimit').value);
   const yol = $('#jGenNode').selectedOptions[0].textContent;
-  if (!confirm(`${key} kartindan test case uretilecek.\n\nHedef: ${yol}\nEn fazla ${limit} case\n\n`
-    + 'Panel makinedeki Claude Code CLI\'sini cagirir (~15-30 sn, ucretli). Devam?')) return;
+  if (!await uiConfirm(`${key} kartından test case üretilecek.\n\nHedef: ${yol}\nEn fazla ${limit} case\n\n`
+    + 'Panel makinedeki Claude Code CLI\'sini çağırır (~15-30 sn, ücretli).',
+    { title: 'Test case üret', ok: 'Üret', danger: false })) return;
   const st = $('#jGenState');
   st.className = 'mono';
   st.textContent = 'Claude Code calisiyor…';
@@ -2570,10 +2639,11 @@ async function cardGenPrompt(key) {
 
 async function sendComment(key) {
   const text = $('#jComment').value.trim();
-  if (!text) return alert('Yorum boş');
-  if (!confirm(`${key} kartına yorum yazılacak. Onaylıyor musun?`)) return;
+  if (!text) return uiToast('Yorum boş.', { type: 'err' });
+  if (!await uiConfirm(`${key} kartına yorum yazılacak. Yorum geri alınamaz.`,
+    { title: 'Jira yorumu gönder', ok: 'Gönder' })) return;
   const r = await post('/api/jira/comment', { key, text });
-  alert(r.ok ? 'Yorum yazıldı' : 'Hata: ' + (r.error||'?'));
+  uiToast(r.ok ? `${key} kartına yorum yazıldı.` : (r.error || 'Yorum yazılamadı.'), { type: r.ok ? 'ok' : 'err' });
   if (r.ok) openCard(key);
 }
 
@@ -2581,9 +2651,10 @@ async function doTransition(key) {
   const id = $('#jTrans').value;
   if (!id) { $('#jDraftState').className = 'mono err'; $('#jDraftState').textContent = 'önce bir statü seç'; return; }
   const label = $('#jTrans').selectedOptions[0].textContent;
-  if (!confirm(`${key} kartı "${label}" yapılacak. Onaylıyor musun?`)) return;
+  if (!await uiConfirm(`${key} kartı "${label}" yapılacak.`,
+    { title: 'Statü değiştir', ok: 'Değiştir' })) return;
   const r = await post('/api/jira/transition', { key, transitionId: id });
-  alert(r.ok ? 'Statü değişti' : 'Hata: ' + (r.error||'?'));
+  uiToast(r.ok ? `${key} statüsü değişti.` : (r.error || 'Statü değiştirilemedi.'), { type: r.ok ? 'ok' : 'err' });
   if (r.ok) { openCard(key); loadCards(); }
 }
 
@@ -2742,10 +2813,9 @@ addEventListener('message', (e) => {
 async function generateSpec() {
   if (!REC_STEPS.length) return;
   // Uretim aninda uyar: iddiasiz dosya case olarak EKLENEMEZ (kapi sunucuda).
-  if (!assertCount() && !confirm(
-      'Bu kayitta 0 iddia var.\n\nIddiasiz bir dosya script olur, test olmaz: locator ' +
-      'kirilmadikca her zaman gecer. Case olarak EKLENEMEZ, yalnizca taslak kalir.\n\n' +
-      'Yine de uretilsin mi?')) return;
+  if (!assertCount() && !await uiConfirm(
+    'Kaydedilen adımlarda hiç iddia (assertion) yok. Üretilen spec sadece gezinir, hiçbir şeyi doğrulamaz.',
+    { title: 'İddiasız spec', ok: 'Yine de üret' })) return;
   const title = prompt('Spec basligi:', 'kaydedilen akis');
   if (title === null) return;
   const btn = $('#recGen');
@@ -2756,8 +2826,8 @@ async function generateSpec() {
       route: REC_STEPS[0]?.value || '/',
       state: $('#recState')?.value || 'guest',
     });
-    if (d.error) { alert('Uretilemedi: ' + d.error); return; }
-    alert(`${d.file} yazildi (${d.lines} satir).\n\nSite sekmesindeki Kaydet blogundan "gor" ile okuyabilirsin.`);
+    if (d.error) { uiToast(d.error, { type: 'err', title: 'Üretilemedi' }); return; }
+    uiToast(`${d.file} yazıldı (${d.lines} satır). Site sekmesindeki Kaydet bloğundan "gör" ile okuyabilirsin.`, { type: 'ok' });
     loadRecordings();
   } finally { btn.disabled = false; }
 }
@@ -2792,7 +2862,8 @@ async function toggleRecord() {
   btn.disabled = true;
   try {
     if (RECORDING_ON) {
-      if (!confirm('Kaydi IPTAL et? Kod kaydedilmez.\n\nKaydi bitirmek istiyorsan bunun yerine tarayici penceresini kapat.')) return;
+      if (!await uiConfirm('Kod kaydedilmez.\n\nKaydı bitirmek istiyorsan bunun yerine tarayıcı penceresini kapat.',
+        { title: 'Kaydı iptal et', ok: 'İptal et' })) return;
       await post('/api/record/cancel', {});
     } else {
       const body = { route: $('#recRoute').value.trim() || '/', state: $('#recState').value, device: $('#recDevice').value };
@@ -2888,7 +2959,8 @@ async function createBugCard() {
   const description = $('#bugDesc').value;
   const assigneeAccountId = $('#bugAssignee').value || null;
   const evidence = [...EV_SELECTED];
-  if (!confirm(`Jira'da yeni kart açılacak:\n\n${summary}\n\n${evidence.length} kanıt eklenecek. Devam?`)) return;
+  if (!await uiConfirm(`${summary}\n\n${evidence.length} kanıt eklenecek.\n\nBu projede kart SİLME izni yok — yanlışlıkla açılan kart kaldırılamıyor.`,
+    { title: "Jira'da yeni kart aç", ok: 'Kartı aç' })) return;
   $('#bugBtn').disabled = true;
   $('#bugState').textContent = 'kart açılıyor…';
   try {
@@ -3112,16 +3184,17 @@ function perfClass(v, b) { return v == null ? '' : v >= b.bad ? 'no' : v >= b.wa
  */
 async function runPerfSweep() {
   const b = $('#perfRunBtn');
-  if (!confirm('33 rota bastan olculecek (~6-8 dk). Bu sirada baska kosum baslatilamaz. Devam?')) return;
+  if (!await uiConfirm('33 rota baştan ölçülecek (~6-8 dk). Bu sırada başka koşum başlatılamaz.\n\n'
+    + 'Kapı oturumunu kullanır, veri değiştirmez.', { title: 'Perf sweep', ok: 'Ölç', danger: false })) return;
   b.disabled = true;
   const eski = b.textContent;
   b.textContent = 'olculuyor...';
   try {
     const r = await post('/api/run', { id: 'perf-sweep', headless: true });
-    if (!r.ok) { alert(r.error || 'Baslatilamadi'); b.disabled = false; b.textContent = eski; return; }
+    if (!r.ok) { uiToast(r.error || 'Başlatılamadı.', { type: 'err' }); b.disabled = false; b.textContent = eski; return; }
     document.querySelector('.tabs button[data-tab=log]').click();
   } catch (e) {
-    alert('Panel sunucusuna ulasilamadi: ' + e.message);
+    uiToast('Panel sunucusuna ulaşılamadı: ' + e.message, { type: 'err' });
     b.disabled = false; b.textContent = eski;
   }
 }
@@ -3137,6 +3210,19 @@ async function loadPerfHistory() {
   t.innerHTML = '<tr><td class="mono">yükleniyor…</td></tr>';
   try {
     const d = await (await fetch('/api/perf/history')).json();
+    /*
+     * Uc YOKSA (eski sunucu sureci) `rows` undefined gelir ve tablo "kayit yok"
+     * derdi — kullanici ozelligin bozuk oldugunu sanardi. Bayat surec ayri bir
+     * mesaj ve serit tetikleyicisi hak ediyor.
+     */
+    if (!d.ok && typeof d.error === 'string' && d.error.startsWith('Bilinmeyen uc')) {
+      $('#phSub').textContent = 'panel sunucusu eski';
+      t.innerHTML = '<tr><td class="mono err">Bu özellik yeni: panel sunucusu eski olduğu için uç yok. '
+        + 'Terminalde Ctrl-C, sonra <code>npm run up</code>.</td></tr>';
+      $('#phDiff').innerHTML = '';
+      checkPanelVersion();
+      return;
+    }
     const rows = d.rows || [];
     $('#phSub').textContent = rows.length
       ? `${rows.length} ölçüm · en yeni ${(rows[0].measuredAt || '').slice(0, 16).replace('T', ' ')}`
@@ -3459,7 +3545,7 @@ async function refreshGate() {
   const before = el.textContent;
   el.textContent = 'yenileniyor…';
   const d = await post('/api/run', { id: 'gate-refresh' });
-  if (d.error) { el.textContent = before; alert('Kapi yenilenemedi: ' + d.error); return; }
+  if (d.error) { el.textContent = before; uiToast(d.error, { type: 'err', title: 'Kapı yenilenemedi' }); return; }
   // Kosum bitince run-end olayi geliyor; orada tekrar okunuyor.
 }
 
@@ -3540,8 +3626,8 @@ async function runDraft(name) {
 /** Taslagi tests/NN-*.spec.ts'e yukseltir. Kapi sunucuda; buradaki disabled sadece kolaylik. */
 async function promoteDraft(name) {
   const r = await post('/api/record/promote', { name });
-  if (!r.ok) { alert(r.error || 'Eklenemedi'); return; }
-  alert(`tests/${r.file} olarak eklendi (${r.asserts} iddia).\n\nLocator'lar ham — POM'a tasinmali.`);
+  if (!r.ok) { uiToast(r.error || 'Eklenemedi.', { type: 'err' }); return; }
+  uiToast(`tests/${r.file} olarak eklendi (${r.asserts} iddia). Locator'lar ham — POM'a taşınmalı.`, { type: 'ok' });
   loadCases();
 }
 
@@ -4085,6 +4171,29 @@ html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4
 </script>
 <style id="nc-toast-css">
 @keyframes ncToastIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none}}
+/* ---- Bildirim yigini + onay diyalogu ----
+   Tarayicinin alert/confirm kutulari panelin dilini konusmuyordu (beyaz kutu,
+   "localhost:4646 web sitesinin mesaji" basligi, tema yok). Ayni gorsel dille
+   yeniden yazildi: toast'lar sag altta yigin, onay diyalogu ortada. */
+#uiToasts{position:fixed;right:22px;bottom:22px;z-index:9998;display:flex;flex-direction:column;gap:10px;
+  max-width:360px;pointer-events:none}
+.ui-toast{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--sh);padding:12px 14px;font-size:13px;animation:ncPopIn .22s ease}
+.ui-toast .hd{display:flex;align-items:center;gap:9px;font-weight:600;font-size:13.5px}
+.ui-toast .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.ui-toast .x{margin-left:auto;background:none;border:0;color:var(--mut);cursor:pointer;font-size:15px;
+  width:auto;padding:0 2px}
+.ui-toast .bd{color:var(--mut);margin-top:7px;line-height:1.5;white-space:pre-line;word-break:break-word}
+.ui-toast.err{border-color:color-mix(in srgb,var(--no) 45%,var(--line))}
+.ui-toast.ok{border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
+#uiAsk{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(0,0,0,.55);
+  backdrop-filter:blur(3px);animation:ncPopIn .18s ease}
+#uiAsk .box{width:min(520px,calc(100vw - 40px));background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:var(--sh);padding:18px 20px}
+#uiAsk h3{margin:0 0 8px;font-size:15px;letter-spacing:-.01em}
+#uiAsk .msg{color:var(--mut);font-size:13px;line-height:1.55;white-space:pre-line;margin-bottom:16px}
+#uiAsk .row3{display:flex;gap:8px;justify-content:flex-end}
+#uiAsk button{width:auto;margin:0}
 #ncToast{position:fixed;right:22px;bottom:22px;width:340px;background:var(--card);border:1px solid var(--line);
   border-radius:var(--r);box-shadow:var(--sh);padding:16px;z-index:80;animation:ncToastIn .35s cubic-bezier(.2,.7,.2,1) both;
   font-size:12.5px;color:var(--fg)}
