@@ -283,10 +283,25 @@ Kart detayı (`/api/jira/card/<KEY>`) dört şeyi tek ekrana getiriyor: kartın 
 
 | Ne | Uç | Not |
 |---|---|---|
-| Kart → test case üretimi | `POST /api/jira/testcases/prompt` | Kartın özeti + açıklaması + son 5 yorumu + hedef düğümün bağlamı tek isteme girer; yazma yine `/api/scope/testcases/apply` (tek yazma yolu). Üretilen case'e `jiraKey` işlenir. |
+| Kart → test case üretimi (**tek tık**) | `POST /api/jira/testcases/generate` | Kartın özeti + açıklaması + son 5 yorumu + hedef düğümün bağlamı tek isteme girer; yazma yine `/api/scope/testcases/apply` (tek yazma yolu). Üretilen case'e `jiraKey` işlenir. |
 | Koşum sonucu → yorum taslağı | `GET /api/jira/comment-draft?key=` | Satırlar **kartın spec'lerine göre süzülür**; süzgeç boşsa "bu kartın spec'lerinden test yok" uyarısı basar. |
 | Verdict → yorum taslağı | `GET /api/jira/verdict-draft?verdict=` | Verdict kaydına `card` alanı eklendi; Verdict tablosundaki kart düğmesi Jira sekmesine geçip taslağı doldurur. |
 | Kart ↔ spec eşleme editörü | `GET/POST /api/jira/map` | Profil kaynak; panelden yapılan düzenleme `panel-data/card-specs.json`'a düşer ve profille **birleşir**. `snippet()` profile yapıştırılacak metni üretir. |
+
+**Tek tık üretim nasıl çalışıyor:** panel istemi kurar ve **makinede kurulu Claude
+Code CLI'sini** çağırır (`claude -p --output-format json --allowedTools ""`,
+`panel/claude-cli.mjs`) — API anahtarı gerekmez, CLI kullanıcının oturumuyla
+kimliklidir. Araçlar KAPALI (modelin repoda dolaşmasına gerek yok, yan etki riski
+var) ve cwd geçici dizin: repo kökünde çağrılınca CLI proje CLAUDE.md'sini yükleyip
+her isteğe ~11k token ekliyor. Ölçüm: 3 case ≈ 24–27 sn, ≈ $0.13–0.16.
+
+Kopyala-yapıştır ucu (`/prompt` + `/apply`) **kaldırılmadı**: CLI yoksa (501 + kurulum
+ipucu), kimlik düşmüşse ya da çağrı zaman aşımına uğrarsa geri dönülecek yol kalmalı.
+
+⚠️ Model **aralıklı olarak bozuk JSON** üretiyor (metin içinde kaçışlı çift tırnak;
+aynı istem bir kere geçerli bir kere bozuk çıktı). İki katman: istemde "metin içinde
+çift tırnak kullanma" kuralı + ayrıştırma patlarsa **bir kez düzeltici tekrar**
+(`<olay>-retry` olarak denetim kaydına düşer).
 
 **⚠️ Taslak üretimi göndermeden AYRI.** Hiçbiri Jira'ya yazmaz; metin `#jComment`e
 dolar, gönderme tek yerden (`POST /api/jira/comment`) ve onayla olur. Gerekçe: yorum

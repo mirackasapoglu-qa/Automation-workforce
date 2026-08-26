@@ -2248,11 +2248,46 @@ async function openCardGen(key) {
             <option>3</option><option selected>4</option><option>6</option><option>8</option>
           </select>
         </label>
-        <button style="width:auto" onclick="cardGenPrompt('${key}')">Istem uret</button>
+        <button style="width:auto" onclick="cardGenOneClick('${key}')"
+                title="Panel, makinedeki Claude Code CLI'sini cagirir ve case'leri dogrudan agaca yazar (~15-30 sn)">Tek tikla uret</button>
+        <button style="width:auto" onclick="cardGenPrompt('${key}')"
+                title="CLI yoksa ya da kontrol etmek istersen: istemi kopyalayip Claude Code'a kendin verirsin">Istem uret</button>
         <span class="mono" id="jGenState"></span>
       </div>
       <div id="jGenFlow"></div>
     </div>`;
+}
+
+/**
+ * TEK TIK URETIM. Panel istemi kurar, Claude Code CLI'sini cagirir, donen
+ * JSON'u agaca yazar. Onay diyalogu var: cagri ucretli ve 15-30 sn suruyor.
+ * CLI yoksa (501) kullaniciyi kopyala-yapistir yoluna yonlendiriyoruz —
+ * ozelligin tek yolu CLI olsaydi CLI'siz makinede tamamen kapali olurdu.
+ */
+async function cardGenOneClick(key) {
+  const nodeId = $('#jGenNode').value;
+  const limit = Number($('#jGenLimit').value);
+  const yol = $('#jGenNode').selectedOptions[0].textContent;
+  if (!confirm(`${key} kartindan test case uretilecek.\n\nHedef: ${yol}\nEn fazla ${limit} case\n\n`
+    + 'Panel makinedeki Claude Code CLI\'sini cagirir (~15-30 sn, ucretli). Devam?')) return;
+  const st = $('#jGenState');
+  st.className = 'mono';
+  st.textContent = 'Claude Code calisiyor…';
+  $('#jGenFlow').innerHTML = '';
+  const d = await post('/api/jira/testcases/generate', { key, nodeId, limit,
+    types: ['happy', 'negative', 'regression', 'ui'] });
+  if (!d.ok) {
+    st.className = 'mono err';
+    st.textContent = d.error || 'uretilemedi';
+    $('#jGenFlow').innerHTML = d.hint ? `<p class="sg-hint">${esc(d.hint)}</p>` : '';
+    return;
+  }
+  const atlanan = (d.sonuc ?? []).reduce((a, x) => a + (x.skipped || 0), 0);
+  st.textContent = `${d.written} case yazildi${atlanan ? `, ${atlanan} tekrar atlandi` : ''}`
+    + ` · ${(d.ms / 1000).toFixed(1)} sn${d.cost != null ? ` · $${d.cost.toFixed(3)}` : ''}`;
+  $('#jGenFlow').innerHTML = `<p class="sg-hint">Case'ler <b>taslak</b> olarak ${esc(yol)} altina yazildi
+    (kart: ${esc(key)}). Kosum kaydi yok — kosulmadan "gecti" secilemez.
+    Kapsam agacinda gormek icin ust bardaki <b>Kapsam</b> dugmesi.</p>`;
 }
 
 async function cardGenPrompt(key) {

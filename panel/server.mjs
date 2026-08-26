@@ -72,6 +72,7 @@ import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
 import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
 import { runCommentDraft, verdictCommentDraft } from "./jira-report.mjs";
+import { askClaude, parseJsonLoose, CLI_HINT } from "./claude-cli.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
@@ -1172,6 +1173,97 @@ const server = http.createServer(async (req, res) => {
         audit({ event: "jira-testcase-prompt-error", key, message: e.message.slice(0, 200) });
         return send(res, 400, { ok: false, error: e.message });
       }
+    }
+
+    /**
+     * TEK TIK TEST CASE URETIMI.
+     *
+     * Panel istemi kurar, makinede kurulu Claude Code CLI'sini cagirir, donen
+     * JSON'u ayni yazma yolundan (applyFromModel) agaca yazar. Anahtar
+     * gerekmez: CLI kullanicinin oturumuyla kimlikli.
+     *
+     * Kopyala-yapistir ucu (`/prompt` + `/apply`) KALDIRILMADI: CLI yoksa,
+     * kimlik dusmusse ya da cagri zaman asimina ugrarsa geri donulecek bir yol
+     * kalmasi gerekiyor — tek yolu CLI'ye baglamak, CLI'siz bir makinede
+     * ozelligi tamamen kapatirdi.
+     */
+    const uretVeYaz = async ({ prompt, card, res: response, olay }) => {
+      const t0 = Date.now();
+      try {
+        let cevap = await askClaude(prompt);
+        let json;
+        try {
+          json = parseJsonLoose(cevap.text);
+        } catch (parseErr) {
+          /*
+           * Bozuk JSON ARALIKLI bir sorun: ayni istem bir kere gecerli, bir
+           * kere kacisli tirnak yuzunden bozuk yanit uretti (olculdu). Tek
+           * seferlik duzeltici tekrar, kullaniciyi "tekrar dene" demeye
+           * zorlamaktan iyi; ikinci kez de bozuksa hatayi soyluyoruz.
+           */
+          audit({ event: `${olay}-retry`, reason: parseErr.message.slice(0, 120) });
+          cevap = await askClaude(
+            `${prompt}\n\n---\nUYARI: onceki yanit GECERLI JSON DEGILDI (${parseErr.message.slice(0, 120)}). `
+              + "Yalnizca gecerli, tek parca JSON dondur; metin icinde cift tirnak kullanma.",
+          );
+          json = parseJsonLoose(cevap.text);
+        }
+        const out = applyFromModel({ items: json.items, card });
+        audit({
+          event: olay,
+          card: card ?? null,
+          written: out.written,
+          costUsd: cevap.costUsd,
+          ms: cevap.durationMs,
+        });
+        return send(response, 200, {
+          ok: true,
+          ...out,
+          cost: cevap.costUsd,
+          ms: cevap.durationMs,
+          model: cevap.model,
+        });
+      } catch (e) {
+        audit({ event: `${olay}-error`, code: e.code ?? null, message: e.message.slice(0, 200), ms: Date.now() - t0 });
+        return send(response, e.code === "NO_CLI" ? 501 : 502, {
+          ok: false,
+          error: e.message,
+          code: e.code ?? null,
+          hint: e.code === "NO_CLI" ? CLI_HINT : "Istem uret yolu ile kopyala-yapistir yapabilirsin.",
+        });
+      }
+    };
+
+    if (p === "/api/jira/testcases/generate" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { key, nodeId, types, limit } = await readBody(req);
+      if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
+      let prompt;
+      try {
+        const card = await getCard(String(key));
+        if (card.error) return send(res, 502, { ok: false, error: card.error });
+        prompt = buildCardPrompt({
+          card,
+          nodeId,
+          types,
+          limit: Math.min(Math.max(Number(limit) || 4, 1), 12),
+        }).prompt;
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+      return uretVeYaz({ prompt, card: String(key), res, olay: "jira-testcase-generate" });
+    }
+
+    if (p === "/api/scope/testcases/generate" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { nodeIds, types, limit } = await readBody(req);
+      let prompt;
+      try {
+        prompt = buildPrompt({ nodeIds, types, limit: Math.min(Math.max(Number(limit) || 4, 1), 12) }).prompt;
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+      return uretVeYaz({ prompt, card: null, res, olay: "scope-testcase-generate" });
     }
 
     /**

@@ -211,7 +211,10 @@ export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4 
     "",
     "Aşağıda bir veya daha fazla düğüm var. HER BİRİ için ayrı test case'ler yaz.",
     "",
-    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme.",
+    // Olculdu: model metin icinde \" kacisli tirnak kullandiginda yanit bazen
+    // bozuk JSON cikiyor. Tirnagi yasaklamak bu hatanin kaynagini kurutuyor.
+    "Metin alanlarının İÇİNDE çift tırnak KULLANMA (gerekiyorsa tek tırnak ya da tırnaksız yaz).",
     '{"items":[{"nodeId":"<düğüm id>","cases":[{"title":"...","type":"happy|negative|...","steps":[{"action":"...","expected":"..."}]}]}]}',
     "",
     "---",
@@ -267,7 +270,10 @@ export function buildCardPrompt({ card, nodeId, types = ["happy", "negative"], l
     "Aşağıdaki Jira kartını doğrulayan test case'leri yaz. Kartın kapsamı dışına ÇIKMA:",
     "kartla ilgisi olmayan genel sayfa testleri üretme.",
     "",
-    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme.",
+    // Olculdu: model metin icinde \" kacisli tirnak kullandiginda yanit bazen
+    // bozuk JSON cikiyor. Tirnagi yasaklamak bu hatanin kaynagini kurutuyor.
+    "Metin alanlarının İÇİNDE çift tırnak KULLANMA (gerekiyorsa tek tırnak ya da tırnaksız yaz).",
     `{"items":[{"nodeId":"${nodeId}","cases":[{"title":"...","type":"happy|negative|...",`
       + `"steps":[{"action":"...","expected":"..."}]}]}]}`,
     "",
