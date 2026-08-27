@@ -1,7 +1,41 @@
+# Build bağlamına GİRMEYECEKLER.
+#
+# ⚠️ EN ÖNEMLİ KISIM SIRLAR: Dockerfile `COPY . .` yapıyor ve `.dockerignore`
+# gitignore'dan BAĞIMSIZ çalışır — burada yazılmayan her şey, git'te izlenmiyor
+# olsa bile image'a girer. Bu dosyanın ilk hâlinde yalnızca node_modules/dist
+# vardı; yani `.env`, canlı kapı/üye oturumu cookie'leri (playwright/.auth) ve
+# müşteri kanıt görselleri (panel-data/evidence — içlerinden birinde e-posta ve
+# telefon numarası çıkmıştı) deploy edilen image'ın içine gömülüyordu.
+
+# ---- sırlar ve oturumlar (image'a asla girmez)
+.env
+.env.*
+!.env.example
+panel-data/
+playwright/.auth/
+*.pem
+*.key
+
+# ---- koşum çıktıları ve kanıtlar (PII içerebilir: e-posta, telefon, sipariş)
+test-results/
+playwright-report/
+docs/scope-tree.json
+*.webm
+.recon-*
+.probe-*
+
+# ---- kurulum ve build çıktıları (image içinde yeniden üretiliyor)
 node_modules
 site/node_modules
 dist
 site/dist
+
+# ---- geliştirme artıkları
 .git
 .github
+.gitignore
+.claude
 *.log
+.DS_Store
+.vscode
+.idea

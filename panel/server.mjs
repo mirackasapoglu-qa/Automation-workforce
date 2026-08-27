@@ -2484,7 +2484,14 @@ ${testBlock}
     if (p === "/api/verdicts") {
       if (req.method === "POST") {
         if (!requireAuth(req, res)) return;
-        return send(res, 200, saveVerdict(await readBody(req)));
+        try {
+          return send(res, 200, saveVerdict(await readBody(req)));
+        } catch (e) {
+          /* Gecersiz govde ISTEMCI hatasi: `saveVerdict` "key zorunlu" diye
+             atiyordu ve uc 500 donuyordu — sunucu coktu izlenimi veriyor,
+             cagiran da sebebi gormuyordu (olculdu 2026-08-27). */
+          return send(res, 400, { ok: false, error: e.message });
+        }
       }
       return send(res, 200, allVerdicts());
     }
