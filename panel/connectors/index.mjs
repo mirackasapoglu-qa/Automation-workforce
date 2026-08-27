@@ -71,10 +71,17 @@ const writeJson = (f, v) => {
 
 async function cached(key, ttlMs, fn) {
   const c = readJson(CACHE_FILE, {});
-  const hit = c[key];
+  /*
+   * ⚠️ ANAHTAR PROFILI ICERIR. Onbellek dosyasi makine genelinde tek; iki
+   * profil (ornek: homee ve mto) ayni anda kosunca `jira` anahtari birbirini
+   * eziyordu ve MAC panelinin "Baglantilar" listesi MTO'nun sonucunu
+   * gosteriyordu (olculdu 2026-08-27: 4646 paneli "Mirac · MTO" diyordu).
+   */
+  const ck = `${PROJECT.id}:${key}`;
+  const hit = c[ck];
   if (hit && Date.now() - hit.at < ttlMs) return { ...hit.value, cachedAgeSec: Math.round((Date.now() - hit.at) / 1000) };
   const value = await fn();
-  c[key] = { at: Date.now(), value };
+  c[ck] = { at: Date.now(), value };
   writeJson(CACHE_FILE, c);
   return { ...value, cachedAgeSec: 0 };
 }
