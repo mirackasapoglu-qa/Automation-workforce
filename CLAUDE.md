@@ -869,6 +869,8 @@ düzeltiyor çünkü hepsi aynı `buildNameInput()`'u kullanıyor.
 | `homee-jira-guard` | Jira/tracker'a dokunan her değişiklik — kimlik sızması, ADF, taslak↔gönderim ayrımı |
 | `homee-pm-analyst` | kapsam ağacından `docs/feature-inventory.md` + `docs/product-brief.md` üretir |
 | `homee-site-crawler` | siteyi kapı oturumuyla gezip kapsam ağacına düğüm ekler — **yıkıcı butona basmaz** |
+| `homee-product-owner` | ölçümden **iş üretir**: kart/epic taslağı, ölçülebilir kabul kriteri, gerekçeli öncelik (Jira'ya yazmaz) |
+| `homee-delivery-lead` | açık kartları **yürütür**: kuyruk, ön koşul kontrolü, kök nedene göre kümeleme, verdict + taslak, tur raporu |
 
 Altı yeni agent Murat'ın Flowscope deposundan (`muratkocacik-machinarium/Flowscope`)
 **fikir olarak** alındı; dosyaları kopyalanmadı — oradaki agent'lar `localhost:8934`
