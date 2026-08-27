@@ -23,9 +23,9 @@
     "test:favori": "playwright test tests/23-favorites.spec.ts --project=chromium --headed",
     "test:siparis": "playwright test tests/24-orders.spec.ts --project=chromium --headed",
     "test:odeme": "playwright test tests/25-checkout-to-payment.spec.ts --project=chromium --headed",
-    "panel": "node panel/server.mjs",
+    "panel": "PANEL_PROJECT=${PANEL_PROJECT:-homee} node panel/server.mjs",
     "panel:check": "node scripts/panel-portability-check.mjs",
-    "up": "node scripts/up.mjs",
+    "up": "PANEL_PROJECT=${PANEL_PROJECT:-homee} node scripts/up.mjs",
     "report:create": "node scripts/create-test-report.cjs",
     "show-report": "playwright show-report",
     "format": "prettier --write .",
@@ -33,7 +33,8 @@
     "test:havale": "playwright test tests/26-order-transfer.spec.ts --project=chromium --headed",
     "test:gate": "node --test panel/scenario-suggest.test.mjs",
     "history:merge": "node scripts/merge-case-history.mjs",
-    "figma:diff": "node scripts/figma-offline-diff.mjs"
+    "figma:diff": "node scripts/figma-offline-diff.mjs",
+    "panel:mto": "PANEL_PROJECT=mto PANEL_PORT=4656 node panel/server.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
