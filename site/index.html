@@ -80,6 +80,81 @@ body {
 a { color: inherit; text-decoration: none; }
 button { font-family: inherit; }
 
+/* ── Kaydırma ilerleme çubuğu ───────────────────────────────────────────── */
+.scrollbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  background: rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+.scrollbar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #ffffff, #8a8a8a);
+  transform-origin: left;
+}
+
+/* ── Bölüm noktaları (sağda sabit, sadece vitrindeyken görünür) ──────────── */
+.dotnav {
+  position: fixed;
+  top: 50%;
+  right: 26px;
+  transform: translateY(-50%);
+  z-index: 55;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.4s ease;
+}
+.dotnav.is-visible { opacity: 1; visibility: visible; }
+.dotnav a {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dotnav a span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.28);
+  transition: background 0.35s ease, transform 0.35s ease;
+}
+.dotnav a:hover span { background: rgba(255, 255, 255, 0.7); }
+.dotnav a.is-active span {
+  background: #ffffff;
+  transform: scale(1.35);
+}
+.dotnav a::before {
+  content: attr(aria-label);
+  position: absolute;
+  right: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 9px;
+  border-radius: 5px;
+  background: rgba(20, 20, 20, 0.92);
+  border: 1px solid var(--border-soft);
+  font-size: 11.5px;
+  color: #e8e8e8;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.dotnav a:hover::before { opacity: 1; }
+@media (max-width: 1100px) {
+  .dotnav { display: none; }
+}
+
 /* ── Layer 4: grain, above everything, inert ────────────────────────────── */
 .grain {
   position: fixed;
@@ -504,7 +579,9 @@ button { font-family: inherit; }
   display: block;
   width: 100%;
   height: auto;
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
 }
+.shot-frame:hover img { transform: scale(1.018); }
 
 /* ── Tasarim / canli karsilastirmasi ────────────────────────────────────────
    Tek kolonlu bant: surgu ise yarayacak kadar genislik gerekiyor, iki kolona
@@ -754,6 +831,17 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
 <body style="background:#000;color:#fff">
 
 <div class="grain" aria-hidden="true"></div>
+
+<div class="scrollbar" aria-hidden="true"><div class="scrollbar-fill" id="scrollFill"></div></div>
+
+<nav class="dotnav" id="dotnav" aria-label="Bölümler">
+  <a href="#kosum" data-id="kosum" aria-label="Koşum"><span></span></a>
+  <a href="#olcum" data-id="olcum" aria-label="Ölçüm"><span></span></a>
+  <a href="#oneri" data-id="oneri" aria-label="Öneri"><span></span></a>
+  <a href="#kayit" data-id="kayit" aria-label="Kayıt"><span></span></a>
+  <a href="#kanit" data-id="kanit" aria-label="Kanıt"><span></span></a>
+  <a href="#diff" data-id="diff" aria-label="Tasarım"><span></span></a>
+</nav>
 
 <div class="hero-photo" aria-hidden="true">
   <video autoplay muted loop playsinline preload="auto"
@@ -1020,6 +1108,62 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
   /* Menu kodu KALDIRILDI: nav, burger ve backdrop landing'den cikti (bkz.
      header). Nav yokken burger'i tutmak bos bir overlay acan olu dugme
      birakirdi; JS'te de karsiligi kalmamali. */
+
+  /* ── Kaydırma ilerleme çubuğu ─────────────────────────────────────────── */
+  var scrollFill = document.getElementById("scrollFill");
+  function updateScrollbar() {
+    if (!scrollFill) return;
+    var doc = document.documentElement;
+    var max = doc.scrollHeight - doc.clientHeight;
+    var pct = max > 0 ? (doc.scrollTop / max) * 100 : 0;
+    scrollFill.style.width = pct + "%";
+  }
+  window.addEventListener("scroll", updateScrollbar, { passive: true });
+  window.addEventListener("resize", updateScrollbar);
+  updateScrollbar();
+
+  /* ── Bölüm noktaları: görünürlük + aktif durum ────────────────────────
+     `.shot-band`'lerin zaten `id`si var (kosum/olcum/oneri/kayit/kanit/diff);
+     nav onlari kullaniyor, tekrar veri tanimlamiyor. */
+  var dotnav = document.getElementById("dotnav");
+  var dotLinks = dotnav ? Array.prototype.slice.call(dotnav.querySelectorAll("a")) : [];
+  var navSections = dotLinks
+    .map(function (a) { return document.getElementById(a.dataset.id); })
+    .filter(Boolean);
+
+  if (dotnav && navSections.length && "IntersectionObserver" in window) {
+    var setActive = function (id) {
+      dotLinks.forEach(function (a) {
+        a.classList.toggle("is-active", a.dataset.id === id);
+      });
+    };
+    var navIo = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) setActive(entry.target.id);
+        });
+      },
+      { rootMargin: "-45% 0px -45% 0px", threshold: 0 },
+    );
+    navSections.forEach(function (el) { navIo.observe(el); });
+
+    /* Vitrine girince goster, hero'dayken gizli — dugmelerle yarismasin. */
+    var showAt = navSections[0];
+    var visIo = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          dotnav.classList.toggle("is-visible", entry.boundingClientRect.top < window.innerHeight * 0.6);
+        });
+      },
+      { threshold: [0, 1] },
+    );
+    visIo.observe(showAt);
+    window.addEventListener("scroll", function () {
+      var r = showAt.getBoundingClientRect();
+      dotnav.classList.toggle("is-visible", r.top < window.innerHeight * 0.6);
+    }, { passive: true });
+  }
+
 })();
 </script>
 
