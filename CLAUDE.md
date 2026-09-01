@@ -815,6 +815,43 @@ bulunan, önceden belgelenmemiş veya hafifçe yanlış belgelenmiş noktalar.
   klonda yok — agent talimatı güncel olmayabilir, push hedefini varsaymadan önce
   `git remote -v` ile doğrula.
 
+## Flowscope: Jira durumu → otomatik "Hatalı" (2026-09-01)
+
+Bir düğüme (yaprak, alt öğesi olmayan) Jira Task ID eklendiğinde ya da mevcut
+Task ID'lerin durumu ~60 sn'lik canlı poll ile yenilendiğinde (`panel/public/scope/js/jira.js
+→ autoFlagFromJiraStatus()`): eklenen Task ID'lerden **bilinen** (Jira'da gerçekten
+bulunmuş ve `statusCategory` bilgisi gelmiş) herhangi biri `"done"` kategorisinde
+değilse düğüm otomatik olarak **"Hatalı" (❌)**'ya çekilir (`data.js → setNodeStatus`,
+durum geçmişine de işlenir).
+
+- **Tek yönlü.** Jira'da statü sonradan "Done" olursa kart **kendiliğinden geri
+  alınmaz** — bunu insan kararına bırakıyoruz, tersini otomatikleştirmek "gerçekten
+  doğrulandı mı" sorusunu sessizce atlatır.
+- **Belirsiz veriyle karar verilmez.** Henüz hiç kontrol edilmemiş ya da Jira'da
+  "bulunamadı" damgalı Task ID'ler bu kararı etkilemez — sadece gerçekten bilinen
+  durumlar sayılır.
+- Jira'nın kendi 3 durum kategorisi (`new`/`indeterminate`/`done`) kullanılıyor,
+  belirli statü adlarına (`"Tamam"` gibi) göre değil — proje/board değişse de kural
+  kırılmaz.
+- Bu kural, mevcut TERS kuralla (❌ işaretlemek en az bir Jira Task ID'yi zorunlu
+  kılar, `renderDrawerJiraSection`) çelişmiyor: biri "❌'ysan Jira ID'n olsun" der,
+  diğeri "Jira ID'n done değilse ❌'sın" — ikisi birlikte "❌ durumu her zaman
+  güncel bir Jira referansıyla gerekçelendirilmiş olsun" istiyor.
+
+## Flowscope: kart tıklaması vs. yeniden adlandırma (2026-09-01)
+
+Ağaç/pano/diyagram kartlarındaki isim alanı bir `<input>` ve satırın büyük kısmını
+kaplıyor; `attachDrawerOpener` (drawer.js) satır tıklamasında `button, input`
+hedeflerini hariç tutuyor. Bunun sonucu: isme tıklamak drawer'ı hiç açmıyor,
+sessizce düzenleme moduna düşürüyordu (ölçüldü — kullanıcı karta tıklayıp drawer
+açmak isterken adı güncellemiş oluyordu). `chips.js → buildNameInput()` artık
+dosya gezgini kuralını uyguluyor: **tek tık drawer açar** (satırın geri kalanıyla
+aynı davranış, 220ms gecikmeli — çift tık algılanırsa iptal edilir), **çift tık**
+input'u odaklayıp tüm metni seçili yeniden adlandırma moduna girer. `mousedown`'da
+`preventDefault()` ile input'un tek tıkta native focus almasını engelliyoruz; bu
+üç görünümün (`tree-view.js`, `board-view.js`, `diagram-view.js`) hepsini aynı anda
+düzeltiyor çünkü hepsi aynı `buildNameInput()`'u kullanıyor.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

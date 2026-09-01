@@ -6,6 +6,7 @@ import { newJiraId } from './state.js';
 import { renderContent } from './shell.js';
 import { openMenu } from './dropdown.js';
 import { openJiraPrompt } from './jira.js';
+import { openDrawer } from './drawer.js';
 
 export function buildTypeChip(node) {
   const btn = document.createElement('button');
@@ -57,12 +58,40 @@ export function buildStatusChip(node) {
   return btn;
 }
 
+// İsim input'u satırın/kartın büyük kısmını kaplıyor; `attachDrawerOpener` satır
+// click'inde `input, button` hedeflerini HARİÇ tutuyor (bkz. drawer.js), yani isme
+// tıklamak drawer'ı hiç açmıyor, sessizce düzenleme moduna düşürüyordu (ölçüldü —
+// kullanıcı karta tıklayıp drawer açmak isterken ismi güncellemiş oluyordu). Çözüm:
+// TEK tık drawer açar (satırın geri kalanıyla aynı davranış), ÇİFT tık düzenleme
+// moduna girer (input'u odaklayıp seçili hale getirir) — dosya gezgini kuralı.
 export function buildNameInput(node, placeholder, className) {
   const input = document.createElement('input');
   input.className = className;
   input.value = node.name;
   input.placeholder = placeholder;
+  input.title = 'Açmak için tıklayın, yeniden adlandırmak için çift tıklayın';
   input.oninput = (e) => { node.name = e.target.value; persistDebounced(); };
+
+  input.addEventListener('mousedown', (e) => {
+    // Duzenleme MODUNDA degilken tek tikin input'u odaklayip imlec koymasini engelle —
+    // odaklanma yalnizca asagidaki dblclick'ten (ya da zaten odakliyken devam eden bir
+    // tiklamadan) gelsin. preventDefault() input'un tek tikta focus almasini engelliyor
+    // ama click event'inin kendisini engellemiyor (asagidaki handler yine calisir).
+    if (document.activeElement !== input) e.preventDefault();
+  });
+  let clickTimer = null;
+  input.addEventListener('click', (e) => {
+    if (document.activeElement === input) return; // duzenlerken normal imlec tiklamasi
+    e.stopPropagation();
+    if (clickTimer) return;
+    clickTimer = setTimeout(() => { clickTimer = null; openDrawer(node); }, 220);
+  });
+  input.addEventListener('dblclick', (e) => {
+    e.stopPropagation();
+    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
+    input.focus();
+    input.select();
+  });
   return input;
 }
 

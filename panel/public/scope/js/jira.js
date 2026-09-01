@@ -1,9 +1,11 @@
-// Jira Task ID özelliği: çoklu kayıt, "Hatalı" durumunda zorunluluk, tıklanabilir linkler.
+// Jira Task ID özelliği: çoklu kayıt, "Hatalı" durumunda zorunluluk, tıklanabilir linkler,
+// Jira durumu "Tamamlandı" değilse kartın otomatik "Hatalı"ya çekilmesi (bkz. autoFlagFromJiraStatus).
 import { state, newJiraId, newJiraAnalysisId } from './state.js';
 import { ICON } from './constants.js';
-import { persist } from './data.js';
+import { persist, setNodeStatus } from './data.js';
 import { closeOpenMenu, openOverlayCommon } from './dropdown.js';
 import { renderDrawer } from './drawer.js';
+import { renderContent } from './shell.js';
 import { formatNoteDate } from './notes.js';
 
 export function openJiraPrompt(anchor, node, onDone) {
@@ -138,6 +140,24 @@ export function openJiraUrlPrompt(anchor) {
 let jiraPollTimer = null;
 const JIRA_POLL_INTERVAL_MS = 60000;
 
+// Eklenmiş Task ID'lerden BİLİNEN (gerçekten Jira'da bulunmuş ve statüsü çekilmiş) herhangi
+// biri "done" kategorisinde değilse kartı otomatik "Hatalı"ya çeker. Henüz kontrol edilmemiş
+// ya da "bulunamadı" damgalı ID'ler bu kararı ETKİLEMEZ — belirsiz veriyle karar verilmez.
+// Tek yönlü: Jira "Done" olunca kart otomatik geri alınmıyor, bu bir insan kararı olarak kalıyor.
+function autoFlagFromJiraStatus(node) {
+  if (node.children.length || !node.jiraTasks.length) return false;
+  const known = node.jiraTasks
+    .map(t => state.jiraStatusCache[t.taskId])
+    .filter(info => info && info.found !== false && info.statusCategory);
+  if (!known.length) return false;
+  const anyNotDone = known.some(info => info.statusCategory !== 'done');
+  if (anyNotDone && node.status !== '❌') {
+    setNodeStatus(node, '❌');
+    return true;
+  }
+  return false;
+}
+
 async function refreshJiraStatuses(node) {
   const keys = node.jiraTasks.map(t => t.taskId);
   if (!keys.length) return;
@@ -148,6 +168,7 @@ async function refreshJiraStatuses(node) {
   const canRerender = () => state.drawerNode === node && state.drawerTab === 'jira';
   state.jiraStatusLoading = true;
   if (canRerender()) renderDrawer();
+  let statusChanged = false;
   try {
     const res = await fetch('/api/tracker/status?keys=' + encodeURIComponent(keys.join(',')));
     const data = await res.json();
@@ -155,6 +176,7 @@ async function refreshJiraStatuses(node) {
     if (data.ok) {
       Object.assign(state.jiraStatusCache, data.statuses);
       state.jiraStatusError = '';
+      statusChanged = autoFlagFromJiraStatus(node);
     } else {
       state.jiraStatusError = data.error || 'Jira durumu alınamadı.';
     }
@@ -163,6 +185,13 @@ async function refreshJiraStatuses(node) {
     state.jiraStatusError = 'Panel sunucusuna ulaşılamadı.';
   }
   state.jiraStatusLoading = false;
+  if (statusChanged) {
+    // Sadece drawer'ın Jira sekmesi degil, kartin agac/pano/diyagramdaki chip'i de
+    // etkileniyor — persist() + renderContent() burada zorunlu (renderDrawer() aksi
+    // halde "Genel" sekmesinde bile yeni durumu gostermez).
+    persist();
+    renderContent();
+  }
   if (canRerender()) renderDrawer();
 }
 
@@ -367,7 +396,9 @@ export function renderDrawerJiraSection(node) {
 
   const hint = document.createElement('div');
   hint.className = 'drawer-hint';
-  hint.textContent = 'Bu öğe "Hatalı" olarak işaretli olduğu sürece en az bir Jira Task ID gerekir.';
+  hint.textContent = 'Bu öğe "Hatalı" olarak işaretli olduğu sürece en az bir Jira Task ID gerekir. '
+    + 'Eklenen bir Task ID Jira’da "Tamamlandı" değilse kart otomatik olarak "Hatalı"ya çekilir '
+    + '(Jira "Tamamlandı" olduğunda kart kendiliğinden geri alınmaz — bu bir insan kararıdır).';
   section.appendChild(hint);
 
   return section;
