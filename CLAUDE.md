@@ -135,6 +135,29 @@ e-postasının göründüğünü** de assert eder.
     ("Bu üründen en fazla 1 adet ekleyebilirsiniz.") gösterilir. İkisi de doğru davranış —
     hata sanılmasın. `deneme` (1099766) ürününün limiti 1, `sapTest` (1099765) limitsiz.
 
+14. **₺ sembolü hem önde hem arkada olabiliyor** (`"₺4.200"` vs `"4.000,00 ₺"`).
+    `BasePage.moneyIn()` eskiden yalnızca önde varsayıyordu ve fiyat okunamadığında
+    sessizce `null==null` ile yeşile dönüyordu (2026-08-24 ölçümü: 3 test yanlış-yeşil
+    çıktı). Artık ikisini de deniyor — yeni bir para okuyucu yazarken aynı tuzağa düşme.
+
+15. **Sepette adet artır/azalt aria-label'ı DEĞİŞMEYEN ALT DİZE ile ara.** "Azalt"
+    metni "Adet azalt"a yarım geçirilmişti (2026-08-24, 4 test kırmızı çıktı); `CartPage`
+    artık tam string yerine `zalt`/`rtır` gibi her iki sürümde de değişmeyen alt diziyi
+    arıyor. Adet de artık satır konteynerinden değil, artır butonunun DOM'daki
+    `previousSibling` zincirinden okunuyor (`firstLineQuantity()`) — konteyner DOM'u
+    değişirse bu okuma da kırılır, önce oradan şüphelen.
+
+16. **Ürün detayında favori butonu birden fazla kez DOM'da var.** İlk favori butonu ana
+    ürüne ait, sonrakiler "Diğerleri de sevdi" gibi öneri kartlarına ait —
+    `ProductPage.favoriteButton` `.first()` ile kilitli; global bir favori seçici yanlış
+    ürünü favoriler.
+
+17. **Şehir/İlçe/Mahalle native `<select>` değil, custom dropdown.** Popup sayfa genelinde
+    aranırsa hesap menüsündeki `<li>`'leri yakalıyor; `AddressPage.pickFromDropdown()`
+    popup'ı `xpath=following::ul[1]` ile butona göre konumlandırıyor. `StoresPage` da
+    benzer bir tuzağı `storeCount()`'ta çözüyor: mağaza kartı yerine "Yol tarifi"
+    butonunu sayıyor, çünkü h2/h3 sayımı footer başlıklarını da yakalıyordu.
+
 ## API katmanı (ileride API testi için)
 
 FE'nin konuştuğu backend: `https://ecom-api.test.tepehome.com.tr` —
@@ -232,10 +255,24 @@ Sadece paneli isteyen özel bir durum yoksa `npm run panel` tek başına kullan�
 | `http://localhost:4321/` | Landing |
 | `http://localhost:4321/onboarding` | Başlangıç rehberi |
 
-`scripts/up.mjs` detayları: landing kaynağı `../homee-panel-site` (`LANDING_DIR` ile
-değişir), **dev sunucusu değil `vite preview`** kullanılır — gösterime giden şey
-production build'i olsun diye; `dist/` yoksa önce build alınır. Dolu portta o servis
-başlatılmaz (çalışan süreci öldürmez). Ctrl-C ikisini birden kapatır.
+`scripts/up.mjs` detayları: landing kaynağı **artık bu deponun içinde**, `./site`
+(React + Vite + Tailwind, `homee-panel-site` paketi, git'e commit edilmiş — eskiden
+kardeş dizindi ve versiyon kontrolü yoktu). Çözüm sırası: `LANDING_DIR` env'i elle
+verilmişse o → yoksa depo içi `site/` (package.json varsa) → yoksa geriye dönük uyum
+için `../homee-panel-site` (taşımayı kaçırmış eski bir kopya için). **Dev sunucusu
+değil `vite preview`** kullanılır — gösterime giden şey production build'i olsun diye;
+`dist/` yoksa önce build alınır. Dolu portta o servis başlatılmaz (çalışan süreci
+öldürmez). Ctrl-C ikisini birden kapatır.
+
+`site/` kendi içinde **iki ayrı giriş** barındırıyor: kökteki `index.html` React'e hiç
+dokunmayan, tek dosyalık statik bir landing (Vesper.ai tasarımı, inline CSS); asıl
+React SPA `onboarding/index.html`'den giriyor (`/onboarding` — on adımlık başlangıç
+rehberi) ve eski çok bölümlü landing `/landing`'de karşılaştırma için hâlâ açık
+duruyor (`site/src/pages/Index.tsx`). `vite.config.ts`'teki `dirEntrySlash()` eklentisi
+`/onboarding` (sondaki `/` olmadan) isteğini `/onboarding/`'e çeviriyor — yoksa SPA
+fallback'i kök `index.html`'e (yeni landing'e) düşüyordu (ölçüldü: başlık yanlış sayfayı
+gösteriyordu). `site/` bağımsız bir `npm install` gerektirir (`site/package.json`),
+lint aracı ESLint değil **oxlint** (`site/.oxlintrc.json`).
 
 ⚠️ Port kontrolü IPv4 **ve** IPv6'yı birlikte dener: `vite preview` yalnızca `::1`'e
 bağlanabiliyor, sadece `127.0.0.1` denemek "açılmadı" diye yanlış uyarı basıyordu.
@@ -341,6 +378,15 @@ kaldırıldı — **kodda tek `alert(` veya çıplak `confirm(` kalmadı** (13 +
 ⚠️ `uiConfirm` **asenkron**: çağıran `await` etmeli. `if (!uiConfirm(...))` her zaman
 false döner (Promise truthy'dir) ve yıkıcı işlem **onay sormadan** çalışır. Yeni bir
 onay eklerken bu tuzağa dikkat.
+
+⚠️ **Bu temizlik yalnızca ana panel (`panel/public/index.html`) için tam.** İki sapma
+ölçüldü (tam kod taraması, 2026-08-29):
+- `index.html:2819` — `generateSpec()` içinde native `prompt('Spec basligi:', ...)`
+  hâlâ duruyor; `alert`/`confirm` ile aynı kategoride bloklayıcı bir tarayıcı diyaloğu.
+- **Flowscope (`panel/public/scope/`) hiç migrate edilmedi**: `data.js::clearAll()`,
+  `sitemap-import.js::importData()`'nın hata yolu ve `chips.js::buildActionButtons()`
+  sil butonu hâlâ çıplak `confirm()`/`alert()` kullanıyor. Yeni bir onay/uyarı
+  eklerken scope/ tarafında da `uiToast`/`uiConfirm` deseni yoksa oraya taşı.
 
 ### Perf geçmişi
 
@@ -636,9 +682,12 @@ Eşleştirme tuzakları ve çözümleri:
 
 ⚠️ **Kimlik dosyasındaki host YANLIŞ Jira'yı gösterir.** `~/.jira-credentials` içinde
 `JIRA_HOST=https://nadirgold.atlassian.net` yazıyor — o NadirGold projesinin host'u.
-Homee/MAC işleri **`https://machinarium.atlassian.net`** üzerinde; `panel/jira.mjs` host'u
-kendi içinde sabitliyor. Elle REST çağrısı yazarken kimlik dosyasının host'unu kullanma,
-sessizce 0 sonuç alırsın (ölçüldü 2026-08-22: `key = MAC-7268` bile boş döndü).
+Homee/MAC işleri **`https://machinarium.atlassian.net`** üzerinde. Host artık `panel/jira.mjs`
+içinde değil, **`panel/projects/homee.mjs`** (proje profili) içinde sabit —
+`jira.mjs:42` `process.env.JIRA_HOST || P.host` okuyor, `P.host` profilden geliyor
+(profil taşıması sonrası dosya konumu değişti, davranış aynı). Elle REST çağrısı
+yazarken kimlik dosyasının host'unu kullanma, sessizce 0 sonuç alırsın (ölçüldü
+2026-08-22: `key = MAC-7268` bile boş döndü).
 
 ⚠️ **Statü geçişine iliştirilen yorum sessizce kaybolur.** `POST /transitions` gövdesine
 `update.comment[].add` koymak hata vermez ama geçiş ekranında yorum alanı tanımlı
@@ -700,6 +749,71 @@ Smoke test gerekiyorsa başlığa `[GEÇERSİZ - OTOMASYON TEST KAYDI]` yaz, ata
 
 **Yazma kuralı:** `postComment`, `transition`, `createBug` uçları panelde **onay diyaloğu arkasında**;
 otomatik yazma yok. Bir koşum sonucunu Jira'ya yazmadan önce kullanıcıya göster.
+
+## Tam kod taraması notları (2026-08-29)
+
+Proje uçtan uca dosya dosya tarandı (repo kökü, `panel/`, `panel/public/`,
+`panel/public/scope/`, `tests/`, `pages/`, `scripts/`, `site/`, `.claude/agents/`).
+Yukarıdaki bölümlerin çoğu kodla birebir doğrulandı; aşağıdakiler o taramada
+bulunan, önceden belgelenmemiş veya hafifçe yanlış belgelenmiş noktalar.
+
+**Belgelenmemiş iki alt sistem:**
+- **`panel/sessions.mjs`** — genel, host-bazlı bir "oturum kasası": insan-destekli
+  giriş (`startLogin` → görünür tarayıcı → kullanıcı elle login olur →
+  `confirmLogin` → state kasaya yazılır). `health()` **yalnızca**
+  `PROJECT.authCookies`'teki cookie'ye bakıyor (3. parti analytics cookie'lerine
+  değil) — aksi hâlde yanlış "oturum bitti" alarmı veriyordu (ölçülmüş). Eski
+  `playwright/.auth/<env>-gate.json`'a geriye dönük uyumlu. Yukarıdaki "İKİ
+  KATMANLI KİMLİK" modelinin panel tarafındaki daha genel karşılığı budur.
+- **`panel/proxy.mjs` içindeki kaydedici** (`qa-rec` / İDDİA MODU) — iframe'deki
+  tıklama/fill/check/Enter olaylarını role+ad öncelikli locator'a çevirip panele
+  `postMessage` ile bildiriyor; İDDİA MODU'nda tıklama `preventDefault` ile
+  yutuluyor. "Koşum kaydı: video, trace, canlı izleme" bölümündeki kayıttan
+  **ayrı** bir özellik — bu, gezinmeyi Playwright adımına çeviren mekanizma
+  (`panel-data/recorded/` + `playwright.draft.config.ts` ile ilişkili).
+
+**Küçük düzeltmeler:**
+- `npm run test:gate` **13 test** çalıştırıyor (`panel/scenario-suggest.test.mjs`),
+  14 değil.
+- `testcase-gen.mjs` (AI ile test case üretimi), `scenario-suggest.mjs` ve
+  `perf-analyze.mjs`'nin aksine **uydurma-içerik kapısına (`gate()`) sahip değil** —
+  yalnızca yapısal kontrol var (nodeId var mı, başlık tekrarı var mı). Model
+  kabul kriteri uydursa hiçbir katman yakalamaz; yeni bir doğrulama katmanı
+  eklenecekse önce burası.
+- `route-map.mjs`'deki `CARD_SPECS` bir **fonksiyon referansı**
+  (`export const CARD_SPECS = cardSpecs;`), sabit değer değil — doğru kullanım
+  `CARD_SPECS()`. Gerçek çağıran kod zaten `cardSpecs()`'i doğrudan
+  `card-map.mjs`'ten import ediyor.
+- `tests/known-issues.ts`'te **HOMEE-008 numarası yok** — o numarayı taşıyan
+  bulgu (banner metinlerinin görsele gömülü olması) yalnızca FINDINGS.md'de,
+  bir Figma-diff bulgusu olarak duruyor; `test.fail()` ile takip eden bir
+  Playwright testi olmadığı için `known-issues.ts`'e hiç girmedi. Kayıt sayısı
+  şu an **11** (HOMEE-001…007, 009, 010, 011, 012 — HOMEE-012 sepet boşluk
+  yarışı, madde 12'nin kod karşılığı).
+- `tests/fixtures.ts`'teki `memberPage` login mantığı `global-setup.ts`'teki
+  `memberLogin()` ile **aynı akışı bağımsız olarak yeniden yazıyor** (ortak
+  yardımcıya çıkarılmamış). Giriş formu değişirse iki dosyada da güncelle.
+- `panel/public/index.html`'de **ölü bir referans var**: Genel Bakış sekmesindeki
+  koşum satırı `onclick="stopRun()"` üretiyor ama böyle bir fonksiyon tanımlı
+  değil (gerçek durdurma `#stopBtn`'in handler'ı, `/api/stop`'a POST atıyor).
+  Genel Bakış'tan durdurmaya çalışan kullanıcı konsola `ReferenceError` düşürür,
+  hiçbir şey olmaz.
+- Flowscope'un "Test Case'leri Koştur" AI-assist prompt'u (`ai-assist.js` /
+  `testcase-request.js`) hâlâ **eski mimariye** (Murat'ın sibling projesindeki
+  `localhost:8934` origin'i + `flowTool.tree.v2` localStorage anahtarı) atıf
+  yapıyor — bu repoda veri sunucuda (`panel-data/scope/tree.json`), o satır ölü/
+  yanlış bir talimat.
+- Repo kökünde eski bir koşumdan (2026-08-18, commit `b0297f9`) kalma, artık
+  `.gitignore`'a girse de zaten **izlemeye alınmış** olduğu için hâlâ duran
+  dosyalar var: `.results-final.json`, `.results-fix.json`, `.run-final3.log`,
+  `.run-fix.log`, `homee-qa-raporu.html` (`scripts/create-full-report.cjs`'in
+  ürettiği erken bir rapor). Temizlik adayı; silinecekse kullanıcıya sorulmadan
+  silinmez.
+- `git remote -v` şu an tek remote gösteriyor: `origin` →
+  `github.com/themachinarium/testing-ideal.git`. `homee-release-gate` agent'ının
+  betimlediği ayrı `origin` (Automation-workforce) / `ideal` remote çifti bu
+  klonda yok — agent talimatı güncel olmayabilir, push hedefini varsaymadan önce
+  `git remote -v` ile doğrula.
 
 ## Agent'lar (`.claude/agents/`)
 
