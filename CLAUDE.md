@@ -528,6 +528,34 @@ statik butonların açıklamaları `panel/public/index.html` içindeki `TIPS` s�
 UA stilindeki `display:none` ile çalışır, inline stil onu ezer ve öğe gizlenmez
 (`#dShots` bu yüzden boş görsel kolonları gösteriyordu; kural CSS'e taşındı).
 
+### İmajı lokalde kurup denemek (deploy'u doğrulamanın tek yolu)
+
+```bash
+docker build --build-arg WITH_BROWSERS=0 -t homee-panel:ui-only .   # ~35 sn, 983 MB
+docker run -d --name homee-test -p 4655:3000 --env-file .env \
+  -e PANEL_PROJECT=homee -e PANEL_TOKEN=<32hex> \
+  -e PANEL_ORIGIN=https://<domain> -e MOBAI_BRIDGE=off \
+  -e JIRA_EMAIL=... -e JIRA_TOKEN=... homee-panel:ui-only
+curl -s localhost:4655/api/preflight
+```
+
+`WITH_BROWSERS=0` yalnız-arayüz imajı: koşum düğmeleri çalışmaz, panel çalışır.
+Ölçüldü 2026-09-02: container'da **hiçbir `~/.*-credentials` dosyası yok** ve Jira
+sadece env ile bağlanıyor (`kimlik: ortam değişkeni`) — Dokploy senaryosunun birebir
+provası. `PANEL_ORIGIN`'deki domain'den gelen yazma isteği 400 (auth geçti),
+yabancı origin 403 `BAD_ORIGIN`.
+
+⚠️ Sunucudaki container'ın hangi commit'te olduğunu **servis edilen dosyadan**
+bulabilirsin (deploy gerçekten oldu mu sorusunun kesin cevabı):
+
+```bash
+curl -s https://<domain>/scope/js/jira.js -o /tmp/s.js
+git hash-object /tmp/s.js        # cikan blob'u git gecmisiyle karsilastir
+for c in $(git log --format=%H -12 -- panel/public/scope/js/jira.js); do
+  [ "$(git rev-parse $c:panel/public/scope/js/jira.js)" = "<blob>" ] && git log -1 --oneline $c
+done
+```
+
 ### Landing ↔ Flowscope ↔ Panel gezinmesi
 
 Zincir iki yönlü: landing'de **"Kapsam ağacını aç"** → `/scope/`, Flowscope üst

@@ -70,9 +70,13 @@ RUN npm run build --prefix site
 
 # Panel yazacağı dizinleri kendisi oluşturur ama volume bağlanmazsa da
 # yazılabilir olmalı; root olmayan kullanıcı için sahiplik burada verilir.
-RUN mkdir -p panel-data test-results playwright/.auth \
+# ⚠️ `$PLAYWRIGHT_BROWSERS_PATH` de mkdir'leniyor: WITH_BROWSERS=0 ile tarayici
+# kurulmayinca /ms-playwright HIC OLUSMUYOR ve chown "No such file or directory"
+# ile build'i dusuruyordu (olculdu 2026-09-02) — yani dokumante edilmis
+# yalniz-arayuz imaji hic kurulamiyordu.
+RUN mkdir -p panel-data test-results playwright/.auth "$PLAYWRIGHT_BROWSERS_PATH" \
  && useradd -m -u 10001 qa \
- && chown -R qa:qa /app /ms-playwright
+ && chown -R qa:qa /app "$PLAYWRIGHT_BROWSERS_PATH"
 
 ENV NODE_ENV=production \
     PANEL_PORT=3000 \
