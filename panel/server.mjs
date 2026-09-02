@@ -258,21 +258,33 @@ const PUBLIC_ORIGIN = (
 /**
  * Flowscope'taki "Landing" dugmesinin hedefi.
  *
- * ⚠️ Varsayilan YALNIZCA lokalde verilir: landing ayri bir surec (`npm run up`
- * → vite preview, 4321) ve sunucuda o domainde HIC YOK (olculdu 2026-09-02:
- * testing-ideal.machinarium.dev/onboarding → 404). Sunucuda varsayilan
- * koyulsa dugme olu bir localhost adresine giderdi; oraya konacaksa
- * LANDING_URL acikca verilir. `off` ya da bos → dugme hic cikmaz.
+ * ⚠️ Varsayilan YALNIZCA lokal isteklerde verilir: landing ayri bir surec
+ * (`npm run up` → vite preview, 4321) ve sunucuda o domainde HIC YOK (olculdu
+ * 2026-09-02: testing-ideal.machinarium.dev/onboarding → 404). Sunucuda
+ * varsayilan koyulsa dugme OLU bir localhost adresine giderdi.
+ *
+ * ⚠️ Karar ISTEGIN HOST'una gore verilir, ortam degiskenine gore DEGIL. Ilk
+ * hali "PANEL_ORIGIN verilmemisse lokaldeyiz" sayiyordu; sunucuda o degisken
+ * de verilmemis oldugu icin (kanit: yazma uclari "Origin reddedildi" donuyor)
+ * heuristik ters teptiler ve dugme sunucuda localhost:4321'i gosterecekti.
+ * Host dogrudan olculebilir bir sey — tahmin gerekmiyor.
+ *
+ * LANDING_URL acikca verilirse her yerde o kullanilir; `off`/bos → dugme
+ * hic basilmaz.
  */
-const LANDING_URL = (() => {
+const LANDING_PORT = Number(process.env.LANDING_PORT || 4321);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+function landingUrlFor(req) {
   const raw = process.env.LANDING_URL;
   if (raw !== undefined) {
     const v = raw.trim();
     return v === "" || v.toLowerCase() === "off" ? "" : v.replace(/\/+$/, "");
   }
-  const yerel = !process.env.PANEL_ORIGIN && !process.env.PANEL_PUBLIC_URL;
-  return yerel ? `http://localhost:${Number(process.env.LANDING_PORT || 4321)}` : "";
-})();
+  // "localhost:4646" → "localhost" · "[::1]:4646" → "[::1]"
+  const host = String(req.headers.host || "").replace(/:\d+$/, "");
+  return LOCAL_HOSTS.has(host) ? `http://localhost:${LANDING_PORT}` : "";
+}
 
 for (const raw of (process.env.PANEL_ORIGIN || "").split(",")) {
   const o = raw.trim().replace(/\/+$/, "");
@@ -826,7 +838,7 @@ const server = http.createServer(async (req, res) => {
       const html = fs
         .readFileSync(path.join(__dirname, "public", "scope", "index.html"), "utf8")
         .replace("__PANEL_TOKEN__", PANEL_TOKEN)
-        .replace("__LANDING_URL__", LANDING_URL);
+        .replace("__LANDING_URL__", landingUrlFor(req));
       return send(res, 200, html, "text/html; charset=utf-8");
     }
 

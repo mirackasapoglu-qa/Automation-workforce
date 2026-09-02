@@ -535,11 +535,13 @@ barında **"Landing"** ve **"Panele dön"**, panelde **"Kapsam"** rozeti.
 
 Flowscope'taki Landing düğmesinin adresi sunucudan gelir: `LANDING_URL` env'i,
 `scope/index.html`'e `__LANDING_URL__` olarak enjekte edilir (`window.LANDING_URL`).
-⚠️ **Varsayılan yalnızca lokalde verilir** — landing ayrı bir süreç (`vite preview`,
-4321) ve sunucuda o domainde hiç yok; varsayılan konulsa düğme ölü bir localhost
-adresine giderdi. `PANEL_ORIGIN`/`PANEL_PUBLIC_URL` verilmişse (yani sunucudaysak)
-adres boş kalır ve **düğme hiç basılmaz**. Sunucuya landing konacaksa
-`LANDING_URL=https://...` ver; `off` ile kapatılır.
+⚠️ **Varsayılan yalnızca lokal isteklerde verilir** — landing ayrı bir süreç
+(`vite preview`, 4321) ve sunucuda o domainde hiç yok; varsayılan konulsa düğme ölü
+bir localhost adresine giderdi. Karar **isteğin `Host` başlığına** bakar
+(`landingUrlFor`), ortam değişkenine değil: ilk hâli "PANEL_ORIGIN verilmemişse
+lokaldeyiz" sayıyordu ve sunucuda o değişken de verilmemiş olduğu için ters tepiyordu.
+`LANDING_URL` açıkça verilirse her yerde o kullanılır; `off`/boş → **düğme hiç
+basılmaz**.
 
 ### Connector'a OAuth ile bağlanmak ("Bağlan" düğmesi)
 
