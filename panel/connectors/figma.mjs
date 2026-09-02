@@ -18,6 +18,9 @@ export const capabilities = ["design"];
 export const credential = { file: ".figma-credentials", vars: ["FIGMA_TOKEN"] };
 export const credentialLabel = credLabel(credential.file, credential.vars);
 
+/** Token uretme sayfasi — panel "kimlik" satirini buraya link yapar. */
+export const setupUrl = "https://www.figma.com/settings";
+
 export const setupFix = [
   "Figma > Settings > Personal access tokens ile token üret",
   "echo 'FIGMA_TOKEN=figd_...' > ~/.figma-credentials && chmod 600 ~/.figma-credentials",

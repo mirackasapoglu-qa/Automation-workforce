@@ -18,6 +18,9 @@ export const capabilities = ["tracker"];
 export const credential = { file: ".linear-credentials", vars: ["LINEAR_API_KEY"] };
 export const credentialLabel = credLabel(credential.file, credential.vars);
 
+/** Token uretme sayfasi — panel "kimlik" satirini buraya link yapar. */
+export const setupUrl = "https://linear.app/settings/api";
+
 export const setupFix = [
   "Linear > Settings > Security & access > Personal API keys",
   "echo 'LINEAR_API_KEY=lin_api_...' > ~/.linear-credentials && chmod 600 ~/.linear-credentials",

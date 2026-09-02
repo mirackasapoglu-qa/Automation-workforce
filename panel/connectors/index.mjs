@@ -103,6 +103,8 @@ async function row(key) {
     label: mod.label,
     icon: mod.icon ?? undefined,
     credential: mod.credentialLabel,
+    /** Token uretme sayfasi — arayuz "kimlik" satirini buna link yapar. */
+    setupUrl: mod.setupUrl ?? undefined,
     capabilities: mod.capabilities,
     passive: !used || undefined,
   };

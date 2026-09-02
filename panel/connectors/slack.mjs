@@ -14,6 +14,9 @@ export const capabilities = ["chat"];
 export const credential = { file: ".slack-credentials", vars: ["SLACK_BOT_TOKEN"] };
 export const credentialLabel = credLabel(credential.file, credential.vars);
 
+/** Token uretme sayfasi — panel "kimlik" satirini buraya link yapar. */
+export const setupUrl = "https://api.slack.com/apps";
+
 export const setupFix = [
   "api.slack.com/apps > OAuth & Permissions ile bot token üret (chat:write)",
   "echo 'SLACK_BOT_TOKEN=xoxb-...' > ~/.slack-credentials && chmod 600 ~/.slack-credentials",

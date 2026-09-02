@@ -13,6 +13,9 @@ export const capabilities = ["tracker"];
 export const credential = { file: ".jira-credentials", vars: ["JIRA_EMAIL", "JIRA_TOKEN"] };
 export const credentialLabel = credLabel(credential.file, credential.vars);
 
+/** Token uretme sayfasi — panel "kimlik" satirini buraya link yapar. */
+export const setupUrl = "https://id.atlassian.com/manage-profile/security/api-tokens";
+
 export const setupFix = [
   "Atlassian > Security > API tokens ile token üret",
   "printf 'JIRA_EMAIL=...\\nJIRA_TOKEN=...\\nJIRA_HOST=https://...atlassian.net\\n' > ~/.jira-credentials",

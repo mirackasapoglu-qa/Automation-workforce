@@ -339,6 +339,9 @@
   #cxPanel .cx-k{color:var(--mut);min-width:58px;flex:0 0 auto}
   #cxPanel .cx-v{color:var(--fg);word-break:break-word}
   #cxPanel .cx-note{color:var(--mut);margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+  #cxPanel .cx-setup{color:var(--accent);text-decoration:none;border-bottom:1px dotted currentColor;
+    white-space:nowrap;margin-left:4px}
+  #cxPanel .cx-setup:hover{border-bottom-style:solid}
   #cxPanel .cx-fix{margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
   #cxPanel .cx-fix-h{color:var(--no);letter-spacing:.09em;margin-bottom:4px}
   #cxPanel .cx-fix code{display:block;background:var(--card);border:1px solid var(--line);
@@ -3438,6 +3441,24 @@ const PF_WORD = {
   ok: 'bağlandı', warn: 'sorunlu', blocked: 'bloke', off: 'kapalı', unknown: 'bilinmiyor',
 };
 
+/**
+ * "kimlik" satirinin sonuna token uretme sayfasi linki. Adres connector'in
+ * kendisinden gelir (`connectors/<servis>.mjs → setupUrl`), arayuzde SABIT
+ * DEGIL — yeni bir servis eklenince burada is yok.
+ *
+ * NEDEN: satir "LINEAR_API_KEY ortam degiskeni ya da ~/.linear-credentials"
+ * diyordu ama anahtarin NEREDEN alindigini soylemiyordu; kullanici oraya
+ * tiklayip servise gitmeyi bekliyor (2026-09-02). MobAI gibi yerel
+ * connector'larda setupUrl yok, link de cikmaz.
+ */
+function cxSetupLink(c) {
+  if (!c.setupUrl) return '';
+  const u = String(c.setupUrl);
+  if (!/^https:\/\//.test(u)) return ''; // yalnizca https
+  return ` <a class="cx-setup" href="${esc(u)}" target="_blank" rel="noreferrer noopener"`
+    + ` title="${esc(u)}">token al ↗</a>`;
+}
+
 function pfCard(c) {
   const ico = PF_ICON[c.icon] ?? '';
   const name = String(c.label).replace(/\s+(bağlandı|bloke|sorunlu|yok)$/, '');
@@ -3455,7 +3476,7 @@ function pfCard(c) {
       <span class="pf ${esc(c.state)}">${esc(PF_WORD[c.state] ?? c.state)}</span>
     </div>
     ${c.parts?.length ? parts : `<div class="cx-row"><span class="cx-v">${esc(c.detail ?? '')}</span></div>`}
-    ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${esc(c.credential)}</span></div>` : ''}
+    ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${esc(c.credential)}${cxSetupLink(c)}</span></div>` : ''}
     ${c.note ? `<div class="cx-note">${esc(c.note)}</div>` : ''}
     ${fix}
   </div>`;

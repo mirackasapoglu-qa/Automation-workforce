@@ -30,6 +30,8 @@ export const local = false;
 export const credential = { bridge: BRIDGE ?? "kapalı (MOBAI_BRIDGE=off)" };
 export const credentialLabel = BRIDGE ? `köprü ${BRIDGE}` : "MOBAI_BRIDGE=off — cihaz köprüsü kapalı";
 
+/** Yerel uygulama; uretilecek token yok — bu yuzden setupUrl VERILMEZ. */
+
 export const setupFix = [
   "MobAI uygulamasını açık tut — köprüyü o sağlıyor",
   "Cihaz USB ile bağlı ve yetkilendirilmiş mi (adb devices)",
