@@ -528,6 +528,47 @@ statik butonların açıklamaları `panel/public/index.html` içindeki `TIPS` s�
 UA stilindeki `display:none` ile çalışır, inline stil onu ezer ve öğe gizlenmez
 (`#dShots` bu yüzden boş görsel kolonları gösteriyordu; kural CSS'e taşındı).
 
+### Connector'a OAuth ile bağlanmak ("Bağlan" düğmesi)
+
+Kimlik artık üç kaynaktan çözülür — `connectors/credentials.mjs::resolveCreds`,
+sıra **ortam > OAuth > dosya**. OAuth dosyanın üstünde: "Bağlan"a basmak bilinçli
+ve taze bir eylem, eski bir `~/.<servis>-credentials` onu gölgelememeli.
+
+Akış (`panel/oauth.mjs` + üç uç):
+
+```
+GET  /api/oauth/<servis>/start?t=<panel token>   → sağlayıcının izin ekranına 302
+GET  /api/oauth/callback                          → code'u token'a çevirir, saklar
+POST /api/oauth/<servis>/client                   → tek seferlik client id/secret
+POST /api/oauth/<servis>/disconnect               → saklanan token'ı siler
+```
+
+Token `panel-data/oauth/<servis>.json` (0600), client kayıtları
+`panel-data/oauth/clients.json` — ikisi de `.gitignore`'da. Sunucuda volume
+bağlanmazsa deploy'da uçar. Client id/secret ortam değişkeniyle de verilebilir:
+`<SERVIS>_CLIENT_ID` / `<SERVIS>_CLIENT_SECRET`.
+
+⚠️ **`/start` token'ı query'de alır** (`?t=`), çünkü tarayıcı NAVIGASYONU başlık
+gönderemez. Sebep sadece CSRF değil: panel internete açıksa yabancı biri akışı
+başlatıp KENDİ hesabını panele bağlayabilir.
+
+⚠️ **OAuth'ta "tek tık" ancak uygulama sağlayıcıda bir kere kaydedilirse mümkün.**
+Claude Desktop'ta o kaydı Anthropic yapmış; burada bir kere biz yapıyoruz. Panel
+kaydı da kendi içinden ister (kartta "Bağlan…" → TEK SEFERLİK KURULUM kutusu:
+redirect URI'yi kopyala, client id/secret'ı yapıştır).
+
+⚠️ **PAT ile OAuth token'ının başlığı bazı serviste farklı.** Linear'da kişisel
+API key şema OLMADAN, OAuth token'ı `Bearer` ile gönderilir; `resolveCreds`
+hangisi olduğunu `tokenType` ile söyler (`linear.mjs::gql` bunu okuyor). Figma da
+farklı (`X-Figma-Token` vs `Bearer`) — Figma OAuth'u eklenirken 4 çağrı yeri
+(`panel/figma-render.mjs` ×2, `scripts/figma-prewarm.mjs`, `scripts/figma-diff.mjs`)
+buna göre düzeltilmeli. Jira 3LO ise ayrıca `api.atlassian.com/ex/jira/<cloudid>`
+taban adresine geçmek demek; ikisi de HENÜZ YOK, Jira/Figma token ile çalışıyor.
+
+Yetenek eşlemesi panelden değiştirilebilir: **"bu projede kullan"** düğmesi
+`panel-data/connectors.json`'a yazar (`{"chat":"slack"}`), profil KODU
+(`projects/<proje>.mjs`) değişmez; dosya silinince profildeki değere dönülür.
+
 ### Güvenlik modeli (panel yerel bir HTTP sunucusu — gezdiğin her sayfa ona istek atabilir)
 
 - **Serbest komut YOK.** Ya `panel/runs.json` whitelist'indeki koşum, ya da **parametreli koşum**:

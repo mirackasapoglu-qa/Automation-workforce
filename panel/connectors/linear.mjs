@@ -36,7 +36,15 @@ async function gql(query, variables = {}) {
   if (!c.ok) throw new Error("LINEAR_API_KEY yok");
   const res = await fetch(API, {
     method: "POST",
-    headers: { "content-type": "application/json", authorization: c.values.LINEAR_API_KEY },
+    /*
+     * ⚠️ Linear'da iki kimlik bicimi FARKLI baslik istiyor: kisisel API key
+     * ("lin_api_...") sema OLMADAN gonderilir, OAuth access token'i ise
+     * `Bearer ...` ile. resolveCreds hangisi oldugunu `tokenType` ile soyluyor.
+     */
+    headers: {
+      "content-type": "application/json",
+      authorization: c.tokenType ? `${c.tokenType} ${c.values.LINEAR_API_KEY}` : c.values.LINEAR_API_KEY,
+    },
     body: JSON.stringify({ query, variables }),
     signal: AbortSignal.timeout(10_000),
   });

@@ -66,7 +66,8 @@ import {
   applyFromModel as applyPerfFindings,
 } from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
-import { tracker } from "./connectors/index.mjs";
+import { tracker, setCapability } from "./connectors/index.mjs";
+import * as oauth from "./oauth.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
@@ -243,6 +244,17 @@ const ALLOWED_ORIGINS = new Set([
  * servis edilen HTML'de durur. Panel internete acik bir domain'e konacaksa
  * onune ayrica kimlik dogrulama (proxy basic-auth / SSO) gerekir.
  */
+/**
+ * OAuth redirect_uri buradan turetilir ve saglayiciya KAYITLI olanla harfi
+ * harfine ayni olmak zorunda. Lokalde localhost, sunucuda PANEL_ORIGIN'in
+ * ilki (ya da PANEL_PUBLIC_URL ile acikca verilen adres).
+ */
+const PUBLIC_ORIGIN = (
+  process.env.PANEL_PUBLIC_URL
+  || (process.env.PANEL_ORIGIN || "").split(",")[0].trim()
+  || `http://localhost:${PORT}`
+).replace(/\/+$/, "");
+
 for (const raw of (process.env.PANEL_ORIGIN || "").split(",")) {
   const o = raw.trim().replace(/\/+$/, "");
   if (o) ALLOWED_ORIGINS.add(o);
@@ -1766,6 +1778,100 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // ---------------- OAuth: "Baglan" → izin ver → bitti ----------------
+    /*
+     * ⚠️ Bu uc TARAYICI NAVIGASYONU ile cagrilir; fetch degil, bu yuzden
+     * `x-panel-token` BASLIGI GONDERILEMEZ. Token query'de (`?t=`) gelir ve
+     * burada ayni sekilde karsilastirilir. Sebep yalnizca CSRF degil: panel
+     * internete acik bir domainde durursa yabanci biri akisi baslatip KENDI
+     * hesabini panele baglayabilir.
+     */
+    const mStart = p.match(/^\/api\/oauth\/([a-z0-9-]+)\/start$/);
+    if (mStart && req.method === "GET") {
+      const svc = mStart[1];
+      if (url.searchParams.get("t") !== PANEL_TOKEN) {
+        return send(res, 403, { code: "STALE_TOKEN", error: "Panel token gerekli (baglanti akisi panelden baslatilir)." });
+      }
+      try {
+        const to = oauth.authorizeUrl(DATA_DIR, svc, PUBLIC_ORIGIN);
+        audit({ kind: "oauth/start", service: svc, origin: PUBLIC_ORIGIN });
+        res.writeHead(302, { location: to, "cache-control": "no-store" });
+        return res.end();
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /*
+     * Saglayicinin geri dondugu yer. Tarayicida acik oldugu icin yanit JSON
+     * degil kucuk bir HTML: sonucu soyler ve panele geri gonderir.
+     */
+    if (p === "/api/oauth/callback" && req.method === "GET") {
+      const page = (baslik, govde, iyi) => {
+        res.writeHead(iyi ? 200 : 400, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
+        res.end(`<!doctype html><meta charset="utf-8"><title>${baslik}</title>`
+          + `<style>body{font:14px/1.5 system-ui;margin:0;display:grid;place-items:center;height:100vh;background:#f7f7f8;color:#18181b}`
+          + `.k{background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:22px 26px;max-width:520px}`
+          + `b{color:${iyi ? "#15803d" : "#b91c1c"}}code{background:#f4f4f5;padding:1px 5px;border-radius:4px;word-break:break-all}`
+          + `a{color:#5b5bd6}</style>`
+          + `<div class="k"><p><b>${baslik}</b></p><p>${govde}</p>`
+          + `<p><a href="/">← QA Paneli'ne dön</a></p></div>`);
+      };
+      try {
+        const r = await oauth.handleCallback(DATA_DIR, url.searchParams, PUBLIC_ORIGIN);
+        audit({ kind: "oauth/connected", service: r.svc });
+        return page(`${r.label} bağlandı`, "Token panele kaydedildi. Bu sekmeyi kapatabilirsin.", true);
+      } catch (e) {
+        return page("Bağlanamadı", `<code>${String(e.message)}</code>`, false);
+      }
+    }
+
+    /*
+     * Tek seferlik kurulum: saglayicida olusturulan uygulamanin client id /
+     * secret'i. OAuth'ta "tek tik" ancak bu kayittan SONRA mumkun (Claude
+     * Desktop'ta o kaydi Anthropic yapmis, burada bir kere biz yapiyoruz).
+     */
+    const mClient = p.match(/^\/api\/oauth\/([a-z0-9-]+)\/client$/);
+    if (mClient && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      try {
+        const out = oauth.saveClientCreds(DATA_DIR, mClient[1], body.clientId, body.clientSecret);
+        audit({ kind: "oauth/client-saved", service: mClient[1] });
+        return send(res, 200, out);
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    const mDisc = p.match(/^\/api\/oauth\/([a-z0-9-]+)\/disconnect$/);
+    if (mDisc && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      try {
+        const out = oauth.disconnect(DATA_DIR, mDisc[1]);
+        audit({ kind: "oauth/disconnect", service: mDisc[1] });
+        return send(res, 200, out);
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /*
+     * "Bu projede kullan": yetenek → connector eslemesini panelden degistirir
+     * (`panel-data/connectors.json`). Profil KODU degismez.
+     */
+    if (p === "/api/connectors/use" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      try {
+        const out = setCapability(body.capability, body.connector ?? null);
+        audit({ kind: "connectors/use", capability: String(body.capability), connector: String(body.connector) });
+        return send(res, 200, out);
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
     if (p === "/api/preflight") {
       const gateRes = await fetch(`http://127.0.0.1:${PORT}/api/gate/status`)
         .then((r) => r.json())
@@ -1806,7 +1912,7 @@ const server = http.createServer(async (req, res) => {
             detail: "okunamadi",
             credential: gateFile,
           };
-      const checks = await preflight([gate, sessions.preflightRow()]);
+      const checks = await preflight([gate, sessions.preflightRow()], { origin: PUBLIC_ORIGIN });
       // `passive` satirlar (Slack/Linear gibi gosterim amacli olanlar) genel
       // duruma katilmaz — panelin isleyisi onlara bagli degil.
       const active = checks.filter((c) => !c.passive);

@@ -342,6 +342,19 @@
   #cxPanel .cx-setup{color:var(--accent);text-decoration:none;border-bottom:1px dotted currentColor;
     white-space:nowrap;margin-left:4px}
   #cxPanel .cx-setup:hover{border-bottom-style:solid}
+  #cxPanel .cx-act{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+  #cxPanel .cx-btn{font:inherit;font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;
+    border:1px solid var(--line);background:var(--card);color:var(--fg);text-decoration:none}
+  #cxPanel .cx-btn:hover{border-color:var(--accent)}
+  #cxPanel .cx-btn-go{background:var(--accent);border-color:var(--accent);color:#fff}
+  #cxPanel .cx-hint,#cxPanel .cx-ok{color:var(--mut);font-size:11px}
+  #cxPanel .cx-ok{color:var(--good)}
+  #cxPanel .cx-setup-box{margin-top:7px;padding-top:7px;border-top:1px solid var(--line);display:grid;gap:5px}
+  #cxPanel .cx-step{color:var(--mut)}
+  #cxPanel .cx-copy{cursor:pointer;background:var(--card);border:1px solid var(--line);
+    border-radius:6px;padding:4px 6px;word-break:break-all}
+  #cxPanel .cx-setup-box input{font:inherit;font-size:11px;padding:4px 6px;border-radius:6px;
+    border:1px solid var(--line);background:var(--card);color:var(--fg)}
   #cxPanel .cx-fix{margin-top:7px;padding-top:7px;border-top:1px solid var(--line)}
   #cxPanel .cx-fix-h{color:var(--no);letter-spacing:.09em;margin-bottom:4px}
   #cxPanel .cx-fix code{display:block;background:var(--card);border:1px solid var(--line);
@@ -3478,8 +3491,100 @@ function pfCard(c) {
     ${c.parts?.length ? parts : `<div class="cx-row"><span class="cx-v">${esc(c.detail ?? '')}</span></div>`}
     ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${esc(c.credential)}${cxSetupLink(c)}</span></div>` : ''}
     ${c.note ? `<div class="cx-note">${esc(c.note)}</div>` : ''}
+    ${cxActions(c)}
     ${fix}
   </div>`;
+}
+
+/**
+ * Kartin eylem satiri — "Claude Desktop gibi tek tikla baglan" isteginin
+ * karsiligi (2026-09-02).
+ *
+ * Uc durum var, sirasi onemli:
+ *   1. OAuth uygulamasi KAYITLI DEGIL → tek seferlik kurulum kutusu. OAuth'ta
+ *      tek tik ancak uygulama saglayicida bir kere kaydedilirse mumkun.
+ *   2. Kayitli ama bagli degil → "Bağlan" (tarayici navigasyonu, token ?t= ile).
+ *   3. Bagli → "bağlantıyı kes".
+ * Ayrica connector bu projede KULLANILMIYORSA (passive) "bu projede kullan"
+ * dugmesi cikar: yetenek eslemesini panel-data/connectors.json'a yazar.
+ */
+function cxActions(c) {
+  const o = c.oauth;
+  const parcalar = [];
+
+  if (o?.supported) {
+    if (o.connected) {
+      const ne = o.connectedAt ? new Date(o.connectedAt).toLocaleString('tr-TR') : '';
+      parcalar.push(`<span class="cx-ok">OAuth ile bağlı${ne ? ` · ${esc(ne)}` : ''}</span>`
+        + `<button class="cx-btn" onclick="cxDisconnect('${esc(c.key)}')">bağlantıyı kes</button>`);
+    } else if (o.clientReady) {
+      parcalar.push(`<a class="cx-btn cx-btn-go" href="/api/oauth/${esc(c.key)}/start?t=${encodeURIComponent(PANEL_TOKEN)}">`
+        + `Bağlan</a><span class="cx-hint">izin ekranına gider, token'ı sen görmezsin</span>`);
+    } else {
+      parcalar.push(`<button class="cx-btn cx-btn-go" onclick="cxSetupOpen('${esc(c.key)}')">Bağlan…</button>`
+        + `<span class="cx-hint">ilk kez: uygulama kaydı gerekiyor</span>`);
+    }
+  }
+
+  if (c.passive && c.capabilities?.length) {
+    parcalar.push(`<button class="cx-btn" onclick="cxUse('${esc(c.key)}','${esc(c.capabilities[0])}')">`
+      + `bu projede kullan</button>`);
+  }
+
+  if (!parcalar.length) return '';
+  return `<div class="cx-act">${parcalar.join('')}</div>`
+    + (o?.supported && !o.clientReady ? `<div class="cx-setup-box" id="cxSetup-${esc(c.key)}" hidden></div>` : '');
+}
+
+/** Tek seferlik OAuth uygulama kaydi kutusu. */
+function cxSetupOpen(key) {
+  const c = PF_LAST?.checks.find(x => x.key === key);
+  const o = c?.oauth;
+  if (!o) return;
+  const box = document.getElementById(`cxSetup-${key}`);
+  if (!box) return;
+  box.hidden = false;
+  box.innerHTML = `
+    <div class="cx-fix-h">TEK SEFERLİK KURULUM</div>
+    ${o.appSetupSteps.map((x, i) => `<div class="cx-step">${i + 1}. ${esc(x)}</div>`).join('')}
+    <a class="cx-setup" href="${esc(o.appSetupUrl)}" target="_blank" rel="noreferrer noopener">uygulama oluştur ↗</a>
+    <div class="cx-step">Callback / Redirect URL:</div>
+    <code class="cx-copy" onclick="cxCopy(this)" title="Kopyalamak için tıkla">${esc(o.redirectUri)}</code>
+    <input id="cxCid-${esc(key)}" placeholder="Client ID" autocomplete="off">
+    <input id="cxSec-${esc(key)}" placeholder="Client Secret" autocomplete="off">
+    <button class="cx-btn cx-btn-go" onclick="cxSaveClient('${esc(key)}')">kaydet ve bağlan</button>`;
+}
+
+function cxCopy(el) {
+  navigator.clipboard?.writeText(el.textContent.trim());
+  const eski = el.textContent;
+  el.textContent = 'kopyalandı';
+  setTimeout(() => { el.textContent = eski; }, 900);
+}
+
+async function cxSaveClient(key) {
+  const clientId = document.getElementById(`cxCid-${key}`)?.value?.trim();
+  const clientSecret = document.getElementById(`cxSec-${key}`)?.value?.trim();
+  if (!clientId || !clientSecret) return uiToast('Client ID ve Secret zorunlu', { type: 'err' });
+  const d = await post(`/api/oauth/${key}/client`, { clientId, clientSecret });
+  if (d.error) return uiToast(d.error, { type: 'err', title: 'Kaydedilemedi' });
+  // Kayit tamam: dogrudan izin ekranina gonder — "kaydet ve baglan" sozu bu.
+  location.href = `/api/oauth/${key}/start?t=${encodeURIComponent(PANEL_TOKEN)}`;
+}
+
+async function cxDisconnect(key) {
+  if (!(await uiConfirm(`${key} bağlantısını kes?`, { ok: 'Kes' }))) return;
+  const d = await post(`/api/oauth/${key}/disconnect`, {});
+  if (d.error) return uiToast(d.error, { type: 'err', title: 'Kesilemedi' });
+  uiToast('Bağlantı kesildi', { type: 'ok' });
+  loadPreflight(true);
+}
+
+async function cxUse(key, capability) {
+  const d = await post('/api/connectors/use', { capability, connector: key });
+  if (d.error) return uiToast(d.error, { type: 'err', title: 'Açılamadı' });
+  uiToast(`${key} artık bu projede "${capability}" olarak kullanılıyor`, { type: 'ok' });
+  loadPreflight(true);
 }
 
 function pfPanelOpen() {

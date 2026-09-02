@@ -20,6 +20,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { PROJECT } from "../project.mjs";
 
+import * as OAUTH from "../oauth.mjs";
+
 import * as claudeCode from "./claude-code.mjs";
 import * as figma from "./figma.mjs";
 import * as jira from "./jira.mjs";
@@ -36,10 +38,47 @@ const ORDER = ["claude-code", "figma", "jira", "linear", "mobai", "slack"];
 /** Profil demezse makul varsayılan — paneli mevcut projelerde bozmamak için. */
 const DEFAULT_MAP = { tracker: "jira", design: "figma", ai: "claude-code", device: "mobai", chat: null };
 
-/** Bu projenin yetenek → connector eşlemesi. */
-export const MAP = { ...DEFAULT_MAP, ...(PROJECT.connectors ?? {}) };
+/**
+ * Panelden yapılan yetenek değişikliği: `panel-data/connectors.json`.
+ *
+ * NEDEN dosya, neden profili düzenlemiyoruz: profil KOD (`projects/<proje>.mjs`)
+ * ve paneli kod yazacak hâle getirmek istemiyoruz. "Bu projede kullan"
+ * düğmesi bu küçük JSON'a yazar, profil olduğu gibi kalır ve dosya silinince
+ * profildeki değere geri dönülür.
+ */
+const OVERRIDE_FILE = path.join(process.cwd(), "panel-data", "connectors.json");
+const readOverride = () => {
+  try { return JSON.parse(fs.readFileSync(OVERRIDE_FILE, "utf8")); } catch { return {}; }
+};
 
-/** Bu projede fiilen kullanılan connector anahtarları. */
+/** Bu projenin yetenek → connector eşlemesi (profil + panel override'ı). */
+export const MAP = { ...DEFAULT_MAP, ...(PROJECT.connectors ?? {}), ...readOverride() };
+
+/** Panelden yetenek atama. `null` → o yeteneği kapat. */
+export function setCapability(name, key) {
+  if (!Object.hasOwn(DEFAULT_MAP, name)) {
+    throw new Error(`Bilinmeyen yetenek: ${name} (${Object.keys(DEFAULT_MAP).join(", ")})`);
+  }
+  if (key !== null) {
+    const mod = ALL[key];
+    if (!mod) throw new Error(`Bilinmeyen connector: ${key}`);
+    if (!mod.capabilities.includes(name)) {
+      throw new Error(`${mod.label} "${name}" yeteneğini sunmuyor (sunduğu: ${mod.capabilities.join(", ")}).`);
+    }
+  }
+  const cur = readOverride();
+  cur[name] = key;
+  fs.mkdirSync(path.dirname(OVERRIDE_FILE), { recursive: true });
+  fs.writeFileSync(OVERRIDE_FILE, JSON.stringify(cur, null, 1));
+  // MAP modül yüklenirken donuyor; değişiklik sunucu yeniden başlayınca değil
+  // HEMEN geçerli olsun diye canlı nesne de güncellenir.
+  MAP[name] = key;
+  USED.clear();
+  for (const v of Object.values(MAP)) if (v) USED.add(v);
+  return { ok: true, capability: name, connector: key };
+}
+
+/** Bu projede fiilen kullanılan connector anahtarları (setCapability günceller). */
 const USED = new Set(Object.values(MAP).filter(Boolean));
 
 /**
@@ -95,7 +134,9 @@ const TTL = 10 * 60 * 1000;
  * Projede kullanılmayan connector `passive` işaretlenir: rozeti ve genel
  * durumu ETKİLEMEZ — panelin işleyişi ona bağlı değil.
  */
-async function row(key) {
+const DATA_DIR = path.join(process.cwd(), "panel-data");
+
+async function row(key, origin) {
   const mod = ALL[key];
   const used = USED.has(key);
   const base = {
@@ -107,6 +148,11 @@ async function row(key) {
     setupUrl: mod.setupUrl ?? undefined,
     capabilities: mod.capabilities,
     passive: !used || undefined,
+    /*
+     * OAuth durumu: "Bağlan" düğmesini gösterecek mi, uygulama kaydı var mı,
+     * bağlıysa ne zamandan beri. Sağlayıcısı olmayan connector'da alan yok.
+     */
+    oauth: OAUTH.isSupported(key) ? OAUTH.statusFor(DATA_DIR, key, origin) : undefined,
   };
 
   if (!used) {
@@ -118,12 +164,15 @@ async function row(key) {
     if (mod.local !== false) {
       try { has = await mod.configured(); } catch { has = false; }
     }
+    const bagli = base.oauth?.connected || has;
     return {
       ...base,
-      state: has ? "unknown" : "off",
-      detail: has
-        ? "kimlik var — bu projede kullanılmıyor"
-        : `bu projede kullanılmıyor (${mod.capabilities.join("/")})`,
+      state: bagli ? "unknown" : "off",
+      detail: base.oauth?.connected
+        ? "bağlandı (OAuth) — bu projede kullanılmıyor"
+        : has
+          ? "kimlik var — bu projede kullanılmıyor"
+          : `bu projede kullanılmıyor (${mod.capabilities.join("/")})`,
       note: `Kullanmak için: projects/${PROJECT.id}.mjs → connectors.${mod.capabilities[0]} = "${key}"`,
       fix: [],
     };
@@ -138,7 +187,7 @@ async function row(key) {
  * Panelin "Bağlantılar" listesi. `extra` ile çağıran taraf kendi satırlarını
  * ekler (kapı oturumu gibi projeye özgü, servis olmayan şeyler).
  */
-export async function preflight(extra = []) {
-  const rows = await Promise.all(ORDER.map(row));
+export async function preflight(extra = [], opts = {}) {
+  const rows = await Promise.all(ORDER.map((k) => row(k, opts.origin)));
   return [...rows, ...extra];
 }

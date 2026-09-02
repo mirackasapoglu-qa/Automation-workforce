@@ -27,19 +27,52 @@ export function readCredFile(dosyaAdi) {
 }
 
 /**
- * Bir servisin kimliğini çözer. Ortam > dosya sırası.
- * @returns {{values: object, ok: boolean, source: "env"|"file"|null}}
+ * `.linear-credentials` → `linear`. OAuth deposu servis adıyla anahtarlanıyor.
+ */
+const serviceFromFile = (dosyaAdi) => dosyaAdi.replace(/^\./, "").replace(/-credentials$/, "");
+
+/**
+ * OAuth ile bağlanmış token'lar: `panel-data/oauth/<servis>.json`.
+ * Dosyayı `panel/oauth.mjs` yazar; burada SADECE okunur (o modülü import
+ * etmiyoruz: connector'lar sunucu koduna bağımlı olmasın).
+ */
+function readOauthStore(dosyaAdi) {
+  const svc = serviceFromFile(dosyaAdi);
+  const f = path.join(process.cwd(), "panel-data", "oauth", `${svc}.json`);
+  try {
+    const j = JSON.parse(fs.readFileSync(f, "utf8"));
+    return j && typeof j.vars === "object" ? j : null;
+  } catch { return null; }
+}
+
+/**
+ * Bir servisin kimliğini çözer. Sıra: **ortam > OAuth > dosya**.
+ *
+ * OAuth dosyanın ÜSTÜNDE: "Bağlan"a basmak bilinçli ve taze bir eylem, eski
+ * bir `~/.<servis>-credentials` onu gölgelememeli. Ortam en üstte kalıyor —
+ * tek seferlik denemeler (`LINEAR_API_KEY=... npm run panel`) ve sunucuda
+ * elle verilen kimlik için.
+ *
+ * `tokenType`: OAuth token'ı gönderilirken kullanılacak şema. PAT ile OAuth
+ * token'ının başlığı bazı serviste farklı (Linear PAT'ta şema yok, OAuth'ta
+ * `Bearer`) — çağıran taraf bunu okuyup başlığı ona göre kurar.
+ *
+ * @returns {{values: object, ok: boolean, source: "env"|"oauth"|"file"|null, tokenType: string|null}}
  */
 export function resolveCreds(dosyaAdi, vars) {
   const fromFile = readCredFile(dosyaAdi);
+  const oauth = readOauthStore(dosyaAdi);
   const values = {};
   let usedEnv = false;
+  let usedOauth = false;
   for (const v of vars) {
     if (process.env[v]) { values[v] = process.env[v]; usedEnv = true; }
+    else if (oauth?.vars?.[v]) { values[v] = oauth.vars[v]; usedOauth = true; }
     else if (fromFile[v]) values[v] = fromFile[v];
   }
   const ok = vars.every((v) => Boolean(values[v]));
-  return { values, ok, source: ok ? (usedEnv ? "env" : "file") : null };
+  const source = ok ? (usedEnv ? "env" : usedOauth ? "oauth" : "file") : null;
+  return { values, ok, source, tokenType: source === "oauth" ? (oauth?.tokenType ?? "Bearer") : null };
 }
 
 /**
