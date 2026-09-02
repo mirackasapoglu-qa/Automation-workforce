@@ -110,10 +110,27 @@ export function buildHeader() {
       <div class="fw-title">Flowscope</div>
       <div class="fw-subtitle">Proje bileşenlerini haritalayın, test durumunu izleyin</div>
     </div>
+    ${landingButton()}
     <a class="btn fw-back" href="/" title="QA Paneli'ne dön (koşumlar, sonuçlar, Jira, performans)">
       ${ICON.back}<span>Panele dön</span>
     </a>`;
   return header;
+}
+
+/**
+ * Landing'e (tanitim sayfasi) donus dugmesi.
+ *
+ * Akis landing → Flowscope → Panel diye kuruldu; ters yon eksikti. Adres
+ * sunucudan gelir (`window.LANDING_URL`, scope/index.html'e enjekte edilir)
+ * cunku landing AYRI bir surecte kosuyor (4321) ve sunucuda hic olmayabilir —
+ * bos gelirse dugme HIC BASILMAZ, olu link gostermek yerine.
+ */
+function landingButton() {
+  const u = typeof window !== 'undefined' ? (window.LANDING_URL || '') : '';
+  if (!/^https?:\/\//.test(u)) return '';
+  return `<a class="btn fw-landing" href="${u}" target="_blank" rel="noreferrer noopener"`
+    + ` title="Tanıtım sayfası (landing) — ayrı süreçte, ${u}">`
+    + `${ICON.globe}<span>Landing</span></a>`;
 }
 
 export function buildToolbar() {

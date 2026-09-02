@@ -528,6 +528,19 @@ statik butonların açıklamaları `panel/public/index.html` içindeki `TIPS` s�
 UA stilindeki `display:none` ile çalışır, inline stil onu ezer ve öğe gizlenmez
 (`#dShots` bu yüzden boş görsel kolonları gösteriyordu; kural CSS'e taşındı).
 
+### Landing ↔ Flowscope ↔ Panel gezinmesi
+
+Zincir iki yönlü: landing'de **"Kapsam ağacını aç"** → `/scope/`, Flowscope üst
+barında **"Landing"** ve **"Panele dön"**, panelde **"Kapsam"** rozeti.
+
+Flowscope'taki Landing düğmesinin adresi sunucudan gelir: `LANDING_URL` env'i,
+`scope/index.html`'e `__LANDING_URL__` olarak enjekte edilir (`window.LANDING_URL`).
+⚠️ **Varsayılan yalnızca lokalde verilir** — landing ayrı bir süreç (`vite preview`,
+4321) ve sunucuda o domainde hiç yok; varsayılan konulsa düğme ölü bir localhost
+adresine giderdi. `PANEL_ORIGIN`/`PANEL_PUBLIC_URL` verilmişse (yani sunucudaysak)
+adres boş kalır ve **düğme hiç basılmaz**. Sunucuya landing konacaksa
+`LANDING_URL=https://...` ver; `off` ile kapatılır.
+
 ### Connector'a OAuth ile bağlanmak ("Bağlan" düğmesi)
 
 Kimlik artık üç kaynaktan çözülür — `connectors/credentials.mjs::resolveCreds`,

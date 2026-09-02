@@ -48,6 +48,9 @@ html, body { background: var(--bg); margin: 0; }
 .fw-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
 /* Panele donus: baslikla ayni satirda, saga yapisik. */
 .fw-back { margin-left: auto; text-decoration: none; }
+/* Landing dugmesi "Panele don"un solunda; bosluğu O yiyor, ikisi de saga yapisir. */
+.fw-landing { margin-left: auto; text-decoration: none; }
+.fw-landing + .fw-back { margin-left: 0; }
 
 /* Toolbar */
 .fw-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }

@@ -255,6 +255,25 @@ const PUBLIC_ORIGIN = (
   || `http://localhost:${PORT}`
 ).replace(/\/+$/, "");
 
+/**
+ * Flowscope'taki "Landing" dugmesinin hedefi.
+ *
+ * ⚠️ Varsayilan YALNIZCA lokalde verilir: landing ayri bir surec (`npm run up`
+ * → vite preview, 4321) ve sunucuda o domainde HIC YOK (olculdu 2026-09-02:
+ * testing-ideal.machinarium.dev/onboarding → 404). Sunucuda varsayilan
+ * koyulsa dugme olu bir localhost adresine giderdi; oraya konacaksa
+ * LANDING_URL acikca verilir. `off` ya da bos → dugme hic cikmaz.
+ */
+const LANDING_URL = (() => {
+  const raw = process.env.LANDING_URL;
+  if (raw !== undefined) {
+    const v = raw.trim();
+    return v === "" || v.toLowerCase() === "off" ? "" : v.replace(/\/+$/, "");
+  }
+  const yerel = !process.env.PANEL_ORIGIN && !process.env.PANEL_PUBLIC_URL;
+  return yerel ? `http://localhost:${Number(process.env.LANDING_PORT || 4321)}` : "";
+})();
+
 for (const raw of (process.env.PANEL_ORIGIN || "").split(",")) {
   const o = raw.trim().replace(/\/+$/, "");
   if (o) ALLOWED_ORIGINS.add(o);
@@ -806,7 +825,8 @@ const server = http.createServer(async (req, res) => {
     if (p === "/scope" || p === "/scope/" || p === "/scope/index.html") {
       const html = fs
         .readFileSync(path.join(__dirname, "public", "scope", "index.html"), "utf8")
-        .replace("__PANEL_TOKEN__", PANEL_TOKEN);
+        .replace("__PANEL_TOKEN__", PANEL_TOKEN)
+        .replace("__LANDING_URL__", LANDING_URL);
       return send(res, 200, html, "text/html; charset=utf-8");
     }
 
