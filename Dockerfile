@@ -16,6 +16,14 @@
 # ⚠️ ÇALIŞMA ZAMANI GEREKSİNİMLERİ (image'a GİRMEZ, Dokploy'dan verilmeli):
 #   - PANEL_TOKEN: verilmezse panel her açılışta yeni token üretir; iki replika
 #     ya da yeniden başlatma sonrası arayüzdeki eski token 403 yer.
+#   - PANEL_ORIGIN: ZORUNLU. Verilmezse origin whitelist'i localhost'ta kalır ve
+#     domain'den gelen TÜM yazma uçları 403 döner (arayüz bunu yanıltıcı biçimde
+#     "token eskimiş" diye gösterir). Örnek: PANEL_ORIGIN=https://panel.example
+#   - Connector kimlikleri: JIRA_EMAIL / JIRA_TOKEN / JIRA_HOST / FIGMA_TOKEN.
+#     Container'ın home dizini boş; `~/.<servis>-credentials` dosyaları YOK,
+#     tek yol ortam değişkeni (connectors/credentials.mjs env'i dosyadan önce dener).
+#   - MOBAI_BRIDGE=off: sunucuda cihaz köprüsü yok; verilmezse her preflight
+#     127.0.0.1:8686'yı yoklayıp timeout bekler.
 #   - HOMEE_ENV + BASE_URL_<ENV>: env.mjs mevcut ortam değişkenini EZMEZ, yani
 #     .env dosyası olmadan doğrudan ortam değişkeni vermek yeterli.
 #   - Kapı/üye oturumu (playwright/.auth) ve panel-data BİLİNÇLİ olarak imajın

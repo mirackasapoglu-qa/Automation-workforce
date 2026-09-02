@@ -42,5 +42,10 @@ export function resolveCreds(dosyaAdi, vars) {
   return { values, ok, source: ok ? (usedEnv ? "env" : "file") : null };
 }
 
-/** İnsan tarafına gösterilecek kimlik satırı: "~/.jira-credentials → JIRA_EMAIL / JIRA_TOKEN" */
-export const credLabel = (dosyaAdi, vars) => `~/${dosyaAdi} → ${vars.join(" / ")}`;
+/**
+ * İnsan tarafına gösterilecek kimlik satırı. Ortam değişkeni seçeneğini de
+ * SÖYLER: container'da (Dokploy) home dizininde dosya olmuyor, tek yol env —
+ * satır sadece dosyayı yazınca kullanıcı orada tıkanıyordu.
+ */
+export const credLabel = (dosyaAdi, vars) =>
+  `${vars.join(" / ")} ortam değişkeni ya da ~/${dosyaAdi}`;

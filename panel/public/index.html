@@ -1432,7 +1432,8 @@ async function post(url, body) {
     out.code = 'STALE_SERVER';
     checkPanelVersion();
   }
-  if (res.status === 403) {
+  // BAD_ORIGIN = sunucu sebebi zaten yazdi (PANEL_ORIGIN eksik); UZERINE YAZMA.
+  if (res.status === 403 && out.code !== 'BAD_ORIGIN') {
     out.error = 'Panel token eskimis (sunucu yeniden baslatilmis). '
       + (typeof REC_STEPS !== 'undefined' && REC_STEPS.length
           ? `Sayfayi YENILEME — ${REC_STEPS.length} kayit adimi kaybolur. Konsolda REC_STEPS'i kopyalayip yeni sekmede gonder.`

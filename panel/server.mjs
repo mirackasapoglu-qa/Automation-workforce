@@ -229,10 +229,29 @@ const ALLOWED_ORIGINS = new Set([
   // 403 donuyordu — ayni makinedeki mesru kullanim.
   `http://[::1]:${PORT}`,
 ]);
+/*
+ * PANEL_ORIGIN: panel bir domain arkasina konuldugunda (Dokploy) gereken EK
+ * origin'ler, virgulle ayrilmis. Bunu vermeden deploy edilen panelde tarayici
+ * Origin olarak domain'i yolluyor ve TUM yazma uclari 403 donuyor: kosum
+ * tetikleme, verdict, Jira yorumu, kapi yenileme. Arayuz her 403'u "token
+ * eskimis" diye gosterdigi icin sebep gorunmuyordu (olculdu 2026-09-02:
+ * POST /api/scenarios/prompt + gecerli token → "Origin reddedildi:
+ * https://testing-ideal.machinarium.dev").
+ *
+ * ⚠️ Origin kontrolu CSRF icindir, kimlik dogrulamasi DEGILDIR: `Origin`
+ * basligini hic gondermeyen bir istemci (curl) bu kontrolu atlar ve token
+ * servis edilen HTML'de durur. Panel internete acik bir domain'e konacaksa
+ * onune ayrica kimlik dogrulama (proxy basic-auth / SSO) gerekir.
+ */
+for (const raw of (process.env.PANEL_ORIGIN || "").split(",")) {
+  const o = raw.trim().replace(/\/+$/, "");
+  if (o) ALLOWED_ORIGINS.add(o);
+}
 
 function requireAuth(req, res) {
   if (req.headers["x-panel-token"] !== PANEL_TOKEN) {
     send(res, 403, {
+      code: "STALE_TOKEN",
       error:
         "Panel token gerekli. Bu uc yazma islemi yapar; sadece panel arayuzunden cagrilabilir.",
     });
@@ -240,7 +259,12 @@ function requireAuth(req, res) {
   }
   const origin = req.headers.origin;
   if (origin && !ALLOWED_ORIGINS.has(origin)) {
-    send(res, 403, { error: `Origin reddedildi: ${origin}` });
+    // `code` sart: arayuz aksi halde bunu "token eskimis, sayfayi yenile" diye
+    // gosteriyor ve kullanici sayfayi yenileyip yenileyip ayni duvara carpiyor.
+    send(res, 403, {
+      code: "BAD_ORIGIN",
+      error: `Origin reddedildi: ${origin} — sunucuya PANEL_ORIGIN=${origin} ver (virgulle birden fazla).`,
+    });
     return false;
   }
   return true;

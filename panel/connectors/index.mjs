@@ -109,8 +109,13 @@ async function row(key) {
 
   if (!used) {
     // Kullanılmıyorsa AĞA ÇIKMA — sadece kimlik var mı diye bak.
+    // `local === false` diyen connector'ın configured()'ı da ağa çıkar (mobai
+    // köprüyü yokluyor); kullanılmıyorken onu hiç çağırmıyoruz, yoksa her
+    // preflight boşa timeout bekliyordu.
     let has = false;
-    try { has = await mod.configured(); } catch { has = false; }
+    if (mod.local !== false) {
+      try { has = await mod.configured(); } catch { has = false; }
+    }
     return {
       ...base,
       state: has ? "unknown" : "off",

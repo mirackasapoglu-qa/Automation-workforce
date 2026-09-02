@@ -45,12 +45,12 @@ export default function Navbar() {
             {pathname === "/onboarding" ? "Landing" : "Onboarding"}
           </a>
           <a
-            href="http://localhost:4646"
+            href="http://localhost:4646/scope/"
             target="_blank"
             rel="noreferrer"
             className="liquid-glass rounded-full px-6 py-2 text-white text-sm font-medium hover:bg-white/5 transition-colors"
           >
-            Paneli aç
+            Kapsam ağacı
           </a>
         </div>
       </div>

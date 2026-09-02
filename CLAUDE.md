@@ -556,6 +556,33 @@ Playwright HTML raporuna bağlantı.
 NadirGold'daki Jira/Confluence katmanı **kasıtlı olarak yok**. Eklenecekse `/api/cards` ve
 `/api/comment` uçları NadirGold panelindeki desenle yazılır (REST v3, ADF gövde).
 
+## Sunucuda (container/Dokploy) çalıştırma — ölçülmüş tuzaklar (2026-09-02)
+
+Panel `localhost`'ta tek kişi varsayımıyla yazıldı; bir domain arkasına konduğunda
+**dört ayrı yerde** sessizce kırılıyor. `https://testing-ideal.machinarium.dev`
+üzerinde ölçülenler ve karşılıkları:
+
+| Belirti | Gerçek sebep | Çözüm |
+|---|---|---|
+| Her yazma ucu 403, arayüz "Panel token eskimiş, sayfayı yenile" diyor | `server.mjs` origin whitelist'i yalnız `localhost/127.0.0.1/[::1]`; tarayıcı same-origin POST'ta da `Origin` yolluyor | `PANEL_ORIGIN=https://<domain>` (virgülle birden fazla). Sebep artık `code: "BAD_ORIGIN"` ile ayrı geliyor, arayüz üzerine yazmıyor |
+| Her deploy sonrası eski sekmedeki token 403 | Token verilmezse üretilip `panel-data/.panel-token`'a yazılıyor, o dizin volume değilse uçuyor | `PANEL_TOKEN` sabit ver **ve** `/app/panel-data` volume bağla |
+| Jira "kapalı", env yazmak işe yaramıyor | `panel/jira.mjs` kimliği YALNIZCA `~/.jira-credentials`'tan okuyordu — container'da home boş | Düzeltildi: `resolveCreds` (env > dosya). `JIRA_EMAIL` / `JIRA_TOKEN` ortam değişkeni yeter |
+| MobAI her preflight'ta timeout'a kadar bekleyip "köprü kapalı" diyor | Köprü adresi sabit `127.0.0.1:8686`'ydı | `MOBAI_BRIDGE=off` (yoklama yapılmaz, 3 ms) ya da gerçek adres |
+
+**Kimlik konvansiyonu:** her connector `~/.<servis>-credentials` dosyasını okur ama
+`connectors/credentials.mjs::resolveCreds` **ortam değişkenini dosyadan önce** dener.
+Container'da tek yol env: `JIRA_EMAIL`, `JIRA_TOKEN`, `JIRA_HOST`, `FIGMA_TOKEN`.
+Yeni bir connector yazarken kimliği ASLA doğrudan `fs.readFileSync(homedir())` ile
+okuma — `resolveCreds` kullan, yoksa sunucuda açılamaz.
+
+⚠️ **Panelin önünde kimlik doğrulama YOK.** `PANEL_TOKEN` servis edilen HTML'de
+duruyor (`meta[name=panel-token]`) ve origin kontrolü CSRF içindir, kimlik değil:
+`Origin` başlığı hiç gönderilmeyince (curl) atlanır — ölçüldü 2026-09-02, geçerli
+token + `Origin` yok → yazma ucu 400 (yani auth geçti). Yani internete açık bir
+domain'de **herkes** koşum tetikleyebilir, kapsam ağacını yazabilir. Sunucuya
+gerçek Jira/Figma token'ı koymadan önce panelin önüne proxy basic-auth / SSO gerekir
+(Dokploy tarafında Traefik middleware'i; kod değişikliği istemez).
+
 ## Panel içinde canlı site (iframe) ve rotadan tetikleme
 
 Site `x-frame-options: SAMEORIGIN` gönderdiği için panele doğrudan iframe olarak gömülemez.

@@ -3,7 +3,8 @@
  *
  * Host, proje, epic, hata tipi ve özel alan id'leri proje profilinden gelir:
  * `panel/projects/<proje>.mjs → jira`. Bu dosyada proje bilgisi YOK.
- * Kimlik: ~/.jira-credentials (JIRA_EMAIL, JIRA_TOKEN) — repoya YAZILMAZ.
+ * Kimlik: ortam değişkeni ya da ~/.jira-credentials (JIRA_EMAIL, JIRA_TOKEN) —
+ * repoya YAZILMAZ. Çözüm sırası connectors/credentials.mjs'de: env > dosya.
  *
  * Konvansiyonlar (ölçülerek doğrulandı 2026-08-18):
  *  - REST v3. Yorum gövdesi ADF formatında olmalı.
@@ -12,24 +13,26 @@
  *  - Statü geçişi id'ye göre değil, `/transitions`'tan okunan ada göre eşlenir.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
+import { resolveCreds, credLabel } from "./connectors/credentials.mjs";
 import { PROJECT } from "./project.mjs";
 
-const CRED_FILE = path.join(os.homedir(), ".jira-credentials");
+/*
+ * ⚠️ Bu dosya eskiden kimliği YALNIZCA ~/.jira-credentials'tan okuyordu
+ * (`fs.existsSync(CRED_FILE)` → yoksa null). Container'ın home dizininde o dosya
+ * yok ve ortam değişkeni de okunmadığı için Dokploy'a JIRA_EMAIL/JIRA_TOKEN
+ * yazmak işe yaramıyordu: deploy edilmiş panelde Jira KALICI olarak kapalı
+ * görünüyordu (ölçüldü 2026-09-02, testing-ideal.machinarium.dev →
+ * /api/preflight `jira: off, "~/.jira-credentials yok"`). Diğer connector'lar
+ * (figma, slack) baştan resolveCreds kullanıyordu; tutarsızlık buradaydı.
+ */
+export const CRED = { file: ".jira-credentials", vars: ["JIRA_EMAIL", "JIRA_TOKEN"] };
+export const CRED_LABEL = credLabel(CRED.file, CRED.vars);
+/** İnsan tarafına: kimlik yoksa gösterilecek tek satır. */
+export const CRED_HINT = `JIRA_EMAIL / JIRA_TOKEN yok — ortam değişkeni ver ya da ~/${CRED.file} yaz`;
 
-function readCreds() {
-  if (!fs.existsSync(CRED_FILE)) return null;
-  const out = {};
-  for (const line of fs.readFileSync(CRED_FILE, "utf8").split("\n")) {
-    const m = line.match(/^\s*([A-Z_]+)\s*=\s*(.+?)\s*$/);
-    if (m) out[m[1]] = m[2];
-  }
-  if (!out.JIRA_EMAIL || !out.JIRA_TOKEN) return null;
-  return out;
-}
-
-const creds = readCreds();
+const resolved = resolveCreds(CRED.file, CRED.vars);
+const creds = resolved.ok ? resolved.values : null;
 
 /**
  * Profil değerleri; her biri aynı adlı ortam değişkeniyle ezilebilir
@@ -57,6 +60,8 @@ export const JIRA = {
   sprintFieldId: process.env.JIRA_SPRINT_FIELD || P.sprintFieldId || "",
   available: Boolean(creds),
   email: creds?.JIRA_EMAIL ?? "",
+  /** "env" | "file" | null — kimliğin nereden geldiği (sunucu teşhisi için). */
+  credSource: resolved.source,
 };
 
 const authHeader = creds
@@ -64,7 +69,7 @@ const authHeader = creds
   : null;
 
 async function api(pathAndQuery, { method = "GET", body } = {}) {
-  if (!authHeader) throw new Error("~/.jira-credentials bulunamadı (JIRA_EMAIL / JIRA_TOKEN)");
+  if (!authHeader) throw new Error(CRED_HINT);
   const res = await fetch(`${JIRA.host}${pathAndQuery}`, {
     method,
     headers: {
@@ -304,7 +309,7 @@ export async function createBug({
 
 /** Karta dosya ekler (multipart; X-Atlassian-Token: no-check zorunlu). */
 export async function attachFile(key, filePath) {
-  if (!authHeader) throw new Error("~/.jira-credentials bulunamadı");
+  if (!authHeader) throw new Error(CRED_HINT);
   const fs = await import("node:fs");
   const path = await import("node:path");
   const name = path.basename(filePath);

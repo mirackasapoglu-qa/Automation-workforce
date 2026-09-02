@@ -16,6 +16,7 @@ export const credentialLabel = credLabel(credential.file, credential.vars);
 export const setupFix = [
   "Atlassian > Security > API tokens ile token üret",
   "printf 'JIRA_EMAIL=...\\nJIRA_TOKEN=...\\nJIRA_HOST=https://...atlassian.net\\n' > ~/.jira-credentials",
+  "Sunucuda (container) home dizini boş: aynı değerleri ORTAM DEĞİŞKENİ olarak ver",
 ];
 
 export async function configured() {
@@ -27,14 +28,15 @@ export async function configured() {
 export async function check() {
   const { whoami, JIRA } = await import("../jira.mjs");
   if (!JIRA.available) {
-    return { state: "off", detail: "~/.jira-credentials yok", fix: setupFix };
+    const { CRED_HINT } = await import("../jira.mjs");
+    return { state: "off", detail: CRED_HINT, fix: setupFix };
   }
   try {
     const me = await whoami();
     return {
       state: "ok",
       detail: `${me.name} · ${JIRA.project}`,
-      note: `proje ${JIRA.project} · epic ${JIRA.epic} · ${JIRA.host}`,
+      note: `proje ${JIRA.project} · epic ${JIRA.epic} · ${JIRA.host} · kimlik: ${JIRA.credSource === "env" ? "ortam değişkeni" : "~/.jira-credentials"}`,
       fix: [],
     };
   } catch (e) {
