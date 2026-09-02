@@ -528,6 +528,27 @@ statik butonların açıklamaları `panel/public/index.html` içindeki `TIPS` s�
 UA stilindeki `display:none` ile çalışır, inline stil onu ezer ve öğe gizlenmez
 (`#dShots` bu yüzden boş görsel kolonları gösteriyordu; kural CSS'e taşındı).
 
+### ⚠️ Chrome + arm64: build'i düşüren tuzak (2026-09-02)
+
+`playwright install chrome` **Linux arm64'te HATA verir**: Google Chrome'un o
+mimaride yapısı yok.
+
+```
+ERROR: not supported on Linux Arm64
+Failed to install chrome
+```
+
+Bu adım `RUN` içinde olduğu için **tüm imaj build'i düşer**. Dokploy başarısız
+build'de ESKİ container'ı çalışır bırakır — yani belirti "push oldu, deploy
+yansımadı" olur, hata mesajı hiçbir yerde görünmez. Dockerfile artık mimariye
+göre ayırıyor: amd64'te gerçek Chrome, arm64'te yalnız chromium.
+
+arm64'te koşum tetiklenecekse **`PW_CHANNEL=chromium`** gerekir:
+`playwright.config.ts` varsayılan olarak `channel: "chrome"` istiyor ve o
+tarayıcı arm64 container'da yok. `PW_CHANNEL` boş ya da `chromium` verilince
+Playwright'in kendi chromium'u kullanılır (ölçüldü: arm64 imajda chromium
+açılıp sayfa render etti).
+
 ### İmajı lokalde kurup denemek (deploy'u doğrulamanın tek yolu)
 
 ```bash

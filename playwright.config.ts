@@ -24,6 +24,16 @@ if (!baseURL) {
   );
 }
 
+/**
+ * Tarayici kanali: varsayilan gercek Chrome. `PW_CHANNEL=chromium` (ya da bos)
+ * verilince Playwright'in kendi chromium'u kullanilir — arm64 sunucuda gercek
+ * Chrome YOK, orada bu sart.
+ */
+const PW_CHANNEL = (() => {
+  const v = (process.env.PW_CHANNEL ?? "chrome").trim();
+  return v === "" || v === "chromium" ? undefined : v;
+})();
+
 export default defineConfig({
   testDir: "./tests",
   workers: 1,
@@ -63,12 +73,19 @@ export default defineConfig({
     navigationTimeout: 60_000,
   },
 
+  /*
+   * Tarayici kanali. Varsayilan gercek Chrome (urunun kendi motoru) ama
+   * ⚠️ Google Chrome'un LINUX ARM64 yapisi YOK: arm64 bir sunucuda/container'da
+   * `channel: "chrome"` ile kosum "browser not found" ile duser. Orada
+   * PW_CHANNEL=chromium verilir; `undefined` Playwright'in kendi chromium'unu
+   * kullandirir.
+   */
   projects: [
     {
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        channel: "chrome",
+        channel: PW_CHANNEL,
         launchOptions: { slowMo: Number(process.env.SLOWMO ?? 0) },
       },
     },
@@ -78,7 +95,7 @@ export default defineConfig({
       use: {
         ...devices["Pixel 7"],
         browserName: "chromium",
-        channel: "chrome",
+        channel: PW_CHANNEL,
       },
     },
   ],

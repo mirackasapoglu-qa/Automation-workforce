@@ -58,8 +58,22 @@ COPY site/package.json site/package-lock.json ./site/
 RUN npm ci --include=dev --prefix site
 
 # ---- tarayıcı: config `channel: "chrome"` istiyor
+#
+# ⚠️ GOOGLE CHROME'UN LINUX ARM64 YAPISI YOK. `playwright install chrome`
+# arm64'te "ERROR: not supported on Linux Arm64 / Failed to install chrome"
+# ile HATA verir ve TUM BUILD duser (olculdu 2026-09-02, Apple Silicon).
+# Dokploy sunucusu arm64 ise imaj hic kurulamaz; Dokploy de basarisiz build'de
+# ESKI container'i calisir birakir — yani "deploy oldu ama yansimadi" tablosu.
+# Bu yuzden mimariye gore ayriliyor: amd64'te gercek Chrome, arm64'te chromium.
+# arm64'te kosum tetiklemek icin PW_CHANNEL=chromium gerekir (playwright.config.ts).
 RUN if [ "$WITH_BROWSERS" = "1" ]; then \
-      npx playwright install --with-deps chrome chromium; \
+      arch="$(dpkg --print-architecture)"; \
+      if [ "$arch" = "amd64" ]; then \
+        npx playwright install --with-deps chrome chromium; \
+      else \
+        echo "$arch: Google Chrome'un Linux arm64 yapisi yok — yalniz chromium kuruluyor (PW_CHANNEL=chromium ver)"; \
+        npx playwright install --with-deps chromium; \
+      fi; \
     else \
       echo "WITH_BROWSERS=0 — tarayici kurulmadi, kosum tetikleme CALISMAZ"; \
     fi
