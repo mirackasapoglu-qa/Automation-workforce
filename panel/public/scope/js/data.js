@@ -521,7 +521,7 @@ export const FACET_META = {
   hatali: { label: 'Hatalı', predicate: (node) => effectiveStatus(node) === '❌' },
   noTestCase: { label: 'Test Case Yok', predicate: (node) => node.testCases.length === 0 },
   stale: {
-    label: 'Bayatlar',
+    label: 'Bayat',
     predicate: (node) => isStale(node) || node.testCases.some(tc => isTestCaseRunStale(tc))
   },
   noJira: { label: 'Jira Yok', predicate: (node) => node.jiraTasks.length === 0 },
