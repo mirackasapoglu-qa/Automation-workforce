@@ -7,12 +7,24 @@
  *   - hata düzeldiyse → "beklenmedik şekilde geçti" → suite KIRMIZI olur ve
  *     bu dosyadan kaydı silmeye zorlar.
  * Böylece bilinen hatalar ne gürültü yapar ne de sessizce unutulur.
+ *
+ * ⚠️ `nodeId` alanı Flowscope'un kapsam ağacındaki (panel-data/scope/tree.json,
+ * GITIGNORE'DA — bu dosya git'e girmez) bir düğüme işaret eder; drawer'da
+ * "Bilinen hata" uyarısı göstermek için kullanılır (bkz. panel/server.mjs →
+ * knownIssues(), panel/public/scope/js/drawer.js). Bu ID'ler panelin ilk
+ * açılışında `panel/scope.mjs → seedFromProfile()`'ın ürettiği sıralı `n1,n2,…`
+ * kimlikleridir — profildeki (`panel/projects/homee.mjs → routes.rules`) sıra
+ * DEĞİŞMEDİĞİ sürece her klonda aynı çıkar. Sıra değişirse ya da ağaç elle
+ * düzenlenip düğümler taşınırsa eşleşme sessizce kaybolur (uyarı sadece
+ * GÖRÜNMEZ olur, hiçbir şey patlamaz) — panelde `/scope` açıp ilgili sayfanın
+ * gerçek id'sini kontrol ederek düzeltilebilir.
  */
 
 export const KNOWN_ISSUES = {
   /** Ürün detay sayfasında JS hatası: "parameters is not iterable" */
   productDetailConsoleError: {
     id: "HOMEE-001",
+    nodeId: "n1", // Flowscope: Homee > 05 Ürün detay
     where: "SAP test ürünleri (varyantsız PDP): /tepe-sap-test-yeni-urun-p-1099765, /test-deneme-urun-test1-p-1099766",
     detail:
       'pageerror: "parameters is not iterable" — 2026-08-20 denetimi: 2 SAP test PDP\'sinde 3/3 koşumda çıkıyor, varyantlı /anchor-… PDP\'sinde ÇIKMIYOR',
@@ -24,6 +36,7 @@ export const KNOWN_ISSUES = {
    */
   storesBrokenImage: {
     id: "HOMEE-002",
+    nodeId: "n6", // Flowscope: Homee > 07 Mağazalar
     where: "/magazalar",
     detail:
       "storage.googleapis.com/tepehome-test-cdn/uploads/images/images/1009341-2.jpg yüklenemiyor",
@@ -31,6 +44,7 @@ export const KNOWN_ISSUES = {
   /** İletişim formu boş gönderimde HİÇBİR geri bildirim vermiyor */
   contactFormNoValidation: {
     id: "HOMEE-003",
+    nodeId: "n12", // Flowscope: Homee > 09 Formlar
     where: "/iletisim",
     detail:
       "Boş form GÖNDER'e basıldığında ne validasyon ne hata ne başarı mesajı çıkıyor; form sessizce hiçbir şey yapmıyor",
@@ -41,6 +55,7 @@ export const KNOWN_ISSUES = {
    */
   checkoutContractsNotLoading: {
     id: "HOMEE-004",
+    nodeId: "n5", // Flowscope: Homee > 25 Ödeme adımı
     /**
      * ⚠️ MAC-7268 2026-08-22'de "Tamam"a taşındı (Sinem Baysel), ama hata ARALIKLI:
      * son 8 ölçülebilir koşumun 1'inde tekrarladı. Kartın kapanması testin
@@ -61,6 +76,7 @@ export const KNOWN_ISSUES = {
    */
   searchResultsLinkToProd: {
     id: "HOMEE-005",
+    nodeId: "n3", // Flowscope: Homee > 04 Arama
     where: "/arama?q=<herhangi>",
     detail:
       "Arama sonuc kartlarinin tamami https://prod.tepehome.com.tr/... adresine link veriyor (PersonaClick full_search); kullanici test ortamindan canli siteye cikiyor. 2026-08-20: tam scroll sonrasi 350/350 kart, site ici link 0",
@@ -71,6 +87,7 @@ export const KNOWN_ISSUES = {
    */
   searchRelevance: {
     id: "HOMEE-006",
+    nodeId: "n3", // Flowscope: Homee > 04 Arama
     where: "/arama?q=koltuk",
     detail:
       "koltuk aramasi 768 sonuc bildiriyor ama ilk sonuclar kolonya (the-tonka-ve-myrrh-kolonya) donuyor",
@@ -82,6 +99,7 @@ export const KNOWN_ISSUES = {
    */
   productImagesBroken: {
     id: "HOMEE-007",
+    nodeId: "n1", // Flowscope: Homee > 05 Ürün detay
     where: "/tepe-sap-test-yeni-urun-p-1099765 (oneri kartlari)",
     detail:
       "5 gorsel naturalWidth=0 donuyor, ornek: tepehome-cdn/product/41/images/1001728-1_400x400.jpg",
@@ -93,6 +111,7 @@ export const KNOWN_ISSUES = {
    */
   pdpNullAssetRequest: {
     id: "HOMEE-009",
+    nodeId: "n1", // Flowscope: Homee > 05 Ürün detay
     where: "/anchor-kare-orta-sehpa-p-anc03sh756t763 (varyantlı ürün detay)",
     detail:
       "Sayfa https://redesign-prod.test.tepehome.com.tr/null?v=0.2 istegi atiyor ve 404 aliyor; URL null bir degerden kuruluyor",
@@ -104,6 +123,7 @@ export const KNOWN_ISSUES = {
    */
   emptySearchPageError: {
     id: "HOMEE-010",
+    nodeId: "n3", // Flowscope: Homee > 04 Arama
     where: "/arama?q=<sonucsuz>",
     detail:
       "pageerror: \"Cannot read properties of null (reading 'getBoundingClientRect')\" — HOMEE-006'dan bagimsiz",
@@ -121,6 +141,7 @@ export const KNOWN_ISSUES = {
    */
   transferCopyMismatch: {
     id: "HOMEE-011",
+    nodeId: "n5", // Flowscope: Homee > 25 Ödeme adımı
     jira: "MAC-7303",
     where: "/odeme → HAVALE / EFT",
     detail:
@@ -134,6 +155,7 @@ export const KNOWN_ISSUES = {
    */
   cartEmptyStateRace: {
     id: "HOMEE-012",
+    nodeId: "n4", // Flowscope: Homee > 06 Sepet
     jira: "MAC-7304",
     where: "/sepet",
     detail:

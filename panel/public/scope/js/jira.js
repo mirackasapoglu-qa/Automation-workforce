@@ -2,7 +2,7 @@
 // Jira durumu "Tamamlandı" değilse kartın otomatik "Hatalı"ya çekilmesi (bkz. autoFlagFromJiraStatus).
 import { state, newJiraId, newJiraAnalysisId } from './state.js';
 import { ICON } from './constants.js';
-import { persist, setNodeStatus } from './data.js';
+import { persist, setNodeStatus, jiraTaskIsKnownNotDone, reloadPersistedTree } from './data.js';
 import { closeOpenMenu, openOverlayCommon } from './dropdown.js';
 import { renderDrawer } from './drawer.js';
 import { renderContent } from './shell.js';
@@ -146,12 +146,8 @@ const JIRA_POLL_INTERVAL_MS = 60000;
 // Tek yönlü: Jira "Done" olunca kart otomatik geri alınmıyor, bu bir insan kararı olarak kalıyor.
 function autoFlagFromJiraStatus(node) {
   if (node.children.length || !node.jiraTasks.length) return false;
-  const known = node.jiraTasks
-    .map(t => state.jiraStatusCache[t.taskId])
-    .filter(info => info && info.found !== false && info.statusCategory);
-  if (!known.length) return false;
-  const anyNotDone = known.some(info => info.statusCategory !== 'done');
-  if (anyNotDone && node.status !== '❌') {
+  const anyKnownNotDone = node.jiraTasks.some(t => jiraTaskIsKnownNotDone(state.jiraStatusCache[t.taskId]));
+  if (anyKnownNotDone && node.status !== '❌') {
     setNodeStatus(node, '❌');
     return true;
   }
@@ -205,6 +201,37 @@ export function startJiraStatusPolling(node) {
 export function stopJiraStatusPolling() {
   if (jiraPollTimer) { clearInterval(jiraPollTimer); jiraPollTimer = null; }
   state.jiraStatusLoading = false;
+}
+
+/**
+ * Ağaç genelinde Jira taraması — `POST /api/scope/jira/sweep` (sunucu tarafı:
+ * `panel/scope.mjs → sweepJiraStatuses`). `refreshJiraStatuses`/`startJiraStatusPolling`
+ * yalnızca O AN drawer'ı açık olan tek düğüm için çalışır; bu, ağaçtaki TÜM
+ * jiraTasks'ları tek istekte tarar — kimse drawer'ı açmasa bile Jira'da statü
+ * değişikliği fark edilsin diye (bkz. CLAUDE.md → "Flowscope: Jira durumu →
+ * otomatik 'Hatalı'"). Tetikleyici: attention-panel.js açılışı.
+ *
+ * Sunucu ağacı DOĞRUDAN diskte değiştirebildiği için (flagged.length>0 ise),
+ * bir şey değiştiyse istemcinin bellekteki kopyası `reloadPersistedTree()` ile
+ * tazelenir — yoksa ekran, diskteki gerçek durumla senkron kalmaz.
+ *
+ * @returns {{scannedNodes:number, flagged:string[], reviewSuggested:{nodeId:string,doneTaskIds:string[]}[]}|null}
+ *   sunucuya ulaşılamazsa/token yoksa null (çağıran taraf "taranamadı" göstermeli).
+ */
+export async function runJiraSweep() {
+  try {
+    const res = await fetch('/api/scope/jira/sweep', {
+      method: 'POST',
+      headers: { 'x-panel-token': window.PANEL_TOKEN ?? '' },
+    });
+    const data = await res.json();
+    if (!data.ok) return null;
+    Object.assign(state.jiraStatusCache, data.statuses ?? {});
+    if (data.flagged.length) await reloadPersistedTree();
+    return { scannedNodes: data.scannedNodes, flagged: data.flagged, reviewSuggested: data.reviewSuggested };
+  } catch (e) {
+    return null;
+  }
 }
 
 function buildJiraLiveBadge(taskId) {

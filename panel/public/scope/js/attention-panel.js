@@ -1,15 +1,161 @@
 // Ağaç genelinde "dikkat gerektiren" test case'leri (hiç koşulmamış / bayat) tek bir modalda
 // listeler — data.js::collectAttentionTestCases'ın ürettiği veriyi render eder. Tek düğümün
 // drawer'ını açmadan "bugün ne koşturmalıyım" sorusuna cevap vermek için (bkz. CLAUDE.md).
+//
+// Panel açılışı AYNI ZAMANDA ağaç genelinde bir Jira taraması tetikler (bkz.
+// runJiraSweep — CLAUDE.md → "Flowscope: Jira durumu → otomatik 'Hatalı'"): kimse
+// tek tek drawer açmasa da Jira'da statü değişen kartlar burada yakalanır.
 import { state } from './state.js';
 import { ICON } from './constants.js';
-import { collectAttentionTestCases, findNode } from './data.js';
+import { collectAttentionTestCases, findNode, flattenWithPath } from './data.js';
 import { formatNoteDate } from './notes.js';
 import { openDrawer } from './drawer.js';
+import { runJiraSweep } from './jira.js';
 
 function closeAttentionPanel() {
   const overlay = state.root.querySelector('.attention-overlay');
   if (overlay) overlay.remove();
+}
+
+function buildTestCaseList(entries) {
+  const frag = document.createDocumentFragment();
+  const desc = document.createElement('p');
+  desc.className = 'attention-desc';
+  desc.textContent = 'Hiç koşulmamış (Bekliyor) ve son koşumu 30 günden eski (Bayat) test case\'ler — '
+    + 'zaten Hatalı/Uyarılı olanlar burada değil, onlar durum kartlarında zaten görünüyor.';
+  frag.appendChild(desc);
+
+  if (!entries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'drawer-placeholder';
+    empty.textContent = 'Şu an dikkat gerektiren bir test case yok — hepsi ya koşulmuş ya da güncel.';
+    frag.appendChild(empty);
+    return frag;
+  }
+  const list = document.createElement('div');
+  list.className = 'attention-list';
+  entries.forEach(entry => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'attention-row';
+    row.onclick = () => {
+      const target = findNode(state.tree, entry.nodeId);
+      if (target) { closeAttentionPanel(); openDrawer(target); }
+    };
+
+    const badge = document.createElement('span');
+    badge.className = 'attention-badge attention-badge-' + entry.reason;
+    badge.textContent = entry.reason === 'pending' ? 'BEKLİYOR' : 'BAYAT';
+    row.appendChild(badge);
+
+    const info = document.createElement('span');
+    info.className = 'attention-info';
+    const title = document.createElement('span');
+    title.className = 'attention-title';
+    title.textContent = entry.title || '(başlıksız test case)';
+    info.appendChild(title);
+    const path = document.createElement('span');
+    path.className = 'attention-path';
+    path.textContent = entry.nodePath;
+    info.appendChild(path);
+    row.appendChild(info);
+
+    const meta = document.createElement('span');
+    meta.className = 'attention-meta';
+    meta.textContent = entry.reason === 'pending'
+      ? 'Eklendi: ' + formatNoteDate(entry.at)
+      : 'Son koşum: ' + formatNoteDate(entry.at);
+    row.appendChild(meta);
+
+    list.appendChild(row);
+  });
+  frag.appendChild(list);
+  return frag;
+}
+
+/**
+ * Jira taraması bölümü. `runJiraSweep()` ağaç genelinde tek istekte tarar,
+ * yeni ❌'ları uygular (ekranı `reloadPersistedTree` ile tazeler) ve TERSİNİ
+ * (Jira Done ama düğüm hâlâ Hatalı — insan onayı bekliyor) raporlar. Burada
+ * SADECE rapor edilir, hiçbir düğüm ✅'ya çekilmez (bkz. CLAUDE.md → "tek yönlü").
+ */
+async function renderJiraSweepSection(container) {
+  container.innerHTML = '';
+  const loading = document.createElement('div');
+  loading.className = 'drawer-placeholder';
+  loading.textContent = 'Jira durumları taranıyor…';
+  container.appendChild(loading);
+
+  const result = await runJiraSweep();
+  container.innerHTML = '';
+
+  if (!result) {
+    const err = document.createElement('div');
+    err.className = 'drawer-placeholder';
+    err.textContent = 'Jira taraması yapılamadı (tracker tanımlı değil ya da sunucuya ulaşılamadı).';
+    container.appendChild(err);
+    return;
+  }
+
+  if (result.flagged.length) {
+    const note = document.createElement('p');
+    note.className = 'attention-desc';
+    note.textContent = `${result.flagged.length} düğüm, Jira'da "Tamamlandı" olmayan bir Task ID'ye sahip olduğu için otomatik "Hatalı"ya çekildi.`;
+    container.appendChild(note);
+  }
+
+  if (!result.reviewSuggested.length) {
+    const empty = document.createElement('div');
+    empty.className = 'drawer-placeholder';
+    empty.textContent = result.flagged.length
+      ? 'İnsan onayı bekleyen bir kart yok.'
+      : 'Jira tarafında dikkat gerektiren bir şey yok — bilinen tüm kartlar ya "Hatalı" değil ya da hâlâ açık.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const desc = document.createElement('p');
+  desc.className = 'attention-desc';
+  desc.textContent = 'Bu düğümler "Hatalı" işaretli ama bağlı Jira kartlarının TÜMÜ artık "Tamamlandı" — '
+    + 'sistem bunları otomatik olarak geri almaz, gözden geçirip kararı sen ver.';
+  container.appendChild(desc);
+
+  const flat = flattenWithPath(state.tree, [], []);
+  const list = document.createElement('div');
+  list.className = 'attention-list';
+  result.reviewSuggested.forEach(entry => {
+    const found = flat.find(f => f.node.id === entry.nodeId);
+    if (!found) return; // düğüm bu arada silinmiş olabilir
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'attention-row';
+    row.onclick = () => { closeAttentionPanel(); openDrawer(found.node); };
+
+    const badge = document.createElement('span');
+    badge.className = 'attention-badge attention-badge-review';
+    badge.textContent = 'ONAY BEKLİYOR';
+    row.appendChild(badge);
+
+    const info = document.createElement('span');
+    info.className = 'attention-info';
+    const title = document.createElement('span');
+    title.className = 'attention-title';
+    title.textContent = found.node.name;
+    info.appendChild(title);
+    const path = document.createElement('span');
+    path.className = 'attention-path';
+    path.textContent = found.path.join(' › ');
+    info.appendChild(path);
+    row.appendChild(info);
+
+    const meta = document.createElement('span');
+    meta.className = 'attention-meta';
+    meta.textContent = entry.doneTaskIds.join(', ') + ' · Done';
+    row.appendChild(meta);
+
+    list.appendChild(row);
+  });
+  container.appendChild(list);
 }
 
 export function openAttentionPanel() {
@@ -41,58 +187,16 @@ export function openAttentionPanel() {
 
   const body = document.createElement('div');
   body.className = 'attention-body';
+  body.appendChild(buildTestCaseList(entries));
 
-  const desc = document.createElement('p');
-  desc.className = 'attention-desc';
-  desc.textContent = 'Hiç koşulmamış (Bekliyor) ve son koşumu 30 günden eski (Bayat) test case\'ler — '
-    + 'zaten Hatalı/Uyarılı olanlar burada değil, onlar durum kartlarında zaten görünüyor.';
-  body.appendChild(desc);
+  const jiraHeading = document.createElement('div');
+  jiraHeading.className = 'attention-subheading';
+  jiraHeading.innerHTML = ICON.jira + '<span>Jira</span>';
+  body.appendChild(jiraHeading);
 
-  if (!entries.length) {
-    const empty = document.createElement('div');
-    empty.className = 'drawer-placeholder';
-    empty.textContent = 'Şu an dikkat gerektiren bir test case yok — hepsi ya koşulmuş ya da güncel.';
-    body.appendChild(empty);
-  } else {
-    const list = document.createElement('div');
-    list.className = 'attention-list';
-    entries.forEach(entry => {
-      const row = document.createElement('button');
-      row.type = 'button';
-      row.className = 'attention-row';
-      row.onclick = () => {
-        const target = findNode(state.tree, entry.nodeId);
-        if (target) { closeAttentionPanel(); openDrawer(target); }
-      };
-
-      const badge = document.createElement('span');
-      badge.className = 'attention-badge attention-badge-' + entry.reason;
-      badge.textContent = entry.reason === 'pending' ? 'BEKLİYOR' : 'BAYAT';
-      row.appendChild(badge);
-
-      const info = document.createElement('span');
-      info.className = 'attention-info';
-      const title = document.createElement('span');
-      title.className = 'attention-title';
-      title.textContent = entry.title || '(başlıksız test case)';
-      info.appendChild(title);
-      const path = document.createElement('span');
-      path.className = 'attention-path';
-      path.textContent = entry.nodePath;
-      info.appendChild(path);
-      row.appendChild(info);
-
-      const meta = document.createElement('span');
-      meta.className = 'attention-meta';
-      meta.textContent = entry.reason === 'pending'
-        ? 'Eklendi: ' + formatNoteDate(entry.at)
-        : 'Son koşum: ' + formatNoteDate(entry.at);
-      row.appendChild(meta);
-
-      list.appendChild(row);
-    });
-    body.appendChild(list);
-  }
+  const jiraSection = document.createElement('div');
+  body.appendChild(jiraSection);
+  renderJiraSweepSection(jiraSection);
 
   modal.appendChild(body);
   state.root.appendChild(overlay);

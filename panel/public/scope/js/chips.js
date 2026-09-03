@@ -22,6 +22,19 @@ export function buildTypeChip(node) {
   return btn;
 }
 
+// Bir düğümün Jira Task ID'si var mı — drawer'ı açmadan ağaç/pano/diyagramda görünsün diye
+// küçük bir rozet. Sadece VARLIĞI ve sayıyı gösterir; canlı "done" durumu bunun kapsamı
+// dışında (o bilgi yalnızca bir tarama/poll sonrası state.jiraStatusCache'te olabilir, her
+// zaman bilinmez) — karıştırılmasın diye rozet nötr renkte, "Hatalı" rengini TAŞIMAZ.
+export function buildJiraIndicator(node) {
+  if (!node.jiraTasks.length) return null;
+  const badge = document.createElement('span');
+  badge.className = 'chip-jira-indicator';
+  badge.innerHTML = ICON.jira + `<span>${node.jiraTasks.length}</span>`;
+  badge.title = node.jiraTasks.map(t => t.taskId).join(', ');
+  return badge;
+}
+
 export function buildStatusChip(node) {
   const status = effectiveStatus(node);
   const meta = STATUS_META[status];

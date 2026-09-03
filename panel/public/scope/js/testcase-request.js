@@ -41,10 +41,14 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
     prompt: data.prompt,
     applyLabel: 'Case\'leri ağaca yaz',
     onApply: async (govde) => {
+      // `allowedNodeIds`: sunucudaki kapı (testcase-gen.mjs → gate()) modelin
+      // burada hiç istenmeyen ama ağaçta gerçekten var olan başka bir düğümü
+      // "icat edip" oraya case yazmasını engeller. Yapıştırılan JSON bunu
+      // taşımaz — biz orijinal istekten (ids) ekliyoruz.
       const r = await fetch('/api/scope/testcases/apply', {
         method: 'POST',
         headers: headers(),
-        body: JSON.stringify(govde),
+        body: JSON.stringify({ ...govde, allowedNodeIds: ids }),
       });
       const out = await r.json().catch(() => ({ ok: false, error: 'Sunucu yanıtı okunamadı.' }));
       // Sessiz başarısızlık yok: sebep neyse modalde yazılı kalır.

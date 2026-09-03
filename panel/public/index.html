@@ -2646,8 +2646,10 @@ async function cardGenPrompt(key) {
     applyLabel: 'Case\'leri agaca yaz',
     onApply: async (json) => {
       // Kart anahtari SUNUCUYA gonderiliyor: uretilen her case'e islenip
-      // "bu case neden var" sorusunun cevabi kayitta kaliyor.
-      const out = await post('/api/scope/testcases/apply', { ...json, card: key });
+      // "bu case neden var" sorusunun cevabi kayitta kaliyor. allowedNodeIds:
+      // sunucudaki kapi (testcase-gen.mjs -> gate()) modelin hic istenmeyen
+      // baska bir dugume case yazmasini engeller.
+      const out = await post('/api/scope/testcases/apply', { ...json, card: key, allowedNodeIds: [nodeId] });
       if (!out.ok) throw new Error(out.error || 'yazilamadi');
       return `${out.written} case yazildi (kart: ${key}). Case'ler TASLAK — kosulmadan "gecti" secilemez.`;
     },

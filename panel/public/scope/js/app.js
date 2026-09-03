@@ -1,10 +1,7 @@
 // Giriş noktası: DOM hazır olduğunda state.root'u bağlar, kalıcı veriyi yükler,
 // migration'ları belirli sırayla çalıştırır, sonra uygulamayı başlatır.
 import { state } from './state.js';
-import {
-  loadPersisted, migrateTypes, migrateLinks, migrateJira, migrateJiraAnalyses, migrateNotes, migrateResourceLinks,
-  migrateStatusMeta, migrateTestCases, migrateTestCaseSteps, fixIdCounter, dedupeEntityIds, findNode, persist, setSaveState
-} from './data.js';
+import { reloadPersistedTree, findNode, setSaveState } from './data.js';
 import { init } from './shell.js';
 import { openDrawer } from './drawer.js';
 
@@ -12,7 +9,7 @@ async function bootstrap() {
   state.root = document.getElementById('fw-root');
 
   try {
-    await loadPersisted();
+    await reloadPersistedTree();
   } catch (e) {
     // Yuklenemedi: YAZMAYI KAPAT. Bos agaci kaydedip diskteki gercek veriyi
     // ezmek, sessiz veri kaybinin ta kendisi olurdu.
@@ -20,20 +17,27 @@ async function bootstrap() {
     setSaveState(e.message);
     return;
   }
-  migrateTypes(state.tree);
-  migrateLinks(state.tree);
-  migrateJira(state.tree);
-  migrateJiraAnalyses(state.tree);
-  migrateNotes(state.tree);
-  migrateResourceLinks(state.tree);
-  migrateStatusMeta(state.tree);
-  migrateTestCases(state.tree);
-  migrateTestCaseSteps(state.tree);
-  fixIdCounter(state.tree);
-  if (dedupeEntityIds(state.tree)) persist();
 
+  await loadKnownIssues();
   init();
   openNodeFromHash();
+}
+
+/**
+ * Bilinen ürün hatalarını (`tests/known-issues.ts`, `panel/server.mjs → knownIssues()`
+ * ile ayrıştırılır) `/api/meta`'dan çeker. Token GEREKTİRMEZ (salt okuma) ve
+ * ağaç yüklemesini ENGELLEMEZ — bu bir "bonus" uyarı katmanı, başarısız olursa
+ * (ağ hatası, endpoint yok) sessizce boş kalır, uygulamanın geri kalanı çalışır.
+ */
+async function loadKnownIssues() {
+  try {
+    const res = await fetch('/api/meta');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.knownIssues = Array.isArray(data.knownIssues) ? data.knownIssues : [];
+  } catch (e) {
+    // sessizce gec — bilinen hata uyarisi bir "bonus", ağacın yüklenmesini bloklamaz
+  }
 }
 
 // Paylaşılabilir link: drawer açıkken URL'e #node=<id> yazılır (bkz. drawer.js). Sayfa bu

@@ -1010,6 +1010,71 @@ input'u odaklayıp tüm metni seçili yeniden adlandırma moduna girer. `mousedo
 üç görünümün (`tree-view.js`, `board-view.js`, `diagram-view.js`) hepsini aynı anda
 düzeltiyor çünkü hepsi aynı `buildNameInput()`'u kullanıyor.
 
+## Flowscope: Jira taraması, bilinen hata rozeti, Jira göstergesi, üretim kapısı (2026-09-03)
+
+Altı ekleme birlikte geldi, hepsi canlıda (gerçek panel + tarayıcı, sahte Jira
+yanıtı enjekte edilerek) doğrulandı:
+
+- **Ağaç genelinde Jira taraması** — `POST /api/scope/jira/sweep`
+  (`panel/scope.mjs → sweepJiraStatuses()`). `attachJiraTask` yalnızca YENİ
+  eklenen tek bir Task ID'yi kontrol ederken, bu ağaçtaki TÜM `jiraTasks`'ı tek
+  istekte (`collectJiraTaskIds` + tek `tracker().statusByKeys()` çağrısı)
+  yeniden değerlendirir. Aynı "bilinen + done değil → ❌" kuralı uygulanır.
+  **Tetikleyici: "Bayat/Bekleyen Test Case'ler" panelinin açılışı**
+  (`attention-panel.js`) — ayrı bir buton yok, zaten "dikkat gerektiren şeyler"
+  paneli olduğu için oraya eklendi.
+- **Tersi de raporlanır (uygulanmaz)**: zaten ❌ olan ama bağlı TÜM Task
+  ID'leri artık "Done" olan düğümler `reviewSuggested` ile aynı panelde
+  "İnsan Onayı Bekliyor" başlığı altında listelenir — ❌'dan otomatik
+  ÇIKARILMAZ, bu bilinçli olarak insan kararı (`homee-delivery-lead` de
+  aynı kontrolü kendi turunda, yazmadan, `jq` ile yapıyor — bkz. agent dosyası).
+- **Ağaç/pano/diyagram satırlarında Jira göstergesi** — `chips.js →
+  buildJiraIndicator()`, sadece bağlı Task ID SAYISINI gösterir (canlı "done"
+  durumunu DEĞİL — o bilgi ancak bir tarama/poll sonrası bilinir, her zaman yok).
+- **Yeni filtre: "Jira: Done Değil"** (`data.js → FACET_META.jiraNotDone`) —
+  `state.jiraStatusCache`'e (bir tarama ya da drawer poll'uyla dolar) bakar.
+  "Hatalı" facet'inden DAHA DAR: bir düğüm başka sebeple elle ❌ olabilir, bu
+  facet özellikle bilinen-Jira-durumuna bağlı olanı hedefler. Hiç tarama
+  çalışmadıysa boş döner ("bilinmiyor"u "done değil" saymaz).
+- **Test case üretiminde kapı** (`testcase-gen.mjs → gate()`) —
+  `scenario-suggest.mjs`/`perf-analyze.mjs`'nin aksine bu üretim yolunda
+  hiç kapı YOKTU: `applyFromModel` `findNode(tree, it.nodeId)` başarılı olan
+  HER nodeId'yi kabul ediyordu, yani model prompt'ta hiç istenmeyen ama
+  ağaçta gerçekten var olan başka bir düğümü "icat edip" oraya case
+  yazdırabilirdi. Artık üç çağıranın (`/api/scope/testcases/generate`,
+  `/api/jira/testcases/generate`, `/api/scope/testcases/apply` — hem
+  `testcase-request.js` hem `panel/public/index.html`'deki kopyala-yapıştır
+  akışları) hepsi `allowedNodeIds` gönderiyor; `gate()` bunun dışındaki
+  nodeId'leri reddediyor. Geriye dönük uyumluluk için `allowedNodeIds`
+  opsiyonel bırakıldı (verilmezse kontrol yok) — ama her mevcut çağıran veriyor.
+- **`nodeId` ile bilinen hata → düğüm bağlantısı** (`tests/known-issues.ts`)
+  — her kayıt artık hangi Flowscope düğümüne ait olduğunu taşıyor
+  (`panel/server.mjs → knownIssues()` ile ayrıştırılır, `/api/meta` üzerinden
+  `app.js`'e gelir). Drawer'ın Genel sekmesi eşleşen düğümde kırmızı bir
+  "Bilinen Hata" bölümü gösterir. ⚠️ Bu `nodeId`'ler `panel-data/scope/tree.json`
+  (gitignore'da) içindeki `seedFromProfile()`'ın ürettiği sıralı `n1,n2,…`
+  kimlikleridir — profildeki (`panel/projects/homee.mjs → routes.rules`) sıra
+  değişmediği sürece her klonda aynı çıkar; değişirse eşleşme sessizce kaybolur
+  (uyarı görünmez olur, hiçbir şey patlamaz).
+
+⚠️ **Bu turda `knownIssues()`'ta İKİ ayrı, önceden fark edilmemiş hata bulunup
+düzeltildi** (ölçüldü — eski hâliyle test edilseydi bu özellik yanlış veriyle
+çalışırdı):
+1. **Kayıt yutma**: eski regex (`detail:\s*\n?\s*"([^"]+)"`) `detail` değeri TEK
+   TIRNAKLA yazılmış bir kaydı (içinde kaçışsız `"` geçtiği için, ör. HOMEE-001)
+   hiç eşleştiremiyordu; arama bir SONRAKİ kaydın `detail:"..."`ına kadar
+   sürüklenip onu YANLIŞ kayda mal ediyordu — **HOMEE-002 ve HOMEE-005 panelin
+   "Açık Bulgular" listesinden TAMAMEN kayboluyordu**, HOMEE-001/HOMEE-004 de
+   başka bir kaydın detail metnini gösteriyordu.
+2. **Kesilme**: `detail` içinde kaçışlı `\"` geçen kayıtlarda (ör. HOMEE-010:
+   `pageerror: \"Cannot read...`) `[^"]+` kaçışı anlamadığı için metni ilk
+   kaçışlı tırnakta kesiyordu.
+   Düzeltme: `id:"..."` eşleşmelerini kaydın SINIRI sayan (bir sonraki `id:`e
+   kadar), tırnak tipini (`"`/`'`) ve kaçışları (`\`) karakter karakter takip
+   eden bir okuyucu (`readStringLiteral`/`extractField`). Panelin ana
+   "Açık Bulgular" listesi de (index.html) aynı fonksiyonu kullandığı için
+   şimdi 11 kaydın 11'ini de doğru gösteriyor — önceden 9 gösteriyordu.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

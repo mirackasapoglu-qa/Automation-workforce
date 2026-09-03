@@ -2,7 +2,7 @@
 import { state } from './state.js';
 import { ICON, statusClass } from './constants.js';
 import { effectiveStatus, treeHasProgress, isStale, nodeMatchesQuery } from './data.js';
-import { buildTypeChip, buildStatusChip, buildNameInput, buildActionButtons } from './chips.js';
+import { buildTypeChip, buildStatusChip, buildNameInput, buildActionButtons, buildJiraIndicator } from './chips.js';
 import { attachDrawerOpener } from './drawer.js';
 
 export function computeDiagramLayout(rootNodes) {
@@ -236,6 +236,8 @@ export function renderDiagramNode(node, visibleIds) {
   top.className = 'diag-top-row';
   top.appendChild(buildTypeChip(node));
   top.appendChild(buildStatusChip(node));
+  const jiraBadge = buildJiraIndicator(node);
+  if (jiraBadge) top.appendChild(jiraBadge);
   card.appendChild(top);
 
   card.appendChild(buildNameInput(node, 'Ad', 'diag-name-input'));

@@ -295,15 +295,45 @@ export function buildCardPrompt({ card, nodeId, types = ["happy", "negative"], l
 }
 
 /**
- * Claude Code'un dondurdugu JSON'u agaca yazar.
- * @param {{items: {nodeId: string, cases: object[]}[]}} girdi
+ * KAPI — model yalnızca AÇIKÇA İSTENEN düğümlere yazabilir.
+ *
+ * `scenario-suggest.mjs`/`perf-analyze.mjs`'nin aksine bu üretim yolunun ana
+ * riski uydurma İÇERİK değil (steps/expected zaten "bağlamda yoksa uydurma"
+ * talimatıyla sınırlı, ölçülemez) — uydurma HEDEF: `applyFromModel` eskiden
+ * `findNode(tree, it.nodeId)` başarılı olan HER nodeId'yi kabul ediyordu, yani
+ * model prompt'ta hiç istenmeyen ama ağaçta gerçekten var olan başka bir
+ * düğümü "icat edip" oraya case yazdırabilirdi ve hiçbir katman bunu
+ * yakalamıyordu. `allowedNodeIds` verilmişse (tüm çağıranlar veriyor — bkz.
+ * server.mjs) bunun dışındaki her nodeId reddedilir.
+ *
+ * `allowedNodeIds` bilerek OPSİYONEL bırakıldı (null/undefined = kontrol
+ * yok) — geriye dönük uyumluluk için, tüm mevcut çağıranlar zaten veriyor.
  */
-export function applyFromModel({ items, card = null }) {
+export function gate(items, { allowedNodeIds = null } = {}) {
+  const allowed = allowedNodeIds && allowedNodeIds.length ? new Set(allowedNodeIds) : null;
+  const kept = [];
+  const rejected = [];
+  for (const it of items ?? []) {
+    if (allowed && !allowed.has(it?.nodeId)) {
+      rejected.push({ nodeId: it?.nodeId ?? "(yok)", reason: "istenen düğüm listesinde değil" });
+      continue;
+    }
+    kept.push(it);
+  }
+  return { kept, rejected };
+}
+
+/**
+ * Claude Code'un dondurdugu JSON'u agaca yazar.
+ * @param {{items: {nodeId: string, cases: object[]}[], allowedNodeIds?: string[]}} girdi
+ */
+export function applyFromModel({ items, card = null, allowedNodeIds = null }) {
   if (!Array.isArray(items) || !items.length) throw new Error("items boş.");
+  const { kept, rejected } = gate(items, { allowedNodeIds });
   const { tree } = readTree();
-  const sonuc = [];
+  const sonuc = rejected.map((r) => ({ nodeId: r.nodeId, error: r.reason }));
   let toplam = 0;
-  for (const it of items) {
+  for (const it of kept) {
     const node = findNode(tree, it.nodeId);
     if (!node) { sonuc.push({ nodeId: it.nodeId, error: "düğüm bulunamadı" }); continue; }
     // Kart anahtarı istekle gelebilir (kart bazlı üretim) ya da item'da olabilir.

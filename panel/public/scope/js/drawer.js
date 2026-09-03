@@ -192,6 +192,28 @@ export function closeDrawer() {
   }, 320);
 }
 
+/**
+ * Bu düğüme bağlı bilinen ürün hataları (`tests/known-issues.ts → nodeId`,
+ * `state.knownIssues` — bkz. app.js). Yalnızca gösterir: buradan bir şey
+ * düzenlenmez, kayıt tek doğruluk kaynağı olan TS dosyasında kalır.
+ */
+function renderKnownIssuesWarning(issues) {
+  const section = document.createElement('div');
+  section.className = 'drawer-section';
+  const label = document.createElement('div');
+  label.className = 'drawer-section-label drawer-section-label-danger';
+  label.innerHTML = ICON.statusWarn + `<span>Bilinen Hata</span>` + (issues.length > 1 ? ` <span class="drawer-tab-count">${issues.length}</span>` : '');
+  section.appendChild(label);
+  issues.forEach(k => {
+    const hint = document.createElement('div');
+    hint.className = 'drawer-hint drawer-hint-warn';
+    hint.style.marginTop = '4px';
+    hint.textContent = `${k.id} · ${k.where} — ${k.detail}`;
+    section.appendChild(hint);
+  });
+  return section;
+}
+
 export function renderDrawer() {
   if (!state.drawerNode) return;
   const drawerNode = state.drawerNode;
@@ -278,6 +300,9 @@ export function renderDrawer() {
     body.appendChild(renderDrawerJiraSection(drawerNode));
     body.appendChild(renderDrawerJiraAnalysesSection(drawerNode));
   } else {
+    const knownIssues = state.knownIssues.filter(k => k.nodeId === drawerNode.id);
+    if (knownIssues.length) body.appendChild(renderKnownIssuesWarning(knownIssues));
+
     const aiSection = document.createElement('div');
     aiSection.className = 'drawer-section';
     const aiLabel = document.createElement('div');

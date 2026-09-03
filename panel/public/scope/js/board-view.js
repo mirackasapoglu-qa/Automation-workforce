@@ -4,7 +4,7 @@ import { STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
 import { flattenWithPath, findNode, effectiveStatus, persist, setNodeStatus, isStale, nodeMatchesQuery } from './data.js';
 import { openJiraPrompt } from './jira.js';
 import { renderContent } from './shell.js';
-import { buildTypeChip, buildStatusChip, buildNameInput, buildActionButtons } from './chips.js';
+import { buildTypeChip, buildStatusChip, buildNameInput, buildActionButtons, buildJiraIndicator } from './chips.js';
 import { attachDrawerOpener } from './drawer.js';
 import { buildSelectCheckbox } from './bulk-actions.js';
 
@@ -107,6 +107,8 @@ export function renderBoardCard(node, path) {
   const bottom = document.createElement('div');
   bottom.className = 'board-card-bottom';
   bottom.appendChild(buildStatusChip(node));
+  const jiraBadge = buildJiraIndicator(node);
+  if (jiraBadge) bottom.appendChild(jiraBadge);
   card.appendChild(bottom);
 
   return card;

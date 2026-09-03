@@ -3,7 +3,7 @@ import { state } from './state.js';
 import { ICON, STATUS_META, statusClass } from './constants.js';
 import { effectiveStatus, persistDebounced, isStale, nodeMatchesQuery } from './data.js';
 import { renderContent } from './shell.js';
-import { buildTypeChip, buildStatusChip, buildNameInput, buildActionButtons } from './chips.js';
+import { buildTypeChip, buildStatusChip, buildNameInput, buildActionButtons, buildJiraIndicator } from './chips.js';
 import { attachDrawerOpener } from './drawer.js';
 import { buildSelectCheckbox } from './bulk-actions.js';
 
@@ -41,6 +41,8 @@ export function renderNode(node, isRoot, visibleIds) {
   row.appendChild(buildTypeChip(node));
   row.appendChild(buildNameInput(node, 'Öğe adı', 'name-input'));
   row.appendChild(buildStatusChip(node));
+  const jiraBadge = buildJiraIndicator(node);
+  if (jiraBadge) row.appendChild(jiraBadge);
   row.appendChild(buildActionButtons(node));
 
   wrap.appendChild(row);

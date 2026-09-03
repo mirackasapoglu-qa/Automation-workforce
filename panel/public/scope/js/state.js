@@ -21,6 +21,10 @@ export const state = {
 
   tree: [],
 
+  // `/api/meta`'dan gelen bilinen ürün hataları — `{id, where, detail, nodeId}`.
+  // `nodeId` doluysa drawer o düğümde bir uyarı gösterir (bkz. app.js, drawer.js).
+  knownIssues: [],
+
   // Sunucu tarafi kalicilik (bkz. data.js). `loadFailed` true iken YAZMA yapilmaz:
   // bos agaci kaydedip diskteki gercek veriyi ezmemek icin.
   loadFailed: false,

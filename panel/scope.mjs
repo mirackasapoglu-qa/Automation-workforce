@@ -314,3 +314,69 @@ export function attachJiraTask({ nodeIds, taskId, statusInfo = null }) {
   if (attached.length || flagged.length) writeTree(tree);
   return { attached, skipped, flagged, notFound };
 }
+
+/** Ağaçtaki her yaprak düğümün jiraTasks'ından benzersiz Task ID listesini çıkarır. */
+export function collectJiraTaskIds(tree) {
+  const ids = new Set();
+  (function walk(a) {
+    for (const n of a ?? []) {
+      for (const t of n.jiraTasks ?? []) if (t.taskId) ids.add(t.taskId);
+      walk(n.children);
+    }
+  })(tree);
+  return [...ids];
+}
+
+/**
+ * Ağaç genelinde Jira durumunu tarar — `attachJiraTask` ile AYNI kuralla
+ * (bilinen + done değil → ❌) her yaprak düğümü değerlendirir. `attachJiraTask`
+ * yalnızca YENİ eklenen bir Task ID'yi kontrol ederken, bu fonksiyon ağaçtaki
+ * TÜM mevcut jiraTasks'ları yeniden değerlendirir — kimse o düğümün drawer'ını
+ * açmasa bile Jira'da statü değişikliği fark edilsin diye (bkz. CLAUDE.md →
+ * "Flowscope: Jira durumu → otomatik 'Hatalı'").
+ *
+ * TERSİNİ de raporlar (ama UYGULAMAZ): zaten ❌ olan ama artık bağlı TÜM Task
+ * ID'leri "done" olan düğümler `reviewSuggested`'e düşer — ❌'dan otomatik
+ * ÇIKARILMAZ, bu bilinçli olarak insan kararı (bkz. `homee-delivery-lead`).
+ *
+ * @param {Record<string, {found:boolean, statusCategory:string}>} statusMap tracker().statusByKeys() çıktısı
+ * @returns {{scannedNodes: number, flagged: string[], reviewSuggested: {nodeId:string, doneTaskIds:string[]}[]}}
+ */
+export function sweepJiraStatuses(statusMap) {
+  const { tree } = readTree();
+  const at = nowIso();
+  const flagged = [];
+  const reviewSuggested = [];
+  let scannedNodes = 0;
+
+  (function walk(a) {
+    for (const n of a ?? []) {
+      if (!n.children.length && (n.jiraTasks ?? []).length) {
+        scannedNodes++;
+        const known = n.jiraTasks
+          .map((t) => statusMap[t.taskId])
+          .filter((info) => info && info.found !== false && info.statusCategory);
+        if (known.length) {
+          const anyNotDone = known.some((info) => info.statusCategory !== "done");
+          if (anyNotDone && n.status !== "❌") {
+            n.statusHistory = n.statusHistory ?? [];
+            n.statusHistory.push({ id: nextId(tree, "sh"), from: n.status, to: "❌", at });
+            n.status = "❌";
+            flagged.push(n.id);
+          } else if (!anyNotDone && n.status === "❌") {
+            reviewSuggested.push({
+              nodeId: n.id,
+              doneTaskIds: n.jiraTasks
+                .filter((t) => statusMap[t.taskId]?.statusCategory === "done")
+                .map((t) => t.taskId),
+            });
+          }
+        }
+      }
+      walk(n.children);
+    }
+  })(tree);
+
+  if (flagged.length) writeTree(tree);
+  return { scannedNodes, flagged, reviewSuggested };
+}

@@ -68,7 +68,7 @@ import {
 import { preflight } from "./preflight.mjs";
 import { tracker, setCapability } from "./connectors/index.mjs";
 import * as oauth from "./oauth.mjs";
-import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask } from "./scope.mjs";
+import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
 import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
@@ -794,15 +794,62 @@ function saveVerdict(body) {
   return rec;
 }
 
+/**
+ * `text[quoteStart]`'ten başlayan bir JS string literalini (tek ya da çift
+ * tırnak, ters eğik çizgiyle kaçışlı tırnaklara saygılı) okur.
+ *
+ * ESKİ regex'in (`"([^"]+)"`) anlamadığı şey kaçış: bir `detail` metninde
+ * `\"` geçince (ör. `pageerror: \"...\"`) `[^"]+` kaçışlı tırnağın KENDİSİNDE
+ * duruyordu — metin yanlış yerden kesiliyordu (ölçüldü: HOMEE-010). Değer tek
+ * tırnakla yazılmışsa (içinde kaçışsız `"` geçtiği için, ör. HOMEE-001) durum
+ * daha kötüydü: `detail:\s*"` deseni HİÇ eşleşmiyor, arayış bir SONRAKİ
+ * kaydın `detail:"..."`ına kadar sürüklenip onu bu kayda mal ediyordu —
+ * sonraki kayıt (HOMEE-002/HOMEE-005) TAMAMEN kayboluyordu. İkisi de bu
+ * fonksiyonun kaçış-duyarlı, tek karakter karakter okumasıyla düzeldi.
+ */
+function readStringLiteral(text, quoteStart) {
+  const quote = text[quoteStart];
+  if (quote !== '"' && quote !== "'") return null;
+  let out = "";
+  for (let i = quoteStart + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\") { out += text[i + 1] ?? ""; i++; continue; }
+    if (ch === quote) return out;
+    out += ch;
+  }
+  return null; // kapanis tirnagi yok — bozuk dosya, alan bos donsun
+}
+
+/** `field: "..."` ya da `field: '...'`ı bir blok icinde bulup degerini okur. */
+function extractField(block, field) {
+  const m = new RegExp(`${field}:\\s*\\n?\\s*(["'])`).exec(block);
+  if (!m) return null;
+  return readStringLiteral(block, m.index + m[0].length - 1);
+}
+
 function knownIssues() {
   const f = path.join(ROOT, "tests", "known-issues.ts");
   if (!fs.existsSync(f)) return [];
   const src = fs.readFileSync(f, "utf8");
+
+  // Her kaydın SINIRI kendi `id:"..."` alanı — bir SONRAKİ `id:"..."`
+  // başlayana kadarki metin o kaydın bloğu sayılır. Böylece bir kaydın
+  // içindeki tırnak/kaçış çeşitliliği ne olursa olsun kayıtlar BİRBİRİNE
+  // KARIŞAMAZ (eski regex'in asıl hatası tam buradaydı: tek bir eşleşme
+  // birden fazla kaydın alanlarını birbirine bağlayabiliyordu).
+  const idMatches = [...src.matchAll(/id:\s*"([^"]+)"/g)];
   const out = [];
-  const re =
-    /id:\s*"([^"]+)"[\s\S]*?where:\s*"([^"]+)"[\s\S]*?detail:\s*\n?\s*"([^"]+)"/g;
-  let m;
-  while ((m = re.exec(src))) out.push({ id: m[1], where: m[2], detail: m[3] });
+  for (let i = 0; i < idMatches.length; i++) {
+    const m = idMatches[i];
+    const blockEnd = idMatches[i + 1]?.index ?? src.length;
+    const block = src.slice(m.index, blockEnd);
+    out.push({
+      id: m[1],
+      where: extractField(block, "where") ?? "",
+      detail: extractField(block, "detail") ?? "",
+      nodeId: extractField(block, "nodeId"),
+    });
+  }
   return out;
 }
 
@@ -1051,6 +1098,41 @@ const server = http.createServer(async (req, res) => {
           broadcast("log", { stream: "out", line: `[scope] ${taskId} done degil, ${out.flagged.length} dugum Hatali'ya cekildi` });
         }
         return send(res, 200, { ok: true, ...out });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /**
+     * Ağaç genelinde Jira taraması. Tüm jiraTasks'lardaki benzersiz Task ID'leri
+     * TEK istekte tracker'a sorar (Figma bölümündeki "istek sayısını düşür"
+     * ilkesiyle aynı gerekçe — bkz. CLAUDE.md), sonra `sweepJiraStatuses` ile
+     * hem yeni ❌'ları uygular hem "done ama hâlâ ❌" listesini (insan onayı
+     * bekliyor) döner. Flowscope'un "Bayat/Bekleyen Test Case'ler" panelini
+     * açan kullanıcı bu taramayı da tetikler (bkz. attention-panel.js).
+     */
+    if (p === "/api/scope/jira/sweep" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      try {
+        const { tree } = readTree();
+        const keys = collectJiraTaskIds(tree);
+        let statuses = {};
+        const t = tracker();
+        if (t && keys.length) {
+          try { statuses = await t.statusByKeys(keys); } catch { statuses = {}; }
+        }
+        const out = sweepJiraStatuses(statuses);
+        audit({
+          event: "scope-jira-sweep",
+          scannedKeys: keys.length,
+          scannedNodes: out.scannedNodes,
+          flagged: out.flagged.length,
+          reviewSuggested: out.reviewSuggested.length,
+        });
+        if (out.flagged.length) {
+          broadcast("log", { stream: "out", line: `[scope] jira taramasi: ${out.flagged.length} dugum Hatali'ya cekildi` });
+        }
+        return send(res, 200, { ok: true, scannedKeys: keys.length, ...out, statuses });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }
@@ -1463,7 +1545,7 @@ const server = http.createServer(async (req, res) => {
      * kalmasi gerekiyor — tek yolu CLI'ye baglamak, CLI'siz bir makinede
      * ozelligi tamamen kapatirdi.
      */
-    const uretVeYaz = async ({ prompt, card, res: response, olay }) => {
+    const uretVeYaz = async ({ prompt, card, res: response, olay, allowedNodeIds }) => {
       const t0 = Date.now();
       try {
         let cevap = await askClaude(prompt);
@@ -1484,7 +1566,7 @@ const server = http.createServer(async (req, res) => {
           );
           json = parseJsonLoose(cevap.text);
         }
-        const out = applyFromModel({ items: json.items, card });
+        const out = applyFromModel({ items: json.items, card, allowedNodeIds });
         audit({
           event: olay,
           card: card ?? null,
@@ -1527,7 +1609,7 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }
-      return uretVeYaz({ prompt, card: String(key), res, olay: "jira-testcase-generate" });
+      return uretVeYaz({ prompt, card: String(key), res, olay: "jira-testcase-generate", allowedNodeIds: [nodeId] });
     }
 
     if (p === "/api/scope/testcases/generate" && req.method === "POST") {
@@ -1539,7 +1621,7 @@ const server = http.createServer(async (req, res) => {
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }
-      return uretVeYaz({ prompt, card: null, res, olay: "scope-testcase-generate" });
+      return uretVeYaz({ prompt, card: null, res, olay: "scope-testcase-generate", allowedNodeIds: nodeIds });
     }
 
     /**

@@ -29,6 +29,27 @@ export async function loadPersisted() {
   state.scopeSeeded = Boolean(data.seeded);
 }
 
+/**
+ * `loadPersisted()` + tüm migration'lar + id sayaç/çakışma düzeltmeleri — app.js'in
+ * ilk açılışta yaptığı sırayla AYNI. Sunucu ağacı kendi başına değiştirdiğinde
+ * (ör. `POST /api/scope/jira/sweep`) istemcinin bellekteki kopyasını güncel
+ * şemayla senkron tutmak için de kullanılır (bkz. jira.js → runJiraSweep()).
+ */
+export async function reloadPersistedTree() {
+  await loadPersisted();
+  migrateTypes(state.tree);
+  migrateLinks(state.tree);
+  migrateJira(state.tree);
+  migrateJiraAnalyses(state.tree);
+  migrateNotes(state.tree);
+  migrateResourceLinks(state.tree);
+  migrateStatusMeta(state.tree);
+  migrateTestCases(state.tree);
+  migrateTestCaseSteps(state.tree);
+  fixIdCounter(state.tree);
+  if (dedupeEntityIds(state.tree)) persist();
+}
+
 export function migrateTypes(nodes) {
   const OLD_TO_NEW = { ui: 'section', func: 'function' };
   nodes.forEach(n => {
@@ -488,6 +509,14 @@ export function subtreeMatchesQuery(node, query) {
 // filtreler. Hepsi birden AND'lenir (aktif facet'lerin TÜMÜNÜ karşılamalı) — arama
 // metniyle de AND'lenir (bkz. nodeMatchesFilters). Her facet'in "why" bilgisi burada:
 // büyük bir ağaçta düğüm düğüm gezmeden "neyi unuttum" sorusuna cevap vermek için.
+// `state.jiraStatusCache`, bir düğümün drawer'ı açıldığında (jira.js → refreshJiraStatuses)
+// YA DA bir Jira taraması çalıştığında (jira.js → runJiraSweep) dolan, PAYLAŞILAN bir önbellek
+// — `{taskId: {found, statusCategory, ...}}`. "Bilinen ve done değil" kararı TEK yerden
+// verilsin diye (autoFlagFromJiraStatus ile facet predicate'i arasında mantık kaymasın).
+export function jiraTaskIsKnownNotDone(taskInfo) {
+  return Boolean(taskInfo) && taskInfo.found !== false && Boolean(taskInfo.statusCategory) && taskInfo.statusCategory !== 'done';
+}
+
 export const FACET_META = {
   hatali: { label: 'Hatalı', predicate: (node) => effectiveStatus(node) === '❌' },
   noTestCase: { label: 'Test Case Yok', predicate: (node) => node.testCases.length === 0 },
@@ -496,6 +525,15 @@ export const FACET_META = {
     predicate: (node) => isStale(node) || node.testCases.some(tc => isTestCaseRunStale(tc))
   },
   noJira: { label: 'Jira Yok', predicate: (node) => node.jiraTasks.length === 0 },
+  // Yalnızca BİLİNEN (bir tarama ya da drawer poll'u durumu gerçekten çekmiş) ve "done"
+  // olmayan Task ID'si olan düğümleri gösterir. "Hatalı" facet'inden daha DAR: bir düğüm
+  // başka bir sebeple (elle) ❌ olabilir, bu facet özellikle Jira'ya bağlı olanı hedefler.
+  // Hiç tarama/poll çalışmadıysa jiraStatusCache boştur, bu facet de boş döner — "bilinmiyor"u
+  // "done değil" saymaz.
+  jiraNotDone: {
+    label: 'Jira: Done Değil',
+    predicate: (node) => node.jiraTasks.some(t => jiraTaskIsKnownNotDone(state.jiraStatusCache[t.taskId])),
+  },
 };
 
 export function nodeMatchesFacets(node, facets) {
