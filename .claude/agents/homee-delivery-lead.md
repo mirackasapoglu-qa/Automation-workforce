@@ -90,13 +90,39 @@ koşumu tetiklemeden bitişini bekle; bitiş alanı `endedAt` + `status: "done"`
   ortamda ya da yanlış filtreyle koşulmuş bir sonucu kartın altına çakmak geri
   alınamaz.
 
-## 6. Tur raporu — her turun sonunda
+## 6. Kapsam ağacıyla çapraz kontrol — SADECE RAPOR, yazma yok
+
+`homee-product-owner` açtığı kartları `/api/scope/jira/attach` ile kapsam
+ağacındaki düğüme bağlıyor (bkz. CLAUDE.md → "Flowscope: Jira durumu →
+otomatik 'Hatalı'"). Bu bağ **tek yönlü**: Task ID "done" değilken düğüm
+otomatik ❌'ya çekiliyor ama Jira sonradan "Done" olduğunda düğüm **kendiliğinden
+geri alınmıyor** — bilinçli olarak insan kararına bırakılmış.
+
+Verdict'i `pass` yazdığın her kart için bunu kontrol et:
+
+```bash
+curl -s http://localhost:4646/api/scope/tree | jq -r --arg key "MAC-7305" '
+  .. | objects | select(.jiraTasks? and (.jiraTasks[]?.taskId == $key)) |
+  "\(.id)\t\(.name)\t\(.status)"
+'
+```
+
+Dönen düğüm hâlâ `❌` (Hatalı) gösteriyorsa bunu **tur raporunda ayrı bir
+satırda** listele ("insan onayı bekliyor: <düğüm> hâlâ Hatalı ama <KART> artık
+Done"). **Düğümün durumunu kendin değiştirme** — bu adımın tek işi görünür
+kılmak; ✅'ya çekmek karar sahibinin işi (bkz. `/scope` panelindeki durum
+seçici). Eşleşen düğüm yoksa (kart hiç bağlanmamış ya da sistemik bir kart)
+sessizce geç, bulgu değildir.
+
+## 7. Tur raporu — her turun sonunda
 
 - **Kapandı**: kart + tek satır kanıt (sayıyla).
 - **Kaldı (fail)**: hangi ölçüm, hangi alan, hangi oran.
 - **Bloke**: neyin eksik olduğu ve kimin sağlayacağı (veri, hesap, uç adı,
   ortam).
 - **Ölçülemedi**: sebebi — "atlandı" demek yetmez.
+- **İnsan onayı bekliyor**: madde 6'daki çapraz kontrolden çıkan, Jira Done
+  olduğu hâlde kapsam ağacında hâlâ Hatalı duran düğümler (varsa).
 - **Sonraki tur**: en yüksek getirili küme ve neden.
 
 Emin olmadığın şeyi "geçti" yazma. Ölçemediğin bir kart için **blocked** doğru

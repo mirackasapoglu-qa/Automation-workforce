@@ -68,7 +68,7 @@ import {
 import { preflight } from "./preflight.mjs";
 import { tracker, setCapability } from "./connectors/index.mjs";
 import * as oauth from "./oauth.mjs";
-import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults } from "./scope.mjs";
+import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
 import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
@@ -1018,6 +1018,38 @@ const server = http.createServer(async (req, res) => {
         const out = applyFromModel(body);
         audit({ event: "testcase-apply", written: out.written });
         broadcast("log", { stream: "out", line: `[case] elle uretim: ${out.written} case yazildi` });
+        return send(res, 200, { ok: true, ...out });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /**
+     * Bir kart (Jira Task ID) ile bir/birden çok kapsam ağacı düğümünü bağlar —
+     * insanın drawer'daki "Jira Task ID ekle" akışının agent'lar için sunucu
+     * karşılığı (bkz. homee-product-owner). Bağladığı Task ID bilinen ve "done"
+     * değilse, ilgili yaprak düğüm(ler) `jira.js → autoFlagFromJiraStatus()`
+     * ile AYNI kuralla anında ❌'ya çekilir — drawer açılana kadar beklenmez.
+     */
+    if (p === "/api/scope/jira/attach" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { nodeIds, taskId } = await readBody(req);
+      try {
+        const t = tracker();
+        let statusInfo = null;
+        if (t) {
+          try {
+            const statuses = await t.statusByKeys([taskId]);
+            statusInfo = statuses?.[taskId] ?? null;
+          } catch {
+            statusInfo = null; // durum bilinmiyor — attachJiraTask belirsiz veriyle karar vermez
+          }
+        }
+        const out = attachJiraTask({ nodeIds, taskId, statusInfo });
+        audit({ event: "scope-jira-attach", taskId, ...out });
+        if (out.flagged.length) {
+          broadcast("log", { stream: "out", line: `[scope] ${taskId} done degil, ${out.flagged.length} dugum Hatali'ya cekildi` });
+        }
         return send(res, 200, { ok: true, ...out });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });

@@ -39,6 +39,33 @@ belirtilebilir olmalı.
 - Kart açmadan önce **mükerrer kontrolü** zorunlu: benzer özet/uç için mevcut
   kartları ara, bulursan yeni kart yerine o karta yorum öner.
 
+## Kart açıldıktan sonra: kapsam ağacına GERİ bağla
+
+Bulgu `docs/scope-tree.json`'daki belirli bir düğümden (ya da birkaç düğümden —
+aynı kök nedenden etkilenen birden çok sayfa) çıktıysa, kart açıldıktan hemen
+sonra o düğüm(ler)e bağla:
+
+```bash
+curl -s -X POST http://localhost:4646/api/scope/jira/attach \
+  -H "content-type: application/json" -H "x-panel-token: $(cat panel-data/.panel-token)" \
+  -d '{"nodeIds": ["n17", "n42"], "taskId": "MAC-7305"}'
+```
+
+Bu, insanın drawer'dan elle "Jira Task ID ekle" yapmasının **aynısı** — tek
+fark tetikleyicinin agent olması. Sunucu kartın güncel durumunu hemen sorar;
+**"done" değilse** ilgili düğüm(ler) otomatik **"Hatalı"**ya çekilir (bkz.
+CLAUDE.md → "Flowscope: Jira durumu → otomatik 'Hatalı'"). Yani kartı açıp
+bağladığın an, ağaçta da görünür olur — birinin drawer'ı açmasını beklemez.
+
+- **`nodeIds` dizi** — bir kart birden çok sayfayı etkiliyorsa hepsini tek
+  çağrıda ver, ağaç tek seferde yazılır.
+- Aynı Task ID zaten bağlıysa (case-insensitive) uç **sessizce atlar** —
+  adımı iki kez çalıştırmak zararsız.
+- Bulgu belirli bir düğüme izlenemiyorsa (sistemik/altyapısal bir kart) bu
+  adımı atla — her kartın bir düğümü olmak zorunda değil.
+- Kart açıklamasına (`description`, düz metin) bir **"Kaynak düğüm: <ağaç
+  yolu> (<nodeId>)"** satırı ekle — kartın nereden çıktığı Jira'da da görünsün.
+
 ## Kart taslağı biçimi
 
 Her taslakta şunlar olsun, fazlası değil:
@@ -55,7 +82,11 @@ Kabul kriteri:
 Kanıt:       panel-data/evidence/<dosya> · verdict kaydı · koşum id
 Etki:        kullanıcı ne görüyor / neden şimdi
 Kapsam dışı: bilinçli olarak dahil edilmeyenler
+Kaynak düğüm: <ağaç yolu> (<nodeId>) — bilinmiyorsa/yoksa satırı hiç yazma
 ```
+
+`Kaynak düğüm` biliniyorsa kart onaylanıp açıldıktan sonra yukarıdaki
+`/api/scope/jira/attach` adımı bu nodeId(ler)i kullanır.
 
 Kabul kriteri **ölçülebilir** olacak: "düzeltilsin" değil, "GET /x yanıtındaki
 `image` alanı V1 ile birebir aynı CDN URL'ini döndürür (4/4 item)".
@@ -82,5 +113,7 @@ Kabul kriteri **ölçülebilir** olacak: "düzeltilsin" değil, "GET /x yanıtı
 3. Ölçemediğin şey için kart taslağı yazma; onun yerine **ölçüm işi** öner
    ("belgesi olan test hesabı gerekiyor" gibi) ve bunu `blocked` olarak işaretle.
 4. Kart açma/yorum/statü işini `homee-delivery-lead`'e ya da kullanıcıya bırak.
-5. Ürün belgeleri güncellenecekse `homee-pm-analyst`'i çağır — sen `docs/`
+5. Kullanıcı onayıyla kart açıldıysa ve bir `Kaynak düğüm` varsa,
+   `/api/scope/jira/attach` ile hemen bağla (yukarı bakınız).
+6. Ürün belgeleri güncellenecekse `homee-pm-analyst`'i çağır — sen `docs/`
    altına yalnızca kart taslaklarını yazarsın (`docs/backlog-<tarih>.md`).

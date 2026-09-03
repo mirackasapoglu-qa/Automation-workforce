@@ -970,6 +970,32 @@ durum geçmişine de işlenir).
   diğeri "Jira ID'n done değilse ❌'sın" — ikisi birlikte "❌ durumu her zaman
   güncel bir Jira referansıyla gerekçelendirilmiş olsun" istiyor.
 
+### Agent köprüsü: `POST /api/scope/jira/attach` (2026-09-03)
+
+Yukarıdaki kural insanın drawer'dan elle Jira ID eklemesine bağlıydı. Artık
+**agent'lar için** sunucu tarafı bir karşılığı var — `panel/scope.mjs →
+attachJiraTask({nodeIds, taskId, statusInfo})`, uç: `POST /api/scope/jira/attach`
+(token korumalı, `{nodeIds: string[], taskId: string}` gövdesi).
+
+- `homee-product-owner` bir kart açtığında (`POST /api/jira/bug`), bulgunun
+  çıktığı düğüm(ler) biliniyorsa bu ucu çağırıp kartı **geri** ağaca bağlıyor.
+  `nodeIds` dizi — bir kart birden çok sayfayı etkiliyorsa tek çağrıda hepsi.
+- Sunucu, bağlarken `tracker().statusByKeys([taskId])` ile durumu **hemen**
+  sorup yukarıdaki auto-flag kuralını aynen uyguluyor — yeni açılan bir kart
+  neredeyse hep "To Do" olacağı için pratikte **anında** ❌ görünmesi demek;
+  client'taki 60 sn'lik poll'u (o düğümün drawer'ı açık olmalı) beklemiyor.
+- Aynı Task ID zaten bağlıysa (case-insensitive) **sessizce atlanır** — agent
+  adımı iki kez çalıştırırsa hata almaz. Olmayan `nodeId` `notFound` dizisinde
+  döner, tüm çağrı patlamaz.
+- `nextId()` (scope.mjs) artık jiraTasks/notes/resourceLinks/statusHistory'nin
+  hepsini tarayacak şekilde genişletildi — önceden yalnızca testCases/runs
+  taranıyordu, yeni id üretimi (`jira`, `sh` önekleri) client'ın ürettikleriyle
+  çakışmasın diye.
+- `homee-delivery-lead` bunun **tersini** kontrol ediyor (yazmadan, sadece
+  raporda): verdict `pass` yazdığı bir kart Jira'da Done ama bağlı düğüm hâlâ
+  ❌'ysa bunu "insan onayı bekliyor" olarak tur raporuna düşürüyor — düğümü
+  kendisi ✅'ya çekmiyor, bu kasıtlı (bkz. yukarıdaki "tek yönlü" kuralı).
+
 ## Flowscope: kart tıklaması vs. yeniden adlandırma (2026-09-01)
 
 Ağaç/pano/diyagram kartlarındaki isim alanı bir `<input>` ve satırın büyük kısmını

@@ -116,19 +116,28 @@ export function findNode(tree, id) {
   return null;
 }
 
-/** Sonraki serbest `tc`/`tcr` numarası — arayüzün sayaçlarıyla çakışmasın. */
+/**
+ * Sonraki serbest `<prefix>N` numarası — arayüzün kendi sayaçlarıyla (state.js)
+ * çakışmasın diye AĞACIN TAMAMINI tarar: düğüm id'leri, jiraTasks + analyses,
+ * notes, resourceLinks, statusHistory, testCases + runs + steps. Başlangıçta
+ * yalnızca tc/tcr için vardı (applyRunResults); jira/sh gibi başka önekler için
+ * de güvenli olsun diye kapsamı genişletildi (bkz. attachJiraTask).
+ */
 function nextId(tree, prefix) {
   let max = 0;
-  const re = new RegExp(`^${prefix}(\\d+)$`);
+  const re = new RegExp(`^${prefix}(\\d+)`);
+  const bump = (id) => { const m = re.exec(id ?? ""); if (m) max = Math.max(max, Number(m[1])); };
   (function walk(a) {
     for (const n of a ?? []) {
+      bump(n.id);
+      for (const t of n.jiraTasks ?? []) { bump(t.id); for (const an of t.analyses ?? []) bump(an.id); }
+      for (const nt of n.notes ?? []) bump(nt.id);
+      for (const rl of n.resourceLinks ?? []) bump(rl.id);
+      for (const sh of n.statusHistory ?? []) bump(sh.id);
       for (const tc of n.testCases ?? []) {
-        const m = re.exec(tc.id ?? "");
-        if (m) max = Math.max(max, Number(m[1]));
-        for (const r of tc.runs ?? []) {
-          const m2 = re.exec(r.id ?? "");
-          if (m2) max = Math.max(max, Number(m2[1]));
-        }
+        bump(tc.id);
+        for (const r of tc.runs ?? []) bump(r.id);
+        for (const s of tc.steps ?? []) bump(s.id);
       }
       walk(n.children);
     }
@@ -239,4 +248,69 @@ export function applyRunResults({ nodeId, specs, results, durationMs, code = 0 }
 
   if (written) writeTree(tree);
   return { written, perSpec };
+}
+
+// ---------------- agent köprüsü: kart → düğüm bağlama ----------------
+/**
+ * Bir Jira/tracker Task ID'sini bir ya da daha fazla düğüme bağlar. İnsanın
+ * drawer'daki "Jira Task ID ekle" akışının (panel/public/scope/js/jira.js →
+ * `renderDrawerJiraSection`'daki submit()) sunucu tarafı karşılığı — agent'lar
+ * (`homee-product-owner`) bir kart açtıklarında bunu çağırıp o kartı, boşluğu
+ * bulduğu düğüm(ler)e geri bağlar.
+ *
+ * Aynı düğümde zaten var olan bir taskId (büyük/küçük harf duyarsız) SESSİZCE
+ * atlanır — client'taki aynı kural (isDuplicate), agent adımı iki kez
+ * çalışırsa hata almasın diye.
+ *
+ * `statusInfo` verilirse (tracker().statusByKeys([taskId])'nin döndürdüğü
+ * `{found, statusCategory, ...}` biçiminde) VE bilinen bir "done" DEĞİL
+ * durumsa, bağlanan her YAPRAK düğüm ❌'ya çekilir — bu, `jira.js →
+ * autoFlagFromJiraStatus()` ile TAMAMEN AYNI kural (bilinen + done değil →
+ * Hatalı, tek yönlü, insan geri almadıkça kalıcı); burada sadece tetikleyici
+ * "drawer'da 60 sn'lik poll" değil "agent'ın az önce açtığı kart" oluyor.
+ * Ebeveyn (children.length>0) düğümlerin durumu zaten alt öğelerden otomatik
+ * hesaplanıyor (bkz. data.js → effectiveStatus), o yüzden onlara dokunulmaz.
+ *
+ * @param {{nodeIds: string[], taskId: string, statusInfo?: {found:boolean, statusCategory:string}|null}} args
+ * @returns {{attached: string[], skipped: string[], flagged: string[], notFound: string[]}}
+ */
+export function attachJiraTask({ nodeIds, taskId, statusInfo = null }) {
+  const id = String(taskId ?? "").trim();
+  if (!id) throw new Error("taskId zorunlu");
+  const ids = (Array.isArray(nodeIds) ? nodeIds : [nodeIds]).filter(Boolean);
+  if (!ids.length) throw new Error("nodeIds zorunlu (en az bir düğüm id'si)");
+
+  const { tree } = readTree();
+  const at = nowIso();
+  const attached = [];
+  const skipped = [];
+  const flagged = [];
+  const notFound = [];
+
+  const isKnownNotDone =
+    !!statusInfo && statusInfo.found !== false && !!statusInfo.statusCategory && statusInfo.statusCategory !== "done";
+
+  for (const nodeId of ids) {
+    const node = findNode(tree, nodeId);
+    if (!node) { notFound.push(nodeId); continue; }
+
+    const dup = (node.jiraTasks ?? []).some((t) => t.taskId.trim().toLowerCase() === id.toLowerCase());
+    if (dup) {
+      skipped.push(nodeId);
+    } else {
+      node.jiraTasks = node.jiraTasks ?? [];
+      node.jiraTasks.push({ id: nextId(tree, "jira"), taskId: id, createdAt: at, analyses: [] });
+      attached.push(nodeId);
+    }
+
+    if (isKnownNotDone && !node.children.length && node.status !== "❌") {
+      node.statusHistory = node.statusHistory ?? [];
+      node.statusHistory.push({ id: nextId(tree, "sh"), from: node.status, to: "❌", at });
+      node.status = "❌";
+      flagged.push(nodeId);
+    }
+  }
+
+  if (attached.length || flagged.length) writeTree(tree);
+  return { attached, skipped, flagged, notFound };
 }
