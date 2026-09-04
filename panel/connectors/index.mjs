@@ -21,6 +21,7 @@ import path from "node:path";
 import { PROJECT } from "../project.mjs";
 
 import * as OAUTH from "../oauth.mjs";
+import { isCut, cutAt, setCut } from "./cuts.mjs";
 
 import * as claudeCode from "./claude-code.mjs";
 import * as figma from "./figma.mjs";
@@ -89,6 +90,12 @@ const USED = new Set(Object.values(MAP).filter(Boolean));
 export function capability(name) {
   const key = MAP[name];
   if (!key) return null;
+  /*
+   * Elle koparilmis connector yetenegi KARSILAMAZ. Cagiranlar `null`i zaten
+   * dogru isliyor ("tracker tanimli degil" gibi acik bir yanit doner) —
+   * yarim calisan bir servisten iyidir.
+   */
+  if (isCut(key)) return null;
   const mod = ALL[key];
   if (!mod) throw new Error(`Profil "${name}" için "${key}" diyor ama panel/connectors/${key}.mjs yok.`);
   if (!mod.capabilities.includes(name)) {
@@ -142,6 +149,9 @@ async function row(key, origin) {
   const base = {
     key,
     label: mod.label,
+    /** Panelden koparilip geri baglanabilir — kapi/oturum satirlarinda yok. */
+    canCut: true,
+    cut: isCut(key) || undefined,
     icon: mod.icon ?? undefined,
     credential: mod.credentialLabel,
     /** Token uretme sayfasi — arayuz "kimlik" satirini buna link yapar. */
@@ -154,6 +164,24 @@ async function row(key, origin) {
      */
     oauth: OAUTH.isSupported(key) ? OAUTH.statusFor(DATA_DIR, key, origin) : undefined,
   };
+
+  /*
+   * Koparilmissa AG YOKLAMASI YAPILMAZ: sonucu kullanilmayacak bir istek hem
+   * kotadan yer (Figma) hem preflight'i yavaslatir. Satir neden kopuk oldugunu
+   * ve geri acmanin tek tik oldugunu soyler.
+   */
+  if (isCut(key)) {
+    const ne = cutAt(key);
+    return {
+      ...base,
+      state: "off",
+      detail: `elle koparıldı${ne ? ` · ${new Date(ne).toLocaleString("tr-TR")}` : ""}`,
+      note:
+        "Kimlik, OAuth token'ı ve oturumlar YERİNDE duruyor — yalnızca " +
+        "kullanım kapalı. Rozete tıklayınca geri bağlanır.",
+      fix: [],
+    };
+  }
 
   if (!used) {
     // Kullanılmıyorsa AĞA ÇIKMA — sadece kimlik var mı diye bak.
@@ -187,6 +215,20 @@ async function row(key, origin) {
  * Panelin "Bağlantılar" listesi. `extra` ile çağıran taraf kendi satırlarını
  * ekler (kapı oturumu gibi projeye özgü, servis olmayan şeyler).
  */
+/** Panelden kopar / geri bagla. Bilinmeyen anahtar sessizce gecmesin. */
+export function setConnectorCut(key, cut) {
+  if (!ALL[key]) throw new Error(`Bilinmeyen connector: ${key}`);
+  const out = setCut(key, cut);
+  /*
+   * Onbellekteki satiri dusur: geri baglandiginda 10 dk'lik eski sonuc degil,
+   * TAZE bir yoklama gorunsun. Kopartirken de dusuyoruz — kopukken saklanan
+   * bir sey yok, ama sira/artik kalmasin.
+   */
+  const c = readJson(CACHE_FILE, {});
+  if (delete c[`${PROJECT.id}:${key}`]) writeJson(CACHE_FILE, c);
+  return out;
+}
+
 export async function preflight(extra = [], opts = {}) {
   const rows = await Promise.all(ORDER.map((k) => row(k, opts.origin)));
   return [...rows, ...extra];

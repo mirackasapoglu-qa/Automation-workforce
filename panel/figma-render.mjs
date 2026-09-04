@@ -10,10 +10,14 @@ import os from "node:os";
 import path from "node:path";
 import { figmaForRoute, FIGMA_FILE, FIGMA_ROUTES } from "./figma-map.mjs";
 import { noteResponse } from "./figma-quota.mjs";
+import { isCut } from "./connectors/cuts.mjs";
 
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
 
 function token() {
+  // Bu dosya kimligi resolveCreds yerine DOGRUDAN okuyor (eski tutarsizlik);
+  // salteri burada da sormazsak "koparildi" yazan Figma render etmeye devam eder.
+  if (isCut("figma")) return null;
   const f = path.join(os.homedir(), ".figma-credentials");
   if (!fs.existsSync(f)) return null;
   return fs.readFileSync(f, "utf8").match(/FIGMA_TOKEN\s*=\s*(\S+)/)?.[1] ?? null;

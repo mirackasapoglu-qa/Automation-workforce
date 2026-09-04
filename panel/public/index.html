@@ -344,9 +344,22 @@
   #cxPanel .cx-setup:hover{border-bottom-style:solid}
   #cxPanel .cx-act{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
   #cxPanel .cx-btn{font:inherit;font-size:11px;padding:3px 9px;border-radius:999px;cursor:pointer;
-    border:1px solid var(--line);background:var(--card);color:var(--fg);text-decoration:none}
+    border:1px solid var(--line);background:var(--card);color:var(--fg);text-decoration:none;
+    width:auto;margin:0;text-align:center;flex:0 0 auto}
   #cxPanel .cx-btn:hover{border-color:var(--accent)}
   #cxPanel .cx-btn-go{background:var(--accent);border-color:var(--accent);color:#fff}
+  /* Durum rozeti ANAHTAR: bagliysa tiklayinca koparir (⏻), kopuksa geri
+     baglar (↻). gatePill'in deseni — durumu soyleyen yer ayni zamanda onu
+     degistiren yer olsun. Anahtari olmayan satirda (kapi, oturumlar) rozet
+     duz metin kalir. */
+  #cxPanel button.pf{font:inherit;font-size:10.5px;width:auto;margin:0;cursor:pointer}
+  #cxPanel button.pf .cx-sw{opacity:.65;margin-left:3px}
+  #cxPanel button.pf:hover{filter:brightness(1.12);text-decoration:underline}
+  /* Panel acilirken kopmus karta goturulur; kart bir kez yanip sonmezse
+     "beni buraya niye getirdi" sorusu kaliyor. */
+  #cxPanel .cx-card.cx-flash{border-color:color-mix(in srgb,var(--no) 55%,var(--line));
+    animation:cxFlash 1.1s ease-out 2}
+  @keyframes cxFlash{0%,100%{background:var(--bg)}35%{background:var(--no-dim)}}
   #cxPanel .cx-hint,#cxPanel .cx-ok{color:var(--mut);font-size:11px}
   #cxPanel .cx-ok{color:var(--good)}
   #cxPanel .cx-setup-box{margin-top:7px;padding-top:7px;border-top:1px solid var(--line);display:grid;gap:5px}
@@ -3485,10 +3498,18 @@ function pfCard(c) {
     ? `<div class="cx-fix"><div class="cx-fix-h">ÇÖZÜM</div>`
       + c.fix.map(f => `<code>${esc(f)}</code>`).join('') + `</div>`
     : '';
-  return `<div class="cx-card">
+  const bp = cxBadgePlan(c);
+  const soz = esc(c.cut ? 'koparıldı' : (PF_WORD[c.state] ?? c.state));
+  const rozet = bp
+    ? `<button type="button" class="pf ${esc(c.state)}"`
+      + ` onclick="${bp.kind === 'cut' ? `cxCut('${esc(c.key)}',true)` : `cxRecover('${esc(c.key)}')`}"`
+      + ` title="Tıkla: ${esc(bp.label)} — ${esc(bp.hint)}">${soz}`
+      + `<span class="cx-sw">${bp.kind === 'cut' ? '⏻' : '↻'}</span></button>`
+    : `<span class="pf ${esc(c.state)}">${soz}</span>`;
+  return `<div class="cx-card" data-cx="${esc(c.key)}"${c.state === 'ok' ? '' : ' data-bad="1"'}>
     <div class="cx-head">
       <span class="cx-name">${ico}${esc(name)}</span>
-      <span class="pf ${esc(c.state)}">${esc(PF_WORD[c.state] ?? c.state)}</span>
+      ${rozet}
     </div>
     ${c.parts?.length ? parts : `<div class="cx-row"><span class="cx-v">${esc(c.detail ?? '')}</span></div>`}
     ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${esc(c.credential)}${cxSetupLink(c)}</span></div>` : ''}
@@ -3510,22 +3531,116 @@ function pfCard(c) {
  * Ayrica connector bu projede KULLANILMIYORSA (passive) "bu projede kullan"
  * dugmesi cikar: yetenek eslemesini panel-data/connectors.json'a yazar.
  */
+/**
+ * KURTARMA YOLU — "koptuysa tiklayinca geri gelsin".
+ *
+ * NEDEN: kart yalnizca durumu soyluyordu. OAuth'lu servislerde bir "Baglan"
+ * dugmesi vardi, ama kapi dolunca / oturum bitince / Jira token'i eskiyince
+ * kartta tiklanacak hicbir sey yoktu — cozum metni okunup elle uygulaniyordu
+ * (2026-09-03 istegi). Artik her kopuk satirin TEK bir kurtarma eylemi var ve
+ * ayni eylem hem rozete hem dugmeye bagli.
+ *
+ * Dondurdugu `kind` kurtarmanin cinsi:
+ *   oauth   → izin ekranina git (token'i kullanici gormez)
+ *   setup   → OAuth uygulamasi hic kayitli degil, tek seferlik kutu
+ *   gate    → whitelist'li `gate-refresh` kosumu (gatePill ile ayni)
+ *   session → Kapsam ekranindaki gorunur giris penceresi
+ *   token   → servisin token sayfasi; kimlik dosyasina yazmak insana kalir
+ * `null` = otomatiklestirilebilir yol yok (ornegin MobAI: yerel kopru, cozum
+ * adimlari zaten kartta).
+ */
+function cxRecoverPlan(c) {
+  // Elle koparilmis: geri acmak salteri cevirmek, kimlik zaten yerinde.
+  if (c.cut) return { kind: 'uncut', label: 'Geri bağla', hint: 'kimlik yerinde duruyor, tek tık' };
+  const o = c.oauth;
+  if (o?.supported && !o.connected) {
+    return o.clientReady
+      ? { kind: 'oauth', label: c.state === 'ok' ? 'Bağlan' : 'Yeniden bağlan',
+          hint: "izin ekranına gider, token'ı sen görmezsin" }
+      : { kind: 'setup', label: 'Bağlan…', hint: 'ilk kez: uygulama kaydı gerekiyor' };
+  }
+  if (c.state === 'ok') return null;
+  if (c.key === 'gate') return { kind: 'gate', label: 'Kapıyı yenile', hint: "~45 sn, whitelist'li koşum" };
+  if (c.key === 'sessions') return { kind: 'session', label: 'Oturum aç', hint: 'Kapsam ekranı, görünür pencere' };
+  if (c.setupUrl && /^https:\/\//.test(String(c.setupUrl))) {
+    return { kind: 'token', label: 'Yeniden bağlan', url: String(c.setupUrl),
+             hint: 'token sayfası yeni sekmede açılır' };
+  }
+  return null;
+}
+
+/**
+ * Rozetin ne yapacagi. Baglantili ve anahtari olan satirda rozet KOPARIR —
+ * "istedigimde koparabilmem lazim" (2026-09-03). Kopmus satirda kurtarir.
+ */
+function cxBadgePlan(c) {
+  if (c.state === 'ok' && c.canCut && !c.cut) {
+    return { kind: 'cut', label: 'Kopar', hint: 'kimlik silinmez, geri açmak tek tık' };
+  }
+  return c.state === 'ok' ? null : cxRecoverPlan(c);
+}
+
+/** Salteri cevir. Hicbir kimlik silinmez — sunucu tarafi da oyle. */
+async function cxCut(key, kes) {
+  const d = await post('/api/connectors/cut', { key, cut: kes });
+  if (d.error) return uiToast(d.error, { type: 'err', title: kes ? 'Koparılamadı' : 'Bağlanamadı' });
+  uiToast(kes ? 'Bağlantı koparıldı — rozete tıklayınca geri gelir' : 'Bağlantı geri geldi',
+    { type: kes ? 'warn' : 'ok' });
+  loadPreflight(true);
+}
+
+/** Rozet ve dugme AYNI yeri cagirir; kurtarma mantigi tek kopya. */
+async function cxRecover(key) {
+  const c = PF_LAST?.checks.find(x => x.key === key);
+  const plan = c && cxRecoverPlan(c);
+  if (!plan) return;
+  if (plan.kind === 'uncut') return cxCut(key, false);
+  if (plan.kind === 'oauth') { location.href = `/api/oauth/${key}/start?t=${encodeURIComponent(PANEL_TOKEN)}`; return; }
+  if (plan.kind === 'setup') return cxSetupOpen(key);
+  if (plan.kind === 'gate') { pfPanelClose(); return refreshGate(); }
+  if (plan.kind === 'session') { location.href = '/scope#import'; return; }
+  if (plan.kind === 'token') {
+    /*
+     * Token sayfasi yeni sekmede acilir. Panel token'i KENDISI yazamaz (kimlik
+     * cozumu env/dosya, bkz. connectors/credentials.mjs) — bu yuzden nereye
+     * yazilacagi soylenir ve sekmeden donuldugunde durum tekrar okunur.
+     */
+    CX_RECHECK = true;
+    window.open(plan.url, '_blank', 'noopener');
+    uiToast(c.credential ? `Yeni token'ı buraya yaz: ${c.credential}` : 'Token sayfası açıldı',
+      { title: `${c.label} yeniden bağlanıyor` });
+  }
+}
+
+/** Token sekmesinden donunce durumu tazele — el ile "yenile"ye basilmasin. */
+let CX_RECHECK = false;
+window.addEventListener('focus', () => {
+  if (!CX_RECHECK) return;
+  CX_RECHECK = false;
+  loadPreflight(!$('#cxPanel').hidden);
+});
+
 function cxActions(c) {
   const o = c.oauth;
   const parcalar = [];
+  const plan = cxRecoverPlan(c);
 
-  if (o?.supported) {
-    if (o.connected) {
-      const ne = o.connectedAt ? new Date(o.connectedAt).toLocaleString('tr-TR') : '';
-      parcalar.push(`<span class="cx-ok">OAuth ile bağlı${ne ? ` · ${esc(ne)}` : ''}</span>`
-        + `<button class="cx-btn" onclick="cxDisconnect('${esc(c.key)}')">bağlantıyı kes</button>`);
-    } else if (o.clientReady) {
-      parcalar.push(`<a class="cx-btn cx-btn-go" href="/api/oauth/${esc(c.key)}/start?t=${encodeURIComponent(PANEL_TOKEN)}">`
-        + `Bağlan</a><span class="cx-hint">izin ekranına gider, token'ı sen görmezsin</span>`);
-    } else {
-      parcalar.push(`<button class="cx-btn cx-btn-go" onclick="cxSetupOpen('${esc(c.key)}')">Bağlan…</button>`
-        + `<span class="cx-hint">ilk kez: uygulama kaydı gerekiyor</span>`);
-    }
+  if (o?.supported && o.connected && !c.cut) {
+    const ne = o.connectedAt ? new Date(o.connectedAt).toLocaleString('tr-TR') : '';
+    // İki ayri sey: "kopar" geri alinabilir bir salter, "token'i sil" OAuth
+    // kaydini gercekten siler. Etiketler bunu karistirmayacak kadar acik olmali.
+    parcalar.push(`<span class="cx-ok">OAuth ile bağlı${ne ? ` · ${esc(ne)}` : ''}</span>`
+      + `<button class="cx-btn" onclick="cxCut('${esc(c.key)}',true)">kopar</button>`
+      + `<button class="cx-btn" onclick="cxDisconnect('${esc(c.key)}')">token'ı sil</button>`);
+  } else if (plan) {
+    parcalar.push(`<button class="cx-btn cx-btn-go" onclick="cxRecover('${esc(c.key)}')">${esc(plan.label)}</button>`
+      + `<span class="cx-hint">${esc(plan.hint)}</span>`);
+  }
+
+  // OAuth'suz ama saglam baglantilarda da kopar dugmesi: rozet tek yol olmasin.
+  if (!o?.connected && !c.cut && c.state === 'ok' && c.canCut) {
+    parcalar.push(`<button class="cx-btn" onclick="cxCut('${esc(c.key)}',true)">kopar</button>`
+      + `<span class="cx-hint">kimlik silinmez, geri açmak tek tık</span>`);
   }
 
   if (c.passive && c.capabilities?.length) {
@@ -3598,6 +3713,18 @@ function pfPanelOpen() {
       <button onclick="pfPanelClose()" aria-label="Kapat">×</button></div>`
     + PF_LAST.checks.map(pfCard).join('');
   el.hidden = false;
+  /*
+   * Panel kopmus satira BAKARAK acilir: `connectors`a basan kisi zaten bir sey
+   * calismadigi icin basiyor, listeyi gozle taramasin. Pasif satirlar
+   * (Slack/Linear — panel onlari kullanmiyor) tetiklemez; ust rozeti de
+   * etkilemiyorlar, ikisi ayni kurali izlemeli.
+   */
+  const kopuk = PF_LAST.checks.filter(c => !c.passive && c.state !== 'ok');
+  // Kurtarma yolu OLAN kart oncelikli: aksi halde panel, tiklanacak hicbir seyi
+  // olmayan bir karti (ornegin MobAI) isaret edip yardim etmemis oluyor.
+  const ilkKopuk = kopuk.find(cxRecoverPlan) ?? kopuk[0];
+  const kart = ilkKopuk && el.querySelector(`.cx-card[data-cx="${CSS.escape(ilkKopuk.key)}"]`);
+  if (kart) { kart.classList.add('cx-flash'); kart.scrollIntoView({ block: 'nearest' }); }
 }
 function pfPanelClose() { $('#cxPanel').hidden = true; }
 function pfPanelToggle() { $('#cxPanel').hidden ? pfPanelOpen() : pfPanelClose(); }

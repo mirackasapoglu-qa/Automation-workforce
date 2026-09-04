@@ -66,7 +66,7 @@ import {
   applyFromModel as applyPerfFindings,
 } from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
-import { tracker, setCapability } from "./connectors/index.mjs";
+import { tracker, setCapability, setConnectorCut } from "./connectors/index.mjs";
 import * as oauth from "./oauth.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses } from "./scope.mjs";
 import * as crawler from "./crawler.mjs";
@@ -2012,6 +2012,22 @@ const server = http.createServer(async (req, res) => {
       try {
         const out = setCapability(body.capability, body.connector ?? null);
         audit({ kind: "connectors/use", capability: String(body.capability), connector: String(body.connector) });
+        return send(res, 200, out);
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /**
+     * Bir baglantiyi elle kopar / geri bagla. Hicbir kimlik SILINMEZ; yalnizca
+     * `panel-data/connector-cuts.json` sarteri degisir (bkz. connectors/cuts.mjs).
+     */
+    if (p === "/api/connectors/cut" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const body = await readBody(req);
+      try {
+        const out = setConnectorCut(String(body.key ?? ""), Boolean(body.cut));
+        audit({ kind: "connectors/cut", connector: String(body.key), cut: Boolean(body.cut) });
         return send(res, 200, out);
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });

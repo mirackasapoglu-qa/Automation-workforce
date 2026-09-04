@@ -12,6 +12,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { isCut } from "./cuts.mjs";
 
 /** `~/.<ad>` dosyasını okur; yoksa/okunamazsa boş obje. */
 export function readCredFile(dosyaAdi) {
@@ -60,6 +61,16 @@ function readOauthStore(dosyaAdi) {
  * @returns {{values: object, ok: boolean, source: "env"|"oauth"|"file"|null, tokenType: string|null}}
  */
 export function resolveCreds(dosyaAdi, vars) {
+  /*
+   * Elle koparilmis servis: kimlik VAR ama kullanilmaz. Kesme noktasi bilerek
+   * burasi — depoyu (dosya/OAuth) hic ellemedigimiz icin geri acmak tek tik,
+   * ve `panel/jira.mjs` gibi registry'yi atlayip dogrudan kimlik cozen
+   * cagiranlar da ayni sonucu gorur. Cikti "kimlik yok" ile ayni sekle sahip:
+   * tum tuketiciler o yolu zaten dogru isliyor.
+   */
+  if (isCut(serviceFromFile(dosyaAdi))) {
+    return { values: {}, ok: false, source: null, tokenType: null, cut: true };
+  }
   const fromFile = readCredFile(dosyaAdi);
   const oauth = readOauthStore(dosyaAdi);
   const values = {};

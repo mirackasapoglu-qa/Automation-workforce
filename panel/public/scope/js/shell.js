@@ -183,6 +183,12 @@ export function buildToolbar() {
   sitemapBtn.innerHTML = ICON.globe + '<span>URL’den İçe Aktar</span>';
   sitemapBtn.title = 'Bir URL’i gezip kapsam ağacı çıkarır (robots.txt’e uyar, yıkıcı öğelere dokunmaz)';
   sitemapBtn.onclick = openSitemapImportModal;
+  /*
+   * `/scope#import` ile dogrudan ice aktarma kutusu acilir. Baglantilar
+   * panelindeki "Oturum aç" kurtarmasi buraya yonlendiriyor: oturum ancak
+   * gorunur bir pencerede insan giris yaparak aciliyor, o akis burada.
+   */
+  if (location.hash.includes('import')) openSitemapImportModal();
   left.appendChild(sitemapBtn);
 
   const clearBtn = document.createElement('button');
