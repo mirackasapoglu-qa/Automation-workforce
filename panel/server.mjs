@@ -246,14 +246,35 @@ const ALLOWED_ORIGINS = new Set([
  */
 /**
  * OAuth redirect_uri buradan turetilir ve saglayiciya KAYITLI olanla harfi
- * harfine ayni olmak zorunda. Lokalde localhost, sunucuda PANEL_ORIGIN'in
- * ilki (ya da PANEL_PUBLIC_URL ile acikca verilen adres).
+ * harfine ayni olmak zorunda.
+ *
+ * Sira: PANEL_PUBLIC_URL → PANEL_ORIGIN'in ilki → ISTEGIN KENDI ADRESI.
+ *
+ * ⚠️ Son basamak sabit `localhost:PORT` DEGIL: ikisi de verilmeden deploy
+ * edilen panelde arayuz "Callback URL" olarak `http://localhost:3000/...`
+ * gosteriyordu (olculdu 2026-09-04, testing-ideal.machinarium.dev/api/preflight
+ * → redirectUri) — o adresi Linear/Slack uygulamasina yapistiran kisi calismayan
+ * bir OAuth kurar. Host olculebilir bir sey; landingUrlFor'da da ayni karar
+ * ortam degiskenine degil Host'a bakiyor. Ters vekil arkasinda
+ * `x-forwarded-proto/host` kullanilir, yoksa soketin kendisi.
+ *
+ * Ortam degiskeni verilmisse HER ZAMAN o kazanir: yabanci bir `Host` basligi
+ * akisi baska adrese kaydiramasin diye.
  */
-const PUBLIC_ORIGIN = (
+const PUBLIC_ORIGIN_ENV = (
   process.env.PANEL_PUBLIC_URL
   || (process.env.PANEL_ORIGIN || "").split(",")[0].trim()
-  || `http://localhost:${PORT}`
+  || ""
 ).replace(/\/+$/, "");
+
+function publicOriginFor(req) {
+  if (PUBLIC_ORIGIN_ENV) return PUBLIC_ORIGIN_ENV;
+  const first = (v) => String(v || "").split(",")[0].trim();
+  const host = first(req?.headers?.["x-forwarded-host"]) || first(req?.headers?.host);
+  if (!host) return `http://localhost:${PORT}`;
+  const proto = first(req?.headers?.["x-forwarded-proto"]) || (req?.socket?.encrypted ? "https" : "http");
+  return `${proto}://${host}`.replace(/\/+$/, "");
+}
 
 /**
  * Flowscope'taki "Landing" dugmesinin hedefi.
@@ -1939,8 +1960,9 @@ const server = http.createServer(async (req, res) => {
         return send(res, 403, { code: "STALE_TOKEN", error: "Panel token gerekli (baglanti akisi panelden baslatilir)." });
       }
       try {
-        const to = oauth.authorizeUrl(DATA_DIR, svc, PUBLIC_ORIGIN);
-        audit({ kind: "oauth/start", service: svc, origin: PUBLIC_ORIGIN });
+        const origin = publicOriginFor(req);
+        const to = oauth.authorizeUrl(DATA_DIR, svc, origin);
+        audit({ kind: "oauth/start", service: svc, origin });
         res.writeHead(302, { location: to, "cache-control": "no-store" });
         return res.end();
       } catch (e) {
@@ -1964,7 +1986,7 @@ const server = http.createServer(async (req, res) => {
           + `<p><a href="/">← QA Paneli'ne dön</a></p></div>`);
       };
       try {
-        const r = await oauth.handleCallback(DATA_DIR, url.searchParams, PUBLIC_ORIGIN);
+        const r = await oauth.handleCallback(DATA_DIR, url.searchParams, publicOriginFor(req));
         audit({ kind: "oauth/connected", service: r.svc });
         return page(`${r.label} bağlandı`, "Token panele kaydedildi. Bu sekmeyi kapatabilirsin.", true);
       } catch (e) {
@@ -2074,7 +2096,7 @@ const server = http.createServer(async (req, res) => {
             detail: "okunamadi",
             credential: gateFile,
           };
-      const checks = await preflight([gate, sessions.preflightRow()], { origin: PUBLIC_ORIGIN });
+      const checks = await preflight([gate, sessions.preflightRow()], { origin: publicOriginFor(req) });
       // `passive` satirlar (Slack/Linear gibi gosterim amacli olanlar) genel
       // duruma katilmaz — panelin isleyisi onlara bagli degil.
       const active = checks.filter((c) => !c.passive);

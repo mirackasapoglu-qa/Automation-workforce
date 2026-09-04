@@ -616,6 +616,15 @@ bağlanmazsa deploy'da uçar. Client id/secret ortam değişkeniyle de verilebil
 gönderemez. Sebep sadece CSRF değil: panel internete açıksa yabancı biri akışı
 başlatıp KENDİ hesabını panele bağlayabilir.
 
+⚠️ **Kartta gösterilen "Callback / Redirect URL" isteğin kendi adresinden türer.**
+Sıra: `PANEL_PUBLIC_URL` → `PANEL_ORIGIN`'in ilki → **isteğin Host'u**
+(ters vekil arkasında `x-forwarded-proto` / `x-forwarded-host`). Eskiden son
+basamak sabit `http://localhost:<port>`'tu ve ikisi de verilmeden deploy edilen
+panel, sağlayıcıya yapıştırılacak adres olarak `http://localhost:3000/api/oauth/callback`
+gösteriyordu (ölçüldü 2026-09-04, canlıda `/api/preflight` → `linear.oauth.redirectUri`)
+— o adresle kurulan OAuth uygulaması hiç çalışmaz. Ortam değişkeni verilmişse
+her zaman o kazanır (yabancı bir `Host` başlığı akışı kaydırmasın diye).
+
 ⚠️ **OAuth'ta "tek tık" ancak uygulama sağlayıcıda bir kere kaydedilirse mümkün.**
 Claude Desktop'ta o kaydı Anthropic yapmış; burada bir kere biz yapıyoruz. Panel
 kaydı da kendi içinden ister (kartta "Bağlan…" → TEK SEFERLİK KURULUM kutusu:
