@@ -22,6 +22,8 @@
 #   - Connector kimlikleri: JIRA_EMAIL / JIRA_TOKEN / JIRA_HOST / FIGMA_TOKEN.
 #     Container'ın home dizini boş; `~/.<servis>-credentials` dosyaları YOK,
 #     tek yol ortam değişkeni (connectors/credentials.mjs env'i dosyadan önce dener).
+#   - PANEL_PROJECT: hangi proje profili (panel/projects/<ad>.mjs). İmajda
+#     varsayılanı `homee`; birden fazla profil varken verilmezse panel açılmaz.
 #   - MOBAI_BRIDGE=off: sunucuda cihaz köprüsü yok; verilmezse her preflight
 #     127.0.0.1:8686'yı yoklayıp timeout bekler.
 #   - HOMEE_ENV + BASE_URL_<ENV>: env.mjs mevcut ortam değişkenini EZMEZ, yani
@@ -92,7 +94,15 @@ RUN mkdir -p panel-data test-results playwright/.auth "$PLAYWRIGHT_BROWSERS_PATH
  && useradd -m -u 10001 qa \
  && chown -R qa:qa /app "$PLAYWRIGHT_BROWSERS_PATH"
 
+# PANEL_PROJECT imajda SABİTLENİR. `panel/project.mjs` profil dizininde birden
+# fazla dosya görünce bilerek HATA atar (tahmin etmez) — `projects/mto.mjs`
+# eklendiği anda sunucudaki container her açılışta bu hatayla düştü ve Dokploy
+# yeni container'ı ayağa kaldıramadı (ölçüldü 2026-09-04). Yerelde `npm run panel`
+# aynı varsayılanı package.json'dan alıyor; imajda CMD doğrudan `node scripts/up.mjs`
+# olduğu için burada verilmesi şart. Başka profil için deploy'da ezilir
+# (ör. -e PANEL_PROJECT=mto).
 ENV NODE_ENV=production \
+    PANEL_PROJECT=homee \
     PANEL_PORT=3000 \
     LANDING_PORT=4321
 

@@ -633,6 +633,28 @@ Yetenek eşlemesi panelden değiştirilebilir: **"bu projede kullan"** düğmesi
 `panel-data/connectors.json`'a yazar (`{"chat":"slack"}`), profil KODU
 (`projects/<proje>.mjs`) değişmez; dosya silinince profildeki değere dönülür.
 
+#### Bağlantı şalteri — "kopar" / "geri bağla"
+
+Bağlantılar panelindeki **durum rozeti bir anahtardır**: bağlıyken tıklamak koparır (⏻),
+kopukken geri bağlar (↻). Şalter `panel-data/connector-cuts.json` (`{"jira":"<ISO tarih>"}`);
+anahtarın varlığı "kopuk" demektir.
+
+**Hiçbir kimlik silinmez.** Kesme noktası bilerek kimlik ÇÖZÜMÜ
+(`connectors/credentials.mjs::resolveCreds` → `ok:false`), depo değil: `~/.<servis>-credentials`,
+`panel-data/oauth/<servis>.json` ve oturumlar yerinde kalır, geri açmak tek tık. Böylece
+registry'yi atlayıp doğrudan kimlik çözen çağıranlar (`panel/jira.mjs`) da aynı sonucu görür.
+`capability()` kopuk connector için `null` döner → çağıranlar zaten doğru işliyor
+("tracker tanımlı değil"). `figma-render.mjs` kimliği doğrudan okuduğu için orada
+ayrıca `isCut("figma")` sorulur.
+
+Kopukken **ağ yoklaması yapılmaz** (Figma kotası) ve şalter her değiştiğinde o connector'ın
+`.preflight-cache.json` kaydı düşürülür — geri bağlanınca taze sonuç görünür.
+
+⚠️ Şalter yalnızca `connectors/index.mjs::ALL` içindeki servislerde var (`canCut: true`).
+**Kapı ve Oturumlar satırlarında YOK**: onları "koparmak" yerel auth dosyasını silmek
+demek olurdu — geri gelmesi 45 sn'lik koşum ya da elle giriş gerektirir, tek tık değil.
+OAuth kartlarındaki **`token'ı sil`** ayrı bir şey: o gerçekten OAuth kaydını siler.
+
 ### Güvenlik modeli (panel yerel bir HTTP sunucusu — gezdiğin her sayfa ona istek atabilir)
 
 - **Serbest komut YOK.** Ya `panel/runs.json` whitelist'indeki koşum, ya da **parametreli koşum**:
@@ -672,6 +694,7 @@ Panel `localhost`'ta tek kişi varsayımıyla yazıldı; bir domain arkasına ko
 | Her yazma ucu 403, arayüz "Panel token eskimiş, sayfayı yenile" diyor | `server.mjs` origin whitelist'i yalnız `localhost/127.0.0.1/[::1]`; tarayıcı same-origin POST'ta da `Origin` yolluyor | `PANEL_ORIGIN=https://<domain>` (virgülle birden fazla). Sebep artık `code: "BAD_ORIGIN"` ile ayrı geliyor, arayüz üzerine yazmıyor |
 | Her deploy sonrası eski sekmedeki token 403 | Token verilmezse üretilip `panel-data/.panel-token`'a yazılıyor, o dizin volume değilse uçuyor | `PANEL_TOKEN` sabit ver **ve** `/app/panel-data` volume bağla |
 | Jira "kapalı", env yazmak işe yaramıyor | `panel/jira.mjs` kimliği YALNIZCA `~/.jira-credentials`'tan okuyordu — container'da home boş | Düzeltildi: `resolveCreds` (env > dosya). `JIRA_EMAIL` / `JIRA_TOKEN` ortam değişkeni yeter |
+| Container açılışta düşüyor, deploy sonrası yeni sürüm hiç ayağa kalkmıyor | `panel/projects/` içine ikinci profil (`mto.mjs`) girince `project.mjs` "hangisi?" diye HATA atıyor; imajda CMD `node scripts/up.mjs`, yani package.json'daki `PANEL_PROJECT=homee` varsayılanı devrede değil | Dockerfile'a `ENV PANEL_PROJECT=homee` eklendi (2026-09-04). Deploy'da ezmek serbest: `-e PANEL_PROJECT=<profil>` |
 | MobAI her preflight'ta timeout'a kadar bekleyip "köprü kapalı" diyor | Köprü adresi sabit `127.0.0.1:8686`'ydı | `MOBAI_BRIDGE=off` (yoklama yapılmaz, 3 ms) ya da gerçek adres |
 
 **Kimlik konvansiyonu:** her connector `~/.<servis>-credentials` dosyasını okur ama
