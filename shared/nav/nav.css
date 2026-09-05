@@ -1,0 +1,257 @@
+/**
+ * ORTAK UST BAR — panel (/), Flowscope (/scope) ve landing (4321) icin TEK kaynak.
+ *
+ * NEDEN: ust serit uc yerde uc kez yazilmisti — panelin `index.html` <style>
+ * blogunda, Flowscope'un `fw-header`inda ve site'in kendi navbar'inda. Bir
+ * rengi ya da bir dugmeyi degistirmek uc dosyada uc duzeltme demekti; pratikte
+ * uc yuz birbirinden ayrildi. Artik markup da bicim de burada.
+ *
+ * TOKEN KOPRUSU: bar bulundugu sayfanin paletini MIRAS ALIR, yoksa kendi
+ * degerine duser. Panelde `--fg/--line/--acc` (theme.css uzerinden), landing'de
+ * `--text/--border` tanimli; ikisi de yoksa asagidaki sabitler gecerli. Bu
+ * sayede bar panelde bugunku gorunumunu aynen korur, landing'de de yabanci
+ * durmaz — ve hicbir sayfa nav icin ayrica palet tanimlamak zorunda kalmaz.
+ *
+ * ⚠️ Secicilerin hepsi `.hq-nav` altinda. Panelin genel `button{...}` kurali
+ * (0,0,1) bar icindeki `.hq-nav button` (0,1,1) tarafindan eziliyor — bar bu
+ * yuzden panelin disinda da ayni gorunur. Buradan bir kurali cikarirsan
+ * landing'de cikplak tarayici dugmesi kalir.
+ */
+
+/**
+ * Barin YUKSEKLIGI sabit ve paylasilan bir token.
+ *
+ * NEDEN: yuzeyler arasi gecis ayni sekmede yapiliyor. Bar her sayfada ayni
+ * dosyadan geldigi icin ayni GORUNUYOR, ama panelde komut kutusu var, landing'de
+ * yok — dogal yukseklikleri 63px ile 70px arasinda oynuyordu ve gecerken altta
+ * duran icerik birkac piksel ziplayarak "sayfa degisti" hissi veriyordu.
+ * Sabit yukseklik, barin duruyor gibi gorunmesinin sarti.
+ *
+ * Panelin sticky yan paneli de bu token'a dayanir; degistirirsen ikisi birden
+ * dogru kalir.
+ */
+:root { --hq-nav-h: 70px; }
+
+/**
+ * ⚠️ KENDI RESET'I. Bar host sayfanin global kurallarina GUVENEMEZ: panel ve
+ * landing `*{box-sizing:border-box}` yaziyor, Flowscope ise yalnizca `.fw *`
+ * icin — bar `.fw`nin disinda oldugu icin `content-box` kaliyordu ve
+ * `min-height:70px` uzerine padding+kenarlik eklenip bar 99px'e cikiyordu
+ * (olculdu). Ayni sekmede gecerken 29px'lik bir ziplama demekti.
+ *
+ * font-size da ayni sebeple ACIKCA yaziliyor: panelin body'si 14px, Flowscope'un
+ * 16px; barin ic olculeri buna gore kayiyordu.
+ */
+.hq-nav, .hq-nav *, .hq-nav *::before, .hq-nav *::after { box-sizing: border-box; }
+
+.hq-nav {
+  min-height: var(--hq-nav-h);
+  font-size: 14px;
+  line-height: 1.55;
+  /* --- palet koprusu: host token'i → nav token'i → sabit --- */
+  --hqn-bg:       var(--bg, #08090f);
+  --hqn-fg:       var(--fg, var(--text, #e9e9ed));
+  --hqn-mut:      var(--mut, var(--text-muted, #8b8d9c));
+  --hqn-line:     var(--line, var(--border, #20222f));
+  --hqn-card:     var(--card, var(--surface, #0e1018));
+  --hqn-card2:    var(--card2, var(--surface-raised, #1b1e2e));
+  --hqn-acc:      var(--acc, var(--accent, #9184d9));
+  --hqn-acc-dim:  var(--acc-dim, var(--accent-dim, rgba(145, 132, 217, .14)));
+  --hqn-ok:       var(--ok, var(--good, #4ea87b));
+  --hqn-ok-dim:   var(--ok-dim, var(--good-dim, rgba(78, 168, 123, .14)));
+  --hqn-no:       var(--no, var(--fail, #d4574e));
+  --hqn-no-dim:   var(--no-dim, var(--fail-dim, rgba(212, 87, 78, .14)));
+  --hqn-sk:       var(--sk, var(--warn, #c8973f));
+  --hqn-sk-dim:   var(--sk-dim, var(--warn-dim, rgba(200, 151, 63, .14)));
+  --hqn-sans:     var(--sans, var(--font-sans, Inter, system-ui, sans-serif));
+  --hqn-mono:     var(--mono, var(--font-mono, "Fira Code", ui-monospace, monospace));
+  --hqn-t:        var(--t, var(--motion, .18s ease));
+  --hqn-sh:       var(--sh, var(--shadow, 0 18px 40px rgba(0, 0, 0, .45)));
+
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  background: color-mix(in srgb, var(--hqn-bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--hqn-line);
+  font-family: var(--hqn-sans);
+  color: var(--hqn-fg);
+}
+
+/* Barin kendi dugme tabani. Panelin genel `button` kuralina GUVENMEZ:
+   Flowscope ve landing'de o kural yok. */
+.hq-nav button {
+  font: 500 13px/1.35 var(--hqn-sans);
+  cursor: pointer;
+  border: 1px solid var(--hqn-line);
+  background: var(--hqn-card2);
+  color: var(--hqn-fg);
+  padding: 8px 11px;
+  border-radius: 8px;
+  width: auto;
+  margin: 0;
+  text-align: left;
+  transition: background var(--hqn-t), border-color var(--hqn-t), color var(--hqn-t);
+}
+.hq-nav button:hover:not(:disabled) {
+  border-color: var(--hqn-acc);
+  background: var(--hqn-acc-dim);
+  color: var(--hqn-fg);
+}
+.hq-nav button:active:not(:disabled) { transform: translateY(1px); }
+.hq-nav :focus-visible { outline: 2px solid var(--hqn-acc); outline-offset: 2px; border-radius: 5px; }
+
+.hq-nav .spacer { flex: 1; }
+
+/* ---- yan panel daraltma dugmesi (yalniz panelde) ------------------------- */
+/* Ust seritte duruyor: yan panelin tepesinde tek basina bir serit isgal ediyor
+   ve altinda olu bir bant birakiyordu. */
+.hq-nav #sbToggle {
+  width: 28px; height: 28px; padding: 0; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 8px; border: 1px solid var(--hqn-line);
+  background: var(--hqn-card); color: var(--hqn-mut);
+}
+.hq-nav #sbToggle svg { width: 15px; height: 15px; transition: transform var(--hqn-t); }
+.hq-nav #sbToggle:hover { border-color: var(--hqn-acc); color: var(--hqn-acc); background: var(--hqn-acc-dim); }
+body.sb-collapsed .hq-nav #sbToggle svg { transform: rotate(180deg); }
+
+/* ---- marka + kirilim ---------------------------------------------------- */
+.hq-nav .hq-badge {
+  width: 32px; height: 32px; border-radius: 9px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 12px var(--hqn-mono); letter-spacing: .04em;
+  background: var(--hqn-acc-dim); color: var(--hqn-acc);
+  border: 1px solid color-mix(in srgb, var(--hqn-acc) 32%, transparent);
+  text-decoration: none; flex: 0 0 auto;
+}
+.hq-nav a.hq-badge:hover { box-shadow: 0 0 14px var(--hqn-acc-dim); }
+.hq-nav .crumb { display: inline-flex; align-items: center; gap: 10px; font-size: 15px; }
+.hq-nav .crumb-root { color: var(--hqn-mut); font-weight: 500; }
+.hq-nav .crumb-sep { color: var(--hqn-line); }
+.hq-nav .crumb-leaf { color: var(--hqn-fg); font-weight: 500; }
+
+/* ---- komut kutusu (⌘K) -------------------------------------------------- */
+.hq-nav .cmdbox {
+  flex: 1; max-width: 720px; display: flex; align-items: center; gap: 10px; margin: 0 auto;
+  background: var(--hqn-card); border: 1px solid var(--hqn-line); border-radius: 11px;
+  padding: 9px 14px; color: var(--hqn-mut); transition: border-color var(--hqn-t);
+}
+.hq-nav .cmdbox:focus-within { border-color: color-mix(in srgb, var(--hqn-acc) 55%, var(--hqn-line)); }
+.hq-nav .cmdbox svg { width: 15px; height: 15px; flex-shrink: 0; }
+.hq-nav .cmdbox input {
+  flex: 1; border: 0; background: none; outline: none; color: var(--hqn-fg);
+  font: 400 14px var(--hqn-sans); padding: 0; margin: 0; width: auto;
+}
+.hq-nav .cmdbox input::placeholder { color: var(--hqn-mut); }
+.hq-nav .cmdbox kbd {
+  font: 500 11px var(--hqn-mono); color: var(--hqn-mut);
+  border: 1px solid var(--hqn-line); border-radius: 5px; padding: 2px 6px; background: var(--hqn-card2);
+}
+.hq-nav #cmdMenu {
+  position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
+  width: min(720px, 90vw); z-index: 60;
+  background: var(--hqn-card); border: 1px solid var(--hqn-line); border-radius: 11px;
+  box-shadow: var(--hqn-sh); padding: 6px; max-height: 340px; overflow: auto;
+}
+.hq-nav #cmdMenu[hidden] { display: none !important; }
+.hq-nav #cmdMenu .cmd-item {
+  display: flex; align-items: center; gap: 10px; padding: 9px 11px; border-radius: 8px; cursor: pointer;
+}
+.hq-nav #cmdMenu .cmd-item:hover,
+.hq-nav #cmdMenu .cmd-item.on { background: var(--hqn-acc-dim); }
+.hq-nav #cmdMenu .cmd-k {
+  font: 500 10px var(--hqn-mono); text-transform: uppercase; letter-spacing: .08em;
+  color: var(--hqn-acc); min-width: 34px;
+}
+.hq-nav #cmdMenu .cmd-s { color: var(--hqn-mut); font-size: 12px; margin-left: auto; }
+
+/* ---- yuzey anahtari ----------------------------------------------------- */
+/* Bulundugun yer disindaki yuzeyler. Vurgulu olan (Kapsam) digerlerinden
+   AYRISIR: yanindakiler durum gostergesi, bu bir gecis eylemi. */
+.hq-nav .hqn-go {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px;
+  border: 1px solid var(--hqn-line); border-radius: 9px;
+  background: var(--hqn-card2); color: var(--hqn-mut);
+  font-size: 12.5px; font-weight: 600; line-height: 1.5; text-decoration: none;
+  transition: background var(--hqn-t), border-color var(--hqn-t), box-shadow var(--hqn-t), color var(--hqn-t);
+}
+.hq-nav .hqn-go:hover { border-color: var(--hqn-acc); color: var(--hqn-fg); }
+.hq-nav .hqn-go.hqn-accent {
+  border-color: color-mix(in srgb, var(--hqn-acc) 55%, var(--hqn-line));
+  background: var(--hqn-acc-dim); color: var(--hqn-acc);
+}
+.hq-nav .hqn-go.hqn-accent:hover { border-color: var(--hqn-acc); box-shadow: 0 0 14px var(--hqn-acc-dim); color: var(--hqn-acc); }
+.hq-nav .sl-mark {
+  display: inline-flex; width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  align-items: center; justify-content: center; background: var(--hqn-acc-dim);
+  border: 1px solid color-mix(in srgb, var(--hqn-acc) 35%, transparent);
+}
+.hq-nav .sl-mark svg { width: 13px; height: 13px; }
+.hq-nav .hqn-go:not(.hqn-accent) .sl-mark { background: transparent; border-color: transparent; }
+
+/* ---- durum gostergeleri (yalniz panelde acik) --------------------------- */
+.hq-nav .pill {
+  display: inline-flex; align-items: center; gap: 5px; font: 500 11px/1 var(--hqn-mono);
+  padding: 5px 9px; border-radius: 999px; border: 1px solid var(--hqn-line);
+  background: var(--hqn-card); color: var(--hqn-mut); white-space: nowrap;
+}
+.hq-nav .pill svg { width: 11px; height: 11px; flex: 0 0 auto; }
+.hq-nav .pill.warn { color: var(--hqn-sk); border-color: color-mix(in srgb, var(--hqn-sk) 45%, var(--hqn-line)); background: var(--hqn-sk-dim); }
+.hq-nav .pill.good { color: var(--hqn-ok); border-color: color-mix(in srgb, var(--hqn-ok) 45%, var(--hqn-line)); background: var(--hqn-ok-dim); }
+.hq-nav .pill:empty { display: none; }
+
+.hq-nav #cxWrap { position: relative; display: inline-flex; }
+.hq-nav #cxBtn {
+  cursor: pointer; border: 1px solid var(--hqn-line); width: auto; margin: 0; padding: 5px 9px;
+  border-radius: 999px; font: 500 11px/1 var(--hqn-mono); white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 6px; background: var(--hqn-card2); color: var(--hqn-mut);
+}
+.hq-nav #cxBtn .pf-ico { height: 11px; width: auto; }
+.hq-nav #cxBtn:hover { border-color: var(--hqn-acc); color: var(--hqn-fg); }
+.hq-nav #cxBtn .cx-badge { width: 6px; height: 6px; border-radius: 50%; background: var(--hqn-mut); }
+.hq-nav #cxBtn.ok .cx-badge { background: var(--hqn-ok); }
+.hq-nav #cxBtn.warn .cx-badge { background: var(--hqn-sk); }
+.hq-nav #cxBtn.blocked .cx-badge { background: var(--hqn-no); }
+.hq-nav #cxBtn.blocked { color: var(--hqn-no); border-color: color-mix(in srgb, var(--hqn-no) 45%, var(--hqn-line)); }
+
+.hq-nav #gatePill {
+  cursor: pointer; border: 0; width: auto; margin: 0; padding: 5px 9px; border-radius: 999px;
+  font: 500 11px/1 var(--hqn-mono); white-space: nowrap;
+  transition: background var(--hqn-t), color var(--hqn-t);
+}
+.hq-nav #gatePill.ok { background: var(--hqn-ok-dim); color: var(--hqn-ok); }
+.hq-nav #gatePill.warn { background: var(--hqn-sk-dim); color: var(--hqn-sk); }
+.hq-nav #gatePill.expired,
+.hq-nav #gatePill.missing { background: var(--hqn-no-dim); color: var(--hqn-no); font-weight: 700; }
+.hq-nav #gatePill.unknown { background: var(--hqn-card2); color: var(--hqn-mut); }
+.hq-nav #gatePill:hover { filter: brightness(1.15); }
+
+.hq-nav #themeBtn {
+  width: auto; margin: 0; padding: 5px 8px; border-radius: 999px; line-height: 1;
+  color: var(--hqn-mut); font: 500 11px/1 var(--hqn-mono); white-space: nowrap;
+}
+
+/* ---- dar ekran ---------------------------------------------------------- */
+/* Komut kutusu once satir atlar, sonra tamamen kalkar: kirilim ve gecis
+   dugmeleri barin asil isi, arama ikinci sirada. */
+@media (max-width: 860px) {
+  .hq-nav { gap: 10px; padding: 10px 14px; }
+  .hq-nav .cmdbox { order: 9; flex-basis: 100%; max-width: none; }
+  .hq-nav #cmdMenu { left: 14px; right: 14px; transform: none; width: auto; top: 100%; }
+  .hq-nav .crumb-root, .hq-nav .crumb-sep { display: none; }
+}
+@media (max-width: 560px) {
+  .hq-nav .cmdbox { display: none; }
+  .hq-nav .hqn-go span:not(.sl-mark) { display: none; }
+  .hq-nav .hqn-go { padding: 6px 9px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hq-nav *, .hq-nav *::before, .hq-nav *::after { transition: none !important; animation: none !important; }
+}

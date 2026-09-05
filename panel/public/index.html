@@ -8,6 +8,10 @@
      yazilir (cok-projeli panel). Cekirdekte proje adi gecemez — panel:check kirar. -->
 <title>QA Paneli</title>
 <link rel="stylesheet" href="/theme.css">
+<!-- Ust bar: bicim ORTAK kaynaktan (shared/nav/nav.css). Panelin asagidaki
+     <style> blogunda ust serit kurallari ARTIK YOK — bir tanesini geri
+     yazarsan Flowscope ve landing'deki barla ayrisir. -->
+<link rel="stylesheet" href="/nav.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23020617'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%239184D9'/%3E%3C/svg%3E">
 <style>
 
@@ -45,33 +49,19 @@
   :focus-visible{outline:2px solid var(--acc);outline-offset:2px;border-radius:var(--r-xs)}
   @media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none !important;animation:none !important}}
 
-  /* ---- ust bar ---------------------------------------------------------- */
-  header{position:sticky;top:0;z-index:40;display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-         padding:12px 20px;background:color-mix(in srgb,var(--bg) 88%,transparent);
-         backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-  header h1{font:600 15px/1.2 var(--mono);margin:0;letter-spacing:-.01em;display:flex;align-items:center;gap:9px}
-  header h1::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok);
-                    box-shadow:0 0 0 3px var(--ok-dim), 0 0 10px var(--ok);flex:0 0 auto}
-  header .spacer{flex:1}
-  .pill{display:inline-flex;align-items:center;gap:5px;font:500 11px/1 var(--mono);padding:5px 9px;
-        border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--mut);white-space:nowrap}
-  .pill svg{width:11px;height:11px;flex:0 0 auto}
-  .pill.warn{color:var(--sk);border-color:color-mix(in srgb,var(--sk) 45%,var(--line));background:var(--sk-dim)}
-  .pill.good{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 45%,var(--line));background:var(--ok-dim)}
-  .pill:empty{display:none}
-  #gatePill{cursor:pointer;border:0;width:auto;margin:0;padding:5px 9px;border-radius:999px;
-    font:500 11px/1 var(--mono);white-space:nowrap;transition:background var(--t),color var(--t)}
-  #gatePill.ok{background:var(--ok-dim);color:var(--ok)}
-  #gatePill.warn{background:var(--sk-dim);color:var(--sk)}
-  #gatePill.expired,#gatePill.missing{background:var(--no-dim);color:var(--no);font-weight:700}
-  #gatePill.unknown{background:var(--card2);color:var(--mut)}
-  #gatePill:hover{filter:brightness(1.15)}
-  #themeBtn{width:auto;margin:0;padding:5px 8px;border-radius:999px;line-height:1;color:var(--mut)}
+  /* ---- ust bar: shared/nav/nav.css ---------------------------------------
+     header, .pill, #gatePill, #themeBtn, .hq-badge, .crumb*, .cmdbox, #cmdMenu,
+     #scopeLink, .sl-mark, #cxWrap, #cxBtn, #sbToggle kurallari ORTAK dosyaya
+     tasindi. Uc yuzey (panel, /scope, landing) ayni bardan besleniyor. */
 
   /* ---- iskelet ---------------------------------------------------------- */
   main{display:grid;grid-template-columns:302px minmax(0,1fr);flex:1;min-height:0}
+  /* Yapiskan yan panel ust barin ALTINDAN baslar. Sabit 53px yaziliydi ama bar
+     70px'e cikmisti — arada 17px'lik bir serit yan paneli barin altina
+     kaydiriyordu. Token ortak dosyada (shared/nav/nav.css → --hq-nav-h). */
   aside{border-right:1px solid var(--line);padding:16px;overflow-y:auto;background:var(--card);
-        position:sticky;top:53px;align-self:start;max-height:calc(100vh - 53px)}
+        position:sticky;top:var(--hq-nav-h);align-self:start;
+        max-height:calc(100vh - var(--hq-nav-h))}
   section{padding:16px 20px 28px;min-width:0}
   @media (max-width:1040px){
     main{grid-template-columns:1fr}
@@ -109,7 +99,7 @@
 
   /* ---- sekmeler --------------------------------------------------------- */
   .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:0 0 16px;flex-wrap:wrap;
-        position:sticky;top:53px;z-index:30;background:var(--bg);padding-top:2px}
+        position:sticky;top:var(--hq-nav-h);z-index:30;background:var(--bg);padding-top:2px}
   .tabs button{width:auto;border:0;border-bottom:2px solid transparent;background:none;border-radius:0;
     margin:0;padding:9px 13px;color:var(--mut);font-weight:500}
   .tabs button:hover{background:var(--acc-dim);color:var(--fg);border-color:transparent;border-bottom-color:var(--line)}
@@ -282,35 +272,10 @@
   .pf .pf-ico{height:12px;width:auto;flex:0 0 auto;display:block}
   /* Bagli degilse logo rengini kis — pill kirmiziyken renkli logo yanlis sinyal veriyor. */
   .pf:not(.ok) .pf-ico{filter:grayscale(1);opacity:.55}
-  /* Ust bardaki connectors dugmesi — gatePill ile ayni kompakt bicim. */
-  #cxBtn{cursor:pointer;border:1px solid var(--line);width:auto;margin:0;padding:5px 9px;
-    border-radius:999px;font:500 11px/1 var(--mono);white-space:nowrap;display:inline-flex;
-    align-items:center;gap:6px;background:var(--card2);color:var(--mut)}
-  #cxBtn .pf-ico{height:11px;width:auto}
-  #cxBtn:hover{border-color:var(--acc);color:var(--fg)}
-  #cxBtn .cx-badge{width:6px;height:6px;border-radius:50%;background:var(--mut)}
-  #cxBtn.ok .cx-badge{background:var(--ok)}
-  #cxBtn.warn .cx-badge{background:var(--sk)}
-  #cxBtn.blocked .cx-badge{background:var(--no)}
-  #cxBtn.blocked{color:var(--no);border-color:color-mix(in srgb,var(--no) 45%,var(--line))}
-
-  /* ---- Baglantilar paneli: connectors dugmesinden acilan dropdown ----
-     Sarmalayici `position:relative`, panel `right:0` ile dugmenin SAG kenarina
-     hizali. Sola dogru aciliyor cunku dugme ust barin sag ucunda. */
-  #cxWrap{position:relative;display:inline-flex}
-  /* Kapsam baglantisi: connectors dugmesiyle ayni yukseklik/renk dili.
-     `button` degil `a` — yeni sekmede acilabilsin diye. */
-  /* Kapsam dugmesi digerlerinden AYRISIR: yanindakiler durum gostergesi
-     (pasif bilgi), bu ise bir gecis eylemi. Accent konturu + tonlu zemin. */
-  #scopeLink{display:inline-flex;align-items:center;gap:7px;padding:6px 13px;margin-right:8px;
-    border:1px solid color-mix(in srgb,var(--acc) 55%,var(--line));border-radius:9px;
-    background:var(--acc-dim);color:var(--acc);font-size:12.5px;font-weight:600;
-    text-decoration:none;line-height:1.5;transition:background var(--t),border-color var(--t),box-shadow var(--t)}
-  #scopeLink:hover{border-color:var(--acc);box-shadow:0 0 14px var(--acc-dim);color:var(--acc)}
-  .sl-mark{display:inline-flex;width:20px;height:20px;border-radius:6px;flex-shrink:0;
-    align-items:center;justify-content:center;background:var(--acc-dim);
-    border:1px solid color-mix(in srgb,var(--acc) 35%,transparent)}
-  .sl-mark svg{width:13px;height:13px}
+  /* ⚠️ #cxBtn / #cxWrap / #scopeLink / .sl-mark ust barin PARCASI: kurallari
+     shared/nav/nav.css'te. Buradaki #cxPanel yalnizca dropdown'in ICERIGI —
+     onu panel doldurdugu icin burada kaldi. Konumlanmasi #cxWrap'in
+     `position:relative`ine dayanir, o da ortak dosyada. */
   #cxPanel{position:absolute;z-index:60;top:calc(100% + 8px);right:0;
     width:min(440px,calc(100vw - 32px));
     max-height:min(74vh,640px);overflow-y:auto;background:var(--card);border:1px solid var(--line);
@@ -583,8 +548,6 @@
 
   /* — Nocturne imzalari: uclari solan cizgiler, parlama, nabiz — */
   h2::after{background:linear-gradient(90deg,var(--line) 60%,transparent)}
-  header{border-bottom:1px solid var(--line)}
-  header h1::before{background:var(--acc);box-shadow:0 0 0 3px var(--acc-dim),0 0 12px var(--acc)}
   button:hover:not(:disabled){box-shadow:0 0 14px var(--acc-dim)}
   #activePill.good, .pill.good{animation:pulse 1.6s ease-in-out infinite}
 
@@ -609,35 +572,7 @@
      Uc sutun: sol nav · ortada ozet+gecmis+bulgular · sagda canli kosum.
      ========================================================================= */
 
-  /* --- ust serit --- */
-  header{gap:14px;padding:14px 20px}
-  .hq-badge{width:32px;height:32px;border-radius:9px;display:inline-flex;align-items:center;
-    justify-content:center;font:600 12px var(--mono);letter-spacing:.04em;
-    background:var(--acc-dim);color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 32%,transparent)}
-  .crumb{display:inline-flex;align-items:center;gap:10px;font-size:15px}
-  .crumb-root{color:var(--mut);font-weight:500}
-  .crumb-sep{color:var(--line)}
-  .crumb-leaf{color:var(--fg);font-weight:500}
-  h1#panelTitle{font-size:15px;font-weight:500;margin:0}
-  h1#panelTitle::before{display:none}
-
-  .cmdbox{flex:1;max-width:720px;display:flex;align-items:center;gap:10px;margin:0 auto;
-    background:var(--card);border:1px solid var(--line);border-radius:11px;padding:9px 14px;
-    color:var(--mut);transition:border-color var(--t)}
-  .cmdbox:focus-within{border-color:color-mix(in srgb,var(--acc) 55%,var(--line))}
-  .cmdbox svg{width:15px;height:15px;flex-shrink:0}
-  .cmdbox input{flex:1;border:0;background:none;outline:none;color:var(--fg);font:400 14px var(--sans);
-    padding:0;margin:0;width:auto}
-  .cmdbox input::placeholder{color:var(--mut)}
-  .cmdbox kbd{font:500 11px var(--mono);color:var(--mut);border:1px solid var(--line);
-    border-radius:5px;padding:2px 6px;background:var(--card2)}
-  #cmdMenu{position:absolute;top:56px;left:50%;transform:translateX(-50%);width:min(720px,90vw);
-    z-index:60;background:var(--card);border:1px solid var(--line);border-radius:11px;
-    box-shadow:var(--sh);padding:6px;max-height:340px;overflow:auto}
-  #cmdMenu .cmd-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:8px;cursor:pointer}
-  #cmdMenu .cmd-item:hover,#cmdMenu .cmd-item.on{background:var(--acc-dim)}
-  #cmdMenu .cmd-k{font:500 10px var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--acc);min-width:34px}
-  #cmdMenu .cmd-s{color:var(--mut);font-size:12px;margin-left:auto}
+  /* --- ust serit: shared/nav/nav.css --- */
 
   /* --- sol menu: BUGUN listesi + alt eylem --- */
   aside{display:flex;flex-direction:column}
@@ -747,16 +682,12 @@
   /* =========================================================================
      DARALTILABILIR YAN PANEL
      ========================================================================= */
-  #sbToggle{width:28px;height:28px;padding:0;margin:0;flex-shrink:0;
-    display:inline-flex;align-items:center;justify-content:center;border-radius:8px;
-    border:1px solid var(--line);background:var(--card);color:var(--mut)}
-  #sbToggle svg{width:15px;height:15px;transition:transform var(--t)}
-  #sbToggle:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
+  /* Daraltma dugmesinin KENDISI ust barin parcasi (shared/nav/nav.css);
+     burada yalnizca yan panelin daralmis hali duruyor. */
 
   /* --- daraltilmis durum --- */
   body.sb-collapsed main{grid-template-columns:64px minmax(0,1fr)}
   body.sb-collapsed aside{padding:16px 10px;overflow:visible}
-  body.sb-collapsed #sbToggle svg{transform:rotate(180deg)}
   /* Etiketler, sayaclar ve yardimci bloklar gizlenir; ikon kalir. */
   /* ⚠️ Etiket bir METIN DUGUMU (element degil): `> :not(.nav-ic){display:none}`
      onu yakalamiyordu ve 64px seride tasiyordu. font-size:0 metin dugumunu de
@@ -864,53 +795,21 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 </style>
 </head>
 <body>
-<header>
-  <!-- Tasarim: HQ rozeti + kirilim · ortada komut kutusu · sagda durum -->
-  <!-- Daraltma dugmesi ust seritte: yan panelin tepesinde tek basina bir
-       serit isgal ediyordu ve altinda olu bir bant kaliyordu. -->
-  <button id="sbToggle" type="button" onclick="toggleSidebar()"
-          title="Yan paneli daralt/genislet ( [ )" aria-label="Yan paneli daralt">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M15 6l-6 6 6 6"/>
-    </svg>
-  </button>
-  <span class="hq-badge" aria-hidden="true">HQ</span>
-  <span class="crumb"><span class="crumb-root" id="panelTitle">QA Paneli</span><span class="crumb-sep">/</span><span class="crumb-leaf" id="crumbLeaf">Genel bakis</span></span>
+<!--
+  UST BAR ARTIK BURADA YAZILI DEGIL: markup da bicim de shared/nav/ altinda,
+  panel · /scope · landing ucu icin TEK kaynak.
 
-  <label class="cmdbox" title="Komut: kosum adi yaz ve Enter">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
-    <input id="cmdInput" placeholder="kos, ac, bug... her sey buradan" autocomplete="off">
-    <kbd>&#8984;K</kbd>
-  </label>
-  <div id="cmdMenu" hidden></div>
+  ⚠️ `<script src>` KLASIK, `type="module"` DEGIL ve mount cagrisi hemen
+  altinda: asagidaki IIFE'ler (`wireCmd` yerine gecen registerCommands,
+  initSidebar, refreshGate...) yuklenirken `#cmdInput`, `#gatePill`, `#cxBtn`
+  gibi id'leri ARIYOR. Modul ertelenseydi hepsi bos DOM bulurdu.
 
-  <span class="spacer"></span>
-  <!-- Tasarimda sagda yalnizca uc sey var: kapi suresi · baglanti orani · ortam.
-       Uzun ortam URL'i ve siparis pill'i komut kutusunu eziyordu; ikisi de
-       baslikta degil, connectors panelinde ve tooltip'te duruyor. -->
-  <span class="pill" id="activePill" role="status" aria-atomic="true"></span>
-  <span class="pill" id="orderPill" role="status" aria-atomic="true" hidden></span>
-  <!-- Kapsam: panelin ikinci yuzune (Flowscope) gecis. Logo kapsam ekraninin
-       KENDI isaretinden alindi (scope/js/constants.js → ICON.logo) — uydurma
-       degil, gidilen yerle ayni. -->
-  <a id="scopeLink" href="/scope" title="Kapsam agaci — urun hiyerarsisi, durum ve test case'ler">
-    <span class="sl-mark" aria-hidden="true">
-      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
-        <circle cx="4.5" cy="4.5" r="1.9"/><circle cx="15.5" cy="4.5" r="1.9"/><circle cx="10" cy="15.5" r="1.9"/>
-        <path d="M6 5.8 9 13.2"/><path d="M14 5.8 11 13.2"/>
-      </svg>
-    </span>
-    <span>Kapsam</span>
-  </a>
-  <span id="cxWrap">
-    <button id="cxBtn" type="button" onclick="pfPanelToggle()"
-            title="Bağlantılar — kimlik, kota ve çözüm adımları"><span class="cx-badge"></span>connectors</button>
-    <div id="cxPanel" hidden></div>
-  </span>
-  <button id="gatePill" class="unknown" type="button" onclick="refreshGate()" title="Tiklayinca kapi oturumunu yeniler">kapi: —</button>
-  <span class="pill" id="envPill" role="status" aria-atomic="true" title="Aktif ortam">—</span>
-  <button id="themeBtn" type="button" title="Tema degistir" aria-label="Tema degistir"></button>
-</header>
+  Uretilen id'ler bugunkulerin AYNISI — panelin geri kalani hicbir sey
+  bilmeden calismaya devam ediyor.
+-->
+<script>window.HQ_NAV = { landing: "__LANDING_URL__" };</script>
+<script src="/nav.js"></script>
+<script>HqNav.mount({ surface: "panel", leaf: "Genel bakis" });</script>
 
 
 <main>
@@ -2696,27 +2595,10 @@ loadSpecs().then(previewCustom);
 load();
 </script>
 <script>
-  /* Tema: koyu varsayilan (OLED). Secim localStorage'da, yoksa sistem tercihi. */
-  (function () {
-    const KEY = 'qa-panel-theme';
-    const btn = document.getElementById('themeBtn');
-    const icon = { dark: '\u25D0 gece', light: '\u25D1 açık' };
-    function apply(mode) {
-      if (mode) document.documentElement.setAttribute('data-theme', mode);
-      else document.documentElement.removeAttribute('data-theme');
-      const eff = mode || (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
-      btn.textContent = icon[eff];
-      btn.setAttribute('aria-pressed', String(eff === 'light'));
-    }
-    apply(localStorage.getItem(KEY));
-    btn.addEventListener('click', () => {
-      const eff = document.documentElement.getAttribute('data-theme')
-        || (matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
-      const next = eff === 'light' ? 'dark' : 'light';
-      localStorage.setItem(KEY, next);
-      apply(next);
-    });
-  })();
+  /* Tema anahtari ust barin PARCASI: secim, ikon ve `data-theme` yazimi
+     shared/nav/nav.js'te. Panel ve /scope ayni origin oldugu icin ayni
+     localStorage anahtarini ('qa-panel-theme') paylasmaya devam ediyor;
+     landing ayri origin, kendi tercihini tutar. */
 
 // ---------------- headless anahtari ----------------
 /**
@@ -3976,16 +3858,18 @@ function toggleSidebar() {
 
 // ---------------- komut kutusu (⌘K) ----------------
 /**
- * Tasarimdaki "kos, ac, bug... her sey buradan" kutusu.
+ * Kutunun MEKANIGI (klavye, secim, ⌘K kisayolu, acilir liste) ortak ust barda:
+ * shared/nav/nav.js. Burada yalnizca panelin ICERIGI kayitli — bu sayede
+ * Flowscope ve landing ayni kutuyu kendi kaynaklariyla kullanabiliyor.
  *
  * Kapsam bilincli olarak dar: whitelist'teki KOSUMLARI ve SEKMELERI arar.
  * Model cagrisi ya da serbest komut YOK — panelin kosum guvenligi whitelist'e
  * dayaniyor, komut kutusu o siniri delmemeli.
+ *
+ * Yuzey gecisleri (Kapsam, Landing) barin kendi kaynagindan gelir, buraya
+ * eklenmez.
  */
-const CMD = { items: [], sec: 0 };
-
-function cmdBuild(q) {
-  const t = q.trim().toLowerCase();
+HqNav.registerCommands(t => {
   const out = [];
   for (const r of (META?.runs || [])) {
     if (!t || r.label.toLowerCase().includes(t) || r.id.toLowerCase().includes(t))
@@ -3995,44 +3879,8 @@ function cmdBuild(q) {
     const ad = b.textContent.replace(/\s*\d+\s*$/, '').trim();
     if (!t || ad.toLowerCase().includes(t)) out.push({ k: 'ac', ad, ip: '', yap: () => b.click() });
   }
-  return out.slice(0, 8);
-}
-
-function cmdRender() {
-  const el = $('#cmdMenu');
-  if (!CMD.items.length) { el.hidden = true; return; }
-  el.innerHTML = CMD.items.map((i, n) =>
-    `<div class="cmd-item ${n === CMD.sec ? 'on' : ''}" data-n="${n}">
-       <span class="cmd-k">${i.k}</span><span>${esc(i.ad)}</span><span class="cmd-s">${esc(i.ip)}</span></div>`).join('');
-  el.hidden = false;
-  el.querySelectorAll('.cmd-item').forEach(d => d.onclick = () => cmdSec(Number(d.dataset.n)));
-}
-
-function cmdSec(n) {
-  const i = CMD.items[n];
-  if (!i) return;
-  $('#cmdMenu').hidden = true;
-  $('#cmdInput').value = '';
-  i.yap();
-}
-
-(function wireCmd() {
-  const inp = $('#cmdInput');
-  if (!inp) return;
-  const yenile = () => { CMD.items = cmdBuild(inp.value); CMD.sec = 0; cmdRender(); };
-  inp.addEventListener('input', yenile);
-  inp.addEventListener('focus', yenile);
-  inp.addEventListener('blur', () => setTimeout(() => { $('#cmdMenu').hidden = true; }, 150));
-  inp.addEventListener('keydown', e => {
-    if (e.key === 'ArrowDown') { CMD.sec = Math.min(CMD.sec + 1, CMD.items.length - 1); cmdRender(); e.preventDefault(); }
-    else if (e.key === 'ArrowUp') { CMD.sec = Math.max(CMD.sec - 1, 0); cmdRender(); e.preventDefault(); }
-    else if (e.key === 'Enter') { cmdSec(CMD.sec); e.preventDefault(); }
-    else if (e.key === 'Escape') { $('#cmdMenu').hidden = true; inp.blur(); }
-  });
-  document.addEventListener('keydown', e => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); inp.focus(); inp.select(); }
-  });
-})();
+  return out;
+});
 
 // ---------------- genel bakis ----------------
 /**
@@ -4418,11 +4266,8 @@ html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4
       t = setTimeout(() => log.classList.remove('live'), 2500);
     }).observe(log, { childList: true });
   }
-  const tb = document.getElementById('themeBtn');
-  if (tb) tb.addEventListener('click', () => {
-    document.documentElement.classList.add('theme-anim');
-    setTimeout(() => document.documentElement.classList.remove('theme-anim'), 450);
-  }, true);
+  /* `theme-anim` gecisini ust bar kendisi tetikliyor (shared/nav/nav.js) —
+     asagidaki kural burada kaldi cunku panelin renk gecisi panele ait. */
 })();
 </script>
 <style id="nc-toast-css">

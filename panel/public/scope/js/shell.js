@@ -95,42 +95,25 @@ export function importData(file) {
   reader.readAsText(file);
 }
 
+/**
+ * Sayfanin KENDI basligi — kim oldugunu soyler, nereye gidilecegini DEGIL.
+ *
+ * "Panele don" ve "Landing" dugmeleri buradan KALKTI: yuzeyler arasi gecis
+ * artik sayfanin en ustundeki ortak barda (shared/nav/nav.js, `go` listesi).
+ * Ayni ise iki ayri yerden bakmak, panelin barindan farkli gorunen ikinci bir
+ * gezinme seridi demekti. Yeni bir hedef eklemek istersen buraya degil
+ * SURFACES yapilandirmasina ekle — o zaman uc yuzeyde birden cikar.
+ */
 export function buildHeader() {
   const header = document.createElement('div');
   header.className = 'fw-header';
-  /*
-   * Panelden kapsama gecis tek yonluydu: ust bardaki "Kapsam" dugmesi buraya
-   * getiriyor ama geri donusun tek yolu tarayicinin geri tusuydu — /scope'u
-   * dogrudan (yeni sekmede ya da yer imiyle) acan biri panele hic ulasamiyordu.
-   * Ayni origin oldugu icin kok yeterli: `/`.
-   */
   header.innerHTML = `
     <div class="fw-logo">${ICON.logo}</div>
     <div>
       <div class="fw-title">Flowscope</div>
       <div class="fw-subtitle">Proje bileşenlerini haritalayın, test durumunu izleyin</div>
-    </div>
-    ${landingButton()}
-    <a class="btn fw-back" href="/" title="QA Paneli'ne dön (koşumlar, sonuçlar, Jira, performans)">
-      ${ICON.back}<span>Panele dön</span>
-    </a>`;
+    </div>`;
   return header;
-}
-
-/**
- * Landing'e (tanitim sayfasi) donus dugmesi.
- *
- * Akis landing → Flowscope → Panel diye kuruldu; ters yon eksikti. Adres
- * sunucudan gelir (`window.LANDING_URL`, scope/index.html'e enjekte edilir)
- * cunku landing AYRI bir surecte kosuyor (4321) ve sunucuda hic olmayabilir —
- * bos gelirse dugme HIC BASILMAZ, olu link gostermek yerine.
- */
-function landingButton() {
-  const u = typeof window !== 'undefined' ? (window.LANDING_URL || '') : '';
-  if (!/^https?:\/\//.test(u)) return '';
-  return `<a class="btn fw-landing" href="${u}" target="_blank" rel="noreferrer noopener"`
-    + ` title="Tanıtım sayfası (landing) — ayrı süreçte, ${u}">`
-    + `${ICON.globe}<span>Landing</span></a>`;
 }
 
 export function buildToolbar() {

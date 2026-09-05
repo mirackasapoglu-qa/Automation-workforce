@@ -894,7 +894,10 @@ const server = http.createServer(async (req, res) => {
     if (p === "/" || p === "/index.html") {
       const html = fs
         .readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
-        .replace("__PANEL_TOKEN__", PANEL_TOKEN);
+        .replace("__PANEL_TOKEN__", PANEL_TOKEN)
+        // Ust bardaki Landing baglantisi buradan besleniyor; bos gelirse
+        // (sunucuda landing yok) dugme HIC basilmaz — bkz. landingUrlFor.
+        .replace("__LANDING_URL__", landingUrlFor(req));
       return send(res, 200, html, "text/html; charset=utf-8");
     }
 
@@ -1321,6 +1324,18 @@ const server = http.createServer(async (req, res) => {
       const css = fs.readFileSync(path.join(__dirname, "public", "theme.css"));
       res.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" });
       return res.end(css);
+    }
+
+    /* Ortak ust bar — panel, kapsam ekrani ve landing AYNI dosyayi okur.
+     * Kaynak repo kokunde (`shared/nav/`) cunku landing ayri bir surecte
+     * (vite, 4321) kosuyor ve panelin `public/` klasorunu goremiyor; site
+     * tarafi ayni dosyayi kendi sunucusundan servis eder (site/vite.config.ts
+     * → sharedNav eklentisi). Kopya YOK, iki servis tek dosyayi okur. */
+    if (p === "/nav.js" || p === "/nav.css") {
+      const file = path.join(__dirname, "..", "shared", "nav", p.slice(1));
+      const type = p.endsWith(".css") ? "text/css" : "text/javascript";
+      res.writeHead(200, { "content-type": `${type}; charset=utf-8`, "cache-control": "no-store" });
+      return res.end(fs.readFileSync(file));
     }
 
     if (p === "/api/meta") {

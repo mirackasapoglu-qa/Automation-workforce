@@ -176,6 +176,9 @@ pages/BasePage.ts            # header/footer/overlay/lazy/404 — diğer POM'lar
 pages/XxxPage.ts             # 12 POM (locator'lar readonly, method'lar async)
 global-setup.ts              # kapı state'i + üye kimlik doğrulaması
 panel/                       # QA paneli (server.mjs + public/index.html + runs.json)
+panel/public/scope/          # Flowscope (kapsam ağacı) — ES modülleri
+shared/nav/                  # ORTAK üst bar — panel + scope + landing + onboarding
+site/                        # landing (statik) + onboarding/landing (React SPA), vite 4321
 panel-data/                  # verdict + kanıt (gitignore'da)
 scripts/create-test-report.cjs
 .claude/agents/              # 7 agent
@@ -577,20 +580,103 @@ for c in $(git log --format=%H -12 -- panel/public/scope/js/jira.js); do
 done
 ```
 
-### Landing ↔ Flowscope ↔ Panel gezinmesi
+### Ortak üst bar (`shared/nav/`) — dört yüzeyin tek kaynağı
 
-Zincir iki yönlü: landing'de **"Kapsam ağacını aç"** → `/scope/`, Flowscope üst
-barında **"Landing"** ve **"Panele dön"**, panelde **"Kapsam"** rozeti.
+Panel (`/`), Flowscope (`/scope`), landing (`4321/`) ve onboarding
+(`4321/onboarding`) **aynı üst barı** kullanır. Kaynak repo kökünde, `panel/`
+ya da `site/` altında değil:
 
-Flowscope'taki Landing düğmesinin adresi sunucudan gelir: `LANDING_URL` env'i,
-`scope/index.html`'e `__LANDING_URL__` olarak enjekte edilir (`window.LANDING_URL`).
+```
+shared/nav/nav.js    # markup + davranış + YAPILANDIRMA (SURFACES)
+shared/nav/nav.css   # biçim
+```
+
+İki sunucu **aynı dosyayı okur**, kopya yok:
+`panel/server.mjs` → `/nav.js` + `/nav.css`; `site/vite.config.ts` →
+`sharedNav()` eklentisi (dev + preview middleware, `generateBundle` ile dist'e
+de koyar) ve her giriş HTML'ine `transformIndexHtml` ile enjekte eder.
+
+**Bar'ı değiştirmek = yalnızca `shared/nav/` değiştirmek.** Yeni bir geçiş
+düğmesi, yeni bir yüzey ya da bir slot'u açıp kapatmak için `SURFACES` bloğu
+düzenlenir; dört yüzey birden güncellenir. Panelin `<style>`ında,
+Flowscope'un `fw-header`ında ya da site'in `Navbar.tsx`inde üst serit kuralı
+**yeniden yazma** — üçünün ayrışması tam olarak bu barın çözdüğü sorun.
+
+| Yüzey | `go` (geçişler) | Açık slot'lar | Kırılım kökü |
+|---|---|---|---|
+| panel | Kapsam | `sidebarToggle`, `cmd`, `status` | `/api/meta` (panelin kendi `load()`'u) |
+| scope | Panel, Landing | — | `/api/meta` (bar çeker) |
+| landing | Onboarding, Panel, Kapsam | — | mount `root` (site verir) |
+| onboarding | Landing, Panel, Kapsam | — | mount `root` (site verir) |
+
+⚠️ **Üretilen id'ler panelin sözleşmesi.** `#cmdInput`, `#cmdMenu`, `#crumbLeaf`,
+`#panelTitle`, `#activePill`, `#orderPill`, `#scopeLink`, `#cxWrap`, `#cxBtn`,
+`#cxPanel`, `#gatePill`, `#envPill`, `#themeBtn`, `#sbToggle` — 236 KB'lik
+`panel/public/index.html` bunlara id ile bakıyor. Ekleme serbest, **yeniden
+adlandırma panelin ilgili davranışını sessizce öldürür**.
+
+⚠️ **`<script src="/nav.js">` klasik, `type="module"` DEĞİL** ve `mount()` hemen
+altında. Panelin IIFE'leri yüklenirken bar id'lerini arıyor; modül ertelenseydi
+hepsi boş DOM bulurdu.
+
+⚠️ **Panel çekirdeğine proje adı sızmaz** (`npm run panel:check`). Global adı bu
+yüzden `HqNav` / `window.HQ_NAV`; landing'in kırılım kökü (`Homee QA`)
+`shared/nav`ta değil, `site/vite.config.ts`teki mount çağrısında.
+
+**Geçişler AYNI SEKMEDE.** Önce ayrı süreçteki yüzeyler (landing ↔ panel)
+`target="_blank"` ile açılıyordu; kullanıcı açısından bu "başka bir sayfaya
+atıldım" demekti. Bar dört yüzeyde de aynı dosyadan geldiği ve **aynı
+yükseklikte** durduğu için aynı sekmede geçiş "üst şerit sabit, altındaki
+değişti" gibi görünür.
+⚠️ Yeni sekme isteği geri gelirse `rel="noreferrer noopener"` de geri gelmeli.
+
+**Bar yüksekliği `--hq-nav-h` (70px) ile sabit.** Doğal yükseklikleri 63–70px
+arasında oynuyordu (panelde komut kutusu var, landing'de yok) ve geçerken alttaki
+içerik zıplıyordu. Panelin sticky yan paneli ve sekme şeridi de bu token'a
+dayanır — eskiden `top:53px` sabit yazılıydı ve bar 70px'e çıkınca 17px'lik ölü
+bir şerit kalıyordu.
+
+⚠️ **Bar kendi reset'ini taşır, host'un global kuralına güvenmez.** Panel ve
+landing `*{box-sizing:border-box}` yazıyor, Flowscope ise yalnızca `.fw *` için —
+bar `.fw`nin dışında olduğu için `content-box` kalıyordu ve `min-height:70px`
+üzerine padding+kenarlık eklenip **99px** oluyordu (ölçüldü). `font-size` de aynı
+sebeple açıkça yazılı: panelin body'si 14px, Flowscope'un 16px.
+
+**Palet köprüsü:** `.hq-nav` host'un token'ını miras alır, yoksa kendi değerine
+düşer (`var(--fg, var(--text, #e9e9ed))`). Panelde `theme.css` tokenları,
+landing'de kendi `--bg/--text`i geçerli; hiçbiri yoksa bar yine de doğru
+görünür. Bar kendi `button` tabanını taşır — panelin genel `button{}` kuralına
+**güvenmez**, çünkü Flowscope ve landing'de o kural yok.
+
+**Tema anahtarı** bardadır: `qa-panel-theme` anahtarı + `data-theme`. Panel ve
+`/scope` aynı origin olduğu için tercihi paylaşır; landing ayrı origin, kendi
+tercihini tutar (beklenen). `/scope`'un `<head>`indeki erken tema okuması
+KALSIN — bar `body`de mount edildiği için o olmadan sayfa yanlış temada flash
+eder.
+
+**Adres çözümü** (`originFor`): panel + scope `panel` origin'inde, landing +
+onboarding `landing` origin'inde. Bulunduğun yüzeyin origin'i `location.origin`;
+diğeri `window.HQ_NAV` ile verilir, yoksa **yalnızca localhost'ta** porttan
+tahmin edilir (4646 / 4321). Çözülemezse **düğme hiç basılmaz** — ölü link yok.
+
+Panel tarafında `HQ_NAV.landing` sunucudan gelir: `landingUrlFor(req)`,
+`index.html` ve `scope/index.html`'e `__LANDING_URL__` olarak enjekte edilir.
 ⚠️ **Varsayılan yalnızca lokal isteklerde verilir** — landing ayrı bir süreç
-(`vite preview`, 4321) ve sunucuda o domainde hiç yok; varsayılan konulsa düğme ölü
-bir localhost adresine giderdi. Karar **isteğin `Host` başlığına** bakar
-(`landingUrlFor`), ortam değişkenine değil: ilk hâli "PANEL_ORIGIN verilmemişse
-lokaldeyiz" sayıyordu ve sunucuda o değişken de verilmemiş olduğu için ters tepiyordu.
-`LANDING_URL` açıkça verilirse her yerde o kullanılır; `off`/boş → **düğme hiç
-basılmaz**.
+(`vite preview`, 4321) ve sunucuda o domainde hiç yok; varsayılan konulsa düğme
+ölü bir localhost adresine giderdi. Karar **isteğin `Host` başlığına** bakar,
+ortam değişkenine değil: ilk hâli "PANEL_ORIGIN verilmemişse lokaldeyiz"
+sayıyordu ve sunucuda o değişken de verilmemiş olduğu için ters tepiyordu.
+`LANDING_URL` açıkça verilirse her yerde o kullanılır; `off`/boş → düğme hiç
+basılmaz.
+
+**Komut kutusu (⌘K):** mekanik barda, **içerik yüzeyden**. Panel kendi
+kaynağını `HqNav.registerCommands(q => [...])` ile veriyor (whitelist'teki
+koşumlar + sekmeler). Yüzey geçişleri barın kendi kaynağından gelir, kaydetmeye
+gerek yok. Flowscope'ta kutu kapalı: onun kendi "Ara..." kutusu var.
+
+⚠️ **`site/` değişikliği `npm run up`ta görünmez** — `up.mjs` `vite preview`
+çalıştırıyor, yani `site/dist`i servis ediyor. `site/` altında bir şey
+değiştirdiysen önce `cd site && npm run build`.
 
 ### Connector'a OAuth ile bağlanmak ("Bağlan" düğmesi)
 

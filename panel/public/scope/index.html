@@ -8,9 +8,13 @@
 <title>Kapsam Agaci — Flowscope</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <link rel="stylesheet" href="/theme.css">
+<!-- Ortak ust bar. Mutlak yol: `base` bunu etkilemez. -->
+<link rel="stylesheet" href="/nav.css">
 <link rel="stylesheet" href="style.css">
 <!-- Tema secimi panelle PAYLASILIR: ayni origin, ayni localStorage anahtari.
-     Panelde koyuya gecince burasi da koyu acilir. -->
+     Panelde koyuya gecince burasi da koyu acilir. Bar da ayni anahtari yazar;
+     bu blok yalnizca ILK BOYAMADAN ONCE calissin diye burada duruyor (bar
+     body'de mount ediliyor, o ana kadar sayfa yanlis temada flash ederdi). -->
 <script>
   (function () {
     try {
@@ -21,11 +25,14 @@
 </script>
 </head>
 <body>
+<!-- Landing ayri bir surecte (4321). Bos gelirse bardaki dugme HIC basilmaz. -->
+<script>window.HQ_NAV = { landing: "__LANDING_URL__" };</script>
+<script src="/nav.js"></script>
+<script>HqNav.mount({ surface: "scope", leaf: "Kapsam agaci" });</script>
+
 <div class="fw" id="fw-root"></div>
 <!-- Yazma uclari x-panel-token ister; sunucu bu yer tutucuyu doldurur. -->
 <script>window.PANEL_TOKEN = "__PANEL_TOKEN__";</script>
-<!-- Landing ayri bir surecte (4321). Bos gelirse ust bardaki dugme cikmaz. -->
-<script>window.LANDING_URL = "__LANDING_URL__";</script>
 <script type="module" src="./js/app.js"></script>
 </body>
 </html>

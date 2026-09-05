@@ -1,15 +1,21 @@
 import { Globe } from "lucide-react";
-import { useLocation } from "react-router-dom";
 
+/**
+ * Sayfa ICI gezinme — yalnizca bu dokumanin bolumleri.
+ *
+ * YUZEYLER ARASI baglantilar (Panel, Kapsam agaci, Landing ↔ Onboarding)
+ * buradan KALKTI: hepsi sayfanin en ustundeki ortak barda (shared/nav/nav.js
+ * → SURFACES[...].go). Onceden burada `http://localhost:4646/scope/` SABIT
+ * yaziliydi — panel baska bir portta ya da makinede kostugu anda olu link
+ * oluyordu; bar adresi bulundugu host'tan cozuyor. Yeni bir yuzey hedefi
+ * gerekirse buraya degil SURFACES'a eklenir, o zaman uc yuzde birden cikar.
+ */
 const LINKS = [
   { label: "Ne yaptık", to: "/#ne-yaptik" },
   { label: "Ölçüm", to: "/#olcum" },
-  { label: "Başlangıç", to: "/onboarding" },
 ];
 
 export default function Navbar() {
-  const { pathname } = useLocation();
-
   return (
     <nav className="relative z-20 px-6 py-6">
       <div className="liquid-glass rounded-full max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
@@ -35,23 +41,6 @@ export default function Navbar() {
               </a>
             ))}
           </div>
-        </div>
-
-        <div className="flex items-center gap-4">
-          <a
-            href={pathname === "/onboarding" ? "/" : "/onboarding"}
-            className="text-white text-sm font-medium hover:text-white/80 transition-colors"
-          >
-            {pathname === "/onboarding" ? "Landing" : "Onboarding"}
-          </a>
-          <a
-            href="http://localhost:4646/scope/"
-            target="_blank"
-            rel="noreferrer"
-            className="liquid-glass rounded-full px-6 py-2 text-white text-sm font-medium hover:bg-white/5 transition-colors"
-          >
-            Kapsam ağacı
-          </a>
         </div>
       </div>
     </nav>
