@@ -11,6 +11,7 @@ import { collectAttentionTestCases, findNode, flattenWithPath } from './data.js'
 import { formatNoteDate } from './notes.js';
 import { openDrawer } from './drawer.js';
 import { runJiraSweep } from './jira.js';
+import { runDesignDriftSweep } from './design-drift.js';
 
 function closeAttentionPanel() {
   const overlay = state.root.querySelector('.attention-overlay');
@@ -158,6 +159,82 @@ async function renderJiraSweepSection(container) {
   container.appendChild(list);
 }
 
+/**
+ * Tasarım Drift Radarı bölümü. `runDesignDriftSweep()` ✅ + Figma kaynaklı
+ * düğümleri tarar, `lastVerifiedAt`'tan sonra değişen dosyaları ⚠️'ye çeker
+ * (ekranı `reloadPersistedTree` ile tazeler). Jira bölümünün tersine burada
+ * "gözden geçir" tersi bir liste yok — ⚠️'den çıkış her zaman insan elinden.
+ */
+async function renderDesignDriftSection(container) {
+  container.innerHTML = '';
+  const loading = document.createElement('div');
+  loading.className = 'drawer-placeholder';
+  loading.textContent = 'Tasarım (Figma) değişiklikleri taranıyor…';
+  container.appendChild(loading);
+
+  const result = await runDesignDriftSweep();
+  container.innerHTML = '';
+
+  if (!result) {
+    const err = document.createElement('div');
+    err.className = 'drawer-placeholder';
+    err.textContent = 'Tasarım taraması yapılamadı (Figma kimliği yok/koparılmış ya da sunucuya ulaşılamadı).';
+    container.appendChild(err);
+    return;
+  }
+
+  if (!result.flagged.length) {
+    const empty = document.createElement('div');
+    empty.className = 'drawer-placeholder';
+    empty.textContent = 'Doğrulanmış (✅) hiçbir düğümün tasarımı son onaydan sonra değişmemiş.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const desc = document.createElement('p');
+  desc.className = 'attention-desc';
+  desc.textContent = 'Bu düğümler "Tamamlandı" işaretliydi ama bağlı Figma dosyaları senin doğruladığın '
+    + 'tarihten SONRA değişmiş — otomatik "Uyarılı"ya çekildi, yeniden gözden geçir.';
+  container.appendChild(desc);
+
+  const flat = flattenWithPath(state.tree, [], []);
+  const list = document.createElement('div');
+  list.className = 'attention-list';
+  result.flagged.forEach(entry => {
+    const found = flat.find(f => f.node.id === entry.nodeId);
+    if (!found) return; // düğüm bu arada silinmiş olabilir
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'attention-row';
+    row.onclick = () => { closeAttentionPanel(); openDrawer(found.node); };
+
+    const badge = document.createElement('span');
+    badge.className = 'attention-badge attention-badge-drift';
+    badge.textContent = 'TASARIM GÜNCELLENDİ';
+    row.appendChild(badge);
+
+    const info = document.createElement('span');
+    info.className = 'attention-info';
+    const title = document.createElement('span');
+    title.className = 'attention-title';
+    title.textContent = found.node.name;
+    info.appendChild(title);
+    const path = document.createElement('span');
+    path.className = 'attention-path';
+    path.textContent = found.path.join(' › ');
+    info.appendChild(path);
+    row.appendChild(info);
+
+    const meta = document.createElement('span');
+    meta.className = 'attention-meta';
+    meta.textContent = 'Son değişiklik: ' + formatNoteDate(entry.lastModified);
+    row.appendChild(meta);
+
+    list.appendChild(row);
+  });
+  container.appendChild(list);
+}
+
 export function openAttentionPanel() {
   closeAttentionPanel();
   const entries = collectAttentionTestCases(state.tree);
@@ -197,6 +274,15 @@ export function openAttentionPanel() {
   const jiraSection = document.createElement('div');
   body.appendChild(jiraSection);
   renderJiraSweepSection(jiraSection);
+
+  const designHeading = document.createElement('div');
+  designHeading.className = 'attention-subheading';
+  designHeading.innerHTML = ICON.figma + '<span>Tasarım</span>';
+  body.appendChild(designHeading);
+
+  const designSection = document.createElement('div');
+  body.appendChild(designSection);
+  renderDesignDriftSection(designSection);
 
   modal.appendChild(body);
   state.root.appendChild(overlay);

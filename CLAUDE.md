@@ -1260,6 +1260,44 @@ düzeltildi** (ölçüldü — eski hâliyle test edilseydi bu özellik yanlış
    "Açık Bulgular" listesi de (index.html) aynı fonksiyonu kullandığı için
    şimdi 11 kaydın 11'ini de doğru gösteriyor — önceden 9 gösteriyordu.
 
+## Flowscope: Tasarım Drift Radarı (2026-09-08)
+
+Jira taramasıyla AYNI ilke (`sweepJiraStatuses`), farklı sinyal: "Jira'da done
+değil" yerine **"bağlı Figma dosyası, düğümü ✅ dediğin ANDAN sonra değişti mi"**.
+✅ (Tamamlandı) VE Kaynaklar'da bir Figma linki olan her yaprak düğüm için
+dosyanın Figma'daki `lastModified`'ını düğümün `lastVerifiedAt`'ıyla kıyaslar;
+drift varsa düğümü **tek yönlü** ⚠️'ye çeker (otomatik geri alma YOK — Jira
+tarafındaki `reviewSuggested` gibi bir "tersi" burada da yok, ⚠️'den çıkış her
+zaman insanın elinde) ve neden'i açıklayan bir not düşer.
+
+- **Yeni dosyalar**: `panel/design-drift.mjs` (Figma çağrısı — URL'den dosya
+  anahtarı çıkarma + `/v1/files/:key?depth=1` ile `lastModified`, `figma-render.mjs`
+  ile AYNI kalıp: `isCut("figma")` şalterine bakar, `noteResponse()` ile kotayı
+  işaretler, kimlik/429/ağ hatasında sessizce `null` döner — sweep'in geri
+  kalanını durdurmaz), `panel/scope.mjs → collectVerifiedFigmaLinks` +
+  `sweepDesignDrift` (ağaç mutasyonu — HTTP bilmez), `panel/public/scope/js/design-drift.js`
+  (istemci: `runDesignDriftSweep()`, `jira.js → runJiraSweep()` ile birebir aynı şekil).
+- **Uç**: `POST /api/scope/design/sweep` — benzersiz dosya anahtarlarını SIRALI
+  sorar (Promise.all değil; kota tek sayaç, paralel istek 429 riskini artırır).
+- **Önbellek TAZELİK için 6 saat** (`DESIGN_DRIFT_CACHE_TTL_MS`), tasarım
+  ağacı/render önbelleğinin 1 YILLIK TTL'inden (bkz. "Tasarım diff (Figma)")
+  BİLEREK çok daha kısa — o önbellek "kota dar, bayat kalsın" derken bu
+  önbellek "tazelik sinyali ver ama her panel açılışında gerçek çağrı yapma"
+  arasında bir denge.
+- ⚠️ **Ölçüm sınırı, kasıtlı**: `/v1/files/:key?depth=1` DOSYA seviyesinde
+  `lastModified` veriyor, FRAME seviyesinde değil — "bu dosyada bir şey
+  değişti" ile "senin baktığın frame değişti" aynı şey değil. Frame-seviyesi
+  tespit tam ağaç ister (pahalı, 429 riski); dosya seviyesi tek ucuz istekle
+  kaba ama işe yarar bir "bak" sinyali veriyor.
+- **Tetikleyici**: Jira taramasıyla AYNI nokta — "Bayat/Bekleyen Test Case'ler"
+  paneli açılışı (`attention-panel.js`), ayrı "Tasarım" alt başlığı altında.
+- Canlıda (gerçek panel + tarayıcı, sahte `/api/scope/design/sweep` yanıtı
+  enjekte edilerek) ve doğrudan fonksiyon testiyle (gerçek `tree.json`'a geçici
+  test düğümü eklenip yedeklenip geri alınarak) doğrulandı: drift varken ⚠️'ye
+  çekme, zaten ⚠️ olanı tekrar işlememe (idempotent), aynı/eski tarihte
+  dokunmama, `lastModified` bilinmiyorken karar vermeme, kimlik yokken/şalter
+  kesikken sessizce `null` dönme — hepsi ayrı ayrı test edildi.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

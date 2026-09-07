@@ -380,3 +380,68 @@ export function sweepJiraStatuses(statusMap) {
   if (flagged.length) writeTree(tree);
   return { scannedNodes, flagged, reviewSuggested };
 }
+
+/**
+ * ✅ (Tamamlandı) VE Kaynaklar'da bir Figma linki olan yaprak düğümleri toplar —
+ * "Tasarım Drift Radarı"nın ilk adımı. Bu fonksiyon HTTP çağrısı yapmaz, hangi
+ * Figma dosyalarının kontrol edilmesi gerektiğini söyler; asıl çağrı
+ * (rate-limit'e duyarlı, önbellekli) `panel/design-drift.mjs`'te.
+ *
+ * `extractFileKey` dışarıdan verilir (design-drift.mjs'teki URL ayrıştırıcı) —
+ * bu dosya Figma URL biçimini bilmek zorunda kalmasın diye.
+ * @returns {{nodeId:string, fileKey:string, fileUrl:string, lastVerifiedAt:string}[]}
+ */
+export function collectVerifiedFigmaLinks(tree, extractFileKey) {
+  const out = [];
+  (function walk(a) {
+    for (const n of a ?? []) {
+      if (!n.children.length && n.status === "✅" && n.lastVerifiedAt) {
+        const fig = (n.resourceLinks ?? []).find((r) => r.type === "figma");
+        const fileKey = fig ? extractFileKey(fig.url) : null;
+        if (fileKey) out.push({ nodeId: n.id, fileKey, fileUrl: fig.url, lastVerifiedAt: n.lastVerifiedAt });
+      }
+      walk(n.children);
+    }
+  })(tree);
+  return out;
+}
+
+/**
+ * Jira sweep'iyle AYNI ilke, farklı sinyal: "done değil" yerine "bağlı Figma
+ * dosyası senin doğrulamandan (`lastVerifiedAt`) SONRA değişti mi". Bulursa
+ * düğümü ⚠️'ye çeker — TEK YÖNLÜ, otomatik ✅'ya geri almaz (o karar insanın,
+ * bkz. CLAUDE.md → "Tasarım Drift Radarı"). `node.status` bu arada elle
+ * değiştirilmiş olabilir diye (drawer açıkken sweep tetiklenmesi gibi) hâlâ
+ * ✅ olduğu ANDA tekrar kontrol edilir.
+ *
+ * @param {Record<string, string|null>} lastModifiedByKey fileKey -> ISO tarih (bilinmiyorsa null)
+ * @param {ReturnType<typeof collectVerifiedFigmaLinks>} links `collectVerifiedFigmaLinks` çıktısı
+ * @returns {{flagged: {nodeId:string, fileUrl:string, lastModified:string}[]}}
+ */
+export function sweepDesignDrift(lastModifiedByKey, links) {
+  const { tree } = readTree();
+  const at = nowIso();
+  const flagged = [];
+
+  for (const link of links) {
+    const node = findNode(tree, link.nodeId);
+    if (!node || node.status !== "✅") continue;
+    const lastModified = lastModifiedByKey[link.fileKey];
+    if (!lastModified) continue; // bilinmiyor (kimlik yok/429/ağ hatası) — karar verme
+    if (new Date(lastModified).getTime() <= new Date(link.lastVerifiedAt).getTime()) continue;
+
+    node.statusHistory = node.statusHistory ?? [];
+    node.statusHistory.push({ id: nextId(tree, "sh"), from: node.status, to: "⚠️", at });
+    node.status = "⚠️";
+    node.notes = node.notes ?? [];
+    node.notes.push({
+      id: nextId(tree, "note"),
+      text: `Tasarım güncellendi: bağlı Figma dosyası son doğrulamandan (${link.lastVerifiedAt.slice(0, 10)}) sonra, ${lastModified.slice(0, 10)}'de değişmiş. Tekrar gözden geçir.`,
+      createdAt: at,
+    });
+    flagged.push({ nodeId: node.id, fileUrl: link.fileUrl, lastModified });
+  }
+
+  if (flagged.length) writeTree(tree);
+  return { flagged };
+}
