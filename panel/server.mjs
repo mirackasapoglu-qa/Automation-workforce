@@ -68,8 +68,9 @@ import {
 import { preflight } from "./preflight.mjs";
 import { tracker, setCapability, setConnectorCut } from "./connectors/index.mjs";
 import * as oauth from "./oauth.mjs";
-import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedFigmaLinks, sweepDesignDrift } from "./scope.mjs";
-import { extractFigmaFileKey, lastModifiedByKey } from "./design-drift.mjs";
+import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift } from "./scope.mjs";
+import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
+import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
 import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
@@ -1313,9 +1314,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     /**
-     * Tasarım Drift Radarı: ✅ olan VE Kaynaklar'da Figma linki olan yaprak
-     * düğümleri toplar, benzersiz dosya anahtarları için TEK TEK (ama az
-     * sayıda, önbellekli) `lastModified` sorar, `sweepDesignDrift` ile
+     * Tasarım Drift Radarı (Figma): ✅ olan VE Kaynaklar'da Figma linki olan
+     * yaprak düğümleri toplar, benzersiz dosya anahtarları için TEK TEK (ama
+     * az sayıda, önbellekli) `lastModified` sorar, `sweepResourceDrift` ile
      * `lastVerifiedAt`'tan sonra değişenleri ⚠️'ye çeker. Jira sweep'iyle aynı
      * tetikleyici nokta: "Bayat/Bekleyen Test Case'ler" paneli açılınca
      * (bkz. attention-panel.js). Figma kimliği yok/koparılmışsa ya da 429
@@ -1325,10 +1326,10 @@ const server = http.createServer(async (req, res) => {
       if (!requireAuth(req, res)) return;
       try {
         const { tree } = readTree();
-        const links = collectVerifiedFigmaLinks(tree, extractFigmaFileKey);
-        const uniqueKeys = [...new Set(links.map((l) => l.fileKey))];
-        const lastMod = await lastModifiedByKey(uniqueKeys);
-        const out = sweepDesignDrift(lastMod, links);
+        const links = collectVerifiedResourceLinks(tree, "figma", extractFigmaFileKey);
+        const uniqueKeys = [...new Set(links.map((l) => l.key))];
+        const lastMod = await figmaLastModifiedByKey(uniqueKeys);
+        const out = sweepResourceDrift(lastMod, links, "Tasarım");
         audit({
           event: "scope-design-sweep",
           scannedNodes: links.length,
@@ -1339,6 +1340,37 @@ const server = http.createServer(async (req, res) => {
           broadcast("log", { stream: "out", line: `[scope] tasarim taramasi: ${out.flagged.length} dugum Uyarili'ya cekildi` });
         }
         return send(res, 200, { ok: true, scannedNodes: links.length, scannedFiles: uniqueKeys.length, ...out });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+
+    /**
+     * Doküman Drift Radarı (Confluence): Figma sweep'iyle BİREBİR AYNI ilke ve
+     * aynı `sweepResourceDrift` fonksiyonu, farklı kaynak — ✅ olan VE
+     * Kaynaklar'da bir Confluence sayfa linki olan yaprak düğümleri tarar.
+     * Kimlik yoksa (ne Confluence'a özel ne Jira üzerinden) ya da sayfa
+     * ID'si URL'den çözülemiyorsa (bkz. confluence.mjs → ölçüm sınırı)
+     * ilgili düğümler sessizce atlanır.
+     */
+    if (p === "/api/scope/confluence/sweep" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      try {
+        const { tree } = readTree();
+        const links = collectVerifiedResourceLinks(tree, "confluence", extractConfluencePageId);
+        const uniqueKeys = [...new Set(links.map((l) => l.key))];
+        const lastMod = await confluenceLastModifiedByKey(uniqueKeys);
+        const out = sweepResourceDrift(lastMod, links, "Confluence dokümanı");
+        audit({
+          event: "scope-confluence-sweep",
+          scannedNodes: links.length,
+          scannedPages: uniqueKeys.length,
+          flagged: out.flagged.length,
+        });
+        if (out.flagged.length) {
+          broadcast("log", { stream: "out", line: `[scope] dokuman taramasi: ${out.flagged.length} dugum Uyarili'ya cekildi` });
+        }
+        return send(res, 200, { ok: true, scannedNodes: links.length, scannedPages: uniqueKeys.length, ...out });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }

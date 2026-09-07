@@ -5,8 +5,8 @@
  * dosyanın Figma'daki son değişim zamanını (`lastModified`) düğümün
  * `lastVerifiedAt`'ıyla kıyaslamak için gereken tek şey bu: dosya anahtarını
  * URL'den çıkarmak ve `/v1/files/:key?depth=1`'i (kota-bilinçli, önbellekli)
- * çağırmak. Ağaç mutasyonu burada YOK — `panel/scope.mjs → sweepDesignDrift`
- * yapıyor (bkz. o dosyadaki gerekçe).
+ * çağırmak. Ağaç mutasyonu burada YOK — `panel/scope.mjs → sweepResourceDrift`
+ * yapıyor (Confluence ile PAYLAŞILAN aynı fonksiyon, bkz. o dosyadaki gerekçe).
  *
  * ⚠️ ÖLÇÜM SINIRI: bu uç DOSYA seviyesinde `lastModified` veriyor, FRAME
  * seviyesinde değil. "Bu dosyada bir şey değişti" ile "senin baktığın frame

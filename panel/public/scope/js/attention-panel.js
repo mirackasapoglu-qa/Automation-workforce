@@ -12,6 +12,7 @@ import { formatNoteDate } from './notes.js';
 import { openDrawer } from './drawer.js';
 import { runJiraSweep } from './jira.js';
 import { runDesignDriftSweep } from './design-drift.js';
+import { runConfluenceDriftSweep } from './confluence-drift.js';
 
 function closeAttentionPanel() {
   const overlay = state.root.querySelector('.attention-overlay');
@@ -160,25 +161,27 @@ async function renderJiraSweepSection(container) {
 }
 
 /**
- * Tasarım Drift Radarı bölümü. `runDesignDriftSweep()` ✅ + Figma kaynaklı
- * düğümleri tarar, `lastVerifiedAt`'tan sonra değişen dosyaları ⚠️'ye çeker
- * (ekranı `reloadPersistedTree` ile tazeler). Jira bölümünün tersine burada
- * "gözden geçir" tersi bir liste yok — ⚠️'den çıkış her zaman insan elinden.
+ * Ortak Drift Radarı bölüm oluşturucusu — Figma VE Confluence AYNI şekli
+ * paylaşır (sadece hangi sweep'in çağrıldığı ve metinler değişir). Jira
+ * bölümünün tersine burada "gözden geçir" tersi bir liste yok — ⚠️'den çıkış
+ * her zaman insan elinden.
+ * @param {() => Promise<{flagged:{nodeId:string,url:string,lastModified:string}[]}|null>} runSweep
+ * @param {{loading:string, error:string, empty:string, desc:string, badge:string}} texts
  */
-async function renderDesignDriftSection(container) {
+async function renderDriftSection(container, runSweep, texts) {
   container.innerHTML = '';
   const loading = document.createElement('div');
   loading.className = 'drawer-placeholder';
-  loading.textContent = 'Tasarım (Figma) değişiklikleri taranıyor…';
+  loading.textContent = texts.loading;
   container.appendChild(loading);
 
-  const result = await runDesignDriftSweep();
+  const result = await runSweep();
   container.innerHTML = '';
 
   if (!result) {
     const err = document.createElement('div');
     err.className = 'drawer-placeholder';
-    err.textContent = 'Tasarım taraması yapılamadı (Figma kimliği yok/koparılmış ya da sunucuya ulaşılamadı).';
+    err.textContent = texts.error;
     container.appendChild(err);
     return;
   }
@@ -186,15 +189,14 @@ async function renderDesignDriftSection(container) {
   if (!result.flagged.length) {
     const empty = document.createElement('div');
     empty.className = 'drawer-placeholder';
-    empty.textContent = 'Doğrulanmış (✅) hiçbir düğümün tasarımı son onaydan sonra değişmemiş.';
+    empty.textContent = texts.empty;
     container.appendChild(empty);
     return;
   }
 
   const desc = document.createElement('p');
   desc.className = 'attention-desc';
-  desc.textContent = 'Bu düğümler "Tamamlandı" işaretliydi ama bağlı Figma dosyaları senin doğruladığın '
-    + 'tarihten SONRA değişmiş — otomatik "Uyarılı"ya çekildi, yeniden gözden geçir.';
+  desc.textContent = texts.desc;
   container.appendChild(desc);
 
   const flat = flattenWithPath(state.tree, [], []);
@@ -210,7 +212,7 @@ async function renderDesignDriftSection(container) {
 
     const badge = document.createElement('span');
     badge.className = 'attention-badge attention-badge-drift';
-    badge.textContent = 'TASARIM GÜNCELLENDİ';
+    badge.textContent = texts.badge;
     row.appendChild(badge);
 
     const info = document.createElement('span');
@@ -233,6 +235,28 @@ async function renderDesignDriftSection(container) {
     list.appendChild(row);
   });
   container.appendChild(list);
+}
+
+function renderDesignDriftSection(container) {
+  return renderDriftSection(container, runDesignDriftSweep, {
+    loading: 'Tasarım (Figma) değişiklikleri taranıyor…',
+    error: 'Tasarım taraması yapılamadı (Figma kimliği yok/koparılmış ya da sunucuya ulaşılamadı).',
+    empty: 'Doğrulanmış (✅) hiçbir düğümün tasarımı son onaydan sonra değişmemiş.',
+    desc: 'Bu düğümler "Tamamlandı" işaretliydi ama bağlı Figma dosyaları senin doğruladığın '
+      + 'tarihten SONRA değişmiş — otomatik "Uyarılı"ya çekildi, yeniden gözden geçir.',
+    badge: 'TASARIM GÜNCELLENDİ',
+  });
+}
+
+function renderConfluenceDriftSection(container) {
+  return renderDriftSection(container, runConfluenceDriftSweep, {
+    loading: 'Confluence dokümanları taranıyor…',
+    error: 'Doküman taraması yapılamadı (Confluence kimliği yok/koparılmış ya da sunucuya ulaşılamadı).',
+    empty: 'Doğrulanmış (✅) hiçbir düğümün bağlı dokümanı son onaydan sonra değişmemiş.',
+    desc: 'Bu düğümler "Tamamlandı" işaretliydi ama bağlı Confluence sayfaları senin doğruladığın '
+      + 'tarihten SONRA düzenlenmiş — otomatik "Uyarılı"ya çekildi, yeniden gözden geçir.',
+    badge: 'DOKÜMAN GÜNCELLENDİ',
+  });
 }
 
 export function openAttentionPanel() {
@@ -283,6 +307,15 @@ export function openAttentionPanel() {
   const designSection = document.createElement('div');
   body.appendChild(designSection);
   renderDesignDriftSection(designSection);
+
+  const docsHeading = document.createElement('div');
+  docsHeading.className = 'attention-subheading';
+  docsHeading.innerHTML = ICON.confluence + '<span>Dokümantasyon</span>';
+  body.appendChild(docsHeading);
+
+  const docsSection = document.createElement('div');
+  body.appendChild(docsSection);
+  renderConfluenceDriftSection(docsSection);
 
   modal.appendChild(body);
   state.root.appendChild(overlay);

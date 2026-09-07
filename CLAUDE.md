@@ -1298,6 +1298,67 @@ zaman insanın elinde) ve neden'i açıklayan bir not düşer.
   dokunmama, `lastModified` bilinmiyorken karar vermeme, kimlik yokken/şalter
   kesikken sessizce `null` dönme — hepsi ayrı ayrı test edildi.
 
+## Flowscope: Doküman Drift Radarı (Confluence) + genelleme (2026-09-08)
+
+Yukarıdaki Tasarım Drift Radarı **Confluence'a da genişletildi** — kullanıcının
+açık kararı: "bu proje sadece Machinarium için değil, herkese açılacak",
+yani hiçbir yerde sabit bir `*.atlassian.net` yazılmadı, kimlik/host tamamen
+proje-bağımsız çözülüyor.
+
+**Genelleme**: `scope.mjs`'teki Figma'ya özel `collectVerifiedFigmaLinks` /
+`sweepDesignDrift` kaldırıldı, yerine kaynak-tipinden bağımsız
+`collectVerifiedResourceLinks(tree, type, extractKey)` ve
+`sweepResourceDrift(lastModifiedByKey, links, sourceLabel)` geldi. Mutasyon
+mantığı (✅ + lastVerifiedAt'tan sonra değişmiş → ⚠️, tek yönlü) kaynağa göre
+DEĞİŞMİYOR — yalnızca notun metnine giren `sourceLabel` ("Tasarım" / "Confluence
+dokümanı") farklı. `/api/scope/design/sweep` bu genel fonksiyonları `type:"figma"`
+ile çağırıyor; yeni `POST /api/scope/confluence/sweep` `type:"confluence"` ile.
+İstemci tarafında da aynı ilke: `attention-panel.js → renderDriftSection()` tek
+bir ortak render fonksiyonu, Figma ve Confluence bölümleri yalnızca metin/uç
+farkıyla onu çağırıyor (`renderDesignDriftSection` / `renderConfluenceDriftSection`).
+İkisi de AYNI rozet sınıfını (`attention-badge-drift`) paylaşıyor — Kaynaklar
+panelindeki tüm resource chip ikonları da zaten tek bir mor tona (`#c4b5fd`)
+sahip, tutarlılık için yeni bir renk icat edilmedi.
+
+**Yeni dosyalar**: `panel/confluence.mjs` (Confluence API çağrısı —
+`extractConfluencePageId(url)` + `lastModifiedByKey(pageIds)`, `design-drift.mjs`
+ile aynı önbellek/graceful-degradation kalıbı), `panel/connectors/confluence.mjs`
+("docs" yeteneği, connector registry'ye eklendi — `panel/connectors/index.mjs`teki
+YETENEKLER listesi ve `DEFAULT_MAP`e `docs: "confluence"` girdisi eklendi),
+`panel/public/scope/js/confluence-drift.js` (istemci, `design-drift.js`'in
+birebir aynısı, farklı uç).
+
+**Kimlik ve host PROJE-BAĞIMSIZ**:
+- Kendi kimlik dosyası var (`~/.confluence-credentials`,
+  `CONFLUENCE_EMAIL`/`CONFLUENCE_TOKEN`) ama VERİLMEMİŞSE Jira'nın kimliğine
+  (`JIRA_EMAIL`/`JIRA_TOKEN`) düşer — Atlassian Cloud'da aynı hesap/API
+  token'ı genelde ikisini birden yetkilendiriyor; aynı email/token'ı iki
+  dosyaya kopyalamak gereksiz sürtünme olurdu.
+- Host da aynı zincir: `CONFLUENCE_HOST` → profildeki `confluence.host` →
+  `JIRA_HOST` → profildeki `jira.host`. Hiçbiri `machinarium.atlassian.net`'i
+  SABİT yazmıyor (Jira'nın kendisi bile `panel/projects/homee.mjs`'te tutuluyor,
+  çekirdek zaten bunu bilmiyordu — bkz. "Proje profili" bölümü; Confluence de
+  aynı disipline uydu).
+- Cloud (`*.atlassian.net`) siteleri `/wiki/rest/api/...` altında, Data Center
+  `/rest/api/...` altında — ayrım `resources.js → detectResourceType()`teki
+  aynı host kontrolüyle yapılıyor.
+
+⚠️ **Ölçüm sınırı, bilerek**: yalnızca URL'sinde sayfa ID'si geçen Confluence
+linkleri çözülür (`/pages/<id>/...` ya da `?pageId=<id>`). `/wiki/display/<SPACE>/<Başlık>`
+biçimi sayfa ID taşımıyor — çözmek CQL araması (ekstra istek) ister, ilk sürüm
+bunu atlıyor ve link sessizce "tanınmadı" sayılıyor (Figma'nın dosya-vs-frame
+sınırıyla aynı gerekçe: ucuz + kaba ama işe yarar sinyal).
+
+Test disiplini aynı: syntax kontrolü, gerçek `tree.json`'a yedekli/geri-alınan
+doğrudan fonksiyon testleri (URL ayrıştırma, genel `sweepResourceDrift`'in HEM
+Figma HEM Confluence linkiyle doğru çalıştığı tek testte doğrulandı), kimlik-yok/
+taze-önbellek/bayat-önbellek+kesik-konnektör senaryoları, Jira-fallback kimlik +
+host zincirinin gerçek bir HTTP çağrısı mock'lanarak (URL + Authorization header
+birebir doğrulanarak) test edilmesi, Cloud (`/wiki` eklenir) vs Data Center
+(`/wiki` eklenmez) URL kurulumunun ayrı ayrı doğrulanması, ve canlı panelde
+(sahte + gerçek uç, sıfır konsol hatası, Figma sweep'inin genelleme sonrası hâlâ
+çalıştığının regresyon kontrolü) — hepsi push'tan önce geçti.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

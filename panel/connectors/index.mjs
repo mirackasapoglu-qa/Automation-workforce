@@ -11,7 +11,7 @@
  * ağacını taşırken bu şart: orada "❌ için Jira ID zorunlu" kuralı her yere
  * SABİT kodlanmış (R3-R9), o hâliyle Linear kullanan proje sisteme giremez.
  *
- * YETENEKLER: tracker (kart) · design (tasarım) · ai · chat (bildirim) · device
+ * YETENEKLER: tracker (kart) · design (tasarım) · docs (dokümantasyon) · ai · chat (bildirim) · device
  *
  * MALİYET: ağ isteyen kontroller 10 dk önbellekli. Figma HİÇ çağrı yapmaz
  * (kotası ayda 6 istek — yoklamanın kendisi tüketiyordu).
@@ -24,6 +24,7 @@ import * as OAUTH from "../oauth.mjs";
 import { isCut, cutAt, setCut } from "./cuts.mjs";
 
 import * as claudeCode from "./claude-code.mjs";
+import * as confluence from "./confluence.mjs";
 import * as figma from "./figma.mjs";
 import * as jira from "./jira.mjs";
 import * as linear from "./linear.mjs";
@@ -31,13 +32,13 @@ import * as mobai from "./mobai.mjs";
 import * as slack from "./slack.mjs";
 
 /** Kayıtlı tüm connector'lar. Yeni servis = bu listeye bir satır. */
-export const ALL = { "claude-code": claudeCode, figma, jira, linear, mobai, slack };
+export const ALL = { "claude-code": claudeCode, confluence, figma, jira, linear, mobai, slack };
 
-/** Gösterim sırası: önce çekirdek iş (kart/tasarım), sonra yardımcılar. */
-const ORDER = ["claude-code", "figma", "jira", "linear", "mobai", "slack"];
+/** Gösterim sırası: önce çekirdek iş (kart/tasarım/doküman), sonra yardımcılar. */
+const ORDER = ["claude-code", "figma", "jira", "confluence", "linear", "mobai", "slack"];
 
 /** Profil demezse makul varsayılan — paneli mevcut projelerde bozmamak için. */
-const DEFAULT_MAP = { tracker: "jira", design: "figma", ai: "claude-code", device: "mobai", chat: null };
+const DEFAULT_MAP = { tracker: "jira", design: "figma", docs: "confluence", ai: "claude-code", device: "mobai", chat: null };
 
 /**
  * Panelden yapılan yetenek değişikliği: `panel-data/connectors.json`.

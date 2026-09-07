@@ -382,23 +382,26 @@ export function sweepJiraStatuses(statusMap) {
 }
 
 /**
- * ✅ (Tamamlandı) VE Kaynaklar'da bir Figma linki olan yaprak düğümleri toplar —
- * "Tasarım Drift Radarı"nın ilk adımı. Bu fonksiyon HTTP çağrısı yapmaz, hangi
- * Figma dosyalarının kontrol edilmesi gerektiğini söyler; asıl çağrı
- * (rate-limit'e duyarlı, önbellekli) `panel/design-drift.mjs`'te.
+ * ✅ (Tamamlandı) VE Kaynaklar'da verilen `type`ta bir link olan yaprak
+ * düğümleri toplar — "Doküman Drift Radarı"nın ilk adımı (Figma VE Confluence
+ * bunu PAYLAŞIR, bkz. `sweepResourceDrift`). Bu fonksiyon HTTP çağrısı yapmaz,
+ * hangi kaynakların kontrol edilmesi gerektiğini söyler; asıl çağrı
+ * (rate-limit'e duyarlı, önbellekli) `panel/design-drift.mjs` (Figma) /
+ * `panel/confluence.mjs`'te (Confluence).
  *
- * `extractFileKey` dışarıdan verilir (design-drift.mjs'teki URL ayrıştırıcı) —
- * bu dosya Figma URL biçimini bilmek zorunda kalmasın diye.
- * @returns {{nodeId:string, fileKey:string, fileUrl:string, lastVerifiedAt:string}[]}
+ * `extractKey` dışarıdan verilir (kaynağa özgü URL ayrıştırıcı) — bu dosya
+ * Figma/Confluence URL biçimini bilmek zorunda kalmasın diye.
+ * @param {"figma"|"confluence"} type resourceLinks'teki kaynak tipi
+ * @returns {{nodeId:string, key:string, url:string, lastVerifiedAt:string}[]}
  */
-export function collectVerifiedFigmaLinks(tree, extractFileKey) {
+export function collectVerifiedResourceLinks(tree, type, extractKey) {
   const out = [];
   (function walk(a) {
     for (const n of a ?? []) {
       if (!n.children.length && n.status === "✅" && n.lastVerifiedAt) {
-        const fig = (n.resourceLinks ?? []).find((r) => r.type === "figma");
-        const fileKey = fig ? extractFileKey(fig.url) : null;
-        if (fileKey) out.push({ nodeId: n.id, fileKey, fileUrl: fig.url, lastVerifiedAt: n.lastVerifiedAt });
+        const link = (n.resourceLinks ?? []).find((r) => r.type === type);
+        const key = link ? extractKey(link.url) : null;
+        if (key) out.push({ nodeId: n.id, key, url: link.url, lastVerifiedAt: n.lastVerifiedAt });
       }
       walk(n.children);
     }
@@ -407,18 +410,23 @@ export function collectVerifiedFigmaLinks(tree, extractFileKey) {
 }
 
 /**
- * Jira sweep'iyle AYNI ilke, farklı sinyal: "done değil" yerine "bağlı Figma
- * dosyası senin doğrulamandan (`lastVerifiedAt`) SONRA değişti mi". Bulursa
- * düğümü ⚠️'ye çeker — TEK YÖNLÜ, otomatik ✅'ya geri almaz (o karar insanın,
- * bkz. CLAUDE.md → "Tasarım Drift Radarı"). `node.status` bu arada elle
- * değiştirilmiş olabilir diye (drawer açıkken sweep tetiklenmesi gibi) hâlâ
- * ✅ olduğu ANDA tekrar kontrol edilir.
+ * Jira sweep'iyle AYNI ilke, farklı sinyal: "done değil" yerine "bağlı kaynak
+ * (Figma dosyası / Confluence sayfası) senin doğrulamandan (`lastVerifiedAt`)
+ * SONRA değişti mi". Bulursa düğümü ⚠️'ye çeker — TEK YÖNLÜ, otomatik ✅'ya
+ * geri almaz (o karar insanın, bkz. CLAUDE.md → "Doküman Drift Radarı").
+ * `node.status` bu arada elle değiştirilmiş olabilir diye (drawer açıkken
+ * sweep tetiklenmesi gibi) hâlâ ✅ olduğu ANDA tekrar kontrol edilir.
  *
- * @param {Record<string, string|null>} lastModifiedByKey fileKey -> ISO tarih (bilinmiyorsa null)
- * @param {ReturnType<typeof collectVerifiedFigmaLinks>} links `collectVerifiedFigmaLinks` çıktısı
- * @returns {{flagged: {nodeId:string, fileUrl:string, lastModified:string}[]}}
+ * Figma VE Confluence AYNI fonksiyonu çağırır — mutasyon mantığı kaynağa göre
+ * değişmiyor, yalnızca hangi dosyanın/sayfanın kontrol edildiğini söyleyen
+ * `sourceLabel` notun metnine giriyor.
+ *
+ * @param {Record<string, string|null>} lastModifiedByKey key -> ISO tarih (bilinmiyorsa null)
+ * @param {ReturnType<typeof collectVerifiedResourceLinks>} links `collectVerifiedResourceLinks` çıktısı
+ * @param {string} sourceLabel not metninde görünecek kaynak adı ("Figma dosyası", "Confluence sayfası")
+ * @returns {{flagged: {nodeId:string, url:string, lastModified:string}[]}}
  */
-export function sweepDesignDrift(lastModifiedByKey, links) {
+export function sweepResourceDrift(lastModifiedByKey, links, sourceLabel) {
   const { tree } = readTree();
   const at = nowIso();
   const flagged = [];
@@ -426,7 +434,7 @@ export function sweepDesignDrift(lastModifiedByKey, links) {
   for (const link of links) {
     const node = findNode(tree, link.nodeId);
     if (!node || node.status !== "✅") continue;
-    const lastModified = lastModifiedByKey[link.fileKey];
+    const lastModified = lastModifiedByKey[link.key];
     if (!lastModified) continue; // bilinmiyor (kimlik yok/429/ağ hatası) — karar verme
     if (new Date(lastModified).getTime() <= new Date(link.lastVerifiedAt).getTime()) continue;
 
@@ -436,10 +444,10 @@ export function sweepDesignDrift(lastModifiedByKey, links) {
     node.notes = node.notes ?? [];
     node.notes.push({
       id: nextId(tree, "note"),
-      text: `Tasarım güncellendi: bağlı Figma dosyası son doğrulamandan (${link.lastVerifiedAt.slice(0, 10)}) sonra, ${lastModified.slice(0, 10)}'de değişmiş. Tekrar gözden geçir.`,
+      text: `${sourceLabel} güncellendi: son doğrulamandan (${link.lastVerifiedAt.slice(0, 10)}) sonra, ${lastModified.slice(0, 10)}'de değişmiş. Tekrar gözden geçir.`,
       createdAt: at,
     });
-    flagged.push({ nodeId: node.id, fileUrl: link.fileUrl, lastModified });
+    flagged.push({ nodeId: node.id, url: link.url, lastModified });
   }
 
   if (flagged.length) writeTree(tree);
