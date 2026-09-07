@@ -321,13 +321,36 @@ function requireAuth(req, res) {
     });
     return false;
   }
+  /*
+   * PANELIN KENDI ADRESI HER ZAMAN KABUL. `Origin`, sayfanin servis edildigi
+   * adrese esitse istek TANIMI GEREGI ayni kaynaktan geliyor — panelin kendi
+   * arayuzu tam olarak bunu yolluyor.
+   *
+   * NEDEN GEREKLI: sunucuda PANEL_ORIGIN verilmemisti ve Flowscope'ta yapilan
+   * her degisiklik sessizce diske YAZILMIYORDU (olculdu 2026-09-07,
+   * testing-ideal.machinarium.dev/scope → "Origin reddedildi"). Kullanicinin
+   * elinde tek cozum olarak "sunucuya su env'i ver" kaliyordu; oysa sunucu
+   * kendi adresini zaten biliyor (publicOriginFor → x-forwarded-proto/host).
+   *
+   * ⚠️ BU BIR ZAYIFLATMA DEGIL. Tarayici, sayfa JS'inin `X-Forwarded-Host`
+   * yollamasina izin vermez (CORS guvenli-liste disinda), yani baska bir
+   * origin'deki sayfa bu esitligi uyduramaz. Tarayici olmayan istemci
+   * (curl) uydurabilir ama o zaten `Origin`i hic gondermeyerek kontrolu
+   * atliyor — kod yorumunda yazili bilinen sinir. Yeni bir delik acilmiyor.
+   *
+   * PANEL_ORIGIN hala isliyor: ikinci bir domain ya da farkli bir proxy
+   * adresi eklemek icin duruyor.
+   */
   const origin = req.headers.origin;
-  if (origin && !ALLOWED_ORIGINS.has(origin)) {
+  if (origin && !ALLOWED_ORIGINS.has(origin) && origin !== publicOriginFor(req)) {
     // `code` sart: arayuz aksi halde bunu "token eskimis, sayfayi yenile" diye
     // gosteriyor ve kullanici sayfayi yenileyip yenileyip ayni duvara carpiyor.
     send(res, 403, {
       code: "BAD_ORIGIN",
-      error: `Origin reddedildi: ${origin} — sunucuya PANEL_ORIGIN=${origin} ver (virgulle birden fazla).`,
+      error:
+        `Origin reddedildi: ${origin}. Panelin kendi adresi ` +
+        `${publicOriginFor(req)} olarak gorunuyor — ikisi ayni degil. Baska bir ` +
+        `domain'den cagriliyorsa sunucuya PANEL_ORIGIN=${origin} ver (virgulle birden fazla).`,
     });
     return false;
   }
