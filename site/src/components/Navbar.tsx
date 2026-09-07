@@ -26,7 +26,8 @@ export default function Navbar() {
             yapar ama eski Index bilesenini cizerdi — yani yeni landing yerine
             kaldirilmis tasarim gorunurdu. Gercek gezinme sart.
           */}
-          <a href="/" className="flex items-center gap-2">
+          {/* Adres bardan: sunucuda landing kokte DEGIL (panel orada), /home'da. */}
+          <a data-hq="landing" href="/" className="flex items-center gap-2">
             <Globe size={24} className="text-white" />
             <span className="text-white font-semibold text-lg">Homee QA</span>
           </a>

@@ -663,6 +663,52 @@ bar `.fw`nin dışında olduğu için `content-box` kalıyordu ve `min-height:70
 üzerine padding+kenarlık eklenip **99px** oluyordu (ölçüldü). `font-size` de aynı
 sebeple açıkça yazılı: panelin body'si 14px, Flowscope'un 16px.
 
+### Landing sunucuda: panel onu kendisi servis eder
+
+Landing lokalde **ayrı süreçte** (`vite preview`, 4321) ama sunucuda o süreç
+yok — dağıtılan tek şey panel konteyneri. Sonuç: üst bardaki **Home** düğmesi
+sunucuda hiç basılmıyordu (ölçüldü 2026-09-07: `/onboarding` → 404) ve "sabit
+üç öğe" dediğimiz şerit orada ikiye düşüyordu.
+
+Dockerfile `site`'ı **zaten** build ediyor (`npm run build --prefix site`), yani
+`site/dist` imajda hazırdı; eksik olan tek şey onu servis etmekti. Panel artık
+veriyor (`SITE_DIST` varsa):
+
+| Yol | Dosya |
+|---|---|
+| `/home` | `site/dist/index.html` (statik landing) |
+| `/onboarding` | `site/dist/onboarding/index.html` |
+| `/landing` | `site/dist/landing/index.html` (eski React landing) |
+| `/assets/*` `/shots/*` `/favicon.svg` `/icons.svg` | `site/dist/…` |
+
+⚠️ **Vite'ın `base`i DEĞİŞMEDİ ve değişmemeli.** Landing'in ürettiği mutlak
+referanslar (`/assets`, `/shots`, `/nav.css`, `/onboarding`) panelin sahip
+olduğu yollarla çakışmıyor — bu yüzden **aynı `dist` hem 4321'de hem panel
+origin'inde çalışıyor**. Yeni bir panel ucu eklerken bu listeyi ezmediğine
+dikkat et. Kök `/` panelde kaldı: yer imleri ve deploy adresi bozulmasın.
+
+**Adres tablosu `window.HQ_NAV`.** Sunucu her HTML'e enjekte ediyor
+(`navConfigFor(req)`), servis edilen landing dahil — enjeksiyon derlenmiş
+HTML'de `<script src="/nav.js">` etiketinin **önüne** yapılıyor (yer tutucu yok).
+
+- **lokal** → `{ landing: "http://localhost:4321" }` (origin). Ayrı süreç HMR
+  verdiği için lokalde imajdaki `dist` yerine **hep o** tercih edilir.
+- **sunucu** → `{ urls: { landing, onboarding, panel, scope } }`, hepsi tam
+  adres. **Dördü de açıkça verilmeli:** landing sayfasındayken `nav.js` panel
+  origin'ini yalnızca localhost'ta tahmin edebiliyor (4646 varsayımı);
+  sunucuda tahmin boş döner ve landing'in barında Panel/Kapsam **hiç basılmaz**
+  (ölçüldü: sunucu taklidi 4700'de ikisi de `localhost:4646`'yı gösteriyordu).
+- ikisi de yoksa tablo boş → Home basılmaz, ölü link yok.
+
+**Sayfa içi yüzey bağlantıları: `data-hq`.** `<a data-hq="panel">` yazan her
+bağlantının `href`i bardan doldurulur (`HqNav.resolveLinks`), çözülemezse
+bağlantı **gizlenir**. Bu, üç yerde bulunan aynı hatanın kalıcı çözümü:
+`Navbar.tsx`, onboarding CTA'sı ve statik landing'de **beş** bağlantı
+`http://localhost:4646` sabitiyle yazılıydı — sunucuda hepsi ölü.
+⚠️ Tarama üç kez yapılır: mount'ta, `DOMContentLoaded`'da ve **MutationObserver
+ile** — React ikisinden de sonra boyuyor, gözlemci olmadan `data-hq="landing"`
+ham `href="/"` ile kalıyordu (yani sunucuda panelin köküne gidiyordu).
+
 **Palet köprüsü:** `.hq-nav` host'un token'ını miras alır, yoksa kendi değerine
 düşer (`var(--fg, var(--text, #e9e9ed))`). Panelde `theme.css` tokenları,
 landing'de kendi `--bg/--text`i geçerli; hiçbiri yoksa bar yine de doğru

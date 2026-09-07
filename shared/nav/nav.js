@@ -150,9 +150,27 @@
     return location.protocol + "//" + host + ":" + DEFAULT_PORT[kind];
   }
 
+  /**
+   * Bir yuzeyin adresi.
+   *
+   * ONCE `HQ_NAV.urls[<yuzey>]`: sunucudan gelen TAM adres. Buna ihtiyac var
+   * cunku landing iki farkli yerde durabiliyor — lokalde ayri surecte kokte
+   * (4321/), sunucuda panelin kendisinde alt yolda (<origin>/home). "Origin +
+   * sabit path" modeli ikincisini ifade edemiyor.
+   *
+   * Yoksa eski yol: origin + yuzeyin path'i.
+   */
   function urlFor(id) {
     var s = SURFACES[id];
     if (!s) return "";
+
+    var ez = (window.HQ_NAV || {}).urls;
+    if (ez && typeof ez[id] === "string") {
+      var v = ez[id].trim();
+      if (v === "" || v.toLowerCase() === "off") return "";
+      return v.replace(/\/+$/, "") || "/";
+    }
+
     var o = originFor(s.origin);
     if (!o) return "";
     return o + (s.path === "/" ? "/" : s.path);
@@ -394,11 +412,39 @@
     }).catch(function () { /* meta yoksa yapilandirmadaki ad kalir */ });
   }
 
+  /**
+   * SAYFA ICINDEKI yuzey baglantilarini coz.
+   *
+   * `<a data-hq="panel">` yazan her baglantinin `href`i bardan doldurulur.
+   * NEDEN: adresler sayfalara SABIT yaziliyordu ve panel baska bir portta ya
+   * da makinede kostugu anda olu link oluyorlardi. Ayni hata uc yerde
+   * bulundu — Navbar.tsx, onboarding CTA'si ve statik landing'de bes
+   * baglanti (`http://localhost:4646/scope/`), hepsi sunucuda olu.
+   *
+   * Adres cozulemezse baglanti GIZLENIR (`hidden`): panelin olmadigi bir
+   * ortamda "Paneli ac" dugmesi gostermek yanlis vaat.
+   */
+  function resolveLinks(root) {
+    var list = (root || document).querySelectorAll("[data-hq]");
+    for (var i = 0; i < list.length; i++) {
+      var el = list[i];
+      var href = urlFor(el.getAttribute("data-hq"));
+      if (href) {
+        el.setAttribute("href", href);
+        el.hidden = false;
+      } else {
+        el.hidden = true;
+      }
+    }
+  }
+
   /* ---- genel API --------------------------------------------------------- */
 
   var HqNav = {
     surfaces: SURFACES,
     url: urlFor,
+    /** Sonradan DOM'a giren `[data-hq]` baglantilari icin (SPA render'i). */
+    resolveLinks: resolveLinks,
 
     /**
      * @param {{surface:string, leaf?:string, root?:string, target?:Element}} opts
@@ -427,6 +473,34 @@
       if (input && menu) wireCmd(input, menu);
 
       if (SURFACES[surface].root === "meta") fillRootFromMeta();
+
+      /*
+       * Mount `body-prepend`te kosuyor: sayfanin geri kalani HENUZ
+       * ayristirilmadi. Bir kez simdi, bir kez belge hazir oldugunda, ayrica
+       * SONRADAN eklenenler icin gozlemciyle taranir.
+       *
+       * ⚠️ Gozlemci sart: React ikisinden de SONRA boyuyor. Onsuz
+       * Navbar.tsx'in `data-hq="landing"` baglantisi ham `href="/"` ile
+       * kaliyordu (olculdu) — sunucuda o adres panelin kokune, yani yanlis
+       * yere gidiyor.
+       */
+      resolveLinks();
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", function () { resolveLinks(); });
+      }
+      if (typeof MutationObserver === "function") {
+        new MutationObserver(function (kayitlar) {
+          for (var i = 0; i < kayitlar.length; i++) {
+            var eklenen = kayitlar[i].addedNodes;
+            for (var j = 0; j < eklenen.length; j++) {
+              var n = eklenen[j];
+              if (n.nodeType !== 1) continue;
+              if (n.hasAttribute && n.hasAttribute("data-hq")) resolveLinks(n.parentNode || document);
+              else if (n.querySelector && n.querySelector("[data-hq]")) resolveLinks(n);
+            }
+          }
+        }).observe(document.body, { childList: true, subtree: true });
+      }
 
       els.header = header;
       return header;

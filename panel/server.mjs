@@ -307,9 +307,101 @@ function landingUrlFor(req) {
   return LOCAL_HOSTS.has(host) ? `http://localhost:${LANDING_PORT}` : "";
 }
 
+/**
+ * Ust barin adres tablosu — `window.HQ_NAV` olarak enjekte edilir.
+ *
+ * Landing IKI YERDE olabiliyor ve adresi buna gore degisiyor:
+ *   lokal   → ayri surec (vite preview, 4321), kokte.  HMR calissin diye
+ *             lokalde HEP o tercih edilir, imajdaki dist degil.
+ *   sunucu  → panelin KENDISI servis ediyor: /home ve /onboarding
+ *             (bkz. SITE_DIST blogu). Origin panelin origin'i.
+ * Ikisi de yoksa tablo BOS doner ve bar "Home"u hic basmaz — olu link yok.
+ *
+ * `urls` yuzey basina TAM adres; nav.js oradaki degeri oldugu gibi kullanir.
+ * `landing` (tekil) eski bicim: landing'in ORIGIN'i, yollar nav.js'te eklenir.
+ */
+function navConfigFor(req) {
+  const acik = landingUrlFor(req);
+  if (acik) return { landing: acik };
+  if (SITE_DIST) {
+    /*
+     * DORT YUZEYIN DE adresi ACIKCA veriliyor, yalniz landing'inkiler degil.
+     * NEDEN: landing sayfasindayken nav.js panel origin'ini kendisi tahmin
+     * etmeye calisiyor ve bunu YALNIZCA localhost'ta yapabiliyor (port 4646
+     * varsayimi). Sunucuda tahmin bos donuyor ve landing'in barinda
+     * "Panel"/"Kapsam" dugmeleri HIC BASILMIYORDU (olculdu: sunucu taklidi
+     * 4700'de ikisi de localhost:4646'yi gosteriyordu). Panel landing'i
+     * kendisi servis ettigine gore dogru adres zaten elimizde.
+     */
+    const o = publicOriginFor(req);
+    return {
+      urls: {
+        landing: `${o}/home`,
+        onboarding: `${o}/onboarding`,
+        panel: `${o}/`,
+        scope: `${o}/scope`,
+      },
+    };
+  }
+  return {};
+}
+
 for (const raw of (process.env.PANEL_ORIGIN || "").split(",")) {
   const o = raw.trim().replace(/\/+$/, "");
   if (o) ALLOWED_ORIGINS.add(o);
+}
+
+/**
+ * Derlenmis landing (`site/dist`). Yoksa (site hic build edilmemisse) landing
+ * uclari HIC tanimlanmaz ve bar "Home"u basmaz — olu link gostermek yerine.
+ */
+const SITE_DIST = (() => {
+  const d = path.join(__dirname, "..", "site", "dist");
+  try {
+    return fs.existsSync(path.join(d, "index.html")) ? d : null;
+  } catch {
+    return null;
+  }
+})();
+
+const SITE_MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".woff2": "font/woff2",
+  ".mp4": "video/mp4",
+};
+
+function serveSiteFile(res, rel, req) {
+  const file = path.normalize(path.join(SITE_DIST, rel));
+  // Dizin disina cikma denemesi: normalize SONRASI kok kontrolu sart.
+  if (!file.startsWith(SITE_DIST + path.sep)) return send(res, 403, { error: "yol reddedildi" });
+  if (!fs.existsSync(file) || fs.statSync(file).isDirectory()) return send(res, 404, { error: "yok" });
+  const type = SITE_MIME[path.extname(file)] ?? "application/octet-stream";
+  // HTML her istekte diskten okunur (panelin kendi arayuzu gibi); varliklar
+  // icerik-hash'li isim tasidigi icin uzun sureli onbelleklenebilir.
+  const cache = file.endsWith(".html") ? "no-store" : "public, max-age=604800";
+  res.writeHead(200, { "content-type": type, "cache-control": cache });
+  if (!file.endsWith(".html")) return res.end(fs.readFileSync(file));
+
+  /*
+   * Landing'in KENDI barina da adres tablosu gerekiyor: yoksa o sayfadaki
+   * "Panel"/"Kapsam" dugmeleri sunucuda cozulemez (nav.js panel origin'ini
+   * yalnizca localhost'ta tahmin eder) ve serit yine eksik cikar.
+   *
+   * Derlenmis HTML'de yer tutucu YOK — enjeksiyon `/nav.js` etiketinin
+   * hemen ONUNE yapiliyor. Bagimlilik: site/vite.config.ts'teki sharedNav
+   * eklentisi bu etiketi basmaya devam etmeli.
+   */
+  const html = fs.readFileSync(file, "utf8");
+  const tablo = `<script>window.HQ_NAV = ${JSON.stringify(navConfigFor(req))};</script>`;
+  return res.end(html.replace('<script src="/nav.js">', tablo + '<script src="/nav.js">'));
 }
 
 function requireAuth(req, res) {
@@ -918,9 +1010,8 @@ const server = http.createServer(async (req, res) => {
       const html = fs
         .readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
         .replace("__PANEL_TOKEN__", PANEL_TOKEN)
-        // Ust bardaki Landing baglantisi buradan besleniyor; bos gelirse
-        // (sunucuda landing yok) dugme HIC basilmaz — bkz. landingUrlFor.
-        .replace("__LANDING_URL__", landingUrlFor(req));
+        // Ust barin adres tablosu; bos gelirse dugme HIC basilmaz.
+        .replace("__HQ_NAV__", JSON.stringify(navConfigFor(req)));
       return send(res, 200, html, "text/html; charset=utf-8");
     }
 
@@ -932,7 +1023,7 @@ const server = http.createServer(async (req, res) => {
       const html = fs
         .readFileSync(path.join(__dirname, "public", "scope", "index.html"), "utf8")
         .replace("__PANEL_TOKEN__", PANEL_TOKEN)
-        .replace("__LANDING_URL__", landingUrlFor(req));
+        .replace("__HQ_NAV__", JSON.stringify(navConfigFor(req)));
       return send(res, 200, html, "text/html; charset=utf-8");
     }
 
@@ -1063,6 +1154,41 @@ const server = http.createServer(async (req, res) => {
       ch.unref();
       audit({ event: "trace-open", file: String(file) });
       return send(res, 200, { ok: true, opened: String(file) });
+    }
+
+    /* ---------------- Landing + Onboarding (site/dist) ----------------
+     * NEDEN BURADA: landing lokalde AYRI bir surecte kosuyor (vite preview,
+     * 4321) ama sunucuda o surec yok — deploy edilen tek sey panel
+     * konteyneri. Sonuc olarak ust bardaki "Home" dugmesi sunucuda HIC
+     * BASILMIYORDU (adres cozulemedigi icin; olculdu 2026-09-07:
+     * testing-ideal.machinarium.dev/onboarding → 404) ve "sabit uc oge"
+     * dedigimiz serit orada ikiye dusuyordu.
+     *
+     * Dockerfile `site`i ZATEN build ediyor (`npm run build --prefix site`),
+     * yani `site/dist` imajda hazir duruyordu; eksik olan tek sey onu servis
+     * etmekti.
+     *
+     * ⚠️ YOL SECIMI TESADUF DEGIL: landing'in urettigi mutlak referanslar
+     * (`/assets/*`, `/shots/*`, `/nav.css`, `/onboarding`) panelin sahip
+     * oldugu yollarla CAKISMIYOR — bu yuzden Vite'in `base`ini degistirmek
+     * gerekmedi ve AYNI dist hem 4321'de hem panel origin'inde calisiyor.
+     * Yeni bir panel ucu eklerken bu listeyi ez(me)digine dikkat et.
+     *
+     * Kok `/` panelde kaldi: yer imleri ve deploy adresi bozulmasin.
+     */
+    if (SITE_DIST) {
+      const SITE_HTML = {
+        "/home": "index.html",
+        "/onboarding": "onboarding/index.html",
+        "/landing": "landing/index.html",
+      };
+      const dokuman = SITE_HTML[p.replace(/\/$/, "") || "/home"];
+      if (dokuman && (p in SITE_HTML || p.replace(/\/$/, "") in SITE_HTML)) {
+        return serveSiteFile(res, dokuman, req);
+      }
+      if (/^\/(assets|shots)\//.test(p) || p === "/favicon.svg" || p === "/icons.svg") {
+        return serveSiteFile(res, p.slice(1), req);
+      }
     }
 
     if (p === "/api/scope/tree" && req.method === "GET") {

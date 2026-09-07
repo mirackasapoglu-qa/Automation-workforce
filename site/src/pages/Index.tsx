@@ -54,7 +54,7 @@ export default function Index() {
           </p>
 
           <a
-            href="/onboarding"
+            data-hq="onboarding" href="/onboarding"
             className="liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium hover:bg-white/5 transition-colors mt-8"
           >
             Başlangıç rehberi

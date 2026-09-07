@@ -38,7 +38,7 @@ export default function FeaturedShotSection() {
             <motion.a
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              href="/onboarding"
+              data-hq="onboarding" href="/onboarding"
               className="liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium shrink-0"
             >
               Nasıl kullanılır
