@@ -2,9 +2,20 @@ import { useRef, useState } from "react";
 import { motion, useInView } from "framer-motion";
 import { AlertTriangle, ArrowRight, Terminal } from "lucide-react";
 import Navbar from "../components/Navbar";
+import AuroraBackground from "@/components/ui/aurora-background";
+import LargeNameFooter from "@/components/ui/large-name-footer";
+import ScrollProgress from "@/components/ui/scroll-progress";
+import StepRail from "@/components/ui/step-rail";
 
-const HERO_VIDEO =
-  "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260402_054547_9875cfc5-155a-4229-8ec8-b7ba7125cbf8.mp4";
+/*
+ * HERO_VIDEO KALDIRILDI.
+ *
+ * Hero, d8j0ntlcm91z4.cloudfront.net uzerindeki bir mp4'u cekiyordu — sayfanin
+ * TEK dis icerik bagimliligi (olculdu: fonts.googleapis/gstatic disinda kalan
+ * tek yabanci host). Dosya repoda yok; o adres dustugu gun hero bosalirdi ve
+ * kimse fark etmezdi. Yerine gecen aurora tamamen CSS: dis dosya yok, agirlik
+ * yok, cevrimdisi de calisir.
+ */
 
 type Step = {
   n: string;
@@ -112,7 +123,14 @@ function StepCard({ step, i }: { step: Step; i: number }) {
       initial={{ opacity: 0, y: 40 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.7, delay: (i % 2) * 0.1 }}
-      className="liquid-glass rounded-3xl p-6 md:p-8"
+      /*
+       * id + scroll-margin: raydaki baglantilar buraya atliyor. Ust bar
+       * YAPISIK oldugu icin duz bir `#adim-03` kartin tepesini barin altina
+       * gizlerdi; `scroll-mt` barin kendi yukseklik token'ini kullaniyor
+       * (shared/nav/nav.css → --hq-nav-h), sabit piksel degil.
+       */
+      id={`adim-${step.n}`}
+      className="liquid-glass rounded-3xl p-6 md:p-8 scroll-mt-[calc(var(--hq-nav-h,70px)+24px)]"
     >
       <div className="flex items-baseline gap-4 mb-4">
         <span className="text-white/25 text-4xl md:text-5xl serif italic leading-none">
@@ -224,25 +242,32 @@ function DesignCompare() {
   );
 }
 
+/**
+ * Panelin adresi ORTAK BARDAN sorulur, sayfaya sabit yazilmaz.
+ *
+ * Burada `http://localhost:4646` sabit duruyordu ve `target="_blank"` ile yeni
+ * sekme aciyordu — Navbar.tsx'ten kaldirilan desenin ayni kalmis ikizi. Panel
+ * baska bir portta ya da makinede kostugu anda olu link oluyordu. `HqNav.url`
+ * adresi bulundugun host'tan cozer (shared/nav/nav.js → originFor); bar heniz
+ * yuklenmediyse ya da adres cozulemiyorsa panelin varsayilan yereli kalir.
+ */
+function usePanelUrl() {
+  const nav = typeof window !== "undefined" ? window.HqNav : undefined;
+  return nav?.url("panel") || "http://localhost:4646/";
+}
+
 export default function Onboarding() {
   const headRef = useRef(null);
   const headIn = useInView(headRef, { once: true, margin: "-100px" });
+  const panelUrl = usePanelUrl();
 
   return (
     <div className="bg-black min-h-screen">
-      <div className="relative overflow-hidden">
-        <video
-          src={HERO_VIDEO}
-          muted
-          autoPlay
-          loop
-          playsInline
-          preload="auto"
-          className="absolute inset-0 w-full h-full object-cover opacity-40"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/70 to-black" />
+      <ScrollProgress />
+      <StepRail steps={STEPS.map(({ n, label }) => ({ n, label }))} />
 
-        <div className="relative z-10">
+      <AuroraBackground>
+        <div>
           <Navbar />
 
           <div ref={headRef} className="px-6 pt-16 pb-24 md:pt-24 md:pb-32 max-w-6xl mx-auto">
@@ -276,7 +301,7 @@ export default function Onboarding() {
             </motion.p>
           </div>
         </div>
-      </div>
+      </AuroraBackground>
 
       <section className="px-6 pb-28 md:pb-40 max-w-6xl mx-auto">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
@@ -297,15 +322,15 @@ export default function Onboarding() {
           <motion.a
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            href="http://localhost:4646"
-            target="_blank"
-            rel="noreferrer"
+            href={panelUrl}
             className="liquid-glass rounded-full px-8 py-3 text-white text-sm font-medium flex items-center gap-2 shrink-0"
           >
-            localhost:4646 <ArrowRight size={16} />
+            {panelUrl.replace(/^https?:\/\//, "")} <ArrowRight size={16} />
           </motion.a>
         </div>
       </section>
+
+      <LargeNameFooter />
     </div>
   );
 }

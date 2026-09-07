@@ -602,12 +602,33 @@ düzenlenir; dört yüzey birden güncellenir. Panelin `<style>`ında,
 Flowscope'un `fw-header`ında ya da site'in `Navbar.tsx`inde üst serit kuralı
 **yeniden yazma** — üçünün ayrışması tam olarak bu barın çözdüğü sorun.
 
-| Yüzey | `go` (geçişler) | Açık slot'lar | Kırılım kökü |
-|---|---|---|---|
-| panel | Kapsam | `sidebarToggle`, `cmd`, `status` | `/api/meta` (panelin kendi `load()`'u) |
-| scope | Panel, Landing | — | `/api/meta` (bar çeker) |
-| landing | Onboarding, Panel, Kapsam | — | mount `root` (site verir) |
-| onboarding | Landing, Panel, Kapsam | — | mount `root` (site verir) |
+**Şerit sabit ve barın ortasında.** `SWITCH = ["landing", "scope", "panel"]` —
+her yüzeyde aynı üç hedef, aynı sırada (**Home · Kapsam · Panel**) ve
+**bulunduğun yüzey de içinde**: çıkarılmıyor, `hqn-on` ile aktif işaretleniyor
+(`aria-current="page"`, link değil span). Şerit sayfa sayfa değişse "sabit
+gezinme" hissi olmazdı, ortada durması da mümkün olmazdı — genişliği her
+sayfada başka olurdu. Onboarding bilinçli olarak şeridin dışında; landing'in
+kendi CTA'ları oraya götürüyor.
+
+⚠️ **Bar üç kolonlu ızgara:** `grid-template-columns: 1fr auto 1fr` —
+`.hqn-left` · `.hqn-switch` · `.hqn-right`. Orta kolon yanlardaki içerikten
+bağımsız olarak merkezde durur ve yan kolonlar ona yer açmaya **zorunludur**.
+Önce `position:absolute; left:50%` denendi: merkez doğruydu ama akıştan çıkınca
+panelde komut kutusuna **44px** biniyordu (ölçüldü). Yan kolonlarda
+`min-width:0` şart, yoksa uzun bir kırılım şeridi merkezden kaydırır.
+
+**Komut kutusu ortada değil**, sol kolonda kırılımın ardında: `flex:1 1 0` +
+`min-width:0` (input dahil) ile kolonun payına göre büyür ve gerekince sıfıra
+kadar daralır. `flex:0 1 auto` daralmıyordu ve panelde 1100px altında
+72–272px yatay taşma veriyordu. `#cmdMenu` artık `.cmdwrap` içinde ve
+kutusunun altına hizalı — barın ortasına değil.
+
+| Yüzey | Açık slot'lar | Kırılım kökü |
+|---|---|---|
+| panel | `sidebarToggle`, `cmd`, `status` | `/api/meta` (panelin kendi `load()`'u) |
+| scope | — | `/api/meta` (bar çeker) |
+| landing | — | mount `root` (site verir) |
+| onboarding | — | mount `root` (site verir) |
 
 ⚠️ **Üretilen id'ler panelin sözleşmesi.** `#cmdInput`, `#cmdMenu`, `#crumbLeaf`,
 `#panelTitle`, `#activePill`, `#orderPill`, `#scopeLink`, `#cxWrap`, `#cxBtn`,

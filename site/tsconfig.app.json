@@ -1,5 +1,12 @@
 {
   "compilerOptions": {
+    /* 21st.dev / shadcn bilesenleri "@/..." ile import eder; takma ad olmadan
+       her dosyada yolu elle duzeltmek gerekirdi. vite.config.ts'teki resolve
+       alias'i ile AYNI kalmali, yoksa tsc gecer ama build patlar.
+       `baseUrl` YOK: TS 6'da deprecate (TS5101) ve gereksiz — `paths`
+       tsconfig'in kendi konumuna gore cozuluyor. */
+    "paths": { "@/*": ["./src/*"] },
+
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "es2023",
     "lib": ["ES2023", "DOM"],

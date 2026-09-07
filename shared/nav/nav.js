@@ -25,7 +25,6 @@
 
   /**
    * `on`   : bu yuzeyde acik olan bar parcalari.
-   * `go`   : bardaki gecis dugmeleri — bulundugun yer haric, SIRAYLA.
    * `root` : kirilimin sol yarisi ("<proje> / <sayfa>"). `meta` yazarsa
    *          /api/meta'dan proje adi cekilir (panel origin'i sart).
    * `home` : HQ rozetinin gittigi yer. Yoksa rozet tiklanmaz (zaten oradasin).
@@ -39,28 +38,25 @@
       path: "/",
       root: "QA Paneli",     // panelin kendi load()'u /api/meta ile ustune yazar
       leaf: "Genel bakis",
-      go: ["scope"],
       on: { sidebarToggle: true, cmd: true, status: true },
     },
     scope: {
       label: "Kapsam",
       title: "Kapsam agaci — urun hiyerarsisi, durum ve test case'ler",
       icon: "scope",
-      accent: true,          // gecis eylemi: durum gostergelerinden AYRISIR
       linkId: "scopeLink",   // panelin bugunku id'si korunuyor
       origin: "panel",
       path: "/scope",
       root: "meta",
       leaf: "Kapsam",
       home: "panel",
-      go: ["panel", "landing"],
       // Komut kutusu KAPALI: Flowscope'un kendi "Ara..." kutusu var (toolbar),
       // ustune ikinci bir arama alani koymak iki farkli kapsami ayni gorunumle
       // yan yana getirirdi. Aramasi bir gun bara tasinirsa burasi `cmd: true`.
       on: {},
     },
     landing: {
-      label: "Landing",
+      label: "Home",
       title: "Tanitim sayfasi",
       icon: "globe",
       origin: "landing",
@@ -68,8 +64,7 @@
       // Kirilim kokunu SITE veriyor (mount opts.root): bu dosya cok projeli
       // panelin cekirdeginde, icinde proje adi gecemez — bkz. panel:check.
       root: "QA",
-      leaf: "Landing",
-      go: ["onboarding", "panel", "scope"],
+      leaf: "Home",
       // Tanitim sayfasinda arayacak bir sey yok: bar marka + gecis + tema.
       on: {},
     },
@@ -82,10 +77,27 @@
       root: "QA",
       leaf: "Baslangic",
       home: "landing",
-      go: ["landing", "panel", "scope"],
       on: {},
     },
   };
+
+  /**
+   * ORTADAKI SABIT SERIT — her yuzeyde AYNI uc hedef, ayni sirada.
+   *
+   * Onceden her yuzey kendi `go` listesini tasiyordu (panelde yalniz "Kapsam",
+   * landing'de uc dugme...) ve serit sagda duruyordu. Serit sayfa sayfa
+   * degisince "sabit bir gezinme" hissi olusmuyordu; ortada durabilmesi de
+   * mumkun degildi, cunku genisligi her sayfada baskaydi.
+   *
+   * Simdi liste sabit ve BULUNDUGUN YUZEY DE ICINDE — cikarilmiyor, aktif
+   * isaretleniyor. Sekme seridi boyle olur: ne oldugun ve nereye
+   * gidebilecegin hep ayni yerde, ayni genislikte.
+   *
+   * Onboarding bilincli olarak DISINDA: landing'in kendi CTA'lari
+   * ("Baslangic rehberi") oraya goturuyor ve dorduncu dugme seridi
+   * panelin komut kutusuna kadar genisletiyordu.
+   */
+  var SWITCH = ["landing", "scope", "panel"];
 
   var DEFAULT_PORT = { panel: 4646, landing: 4321 };
   var LOCAL_HOSTS = { localhost: 1, "127.0.0.1": 1, "::1": 1, "[::1]": 1 };
@@ -189,11 +201,9 @@
 
   function surfaceCommands(q) {
     var out = [];
-    var s = SURFACES[current];
-    var list = (s && s.go) || [];
-    for (var i = 0; i < list.length; i++) {
-      var id = list[i], t = SURFACES[id], href = urlFor(id);
-      if (!t || !href) continue;
+    for (var i = 0; i < SWITCH.length; i++) {
+      var id = SWITCH[i], t = SURFACES[id], href = urlFor(id);
+      if (!t || !href || id === current) continue;   // bulundugun yere "git" onerilmez
       if (q && t.label.toLowerCase().indexOf(q) < 0) continue;
       out.push({ k: "git", ad: t.label, ip: href.replace(/^https?:\/\//, ""), yap: (function (h) {
         return function () { location.href = h; };
@@ -258,9 +268,22 @@
 
   function goLink(id) {
     var s = SURFACES[id];
+    var isaret = '<span class="sl-mark" aria-hidden="true">' + ICON[s.icon] + "</span>"
+      + "<span>" + esc(s.label) + "</span>";
+
+    /*
+     * BULUNDUGUN YUZEY LINK DEGIL. Serit sabit oldugu icin icinde her zaman
+     * aktif bir oge var; onu tiklanabilir birakmak ayni sayfayi yeniden
+     * yukletirdi. `aria-current="page"` ekran okuyucuya da nerede oldugunu
+     * soyluyor — vurgu yalnizca renkte kalmiyor.
+     */
+    if (id === current) {
+      return '<span class="hqn-go hqn-on" aria-current="page">' + isaret + "</span>";
+    }
+
     var href = urlFor(id);
     if (!href) return "";           // adres yoksa OLU LINK basma
-    var cls = "hqn-go" + (s.accent ? " hqn-accent" : "");
+    var cls = "hqn-go";
     var idAttr = s.linkId ? ' id="' + s.linkId + '"' : "";
     /*
      * HEPSI AYNI SEKMEDE. Ayri surecteki yuzeyler (landing ↔ panel) once
@@ -286,7 +309,17 @@
     var leaf = opts.leaf || s.leaf || "";
     var home = s.home ? urlFor(s.home) : "";
 
+    /*
+     * UC KOLON: sol grup · serit · sag grup.
+     *
+     * Serit `1fr auto 1fr` izgarasinin ortasinda; yani gercekten barin
+     * merkezinde, yanlardaki icerigin genisliginden BAGIMSIZ. Onceki hal
+     * seriti `position:absolute; left:50%` ile ortaliyordu — merkez dogruydu
+     * ama akistan cikinca panelde komut kutusuna 44px biniyordu (olculdu).
+     * Izgarada yan kolonlar ortadakine yer acmak zorunda, carpisma imkansiz.
+     */
     var html = "";
+    html += '<div class="hqn-left">';
 
     if (on.sidebarToggle) {
       html += '<button id="sbToggle" type="button" onclick="toggleSidebar()"'
@@ -303,22 +336,34 @@
       + '<span class="crumb-leaf" id="crumbLeaf">' + esc(leaf) + "</span></span>";
 
     if (on.cmd) {
-      html += '<label class="cmdbox" title="Komut: kosum adi ya da sayfa yaz, Enter">'
+      /* Kutu ve acilir liste AYNI konteynerde: liste eskiden bara gore
+         `left:50%` ile ortalaniyordu, kutu ise ortadaydi. Kutu sola gecince
+         (merkez artik yuzey seridinin) liste kutusundan kopardi. */
+      html += '<span class="cmdwrap">'
+        + '<label class="cmdbox" title="Komut: kosum adi ya da sayfa yaz, Enter">'
         + ICON.search
-        + '<input id="cmdInput" placeholder="kos, ac, bug... her sey buradan" autocomplete="off">'
+        + '<input id="cmdInput" placeholder="kos, ac, bug..." autocomplete="off">'
         + "<kbd>&#8984;K</kbd></label>"
-        + '<div id="cmdMenu" hidden></div>';
+        + '<div id="cmdMenu" hidden></div></span>';
     }
 
-    html += '<span class="spacer"></span>';
+    html += "</div>";
+
+    /*
+     * Serit izgaranin ORTA kolonu (nav.css → .hqn-switch). Belge sirasinda
+     * burada duruyor ki klavyeyle gezinme kirilimdan sonra serite, sonra
+     * durum gostergelerine gitsin.
+     */
+    html += '<nav class="hqn-switch" aria-label="Yuzeyler">';
+    for (var i = 0; i < SWITCH.length; i++) html += goLink(SWITCH[i]);
+    html += "</nav>";
+
+    html += '<div class="hqn-right">';
 
     if (on.status) {
       html += '<span class="pill" id="activePill" role="status" aria-atomic="true"></span>'
         + '<span class="pill" id="orderPill" role="status" aria-atomic="true" hidden></span>';
     }
-
-    var go = s.go || [];
-    for (var i = 0; i < go.length; i++) html += goLink(go[i]);
 
     if (on.status) {
       html += '<span id="cxWrap"><button id="cxBtn" type="button" onclick="pfPanelToggle()"'
@@ -330,6 +375,7 @@
     }
 
     html += '<button id="themeBtn" type="button" title="Tema degistir" aria-label="Tema degistir"></button>';
+    html += "</div>";
 
     return html;
   }

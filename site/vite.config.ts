@@ -106,6 +106,12 @@ function dirEntrySlash(): PluginOption {
  */
 export default defineConfig({
   plugins: [react(), dirEntrySlash(), sharedNav()],
+  /* "@/..." → src/. 21st.dev / shadcn bilesenlerinin bekledigi takma ad.
+     tsconfig.app.json'daki `paths` ile AYNI kalmali: biri digerinden saparsa
+     tsc gecer ama build "cozulemeyen import" ile patlar. */
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   build: {
     rollupOptions: {
       input: {

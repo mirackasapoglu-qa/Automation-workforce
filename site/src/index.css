@@ -49,4 +49,59 @@
   .serif {
     font-family: 'Instrument Serif', serif;
   }
+
+  /**
+   * AURORA — hero'nun arka plani.
+   *
+   * NEDEN CSS: efektin tamami iki tekrarlayan gradyanin ust uste binmesi ve
+   * `background-position`in yavasca kaymasi. GPU'da bileşik katman olarak
+   * kosuyor; ne WebGL ne de kare kare JS gerekiyor. Onceki hero DIS BIR
+   * ADRESTEN (d8j0ntlcm91z4.cloudfront.net) mp4 cekiyordu — o adres dustugu
+   * gun hero bosaliyordu; burada boyle bir bagimlilik yok.
+   *
+   * RENK: mor aile panelin accent'i (#9184D9, theme.css). Site tek basina
+   * siyah-beyaz; ayni sayfanin tepesinde duran ortak bar zaten bu moru
+   * tasidigi icin aurora landing'i panele baglar, yabanci bir renk getirmez.
+   *
+   * `--aurora-*` degiskenleri bileşenden ezilebilir.
+   */
+  .aurora {
+    --aurora-a: #9184d9;
+    --aurora-b: #6d5fc4;
+    --aurora-c: #c9c2f0;
+    --aurora-blur: 52px;
+    --aurora-speed: 42s;
+    position: absolute;
+    inset: -30%;
+    pointer-events: none;
+    /* Koyu serit gradyani auroranin uzerine biniyor: kesintisiz bir yayilma
+       yerine perde perde bir hareket cikiyor, gercek aurorada oldugu gibi. */
+    background-image:
+      repeating-linear-gradient(100deg, #000 0%, #000 7%, transparent 10%, transparent 12%, #000 16%),
+      repeating-linear-gradient(100deg, var(--aurora-a) 10%, var(--aurora-c) 15%, var(--aurora-b) 20%, var(--aurora-c) 25%, var(--aurora-a) 30%);
+    background-size: 300% 200%, 200% 130%;
+    background-position: 50% 50%, 50% 50%;
+    filter: blur(var(--aurora-blur)) saturate(130%);
+    opacity: .62;
+    will-change: background-position;
+    animation: aurora-drift var(--aurora-speed) linear infinite;
+  }
+
+  /* Kenarlari yumusatan maske: aurora dikdortgen bir leke olarak degil,
+     ustten asagi sonen bir isik olarak duruyor. */
+  .aurora-mask {
+    -webkit-mask-image: radial-gradient(ellipse 110% 95% at 50% 0%, #000 45%, transparent 88%);
+    mask-image: radial-gradient(ellipse 110% 95% at 50% 0%, #000 45%, transparent 88%);
+  }
+
+  @keyframes aurora-drift {
+    from { background-position: 50% 50%, 50% 50%; }
+    to   { background-position: 350% 50%, 250% 50%; }
+  }
+
+  /* Hareket hassasiyeti: efekt DURUR ama kaybolmaz — sayfanin ust bolumu
+     bombos siyah kalmasin. */
+  @media (prefers-reduced-motion: reduce) {
+    .aurora { animation: none; }
+  }
 }

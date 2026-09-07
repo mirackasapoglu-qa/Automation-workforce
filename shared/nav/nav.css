@@ -71,10 +71,15 @@
   position: sticky;
   top: 0;
   z-index: 40;
-  display: flex;
+  /* UC KOLON: sol grup · serit · sag grup. `1fr auto 1fr` ortadakini
+     yanlardaki icerikten BAGIMSIZ olarak barin merkezine koyar ve yan
+     kolonlari ona yer acmaya zorlar. Onceki hal seriti `absolute; left:50%`
+     ile ortaliyordu: merkez dogruydu ama panelde komut kutusuna 44px
+     biniyordu (olculdu). */
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   gap: 14px;
   align-items: center;
-  flex-wrap: wrap;
   padding: 14px 20px;
   background: color-mix(in srgb, var(--hqn-bg) 88%, transparent);
   backdrop-filter: blur(10px);
@@ -106,6 +111,20 @@
 .hq-nav button:active:not(:disabled) { transform: translateY(1px); }
 .hq-nav :focus-visible { outline: 2px solid var(--hqn-acc); outline-offset: 2px; border-radius: 5px; }
 
+/* Kolon iclerinde eskisi gibi yatay dizilim. `min-width:0` SART: onsuz uzun
+   bir kirilim ya da komut kutusu kolonu buyutup seriti merkezden kaydirir. */
+.hq-nav .hqn-left,
+.hq-nav .hqn-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+.hq-nav .hqn-right { justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+/* Dar barda ⌘K ipucu ilk feda edilen: kutunun icinde en az ise yarayan parca. */
+@media (max-width: 1280px) {
+  .hq-nav .cmdbox kbd { display: none; }
+}
 .hq-nav .spacer { flex: 1; }
 
 /* ---- yan panel daraltma dugmesi (yalniz panelde) ------------------------- */
@@ -137,15 +156,25 @@ body.sb-collapsed .hq-nav #sbToggle svg { transform: rotate(180deg); }
 .hq-nav .crumb-leaf { color: var(--hqn-fg); font-weight: 500; }
 
 /* ---- komut kutusu (⌘K) -------------------------------------------------- */
+/* Komut kutusu ORTADA DEGIL: merkez artik yuzey seridinin. Sol grupta,
+   kirilimin hemen ardinda duruyor ve `max-width` ile serite dayanmadan
+   kesiliyor. `margin:0 auto` KALKTI — o, kutuyu merkeze itiyordu. */
+/* `flex: 1 1 0` + `min-width:0`: kutu kolonun payina gore BUYUR ve gerekince
+   SIFIRA KADAR daralir. Onceki `flex: 0 1 auto` daralmiyordu ve panelde 1100px
+   altinda bar 72px, 900px'de 272px yatay tasma veriyordu (olculdu) — kutu
+   kendi dogal genisliginde diretip sag grubu disari itiyordu. */
+.hq-nav .cmdwrap { position: relative; display: flex; min-width: 0; flex: 1 1 0; }
 .hq-nav .cmdbox {
-  flex: 1; max-width: 720px; display: flex; align-items: center; gap: 10px; margin: 0 auto;
+  flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px;
   background: var(--hqn-card); border: 1px solid var(--hqn-line); border-radius: 11px;
   padding: 9px 14px; color: var(--hqn-mut); transition: border-color var(--hqn-t);
 }
 .hq-nav .cmdbox:focus-within { border-color: color-mix(in srgb, var(--hqn-acc) 55%, var(--hqn-line)); }
 .hq-nav .cmdbox svg { width: 15px; height: 15px; flex-shrink: 0; }
 .hq-nav .cmdbox input {
-  flex: 1; border: 0; background: none; outline: none; color: var(--hqn-fg);
+  /* `min-width:0`: input'un ictendi genisligi (placeholder uzunlugu) kutunun
+     daralmasini engelliyordu. */
+  flex: 1 1 0; min-width: 0; border: 0; background: none; outline: none; color: var(--hqn-fg);
   font: 400 14px var(--hqn-sans); padding: 0; margin: 0; width: auto;
 }
 .hq-nav .cmdbox input::placeholder { color: var(--hqn-mut); }
@@ -154,8 +183,8 @@ body.sb-collapsed .hq-nav #sbToggle svg { transform: rotate(180deg); }
   border: 1px solid var(--hqn-line); border-radius: 5px; padding: 2px 6px; background: var(--hqn-card2);
 }
 .hq-nav #cmdMenu {
-  position: absolute; top: 56px; left: 50%; transform: translateX(-50%);
-  width: min(720px, 90vw); z-index: 60;
+  position: absolute; top: calc(100% + 8px); left: 0;
+  width: min(560px, calc(100vw - 40px)); z-index: 60;
   background: var(--hqn-card); border: 1px solid var(--hqn-line); border-radius: 11px;
   box-shadow: var(--hqn-sh); padding: 6px; max-height: 340px; overflow: auto;
 }
@@ -172,8 +201,36 @@ body.sb-collapsed .hq-nav #sbToggle svg { transform: rotate(180deg); }
 .hq-nav #cmdMenu .cmd-s { color: var(--hqn-mut); font-size: 12px; margin-left: auto; }
 
 /* ---- yuzey anahtari ----------------------------------------------------- */
-/* Bulundugun yer disindaki yuzeyler. Vurgulu olan (Kapsam) digerlerinden
-   AYRISIR: yanindakiler durum gostergesi, bu bir gecis eylemi. */
+/**
+ * Serit BARIN TAM ORTASINDA.
+ *
+ * Barin `1fr auto 1fr` izgarasinin ORTA kolonu. Iki "esit spacer arasina
+ * koymak" merkezi sol/sag gruplarin genisligine baglardi (landing'de kirilim
+ * kisa, panelde uzun) — izgara bagimsiz. Mutlak konum da denendi: merkez
+ * dogruydu ama akistan cikinca panelde komut kutusuna biniyordu.
+ *
+ * ⚠️ Panelde ortayi eskiden komut kutusu tutuyordu; `.cmdbox` sol kolona
+ * gecti ve kolonun payina gore daraliyor.
+ */
+.hq-nav .hqn-switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Bulundugun yuzey: link degil, isaret. Vurgu ARTIK BURADA — eskiden
+   "Kapsam" her zaman accent'liydi; sabit seritte iki vurgu yarisirdi. */
+.hq-nav .hqn-go.hqn-on {
+  border-color: color-mix(in srgb, var(--hqn-acc) 55%, var(--hqn-line));
+  background: var(--hqn-acc-dim); color: var(--hqn-acc);
+  cursor: default;
+}
+.hq-nav .hqn-go.hqn-on .sl-mark {
+  background: var(--hqn-acc-dim);
+  border-color: color-mix(in srgb, var(--hqn-acc) 35%, transparent);
+}
+
 .hq-nav .hqn-go {
   display: inline-flex; align-items: center; gap: 7px; padding: 6px 13px;
   border: 1px solid var(--hqn-line); border-radius: 9px;
@@ -182,18 +239,13 @@ body.sb-collapsed .hq-nav #sbToggle svg { transform: rotate(180deg); }
   transition: background var(--hqn-t), border-color var(--hqn-t), box-shadow var(--hqn-t), color var(--hqn-t);
 }
 .hq-nav .hqn-go:hover { border-color: var(--hqn-acc); color: var(--hqn-fg); }
-.hq-nav .hqn-go.hqn-accent {
-  border-color: color-mix(in srgb, var(--hqn-acc) 55%, var(--hqn-line));
-  background: var(--hqn-acc-dim); color: var(--hqn-acc);
-}
-.hq-nav .hqn-go.hqn-accent:hover { border-color: var(--hqn-acc); box-shadow: 0 0 14px var(--hqn-acc-dim); color: var(--hqn-acc); }
 .hq-nav .sl-mark {
   display: inline-flex; width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
   align-items: center; justify-content: center; background: var(--hqn-acc-dim);
   border: 1px solid color-mix(in srgb, var(--hqn-acc) 35%, transparent);
 }
 .hq-nav .sl-mark svg { width: 13px; height: 13px; }
-.hq-nav .hqn-go:not(.hqn-accent) .sl-mark { background: transparent; border-color: transparent; }
+.hq-nav .hqn-go:not(.hqn-on) .sl-mark { background: transparent; border-color: transparent; }
 
 /* ---- durum gostergeleri (yalniz panelde acik) --------------------------- */
 .hq-nav .pill {
@@ -240,10 +292,17 @@ body.sb-collapsed .hq-nav #sbToggle svg { transform: rotate(180deg); }
 /* ---- dar ekran ---------------------------------------------------------- */
 /* Komut kutusu once satir atlar, sonra tamamen kalkar: kirilim ve gecis
    dugmeleri barin asil isi, arama ikinci sirada. */
+@media (max-width: 1100px) {
+  /* Uc kolon dar ekrana sigmiyor: izgara birakilip satirlar sarilir, serit
+     kendi satirina duser ve tam genislikte ortalanir. */
+  .hq-nav { display: flex; flex-wrap: wrap; }
+  .hq-nav .hqn-left { flex: 1 1 auto; }
+  .hq-nav .hqn-switch { order: 9; flex-basis: 100%; justify-content: center; }
+}
 @media (max-width: 860px) {
   .hq-nav { gap: 10px; padding: 10px 14px; }
-  .hq-nav .cmdbox { order: 9; flex-basis: 100%; max-width: none; }
-  .hq-nav #cmdMenu { left: 14px; right: 14px; transform: none; width: auto; top: 100%; }
+  .hq-nav .cmdbox { max-width: none; }
+  .hq-nav #cmdMenu { left: 0; right: auto; width: min(560px, calc(100vw - 28px)); }
   .hq-nav .crumb-root, .hq-nav .crumb-sep { display: none; }
 }
 @media (max-width: 560px) {
