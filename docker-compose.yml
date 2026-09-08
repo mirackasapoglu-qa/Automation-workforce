@@ -1,0 +1,63 @@
+# Homee QA paneli + landing — lokal Docker kurulumu.
+#
+# Port secimi: bu makinede baska compose stack'leri var (nadir-base, errahome,
+# machinarium) ve 80/443/3000/3306/3307/5433/6379/6381/8000/9000/9292/27017 dolu.
+# Dockerfile'in varsayilani (3000) host'taki bir node sureciyle cakisiyor —
+# bu yuzden container ICINDE de 4646/4647/4321 kullaniliyor ve host'a birebir
+# esleniyor. Ic port host portuyla ayni olmak ZORUNDA: panel `PANEL_PORT`
+# uzerinden hem origin whitelist'ini (http://localhost:4646) hem de proxy
+# adresini (PANEL_PORT+1) uretiyor; farkli eslersen yazma uclari 403 doner ve
+# "Site (canli)" iframe'i acilmaz.
+#
+#   docker compose up -d --build     # ilk kurulum (chromium indirir, ~2-4 dk)
+#   docker compose logs -f panel
+#   docker compose down
+#
+# Kimlikler .env'den gelir (env_file). TEST_EMAIL / TEST_PASSWORD doldurulmadan
+# uye testleri (20-25) kosmaz; misafir testleri (01-09) kapi bilgisiyle kosar.
+
+name: testing-ideal
+
+services:
+  panel:
+    build:
+      context: .
+      args:
+        # 0 → yalniz arayuz (kosum dugmeleri calismaz, imaj ~1.5 GB kucuk)
+        WITH_BROWSERS: ${WITH_BROWSERS:-1}
+    image: testing-ideal/panel:local
+    container_name: testing-ideal-panel
+    env_file:
+      - .env
+    environment:
+      PANEL_PROJECT: ${PANEL_PROJECT:-homee}
+      PANEL_PORT: "4646"
+      LANDING_PORT: "4321"
+      # vite preview container icinde localhost'a baglanir; port eslemesi icin disari ac.
+      LANDING_HOST: "0.0.0.0"
+      # Tarayici same-origin POST'ta da Origin yolluyor; whitelist'e host adresi.
+      PANEL_ORIGIN: http://localhost:4646,http://127.0.0.1:4646
+      # Apple Silicon → linux/arm64 imaj; Google Chrome'un arm64 yapisi yok,
+      # Dockerfile yalniz chromium kuruyor. amd64 sunucuda "chrome" verilebilir.
+      PW_CHANNEL: ${PW_CHANNEL:-chromium}
+      MOBAI_BRIDGE: "off"
+      # AI tek tik: yalniz anahtar. Yerel CLI imajda yok; anahtar bossa
+      # "istem uret + yapistir" yolu calisir. Diger AI_* degiskenleri .env'den
+      # (env_file) gecer: AI_MODEL, AI_DAILY_USD, AI_EFFORT, AI_MAX_CONCURRENCY.
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports:
+      - "127.0.0.1:4646:4646"   # QA paneli
+      - "127.0.0.1:4647:4647"   # site proxy (iframe)
+      - "127.0.0.1:4321:4321"   # landing + onboarding
+    volumes:
+      # Imajin DISINDA tutulanlar (.dockerignore): verdict/kanit/token, oturumlar, kosum ciktisi
+      - ./panel-data:/app/panel-data
+      - ./playwright/.auth:/app/playwright/.auth
+      - ./test-results:/app/test-results
+    restart: unless-stopped
+    networks:
+      - testing-ideal
+
+networks:
+  testing-ideal:
+    name: testing-ideal

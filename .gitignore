@@ -42,3 +42,12 @@ site/dist/
 # `origin` (Automation-workforce) PUBLIC — bu dosya oraya gitmemeli.
 # Uretilebilir: node scripts/scope-snapshot.mjs
 docs/scope-tree.json
+
+# graphify bilgi grafi ciktisi (uretilebilir, buyuk)
+graphify-out/
+
+# IDE
+.idea/
+
+# Playwright MCP tarayici oturumu artiklari (snapshot/console log)
+.playwright-mcp/

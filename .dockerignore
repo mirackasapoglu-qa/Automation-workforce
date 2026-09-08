@@ -39,3 +39,5 @@ site/dist
 .DS_Store
 .vscode
 .idea
+# bilgi grafi ciktisi (1.4 MB html + onbellek; RAG indeksi sunucuda kendi kurulur)
+graphify-out
