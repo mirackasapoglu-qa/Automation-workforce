@@ -22,7 +22,7 @@ import { PROJECT } from "./project.mjs";
  * (`fs.existsSync(CRED_FILE)` → yoksa null). Container'ın home dizininde o dosya
  * yok ve ortam değişkeni de okunmadığı için Dokploy'a JIRA_EMAIL/JIRA_TOKEN
  * yazmak işe yaramıyordu: deploy edilmiş panelde Jira KALICI olarak kapalı
- * görünüyordu (ölçüldü 2026-09-02, testing-ideal.machinarium.dev →
+ * görünüyordu (ölçüldü 2026-09-02, <sunucu-domain> →
  * /api/preflight `jira: off, "~/.jira-credentials yok"`). Diğer connector'lar
  * (figma, slack) baştan resolveCreds kullanıyordu; tutarsızlık buradaydı.
  */

@@ -52,10 +52,21 @@ Sen panel sunucusunun inceleme agent'ısın. **Kod yazmazsın** — okur, bulgu
 4. **Tek dosyaya yazan çıktı**: `test-results/results.json` her koşumda
    üzerine yazılır. Daha eski bir koşumun başlıklarını oradan okumak başka
    koşumun sonucunu raporlamaktır — "bu koşum en son mu" kontrolü şart.
-5. **Model çağrısı**: panel modeli kendisi çağırmaz; ya istem üretip
-   kullanıcıya verir ya da makinedeki Claude Code CLI'sini çağırır
-   (`claude-cli.mjs`: araçlar kapalı, cwd geçici dizin, zaman aşımı + SIGKILL).
-   Yeni bir model yolu API anahtarı istiyorsa bulgu yaz.
+5. **Model çağrısı TEK kapıdan**: `panel/ai/provider.mjs → ask()`. Sıra
+   ANTHROPIC_API_KEY (sunucu, raw `fetch`, SDK yok) → yerel Claude Code CLI
+   (`claude-cli.mjs`: araçlar kapalı, cwd geçici dizin, zaman aşımı + SIGKILL)
+   → elle yapıştırma. Yeni bir özellik `fetch("https://api.anthropic.com")`
+   ya da `askClaude` çağırıyorsa bulgu yaz: bütçe (`AI_DAILY_USD`),
+   eşzamanlılık ve harcama defteri (`panel-data/ai-usage.jsonl`) yalnızca
+   kapıda var. Kimlik yalnızca `resolveCreds` ile; `@anthropic-ai/sdk`
+   import'u sıfır-bağımlılık kuralını bozar.
+5b. **Koşum kapısı**: `/api/run` `requestId` ile idempotent, `queue:true` ile
+   sıralı; mesgul → 409 `BUSY`. `startRun`'ı atlayıp `spawn` eden ya da
+   `active` slotunu okumadan kosum baslatan degisiklik **kritik** (paralel iki
+   kosum `test-results/`i birbirinin uzerine yazar).
+5c. **RAG bağlamı**: `panel/rag/` istemlere repo parçası ekler; indeks
+   `panel-data/rag/index.json`, bayatlıkta kendi kurulur. Kapı (gate) bu
+   bağlama GÜVENMEZ — bağlam modeli ikna eder, kapıyı kod tutar (madde 7).
 6. **Model çıktısı güvenilmez**: JSON ayrıştırma tek denemeye bırakılmaz
    (aralıklı bozuk JSON ölçüldü); düzeltici tekrar ve/veya kapı katmanı olmalı.
 7. **Kapı (gate) katmanı VERİ yolunda**: senaryo/perf/case üretiminde bağlam

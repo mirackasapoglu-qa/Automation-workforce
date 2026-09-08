@@ -40,7 +40,7 @@ export function cardSpecs() {
 
 /**
  * Tek kartın eşlemesini kaydeder.
- * @param {string} key kart anahtarı (örn. MAC-7040)
+ * @param {string} key kart anahtarı (örn. PROJ-7040)
  * @param {string[]} specs spec dosya adları; BOŞ dizi "bu kartın testi yok"
  *   demektir ve profildeki eşlemeyi de bilinçli olarak kapatır.
  */

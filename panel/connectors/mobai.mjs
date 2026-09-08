@@ -15,7 +15,7 @@ export const capabilities = ["device"];
  * ⚠️ Adres eskiden SABİT 127.0.0.1:8686'ydı. Sunucuda (Dokploy) ne MobAI
  * uygulaması ne cihaz var; connector her preflight'ta 2,5 sn timeout'a kadar
  * bekleyip "köprü kapalı" diyordu — hiçbir ayarla açılamayan, ölçümü de
- * yavaşlatan bir satır (ölçüldü 2026-09-02: testing-ideal.machinarium.dev →
+ * yavaşlatan bir satır (ölçüldü 2026-09-02: <sunucu-domain> →
  * /api/preflight `mobai: off "köprü kapalı (http://127.0.0.1:8686)"`).
  * Sunucuda `MOBAI_BRIDGE=off` ver: yoklama YAPILMAZ, satır "bu makinede yok"
  * der. Cihaz gerçekten uzaktaysa adresi yaz (tünel/host.docker.internal).

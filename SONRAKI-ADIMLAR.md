@@ -2,6 +2,31 @@
 
 Öncelik sırasına göre. Tamamlananı buradan sil.
 
+## 0. Canlıya çıkış (VPN arkasında) — kod tarafı 2026-09-08'de kapandı
+
+Yapıldı (bkz. CLAUDE.md → "AI sağlayıcı katmanı · RAG v1 · koşum kapısı"):
+tek anahtarla AI (`ANTHROPIC_API_KEY`), üç özellikte tek tık `generate` uçları,
+RAG v1 bağlamı, koşum idempotency + kuyruk, Figma env tak-çalıştır, Flowscope
+native diyalogları, landing'deki sabit localhost linkleri, `panel:check` yeşil,
+44 birim testi.
+
+**Sunucuda kalan — kod değil, ortam işi (sırayla):**
+1. Dokploy env: `ANTHROPIC_API_KEY` (+ isteğe bağlı `AI_DAILY_USD`, `AI_MODEL`),
+   `JIRA_EMAIL` / `JIRA_TOKEN`, `FIGMA_TOKEN`, `PANEL_TOKEN`, `PANEL_ORIGIN`,
+   `PW_CHANNEL=chromium` (arm64 ise), `MOBAI_BRIDGE=off`. Volume:
+   `/app/panel-data`, `/app/playwright/.auth`, `/app/test-results`.
+2. Deploy sonrası tek kontrol: `curl https://<domain>/api/ai/status` → `"mode":"api"`;
+   `curl https://<domain>/api/preflight` → Jira/Figma `ok`.
+3. Canlıda bir tek tık üretim + bir misafir koşumu (01–09) uçtan uca; sonuç
+   "Son sonuçlar"ta görünmeli. Üye seti için kapı/üye oturumu volume'da olmalı.
+4. VPN teyidi. Domain VPN dışına çıkarsa ilk iş Traefik basic-auth/SSO —
+   panelde kimlik doğrulama YOK (bilinçli, bkz. güvenlik modeli).
+5. En küçük CI (imaj build + `/api/version` + `/api/run/preview` curl) — bir
+   deploy daha önce build hatasıyla sessizce eski container'da kalmıştı.
+
+**Hafta 2+ (ölçüm isterse):** embedding + yeniden sıralama (ikinci anahtar);
+panelin dışa dönük MCP sunucusu olması (Claude Code/Desktop'tan koşum tetikleme).
+
 ## 1. Jira — checkout turu TAMAMLANDI (2026-08-22)
 
 Yazılanlar: **MAC-7303** yeni hata kartı (havale açıklama bloğu, 3 hata, kanıt görseli ekli)

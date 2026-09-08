@@ -255,7 +255,7 @@ export function applyRunResults({ nodeId, specs, results, durationMs, code = 0 }
  * Bir Jira/tracker Task ID'sini bir ya da daha fazla düğüme bağlar. İnsanın
  * drawer'daki "Jira Task ID ekle" akışının (panel/public/scope/js/jira.js →
  * `renderDrawerJiraSection`'daki submit()) sunucu tarafı karşılığı — agent'lar
- * (`homee-product-owner`) bir kart açtıklarında bunu çağırıp o kartı, boşluğu
+ * (product-owner agent'ı) bir kart açtıklarında bunu çağırıp o kartı, boşluğu
  * bulduğu düğüm(ler)e geri bağlar.
  *
  * Aynı düğümde zaten var olan bir taskId (büyük/küçük harf duyarsız) SESSİZCE
@@ -337,7 +337,7 @@ export function collectJiraTaskIds(tree) {
  *
  * TERSİNİ de raporlar (ama UYGULAMAZ): zaten ❌ olan ama artık bağlı TÜM Task
  * ID'leri "done" olan düğümler `reviewSuggested`'e düşer — ❌'dan otomatik
- * ÇIKARILMAZ, bu bilinçli olarak insan kararı (bkz. `homee-delivery-lead`).
+ * ÇIKARILMAZ, bu bilinçli olarak insan kararı (bkz. delivery-lead agent'ı).
  *
  * @param {Record<string, {found:boolean, statusCategory:string}>} statusMap tracker().statusByKeys() çıktısı
  * @returns {{scannedNodes: number, flagged: string[], reviewSuggested: {nodeId:string, doneTaskIds:string[]}[]}}

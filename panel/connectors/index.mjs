@@ -120,9 +120,9 @@ async function cached(key, ttlMs, fn) {
   const c = readJson(CACHE_FILE, {});
   /*
    * ⚠️ ANAHTAR PROFILI ICERIR. Onbellek dosyasi makine genelinde tek; iki
-   * profil (ornek: homee ve mto) ayni anda kosunca `jira` anahtari birbirini
-   * eziyordu ve MAC panelinin "Baglantilar" listesi MTO'nun sonucunu
-   * gosteriyordu (olculdu 2026-08-27: 4646 paneli "Mirac · MTO" diyordu).
+   * iki profil ayni anda kosunca `jira` anahtari birbirini
+   * eziyordu ve ilk panelin "Baglantilar" listesi digerinin sonucunu
+   * gosteriyordu (olculdu 2026-08-27: 4646 paneli diger profilin kimligini gosteriyordu).
    */
   const ck = `${PROJECT.id}:${key}`;
   const hit = c[ck];

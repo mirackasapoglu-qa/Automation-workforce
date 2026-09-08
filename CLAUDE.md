@@ -246,6 +246,118 @@ case başına son `HISTORY_KEEP=20` koşum saklanır, `0ms + hatasız failed` ka
 - Test verisi oluşturursan ayırt edilebilir isim ver (`QA-ADRES-<timestamp>`) ve sonunda temizle.
 - İletişim / bülten formları **gerçek gönderim yapmaz**, sadece validasyon doğrulanır.
 
+## AI sağlayıcı katmanı · RAG v1 · koşum kapısı (2026-09-08, canlıya hazırlık)
+
+Üç değişiklik birlikte geldi; hepsi ölçülerek doğrulandı (44 birim testi yeşil,
+`npm run test:panel`; sunucu 4699'da curl ile uçtan uca; gerçek bir tek tık
+üretim CLI yoluyla 3 case yazdı, 6 repo parçası bağlam, 57 sn).
+
+### 1) Panel modeli TEK kapıdan çağırır — `panel/ai/provider.mjs`
+
+Eski doktrin "panel model çağırmaz" idi; sunucuda bu, üç AI özelliğinin (senaryo
+· perf yorumu · test case) **kopyala-yapıştıra düşmesi** demekti (imajda `claude`
+CLI yok → her `generate` ucu 501). Yeni sıra, `resolveCreds`'in "ortam > dosya"
+deseniyle aynı mantıkta:
+
+| Yol | Ne zaman | Kimlik |
+|---|---|---|
+| `api` | `ANTHROPIC_API_KEY` varsa (**sunucu yolu**) | tek anahtar, başka kurulum yok |
+| `cli` | anahtar yok, makinede `claude` var (**geliştirici yolu**) | kullanıcının Claude Code oturumu + MCP'leri |
+| `manual` | ikisi de yok | yok — istem üret + yapıştır (hiç kapanmaz) |
+
+`AI_PROVIDER=api|cli|manual` sırayı ezer. Diğer env: `AI_MODEL` (varsayılan
+`claude-opus-5`), `AI_EFFORT` (`high`), `AI_MAX_TOKENS` (16000), `AI_TIMEOUT_MS`
+(180000), `AI_DAILY_USD` (günlük tavan; aşınca 429), `AI_MAX_CONCURRENCY` (2).
+
+- **SDK YOK, raw `fetch`** (`panel/ai/anthropic.mjs`). Sıfır-bağımlılık kuralı
+  korunuyor; `@anthropic-ai/sdk` import'u bir kez paneli açılışta düşürmüştü.
+  API sözleşmesi dosya başlığında: `output_config.format={type:"json_schema"}`
+  (şemada her nesnede `additionalProperties:false` ŞART), `thinking:{type:"adaptive"}`
+  (Haiku'da gönderilmez), `system[].cache_control` 1 saat, prefill yok,
+  `stop_reason:"refusal"` HTTP 200 ile gelir.
+- **Şema API'de sunucu tarafında zorlanır** → bozuk JSON sorunu o yolda biter.
+  CLI yolunda gevşek ayrıştırma + bir kez düzeltici tekrar **provider'da**
+  (`viaCli`), çağıranlarda değil.
+- **Bütçe + eşzamanlılık + defter** (`panel/ai/budget.mjs`): her çağrı
+  `panel-data/ai-usage.jsonl`'e bir satır (başarısız da); gün UTC. Aynı anda en
+  çok 2 çağrı + 4 kuyruk, fazlası `BUSY` (429). Tavan `AI_DAILY_USD`.
+- **Hata kodu → HTTP tek yerde** (`httpStatusFor`): `NO_PROVIDER/NO_KEY/NO_CLI`
+  501 · `BUDGET/BUSY/RATE_LIMIT` 429 · `TIMEOUT` 504 · `REFUSAL` 422 ·
+  kapı reddi (`applyFromModel` fırlatırsa) 422 `REJECTED` · diğerleri 502.
+  `hintFor` kullanıcıya "şimdi ne yapayım" satırını verir.
+- **Kapılar değişmedi.** `gate()`/`applyCases()`/`allowedNodeIds` veri yolunda,
+  sağlayıcıdan bağımsız koşulsuz çalışır. `generateAndApply()` (server.mjs) üç
+  özelliğin ortak gövdesi: model → kapı → yaz.
+- İstem kurucular artık `{prompt, system, user, retrieval}` döner: `prompt`
+  kopyala-yapıştır/CLI için tek metin, `system`+`user` API için ayrı (sistem
+  bloğu önbelleğe alınır).
+- Uçlar: `GET /api/ai/status` (yol, model, bugünkü harcama — ağa çıkmaz),
+  `POST /api/scenarios/generate`, `POST /api/perf/generate`, mevcut
+  `/api/scope/testcases/generate` ve `/api/jira/testcases/generate`.
+  Arayüzde `data-ai-oneclick` düğmeleri yalnızca yol açıkken görünür; 501
+  gelirse otomatik istem yoluna düşer. Connector satırı (`claude-code`, ad
+  değişmedi) yolu ve harcamayı gösterir; `manual` → amber.
+- **Yerelde CLI, sunucuda anahtar.** CLI'nin `model` alanı `modelUsage`'ın ilk
+  anahtarı (yanıltıcı olabilir); maliyet CLI oturumunun toplamı (ölçüm: $0.47 /
+  3 case). API yolunda `usage` gerçek token sayısı, maliyet liste fiyatından
+  **tahmin** (`estimateCost`), fatura Console'da.
+
+### 2) RAG v1 — `panel/rag/` (BM25, tek JSON, sıfır bağımlılık)
+
+Model "repoyu bilsin" diye istemlere repodan parça giriyor. Corpus: `tests/*.ts`,
+`pages/*.ts`, `global-setup.ts`, `playwright.config.ts`, kökteki `*.md`,
+`docs/*.md`, `panel/runs.json`, `panel-data/scope/tree.json`, varsa
+`graphify-out/graph.json` (yalnız dosya komşuluğu). Ölçüm: 46 dosya → 267
+parça, 5.372 terim, kurulum 62 ms, indeks 546 KB.
+
+```bash
+npm run rag:index                                   # kur + özet
+node scripts/rag-index.mjs --query "sepet adet 406" # ne geliyor?
+node scripts/rag-index.mjs --context "..."          # isteme girecek blok
+curl "localhost:4646/api/rag/search?q=sepet&k=5"    # salt okur
+```
+
+- **Türkçe tuzağı burada da**: `İ`/`ı` NFD + `\p{Mn}` at + `ı→i` (figma-diff'te
+  12 yanlış pozitif üreten hata). Gövdeleme muhafazakâr (çok karakterli ekler,
+  gövde ≥ 4) **ve** 6+ harfli kelimeye 5 harflik önek belirteci eklenir —
+  "sepet/sepete/sepette/sepetim" buluşsun diye. Sorgu ve belge aynı fonksiyondan
+  geçer; tutarlılık doğruluktan önemli.
+- **Bayatlık kendi kendine**: indeks kaynak mtime'larını saklar, `ensureIndex()`
+  10 sn'de bir stat turu yapar, değişen varsa yeniden kurar. Sunucuda `panel-data`
+  volume olduğu için imaj build'inde kurmak anlamsız — ilk istekte kurulur.
+  `POST /api/rag/reindex` "hemen gör" için.
+- **Graf genişletme**: ilk isabetlerin dosyalarının graphify komşusu dosyalardan
+  sorguyla terim paylaşan en çok 2 parça eklenir (`via:"graf"`). Graf yoksa atlanır.
+- İstemlerde: test case (6 parça, ≤6000 kr), kart (6, ≤5000), senaryo (5, ≤4500).
+  Perf istemine girmez (ölçüm zaten sayısal). İndeks yoksa blok boş, özellik kapanmaz.
+- **Embedding/vektör DB BİLİNÇLİ OLARAK YOK**: ikinci sağlayıcı + ikinci anahtar.
+  Ancak ölçüm (gate'ten geçme oranı, uydurma seçici sayısı) açığı gösterirse.
+
+### 3) Koşum kapısı — `panel/run-queue.mjs`
+
+Tek slot korunuyor (Playwright `test-results/`i koşum başında siler). Eklenen:
+- **Idempotency**: `POST /api/run {requestId}` — aynı id 60 sn içinde tekrar
+  gelirse İLK sonucun aynısı (`deduped:true`); çift tık/iki sekme iki koşum başlatmaz.
+- **Kuyruk**: `{queue:true}` slot doluysa sıraya alır (en çok 5, aynı iş iki kez
+  giremez), slot boşalınca otomatik başlar (`run-queued` SSE olayı).
+  Kapsam koşumu (`/api/scope/run`) sıraya alınmaz — `scopeRun` tek slot.
+- **Meşgul → 409 `BUSY`** (eskiden 200 + `ok:false`); `GET /api/run/state`
+  süren koşum + sıra. `POST /api/stop` sırayı da temizler (`{all:false}` korur).
+- Gövde sınırı 8 MB (`PANEL_BODY_LIMIT_BYTES`) → 413; bozuk JSON → 400.
+
+### Aynı turda kapatılan borçlar
+
+- **Figma sunucuda tak-çalıştır**: `figma-render.mjs`, `scripts/figma-diff.mjs`,
+  `scripts/figma-prewarm.mjs` dosyayı DOĞRUDAN okuyordu; env'e konan
+  `FIGMA_TOKEN`'ı yalnız connector görüyordu (preflight "ok", render "dosya yok").
+  Üçü de `resolveCreds`.
+- Flowscope'taki 4 çıplak `confirm/alert` → `scope/js/dialog.js` (`uiToast`/`uiConfirm`,
+  panelle aynı API). `generateSpec()`'teki `prompt()` → `uiPrompt()`. Genel
+  Bakış'taki ölü `stopRun()` artık tanımlı. `drawer.js`'teki `localhost:8934`
+  talimatı sunucu API'sine çevrildi. `site/src/pages/Index.tsx`'teki 4 sabit
+  `localhost:4646` linki `HqNav.url("panel")`'dan çözülüyor.
+- `npm run panel:check` yeşil: çekirdek yorumlarındaki 20 proje işareti nötrlendi.
+
 ## Ayağa kaldırma
 
 **"Panel ayağa kaldır" = `npm run up`** — panel ve landing/onboarding sitesi BİRLİKTE kalkar.
@@ -308,12 +420,14 @@ açıldı, `/api/specs` → 200.) İki değişiklik bunu sağlıyor:
    (guard buna bağlı olduğu için ölçmeden dokunulmadı); (b) `.env` yoksa dotenv'in
    aksine **ENOENT fırlatıyor** — bu yüzden çağrı guard'lı, dosya yoksa uygulama açılır.
    Yeni bir dosya env okuyacaksa `import { loadEnv } from "./env.mjs"` kullan, dotenv ekleme.
-2. **Model çağrısı tamamen kalktı** — panel artık AI için **hiçbir bağımlılık ve
-   kimlik istemiyor.** Eskiden `@anthropic-ai/sdk` `optionalDependencies`'te durur ve
-   tembel yüklenirdi (statik import, paket kurulu olmayan bir projede paneli
-   **açılışta** düşürüyordu — bozulan tek bir buton değil panelin tamamıydı). Şimdi
-   paket de yok: `npm uninstall @anthropic-ai/sdk` ile kaldırıldı. Aynı tuzak `dotenv`
-   için de vardı — `devDependencies`'te durduğu hâlde çalışma zamanında import ediliyordu.
+2. **Model çağrısı bağımlılıksız** — panel AI için **paket istemiyor**, kimlik
+   yalnızca ortam değişkeni (`ANTHROPIC_API_KEY`, isteğe bağlı). Eskiden
+   `@anthropic-ai/sdk` `optionalDependencies`'te durur ve tembel yüklenirdi (statik
+   import, paket kurulu olmayan bir projede paneli **açılışta** düşürüyordu — bozulan
+   tek bir buton değil panelin tamamıydı). Paket kaldırıldı ve GERİ GELMEDİ:
+   2026-09-08'den beri sunucu yolu raw `fetch` ile `panel/ai/anthropic.mjs` (bkz.
+   "AI sağlayıcı katmanı"). Aynı tuzak `dotenv` için de vardı — `devDependencies`'te
+   durduğu hâlde çalışma zamanında import ediliyordu.
 
 ### Jira: kart → doğrulama hattı
 
@@ -342,12 +456,15 @@ Kart detayı (`/api/jira/card/<KEY>`) dört şeyi tek ekrana getiriyor: kartın 
 | Verdict → yorum taslağı | `GET /api/jira/verdict-draft?verdict=` | Verdict kaydına `card` alanı eklendi; Verdict tablosundaki kart düğmesi Jira sekmesine geçip taslağı doldurur. |
 | Kart ↔ spec eşleme editörü | `GET/POST /api/jira/map` | Profil kaynak; panelden yapılan düzenleme `panel-data/card-specs.json`'a düşer ve profille **birleşir**. `snippet()` profile yapıştırılacak metni üretir. |
 
-**Tek tık üretim nasıl çalışıyor:** panel istemi kurar ve **makinede kurulu Claude
-Code CLI'sini** çağırır (`claude -p --output-format json --allowedTools ""`,
-`panel/claude-cli.mjs`) — API anahtarı gerekmez, CLI kullanıcının oturumuyla
-kimliklidir. Araçlar KAPALI (modelin repoda dolaşmasına gerek yok, yan etki riski
-var) ve cwd geçici dizin: repo kökünde çağrılınca CLI proje CLAUDE.md'sini yükleyip
-her isteğe ~11k token ekliyor. Ölçüm: 3 case ≈ 24–27 sn, ≈ $0.13–0.16.
+**Tek tık üretim nasıl çalışıyor (2026-09-08'den beri):** panel istemi kurar ve
+`panel/ai/provider.mjs` üzerinden modeli çağırır — sunucuda `ANTHROPIC_API_KEY`
+ile Messages API, yerelde anahtar yoksa **makinede kurulu Claude Code CLI**
+(`claude -p --output-format json --allowedTools ""`, `panel/claude-cli.mjs`; CLI
+kullanıcının oturumuyla kimliklidir). CLI'de araçlar KAPALI (modelin repoda
+dolaşmasına gerek yok, yan etki riski var) ve cwd geçici dizin: repo kökünde
+çağrılınca CLI proje CLAUDE.md'sini yükleyip her isteğe ~11k token ekliyor.
+Ölçüm (CLI): 3 case ≈ 24–57 sn, ≈ $0.13–0.47. Repo bağlamı (RAG v1) her iki
+yolda da isteme girer.
 
 Kopyala-yapıştır ucu (`/prompt` + `/apply`) **kaldırılmadı**: CLI yoksa (501 + kurulum
 ipucu), kimlik düşmüşse ya da çağrı zaman aşımına uğrarsa geri dönülecek yol kalmalı.
@@ -382,14 +499,16 @@ kaldırıldı — **kodda tek `alert(` veya çıplak `confirm(` kalmadı** (13 +
 false döner (Promise truthy'dir) ve yıkıcı işlem **onay sormadan** çalışır. Yeni bir
 onay eklerken bu tuzağa dikkat.
 
-⚠️ **Bu temizlik yalnızca ana panel (`panel/public/index.html`) için tam.** İki sapma
-ölçüldü (tam kod taraması, 2026-08-29):
-- `index.html:2819` — `generateSpec()` içinde native `prompt('Spec basligi:', ...)`
-  hâlâ duruyor; `alert`/`confirm` ile aynı kategoride bloklayıcı bir tarayıcı diyaloğu.
-- **Flowscope (`panel/public/scope/`) hiç migrate edilmedi**: `data.js::clearAll()`,
-  `sitemap-import.js::importData()`'nın hata yolu ve `chips.js::buildActionButtons()`
-  sil butonu hâlâ çıplak `confirm()`/`alert()` kullanıyor. Yeni bir onay/uyarı
-  eklerken scope/ tarafında da `uiToast`/`uiConfirm` deseni yoksa oraya taşı.
+**Temizlik artık her iki yüzeyde tam (2026-09-08).** 2026-08-29 taramasında
+ölçülen iki sapma kapatıldı: `generateSpec()`'teki native `prompt()` →
+`uiPrompt()` (aynı dosyada, `uiConfirm`'in yanında); Flowscope'taki çıplak
+`confirm()/alert()` çağrıları (`chips.js` sil, `data.js::clearAll`, `shell.js`
+bozuk yedek, `testcase-request.js` hata) → `scope/js/dialog.js` (`uiToast`,
+`uiConfirm`; ES modül, panelle aynı API ve aynı asenkron tuzak). Yeni bir
+onay/uyarı eklerken: ana panelde global `uiToast/uiConfirm/uiPrompt`, scope
+tarafında `import { uiToast, uiConfirm } from './dialog.js'`. Ölçüm:
+`grep -n "confirm(\|alert(\|prompt('" panel/public/scope/js/*.js panel/public/index.html`
+→ 0 çıplak çağrı.
 
 ### Perf geçmişi
 
@@ -447,10 +566,14 @@ guard'a dokunmak ayrı bir karar olduğu için bilinçli olarak eklenmedi.
 
 ### AI özellikleri: anahtarsız yol (Claude Code'a kopyala-yapıştır)
 
-Panelin üç AI özelliği de (**Senaryo öner**, **perf AI yorumu**, **kapsam ağacında test
-case üretimi**) modeli KENDİSİ çağırmaz. Gerekçe: kullanıcı modeli zaten Claude Code'da
-çalıştırıyor, panele ikinci bir kimlik (`ANTHROPIC_API_KEY` ya da `ant auth login`
-profili) koymanın anlamı yok — anahtar yoksa üç özellik birden kapalı kalıyordu.
+> 2026-09-08: bu yol artık **geri dönüş yolu**. Sunucuda `ANTHROPIC_API_KEY`
+> varsa üç özellik de `generate` uçlarıyla tek tık çalışır (bkz. "AI sağlayıcı
+> katmanı"). Aşağıdaki iki uçlu desen olduğu gibi duruyor: anahtar da CLI de
+> yoksa, kimlik düşmüşse ya da bütçe dolmuşsa özellik kapanmaz, buraya düşer.
+
+Panelin üç AI özelliği (**Senaryo öner**, **perf AI yorumu**, **kapsam ağacında test
+case üretimi**) anahtarsız da çalışır. Gerekçe: kullanıcı modeli zaten Claude Code'da
+çalıştırıyor olabilir; anahtar yoksa üç özellik birden kapalı kalmamalı.
 
 Desen her üçünde aynı, iki uçlu:
 
@@ -1110,16 +1233,12 @@ bulunan, önceden belgelenmemiş veya hafifçe yanlış belgelenmiş noktalar.
 - `tests/fixtures.ts`'teki `memberPage` login mantığı `global-setup.ts`'teki
   `memberLogin()` ile **aynı akışı bağımsız olarak yeniden yazıyor** (ortak
   yardımcıya çıkarılmamış). Giriş formu değişirse iki dosyada da güncelle.
-- `panel/public/index.html`'de **ölü bir referans var**: Genel Bakış sekmesindeki
-  koşum satırı `onclick="stopRun()"` üretiyor ama böyle bir fonksiyon tanımlı
-  değil (gerçek durdurma `#stopBtn`'in handler'ı, `/api/stop`'a POST atıyor).
-  Genel Bakış'tan durdurmaya çalışan kullanıcı konsola `ReferenceError` düşürür,
-  hiçbir şey olmaz.
-- Flowscope'un "Test Case'leri Koştur" AI-assist prompt'u (`ai-assist.js` /
-  `testcase-request.js`) hâlâ **eski mimariye** (Murat'ın sibling projesindeki
-  `localhost:8934` origin'i + `flowTool.tree.v2` localStorage anahtarı) atıf
-  yapıyor — bu repoda veri sunucuda (`panel-data/scope/tree.json`), o satır ölü/
-  yanlış bir talimat.
+- ~~`panel/public/index.html`'de ölü `stopRun()` referansı~~ — **kapatıldı
+  2026-09-08**: Genel Bakış'taki "durdur" artık tanımlı bir `stopRun()` çağırıyor
+  (`/api/stop`, sıradakileri de temizler).
+- ~~Flowscope'un "Test Case'leri Koştur" prompt'undaki `localhost:8934` /
+  `flowTool.tree.v2` talimatı~~ — **kapatıldı 2026-09-08**: `drawer.js` artık
+  `GET/PUT /api/scope/tree` ile sunucuyu gösteriyor.
 - Repo kökünde eski bir koşumdan (2026-08-18, commit `b0297f9`) kalma, artık
   `.gitignore`'a girse de zaten **izlemeye alınmış** olduğu için hâlâ duran
   dosyalar var: `.results-final.json`, `.results-fix.json`, `.run-final3.log`,

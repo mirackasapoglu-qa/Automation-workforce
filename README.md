@@ -60,6 +60,12 @@ Sekmeler: **Site (canlı)** — siteyi panel içinde iframe olarak gezer, açık
 tek tıkla tetikler · **Canlı log** (SSE) · **Son sonuçlar** (bilinen hata ayrımıyla) ·
 **Verdict** · **Jira**
 
+**AI (tek anahtar):** `ANTHROPIC_API_KEY` verilirse senaryo önerisi, perf yorumu ve
+test case üretimi tek tıkla çalışır (sunucu yolu, bağımlılıksız raw `fetch`). Yerelde
+anahtar yoksa makinedeki Claude Code CLI kullanılır; o da yoksa "istem üret + yapıştır"
+yolu açık kalır. İstemlere repo bağlamı (RAG v1, `npm run rag:index`) girer. Bütçe:
+`AI_DAILY_USD`. Birim testleri: `npm run test:panel`.
+
 ## Jira
 
 `machinarium.atlassian.net` → `MAC` projesi → `MAC-7035 "Tepe - Redesign"` epic'i.
