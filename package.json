@@ -32,6 +32,8 @@
     "lint": "eslint . --ext .ts",
     "test:havale": "playwright test tests/26-order-transfer.spec.ts --project=chromium --headed",
     "test:gate": "PANEL_PROJECT=${PANEL_PROJECT:-homee} node --test panel/scenario-suggest.test.mjs",
+    "test:panel": "PANEL_PROJECT=${PANEL_PROJECT:-homee} node --test \"panel/**/*.test.mjs\"",
+    "rag:index": "node scripts/rag-index.mjs",
     "history:merge": "PANEL_PROJECT=${PANEL_PROJECT:-homee} node scripts/merge-case-history.mjs",
     "figma:diff": "PANEL_PROJECT=${PANEL_PROJECT:-homee} node scripts/figma-offline-diff.mjs",
     "panel:mto": "PANEL_PROJECT=mto PANEL_PORT=4656 node panel/server.mjs"

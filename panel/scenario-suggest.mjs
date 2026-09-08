@@ -23,6 +23,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PROJECT } from "./project.mjs";
+import { contextFor, renderContextBlock } from "./rag/retrieve.mjs";
 
 const ROOT = process.cwd();
 const TESTS = path.join(ROOT, "tests");
@@ -314,17 +315,29 @@ export function buildPrompt({ request, slug = PROJECT.id, limit = 5 } = {}) {
     e.code = "NO_ORACLE";
     throw e;
   }
-  const prompt = [
-    renderSystem(limit),
-    "",
+  /*
+   * RAG v1: isteğe en yakın spec/POM/kural parçaları isteme girer — model
+   * "hangi seçici, hangi tuzak" sorusunu tahmin etmek yerine okur. İndeks
+   * yoksa blok boş kalır; öneri kapanmaz (kapı zaten veri yolunda).
+   */
+  let retrieval = { block: "", meta: { chunks: 0 } };
+  try {
+    const rc = contextFor({ query: String(request), k: 5, maxChars: 4500 });
+    if (rc) retrieval = { block: renderContextBlock(rc), meta: { chunks: rc.chunks.length, builtAt: rc.builtAt, sources: rc.chunks.map((c) => `${c.file}:${c.line}`) } };
+  } catch (e) {
+    retrieval = { block: "", meta: { chunks: 0, error: String(e.message).slice(0, 120) } };
+  }
+  const system = renderSystem(limit);
+  const user = [
     "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
     '{"scenarios":[{"suiteId":"...","caseId":"...","title":"...","oracleRef":"...",'
       + '"tags":["..."],"steps":["..."],"rationale":"..."}]}',
     "",
     "---",
     renderUser(ctx, String(request)),
-  ].join("\n");
-  return { prompt, context: ctx, limit };
+    retrieval.block ? `\n---\n${retrieval.block}` : "",
+  ].filter((x) => x !== "").join("\n");
+  return { prompt: `${system}\n\n${user}`, system, user, context: ctx, limit, retrieval: retrieval.meta };
 }
 
 /**

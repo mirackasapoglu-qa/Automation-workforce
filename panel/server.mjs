@@ -76,7 +76,18 @@ import * as sessions from "./sessions.mjs";
 import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
 import { runCommentDraft, verdictCommentDraft } from "./jira-report.mjs";
 import { capture as perfCapture, list as perfHistory, diffRoutes } from "./perf-history.mjs";
-import { askClaude, parseJsonLoose, CLI_HINT } from "./claude-cli.mjs";
+/*
+ * AI: panel modeli TEK kapidan cagirir (ai/provider.mjs). Sira: ANTHROPIC_API_KEY
+ * (sunucu) → yerel Claude Code CLI → elle yapistirma. Butce, esazamanlilik ve
+ * kayit orada; burada yalnizca HTTP eslemesi var.
+ */
+import * as ai from "./ai/provider.mjs";
+import { SCHEMA as TESTCASE_SCHEMA } from "./testcase-gen.mjs";
+import { SCHEMA as SCENARIO_SCHEMA } from "./scenario-suggest.mjs";
+import { SCHEMA as PERF_SCHEMA } from "./perf-analyze.mjs";
+import { ensureIndex as ragEnsure, stats as ragStats } from "./rag/index.mjs";
+import { search as ragSearch } from "./rag/retrieve.mjs";
+import { createRunGate } from "./run-queue.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
 import { renderForRoute, cachedRoutes } from "./figma-render.mjs";
@@ -239,7 +250,7 @@ const ALLOWED_ORIGINS = new Set([
  * tetikleme, verdict, Jira yorumu, kapi yenileme. Arayuz her 403'u "token
  * eskimis" diye gosterdigi icin sebep gorunmuyordu (olculdu 2026-09-02:
  * POST /api/scenarios/prompt + gecerli token → "Origin reddedildi:
- * https://testing-ideal.machinarium.dev").
+ * https://<sunucu-domain>").
  *
  * ⚠️ Origin kontrolu CSRF icindir, kimlik dogrulamasi DEGILDIR: `Origin`
  * basligini hic gondermeyen bir istemci (curl) bu kontrolu atlar ve token
@@ -254,7 +265,7 @@ const ALLOWED_ORIGINS = new Set([
  *
  * ⚠️ Son basamak sabit `localhost:PORT` DEGIL: ikisi de verilmeden deploy
  * edilen panelde arayuz "Callback URL" olarak `http://localhost:3000/...`
- * gosteriyordu (olculdu 2026-09-04, testing-ideal.machinarium.dev/api/preflight
+ * gosteriyordu (olculdu 2026-09-04, <sunucu-domain>/api/preflight
  * → redirectUri) — o adresi Linear/Slack uygulamasina yapistiran kisi calismayan
  * bir OAuth kurar. Host olculebilir bir sey; landingUrlFor'da da ayni karar
  * ortam degiskenine degil Host'a bakiyor. Ters vekil arkasinda
@@ -283,7 +294,7 @@ function publicOriginFor(req) {
  *
  * ⚠️ Varsayilan YALNIZCA lokal isteklerde verilir: landing ayri bir surec
  * (`npm run up` → vite preview, 4321) ve sunucuda o domainde HIC YOK (olculdu
- * 2026-09-02: testing-ideal.machinarium.dev/onboarding → 404). Sunucuda
+ * 2026-09-02: <sunucu-domain>/onboarding → 404). Sunucuda
  * varsayilan koyulsa dugme OLU bir localhost adresine giderdi.
  *
  * ⚠️ Karar ISTEGIN HOST'una gore verilir, ortam degiskenine gore DEGIL. Ilk
@@ -422,7 +433,7 @@ function requireAuth(req, res) {
    *
    * NEDEN GEREKLI: sunucuda PANEL_ORIGIN verilmemisti ve Flowscope'ta yapilan
    * her degisiklik sessizce diske YAZILMIYORDU (olculdu 2026-09-07,
-   * testing-ideal.machinarium.dev/scope → "Origin reddedildi"). Kullanicinin
+   * <sunucu-domain>/scope → "Origin reddedildi"). Kullanicinin
    * elinde tek cozum olarak "sunucuya su env'i ver" kaliyordu; oysa sunucu
    * kendi adresini zaten biliyor (publicOriginFor → x-forwarded-proto/host).
    *
@@ -702,6 +713,69 @@ function broadcast(event, data) {
 let active = null; // { id, child, startedAt, lines: [] }
 
 /**
+ * Kosum kapisi: idempotency (`requestId` ile cift tik/iki sekme ayni kosumu
+ * iki kez baslatmaz — ayni sonuc doner) + kisa FIFO kuyruk (`queue:true`).
+ * Tek slot korunuyor: Playwright `test-results/`i kosum basinda temizliyor,
+ * paralel iki kosum birbirinin kanitini siler. Saf mantik run-queue.mjs'te.
+ */
+const runGate = createRunGate();
+
+/** Slot bosalinca siradaki kosumu baslatir; baslatilamayan atlanir, log'a duser. */
+function drainRunQueue() {
+  const next = runGate.dequeue();
+  if (!next) return;
+  const r = startRun(next.runId, next.params, next.headless, next.record, {});
+  if (!r.ok) {
+    broadcast("log", { stream: "err", line: `[kuyruk] ${next.runId} baslatilamadi: ${r.error}` });
+    drainRunQueue();
+  }
+}
+
+/** Arayuz icin anlik durum: suren kosum + sira. */
+const runState = () => ({
+  active: active ? { id: active.id, label: active.label, startedAt: active.startedAt } : null,
+  pending: runGate.pending(),
+});
+
+/**
+ * Model cagrisi → kapidan gecir → yaz — uc uretim ozelliginin ORTAK govdesi.
+ * `apply` veri yolundaki kapidir (gate/applyCases), saglayicidan bagimsiz
+ * kosulsuz calisir. Hata kodu → HTTP eslemesi ai.httpStatusFor'da tek yerde.
+ */
+async function generateAndApply({ purpose, built, schema, apply, res }) {
+  const t0 = Date.now();
+  let r;
+  try {
+    r = await ai.ask({ purpose, system: built.system, user: built.user, schema });
+  } catch (e) {
+    const code = e.code ?? null;
+    audit({ event: `${purpose}-error`, code, message: String(e.message).slice(0, 200), ms: Date.now() - t0 });
+    return send(res, ai.httpStatusFor(code), {
+      ok: false, error: e.message, code, hint: ai.hintFor(code), provider: ai.mode(),
+    });
+  }
+  let out;
+  try {
+    out = apply(r.json);
+  } catch (e) {
+    // Model cevap verdi ama kapi/veri yolu reddetti: ucret odendi, sebep acik yazilsin.
+    audit({ event: `${purpose}-rejected`, message: String(e.message).slice(0, 200), costUsd: r.costUsd, ms: r.durationMs });
+    return send(res, 422, {
+      ok: false, error: e.message, code: "REJECTED", provider: r.provider, model: r.model, cost: r.costUsd, ms: r.durationMs,
+    });
+  }
+  audit({
+    event: purpose, provider: r.provider, model: r.model, costUsd: r.costUsd, ms: r.durationMs,
+    retrieval: built.retrieval?.chunks ?? 0, ...(out.audit ?? {}),
+  });
+  return send(res, 200, {
+    ok: true, ...out.body,
+    provider: r.provider, model: r.model, cost: r.costUsd, ms: r.durationMs,
+    usage: r.usage ?? null, retrieval: built.retrieval ?? null, requestId: r.requestId ?? null,
+  });
+}
+
+/**
  * Kapsam agacindan tetiklenen kosum. Kosum bitince sonuc bu dugumun
  * otomatik test case'ine yazilir. Ayni anda tek kosum oldugu icin tek slot yeterli.
  */
@@ -725,8 +799,32 @@ let scopeRun = null; // { nodeId, runId, specs }
 const recordEnv = (record) =>
   record ? { PW_VIDEO: "on", PW_TRACE: "on" } : {};
 
-function startRun(runId, params, headless = false, record = false) {
-  if (active) return { ok: false, error: `Zaten kosuyor: ${active.id}` };
+function startRun(runId, params, headless = false, record = false, meta = {}) {
+  // Idempotency: ayni requestId 60 sn icinde tekrar gelirse ILK sonucun aynisi.
+  const prior = runGate.recall(meta.requestId);
+  if (prior) return prior;
+
+  if (active) {
+    if (meta.queue) {
+      const q = runGate.enqueue({
+        runId, params: params ?? null, headless, record,
+        label: RUNS[runId]?.label ?? runId, requestId: meta.requestId ?? null,
+      });
+      if (q.ok) {
+        runGate.remember(meta.requestId, q);
+        audit({ event: "run-queued", id: runId, position: q.position, params: params ?? null });
+        broadcast("run-queued", { id: runId, position: q.position, ...runState() });
+      }
+      return q;
+    }
+    return {
+      ok: false,
+      code: "BUSY",
+      error: `Zaten kosuyor: ${active.id}`,
+      active: { id: active.id, label: active.label, startedAt: active.startedAt },
+      hint: "Bitmesini bekle, Durdur'a bas ya da `queue:true` ile siraya al.",
+    };
+  }
 
   let cmd;
   let args;
@@ -880,15 +978,24 @@ function startRun(runId, params, headless = false, record = false) {
       }
     }
     active = null;
+    // Slot bosaldi: sirada bekleyen varsa hemen baslat (SSE run-start yine gider).
+    drainRunQueue();
   });
 
-  return { ok: true, id: runId };
+  const result = { ok: true, id: runId, journalId: active.journalId };
+  runGate.remember(meta.requestId, result);
+  return result;
 }
 
-function stopRun() {
-  if (!active) return { ok: false, error: "Kosan bir sey yok" };
+/**
+ * Durdur = suren kosum + SIRA. Kullanici "durdur" derken kuyruktakinin
+ * hemen ardindan baslamasini beklemez; sirayi korumak isteyen `all:false` verir.
+ */
+function stopRun({ all = true } = {}) {
+  const cleared = all ? runGate.clear() : 0;
+  if (!active) return { ok: cleared > 0, error: cleared ? undefined : "Kosan bir sey yok", cleared };
   active.child.kill("SIGTERM");
-  return { ok: true };
+  return { ok: true, cleared };
 }
 
 // ---------------- verdict ----------------
@@ -938,11 +1045,11 @@ function saveVerdict(body) {
  *
  * ESKİ regex'in (`"([^"]+)"`) anlamadığı şey kaçış: bir `detail` metninde
  * `\"` geçince (ör. `pageerror: \"...\"`) `[^"]+` kaçışlı tırnağın KENDİSİNDE
- * duruyordu — metin yanlış yerden kesiliyordu (ölçüldü: HOMEE-010). Değer tek
- * tırnakla yazılmışsa (içinde kaçışsız `"` geçtiği için, ör. HOMEE-001) durum
+ * duruyordu — metin yanlış yerden kesiliyordu (ölçüldü: <önek>-010). Değer tek
+ * tırnakla yazılmışsa (içinde kaçışsız `"` geçtiği için, ör. <önek>-001) durum
  * daha kötüydü: `detail:\s*"` deseni HİÇ eşleşmiyor, arayış bir SONRAKİ
  * kaydın `detail:"..."`ına kadar sürüklenip onu bu kayda mal ediyordu —
- * sonraki kayıt (HOMEE-002/HOMEE-005) TAMAMEN kayboluyordu. İkisi de bu
+ * sonraki kayıt (<önek>-002/<önek>-005) TAMAMEN kayboluyordu. İkisi de bu
  * fonksiyonun kaçış-duyarlı, tek karakter karakter okumasıyla düzeldi.
  */
 function readStringLiteral(text, quoteStart) {
@@ -997,9 +1104,24 @@ function send(res, code, body, type = "application/json") {
   res.end(type.startsWith("application/json") ? JSON.stringify(body) : body);
 }
 
+/**
+ * Govde okuyucu. UST SINIR var: kapsam agaci PUT'u birkac MB olabilir ama
+ * sinirsiz govde, yerel de olsa bir sunucuda bellegi doldurmanin en kolay yolu.
+ * Asim → 413'e eslenen hata (cagiran try/catch'i 500 yerine bunu gorsun).
+ */
+const BODY_LIMIT = Number(process.env.PANEL_BODY_LIMIT_BYTES) || 8 * 1024 * 1024;
 async function readBody(req) {
   const chunks = [];
-  for await (const c of req) chunks.push(c);
+  let size = 0;
+  for await (const c of req) {
+    size += c.length;
+    if (size > BODY_LIMIT) {
+      const e = new Error(`govde ${Math.round(BODY_LIMIT / 1024 / 1024)} MB sinirini asiyor`);
+      e.code = "BODY_TOO_LARGE";
+      throw e;
+    }
+    chunks.push(c);
+  }
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
 }
 
@@ -1163,7 +1285,7 @@ const server = http.createServer(async (req, res) => {
      * 4321) ama sunucuda o surec yok — deploy edilen tek sey panel
      * konteyneri. Sonuc olarak ust bardaki "Home" dugmesi sunucuda HIC
      * BASILMIYORDU (adres cozulemedigi icin; olculdu 2026-09-07:
-     * testing-ideal.machinarium.dev/onboarding → 404) ve "sabit uc oge"
+     * <sunucu-domain>/onboarding → 404) ve "sabit uc oge"
      * dedigimiz serit orada ikiye dusuyordu.
      *
      * Dockerfile `site`i ZATEN build ediyor (`npm run build --prefix site`),
@@ -1249,7 +1371,7 @@ const server = http.createServer(async (req, res) => {
     /**
      * Bir kart (Jira Task ID) ile bir/birden çok kapsam ağacı düğümünü bağlar —
      * insanın drawer'daki "Jira Task ID ekle" akışının agent'lar için sunucu
-     * karşılığı (bkz. homee-product-owner). Bağladığı Task ID bilinen ve "done"
+     * karşılığı (bkz. product-owner agent'ı). Bağladığı Task ID bilinen ve "done"
      * değilse, ilgili yaprak düğüm(ler) `jira.js → autoFlagFromJiraStatus()`
      * ile AYNI kuralla anında ❌'ya çekilir — drawer açılana kadar beklenmez.
      */
@@ -1449,8 +1571,10 @@ const server = http.createServer(async (req, res) => {
           error: `Kosum whitelist'te yok: ${ref.runId}`,
         });
       }
+      // Kapsam kosumu SIRAYA ALINMAZ: scopeRun tek slot, kuyruktaki ikinci
+      // dugum ilkinin sonucunu ezerdi. Mesgulse 409 + suren kosum bilgisi.
       const started = startRun(ref.runId, null, Boolean(headless));
-      if (!started.ok) return send(res, 200, started);
+      if (!started.ok) return send(res, started.code === "BUSY" ? 409 : 400, started);
       scopeRun = { nodeId, runId: ref.runId, specs: ref.specs ?? [] };
       audit({ event: "scope-run-start", nodeId, runId: ref.runId });
       return send(res, 200, { ok: true, runId: ref.runId, specs: scopeRun.specs });
@@ -1795,83 +1919,48 @@ const server = http.createServer(async (req, res) => {
      * kalmasi gerekiyor — tek yolu CLI'ye baglamak, CLI'siz bir makinede
      * ozelligi tamamen kapatirdi.
      */
-    const uretVeYaz = async ({ prompt, card, res: response, olay, allowedNodeIds }) => {
-      const t0 = Date.now();
-      try {
-        let cevap = await askClaude(prompt);
-        let json;
-        try {
-          json = parseJsonLoose(cevap.text);
-        } catch (parseErr) {
-          /*
-           * Bozuk JSON ARALIKLI bir sorun: ayni istem bir kere gecerli, bir
-           * kere kacisli tirnak yuzunden bozuk yanit uretti (olculdu). Tek
-           * seferlik duzeltici tekrar, kullaniciyi "tekrar dene" demeye
-           * zorlamaktan iyi; ikinci kez de bozuksa hatayi soyluyoruz.
-           */
-          audit({ event: `${olay}-retry`, reason: parseErr.message.slice(0, 120) });
-          cevap = await askClaude(
-            `${prompt}\n\n---\nUYARI: onceki yanit GECERLI JSON DEGILDI (${parseErr.message.slice(0, 120)}). `
-              + "Yalnizca gecerli, tek parca JSON dondur; metin icinde cift tirnak kullanma.",
-          );
-          json = parseJsonLoose(cevap.text);
-        }
-        const out = applyFromModel({ items: json.items, card, allowedNodeIds });
-        audit({
-          event: olay,
-          card: card ?? null,
-          written: out.written,
-          costUsd: cevap.costUsd,
-          ms: cevap.durationMs,
-        });
-        return send(response, 200, {
-          ok: true,
-          ...out,
-          cost: cevap.costUsd,
-          ms: cevap.durationMs,
-          model: cevap.model,
-        });
-      } catch (e) {
-        audit({ event: `${olay}-error`, code: e.code ?? null, message: e.message.slice(0, 200), ms: Date.now() - t0 });
-        return send(response, e.code === "NO_CLI" ? 501 : 502, {
-          ok: false,
-          error: e.message,
-          code: e.code ?? null,
-          hint: e.code === "NO_CLI" ? CLI_HINT : "Istem uret yolu ile kopyala-yapistir yapabilirsin.",
-        });
-      }
-    };
-
+    /*
+     * Saglayici: ai/provider.mjs (API anahtari → CLI → elle). Sema API'de sunucu
+     * tarafinda zorlanir; CLI'de gevsek ayristirma + duzeltici tekrar orada.
+     * Yazma yolu DEGISMEDI: applyFromModel (kapi + id sayaci) tek yer.
+     */
     if (p === "/api/jira/testcases/generate" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const { key, nodeId, types, limit } = await readBody(req);
       if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
-      let prompt;
+      let built;
       try {
         const card = await getCard(String(key));
         if (card.error) return send(res, 502, { ok: false, error: card.error });
-        prompt = buildCardPrompt({
-          card,
-          nodeId,
-          types,
-          limit: Math.min(Math.max(Number(limit) || 4, 1), 12),
-        }).prompt;
+        built = buildCardPrompt({ card, nodeId, types, limit: Math.min(Math.max(Number(limit) || 4, 1), 12) });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }
-      return uretVeYaz({ prompt, card: String(key), res, olay: "jira-testcase-generate", allowedNodeIds: [nodeId] });
+      return generateAndApply({
+        purpose: "jira-testcase-generate", built, schema: TESTCASE_SCHEMA, res,
+        apply: (json) => {
+          const out = applyFromModel({ items: json?.items, card: String(key), allowedNodeIds: [nodeId] });
+          return { body: out, audit: { card: String(key), written: out.written } };
+        },
+      });
     }
 
     if (p === "/api/scope/testcases/generate" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const { nodeIds, types, limit } = await readBody(req);
-      let prompt;
+      let built;
       try {
-        prompt = buildPrompt({ nodeIds, types, limit: Math.min(Math.max(Number(limit) || 4, 1), 12) }).prompt;
+        built = buildPrompt({ nodeIds, types, limit: Math.min(Math.max(Number(limit) || 4, 1), 12) });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }
-      return uretVeYaz({ prompt, card: null, res, olay: "scope-testcase-generate", allowedNodeIds: nodeIds });
+      return generateAndApply({
+        purpose: "scope-testcase-generate", built, schema: TESTCASE_SCHEMA, res,
+        apply: (json) => {
+          const out = applyFromModel({ items: json?.items, card: null, allowedNodeIds: nodeIds });
+          return { body: out, audit: { nodes: (nodeIds ?? []).length, written: out.written } };
+        },
+      });
     }
 
     /**
@@ -1999,6 +2088,27 @@ const server = http.createServer(async (req, res) => {
         audit({ event: "scenario-apply-error", message: e.message.slice(0, 200) });
         return send(res, 400, { ok: false, error: e.message });
       }
+    }
+
+    /** TEK TIK senaryo onerisi: istem kur → saglayici → ayni 3 katmanli kapi. */
+    if (p === "/api/scenarios/generate" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { request, limit } = await readBody(req);
+      if (!request || !String(request).trim()) return send(res, 400, { ok: false, error: "request zorunlu" });
+      const lim = Math.min(Math.max(Number(limit) || 5, 1), 10);
+      let built;
+      try {
+        built = buildScenarioPrompt({ request: String(request), limit: lim });
+      } catch (e) {
+        return send(res, e.code === "NO_ORACLE" ? 409 : 400, { ok: false, error: e.message, code: e.code ?? null });
+      }
+      return generateAndApply({
+        purpose: "scenario-generate", built, schema: SCENARIO_SCHEMA, res,
+        apply: (json) => {
+          const out = applyScenarios({ scenarios: json?.scenarios, limit: lim });
+          return { body: out, audit: { accepted: out.audit.accepted, dropped: out.audit.droppedNoOracle.length, rejected: out.audit.rejectedByContext.length } };
+        },
+      });
     }
 
     /**
@@ -2386,6 +2496,30 @@ const server = http.createServer(async (req, res) => {
       }
     }
 
+    /** TEK TIK perf yorumu: olcum sunucuda okunur → saglayici → uydurma rota kapisi. */
+    if (p === "/api/perf/generate" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      let perf;
+      try {
+        perf = await readPerf();
+      } catch (e) {
+        return send(res, 500, { ok: false, error: `perf verisi okunamadi: ${e.message}` });
+      }
+      let built;
+      try {
+        built = buildPerfPrompt(perf);
+      } catch (e) {
+        return send(res, 409, { ok: false, error: e.message });
+      }
+      return generateAndApply({
+        purpose: "perf-generate", built, schema: PERF_SCHEMA, res,
+        apply: (json) => {
+          const out = applyPerfFindings(perf, json);
+          return { body: out, audit: { findings: out.findings.length, dropped: out.dropped.length } };
+        },
+      });
+    }
+
     /**
      * Kapi oturumunun sagligi. Dosya yasina DEGIL, storageState icindeki
      * `temporary_auth_verified` cookie'sinin gercek son kullanma tarihine bakar.
@@ -2444,6 +2578,41 @@ const server = http.createServer(async (req, res) => {
         ageHours: Number(ageH.toFixed(2)),
         env,
       });
+    }
+
+    /**
+     * AI saglayici durumu: hangi yol (api/cli/manual), model, bugunku harcama.
+     * Aga CIKMAZ (anahtari dogrulamak = ucretli istek). Arayuz "Tek tikla"
+     * dugmelerini buna gore gosterir/gizler.
+     */
+    if (p === "/api/ai/status") {
+      return send(res, 200, { ok: true, ...ai.status() });
+    }
+
+    /**
+     * RAG v1 uclari. `search` salt okur (token yok, yan etkisi yok); `reindex`
+     * diske yazar (token). Indeks bayatsa `ensureIndex` zaten kendi kurar —
+     * reindex, "tree.json'u elle degistirdim, hemen gorsun" icin.
+     */
+    if (p === "/api/rag/status") {
+      const idx = ragEnsure();
+      return send(res, 200, { ok: Boolean(idx), ...(ragStats(idx) ?? { error: "indeks kurulamadi" }) });
+    }
+    if (p === "/api/rag/search") {
+      const q = (url.searchParams.get("q") || "").trim();
+      if (!q) return send(res, 400, { ok: false, error: "q zorunlu" });
+      const k = Math.min(Math.max(Number(url.searchParams.get("k")) || 8, 1), 25);
+      const idx = ragEnsure();
+      if (!idx) return send(res, 503, { ok: false, error: "indeks kurulamadi" });
+      const hits = ragSearch(idx, q, { k }).map((h) => ({ ...h, text: h.text.slice(0, 600) }));
+      return send(res, 200, { ok: true, q, k, hits, builtAt: idx.builtAt });
+    }
+    if (p === "/api/rag/reindex" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const t0 = Date.now();
+      const idx = ragEnsure({ force: true });
+      audit({ event: "rag-reindex", chunks: idx?.chunks?.length ?? 0, ms: Date.now() - t0 });
+      return send(res, idx ? 200 : 500, { ok: Boolean(idx), ms: Date.now() - t0, ...(ragStats(idx) ?? {}) });
     }
 
     /** Modele ne gonderilecegini onizler — cagri YAPMAZ, token gerekmez. */
@@ -3058,16 +3227,32 @@ ${testBlock}
       });
     }
 
+    /**
+     * Kosum baslat. `requestId` (istemci uretir) ayni istegi idempotent yapar;
+     * `queue:true` slot doluysa siraya alir. Mesgul → 409 (arayuz `code`a bakar).
+     */
     if (p === "/api/run" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      const { id, params, headless, record } = await readBody(req);
-      return send(res, 200, startRun(id, params, Boolean(headless), Boolean(record)));
+      const { id, params, headless, record, requestId, queue } = await readBody(req);
+      const r = startRun(id, params, Boolean(headless), Boolean(record), {
+        requestId: typeof requestId === "string" ? requestId.slice(0, 80) : null,
+        queue: Boolean(queue),
+      });
+      const status = r.ok ? 200 : ["BUSY", "QUEUE_FULL", "DUPLICATE"].includes(r.code) ? 409 : 400;
+      return send(res, status, r);
+    }
+
+    /** Suren kosum + sira (arayuz ve agent'lar icin; token gerekmez). */
+    if (p === "/api/run/state") {
+      return send(res, 200, { ok: true, ...runState() });
     }
 
     if (p === "/api/stop" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      audit({ event: "stop", id: active?.id ?? null });
-      return send(res, 200, stopRun());
+      const body = await readBody(req).catch(() => ({}));
+      const all = body?.all !== false;
+      audit({ event: "stop", id: active?.id ?? null, clearQueue: all });
+      return send(res, 200, stopRun({ all }));
     }
 
     if (p === "/api/events") {
@@ -3078,6 +3263,9 @@ ${testBlock}
       });
       res.write(": bagli\n\n");
       sseClients.add(res);
+      if (runGate.size()) {
+        res.write(`event: run-queued\ndata: ${JSON.stringify(runState())}\n\n`);
+      }
       if (active) {
         res.write(
           `event: run-start\ndata: ${JSON.stringify({ id: active.id, label: active.label, startedAt: active.startedAt })}\n\n`,
@@ -3116,7 +3304,9 @@ ${testBlock}
 
     return send(res, 404, { error: `Bilinmeyen uc: ${p}` });
   } catch (e) {
-    return send(res, 500, { error: String(e.message ?? e) });
+    // Govde siniri ve bozuk JSON istemci hatasidir; 500 "sunucu bozuk" demek olurdu.
+    const status = e.code === "BODY_TOO_LARGE" ? 413 : e instanceof SyntaxError ? 400 : 500;
+    return send(res, status, { ok: false, error: String(e.message ?? e), code: e.code ?? (status === 400 ? "BAD_JSON" : null) });
   }
 });
 

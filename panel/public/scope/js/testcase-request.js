@@ -1,18 +1,53 @@
 // Test case üretiminin İSTEMCİ tarafı — tek giriş noktası.
 //
-// Panel modeli kendisi çağırmıyor (ne Anthropic anahtarı ne `ant` profili):
-// sunucu seçili düğümlerin bağlamından prompt kuruyor, kullanıcı onu Claude
-// Code'a veriyor, dönen JSON aynı modalden ağaca yazılıyor.
+// İki yol, sunucunun söylediği sıraya göre (`GET /api/ai/status`):
+//   tek tık  — sağlayıcı varsa (sunucuda ANTHROPIC_API_KEY, yerelde Claude Code
+//              CLI) panel modeli kendisi çağırır ve case'leri doğrudan ağaca yazar
+//   elle     — yoksa (ya da tek tık 501 dönerse) sunucu istemi kurar, kullanıcı
+//              Claude Code'a verir, dönen JSON aynı modalden ağaca yazılır
 //
 // Hem düğüm detayındaki (drawer) hem çoklu seçimdeki (bulk bar) düğme burayı
 // çağırır — iki yerde aynı akışı ayrı ayrı kurmak, birinin diğerinden sapmasıyla
-// sonuçlanıyordu.
+// sonuçlanıyordu. Yazma yolu ikisinde de aynı sunucu kapısı (allowedNodeIds).
 import { openAiAssistModal } from './ai-assist.js';
 import { loadPersisted } from './data.js';
 import { renderContent } from './shell.js';
+import { uiToast, uiConfirm } from './dialog.js';
 
 function headers() {
   return { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' };
+}
+
+async function postJson(url, body) {
+  const res = await fetch(url, { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({ ok: false, error: 'Sunucu yanıtı okunamadı.' }));
+  return { status: res.status, data };
+}
+
+/** Sağlayıcı durumu 30 sn önbellekli — her tıkta istek atmaya gerek yok. */
+let aiCache = { at: 0, value: null };
+export async function aiStatus() {
+  if (Date.now() - aiCache.at < 30_000 && aiCache.value) return aiCache.value;
+  try {
+    const d = await (await fetch('/api/ai/status')).json();
+    aiCache = { at: Date.now(), value: d };
+    return d;
+  } catch {
+    return { mode: 'manual', oneClick: false };
+  }
+}
+
+/** Yazma sonucunu tek satıra indirger (iki yol da bunu gösterir). */
+function ozet(out) {
+  const atlanan = (out.sonuc ?? []).reduce((a, x) => a + (x.skipped || 0), 0);
+  const hatali = (out.sonuc ?? []).filter((x) => x.error);
+  return [
+    `${out.written} case yazıldı${atlanan ? `, ${atlanan} tekrar atlandı` : ''}.`,
+    hatali.length ? `Yazılamayan düğüm: ${hatali.map((x) => `${x.nodeId} (${x.error})`).join(', ')}` : '',
+    out.ms != null ? `${(out.ms / 1000).toFixed(1)} sn${out.cost != null ? ` · $${Number(out.cost).toFixed(3)}` : ''}${out.model ? ` · ${out.model}` : ''}` : '',
+    out.retrieval?.chunks ? `Bağlam: ${out.retrieval.chunks} repo parçası kullanıldı.` : '',
+    'Case\'ler TASLAK — koşum kaydı yok, koşulmadan "geçti" seçilemez.',
+  ].filter(Boolean).join('\n');
 }
 
 /**
@@ -25,19 +60,43 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
   const ids = (nodeIds ?? []).filter(Boolean);
   if (!ids.length) return;
 
-  const res = await fetch('/api/scope/testcases/prompt', {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify({ nodeIds: ids, types, limit }),
-  });
-  const data = await res.json().catch(() => ({ ok: false, error: 'Sunucu yanıtı okunamadı.' }));
-  if (!data.ok) { alert(data.error || 'Prompt üretilemedi.'); return; }
+  const ai = await aiStatus();
+  if (ai.oneClick) {
+    const yol = ai.mode === 'api' ? `${ai.model} (API anahtarı, ücretli)` : 'yerel Claude Code CLI';
+    const onay = await uiConfirm(
+      `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\nYol: ${yol}, ~15-40 sn.`,
+      { title: 'Tek tıkla test case üret', ok: 'Üret', cancel: 'İstemi kendim vereyim', danger: false },
+    );
+    if (onay) {
+      const bildirim = uiToast('Model çalışıyor… bu pencereyi kapatabilirsin, sonuç toast olarak gelir.', { title: 'Üretiliyor', ms: 0 });
+      const { status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit });
+      bildirim.remove();
+      if (data.ok) {
+        await loadPersisted();
+        renderContent();
+        if (afterApply) afterApply();
+        uiToast(ozet(data), { type: 'ok', title: 'Case\'ler yazıldı', ms: 12_000 });
+        return;
+      }
+      // 501: saglayici yok → elle yola dus (asagida). Diger hatalar: soyle ve dur.
+      if (status !== 501) {
+        uiToast(`${data.error || 'Üretilemedi.'}${data.hint ? `\n${data.hint}` : ''}`, { type: 'err', title: 'Üretilemedi' });
+        return;
+      }
+      uiToast(data.hint || 'Tek tık yolu kapalı; istem üret + yapıştır yoluna geçildi.', { type: 'info' });
+    }
+  }
+
+  // ---- elle yol: istem üret → kullanıcı Claude Code'a verir → JSON yapıştırılır
+  const { data } = await postJson('/api/scope/testcases/prompt', { nodeIds: ids, types, limit });
+  if (!data.ok) { uiToast(data.error || 'Prompt üretilemedi.', { type: 'err', title: 'İstem üretilemedi' }); return; }
 
   openAiAssistModal({
     title: ids.length > 1
       ? `Claude Code için prompt hazır — ${data.nodes.length} düğüm`
       : 'Claude Code için prompt hazır',
-    description: '1. Bu mesajı kopyala ve Claude Code sohbetine yapıştır. Yanıt sadece JSON olacak.',
+    description: '1. Bu mesajı kopyala ve Claude Code sohbetine yapıştır. Yanıt sadece JSON olacak.'
+      + (data.retrieval?.chunks ? ` (İstemde ${data.retrieval.chunks} repo parçası var.)` : ''),
     prompt: data.prompt,
     applyLabel: 'Case\'leri ağaca yaz',
     onApply: async (govde) => {
@@ -45,24 +104,13 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
       // burada hiç istenmeyen ama ağaçta gerçekten var olan başka bir düğümü
       // "icat edip" oraya case yazmasını engeller. Yapıştırılan JSON bunu
       // taşımaz — biz orijinal istekten (ids) ekliyoruz.
-      const r = await fetch('/api/scope/testcases/apply', {
-        method: 'POST',
-        headers: headers(),
-        body: JSON.stringify({ ...govde, allowedNodeIds: ids }),
-      });
-      const out = await r.json().catch(() => ({ ok: false, error: 'Sunucu yanıtı okunamadı.' }));
+      const { data: out } = await postJson('/api/scope/testcases/apply', { ...govde, allowedNodeIds: ids });
       // Sessiz başarısızlık yok: sebep neyse modalde yazılı kalır.
       if (!out.ok) throw new Error(out.error || 'Yazılamadı.');
       await loadPersisted();
       renderContent();
       if (afterApply) afterApply();
-      const atlanan = (out.sonuc ?? []).reduce((a, x) => a + (x.skipped || 0), 0);
-      const hatali = (out.sonuc ?? []).filter((x) => x.error);
-      return [
-        `${out.written} case yazıldı${atlanan ? `, ${atlanan} tekrar atlandı` : ''}.`,
-        hatali.length ? `Yazılamayan düğüm: ${hatali.map((x) => x.nodeId).join(', ')}` : '',
-        'Case\'ler TASLAK — koşum kaydı yok, koşulmadan "geçti" seçilemez.',
-      ].filter(Boolean).join('\n');
+      return ozet(out);
     },
   });
 }

@@ -110,17 +110,18 @@ export function gate(out, perf) {
 export function buildPrompt(perf) {
   if (!perf?.routes?.length)
     throw new Error("ölçüm yok — önce scripts/perf-sweep.mjs koşulmalı");
+  const user = [
+    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
+    '{"summary":"...","findings":[{"severity":"high|medium|low","title":"...",'
+      + '"evidence":"...","recommendation":"...","routes":["..."]}]}',
+    "",
+    "---",
+    renderPayload(perf),
+  ].join("\n");
   return {
-    prompt: [
-      SYSTEM,
-      "",
-      "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme:",
-      '{"summary":"...","findings":[{"severity":"high|medium|low","title":"...",'
-        + '"evidence":"...","recommendation":"...","routes":["..."]}]}',
-      "",
-      "---",
-      renderPayload(perf),
-    ].join("\n"),
+    prompt: `${SYSTEM}\n\n${user}`,
+    system: SYSTEM,
+    user,
     routes: perf.routes.length,
     measuredAt: perf.measuredAt ?? null,
   };

@@ -14,6 +14,73 @@
  *    Üretilmiş bir case, koşulana kadar kanıt değildir.
  */
 import { readTree, writeTree, findNode } from "./scope.mjs";
+import { contextFor, renderContextBlock } from "./rag/retrieve.mjs";
+
+/**
+ * Yapılandırılmış çıktı şeması — API yolunda sunucu tarafında zorlanır
+ * (`output_config.format`), CLI/elle yolda yalnızca talimat. Her nesnede
+ * `additionalProperties:false` ŞART (API aksini 400 ile reddeder).
+ */
+export const SCHEMA = {
+  type: "object",
+  properties: {
+    items: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          nodeId: { type: "string" },
+          cases: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                title: { type: "string" },
+                type: { type: "string" },
+                steps: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: { action: { type: "string" }, expected: { type: "string" } },
+                    required: ["action", "expected"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+              required: ["title", "type", "steps"],
+              additionalProperties: false,
+            },
+          },
+        },
+        required: ["nodeId", "cases"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["items"],
+  additionalProperties: false,
+};
+
+/**
+ * Repo bağlamı (RAG v1). İndeks yoksa ya da kurulamazsa boş döner — üretim
+ * kapanmaz, yalnızca daha az bilir. Hata yutulur ama `meta.error` ile görünür.
+ */
+function retrievalFor(query, opt = {}) {
+  try {
+    const ctx = contextFor({ query, k: opt.k ?? 6, maxChars: opt.maxChars ?? 6000 });
+    if (!ctx) return { block: "", meta: { chunks: 0, builtAt: null, error: "indeks yok" } };
+    return { block: renderContextBlock(ctx), meta: { chunks: ctx.chunks.length, builtAt: ctx.builtAt, sources: ctx.chunks.map((c) => `${c.file}:${c.line}`) } };
+  } catch (e) {
+    return { block: "", meta: { chunks: 0, builtAt: null, error: String(e.message).slice(0, 120) } };
+  }
+}
+
+const FORMAT_RULE = [
+  "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme.",
+  // Olculdu: model metin icinde \" kacisli tirnak kullandiginda yanit bazen
+  // bozuk JSON cikiyor. Tirnagi yasaklamak bu hatanin kaynagini kurutuyor.
+  "Metin alanlarının İÇİNDE çift tırnak KULLANMA (gerekiyorsa tek tırnak ya da tırnaksız yaz).",
+].join("\n");
 
 /**
  * Arayüzdeki test türü anahtarları → modele verilecek talimat.
@@ -197,31 +264,44 @@ export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4 
 
   const bloklar = [];
   const dugumler = [];
+  const sorgu = [];
   for (const id of nodeIds ?? []) {
     const node = findNode(tree, id);
     if (!node) continue;
     const ctx = buildContext(tree, node);
     dugumler.push({ id, name: node.name, yol: ctx.yol });
+    sorgu.push(node.name, ctx.yol, urlPathWords(ctx.canliUrl), ...ctx.altBaslıklar.slice(0, 6));
     bloklar.push(`### ${id}\n${renderUser(ctx, secilen, limit)}`);
   }
   if (!bloklar.length) throw new Error("Geçerli düğüm yok.");
 
-  const prompt = [
-    SYSTEM,
-    "",
+  const retrieval = retrievalFor(sorgu.filter(Boolean).join(" "), { k: 6, maxChars: 6000 });
+  const user = [
     "Aşağıda bir veya daha fazla düğüm var. HER BİRİ için ayrı test case'ler yaz.",
     "",
-    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme.",
-    // Olculdu: model metin icinde \" kacisli tirnak kullandiginda yanit bazen
-    // bozuk JSON cikiyor. Tirnagi yasaklamak bu hatanin kaynagini kurutuyor.
-    "Metin alanlarının İÇİNDE çift tırnak KULLANMA (gerekiyorsa tek tırnak ya da tırnaksız yaz).",
+    FORMAT_RULE,
     '{"items":[{"nodeId":"<düğüm id>","cases":[{"title":"...","type":"happy|negative|...","steps":[{"action":"...","expected":"..."}]}]}]}',
     "",
     "---",
     bloklar.join("\n\n---\n\n"),
-  ].join("\n");
+    retrieval.block ? `\n---\n${retrieval.block}` : "",
+  ].filter((x) => x !== "").join("\n");
 
-  return { prompt, nodes: dugumler, types: secilen, limit };
+  return {
+    prompt: `${SYSTEM}\n\n${user}`,
+    system: SYSTEM,
+    user,
+    nodes: dugumler,
+    types: secilen,
+    limit,
+    retrieval: retrieval.meta,
+  };
+}
+
+/** URL yolundaki kelimeler (slug → arama terimi). */
+function urlPathWords(u) {
+  if (!u) return "";
+  try { return new URL(u).pathname.replace(/[-_/]+/g, " ").trim(); } catch { return ""; }
 }
 
 /**
@@ -264,16 +344,15 @@ export function buildCardPrompt({ card, nodeId, types = ["happy", "negative"], l
       : "",
   ].filter(Boolean).join("\n");
 
-  const prompt = [
-    SYSTEM,
-    "",
+  const retrieval = retrievalFor(
+    [card.summary, node.name, ctx.yol, urlPathWords(ctx.canliUrl), String(card.description ?? "").slice(0, 300)].filter(Boolean).join(" "),
+    { k: 6, maxChars: 5000 },
+  );
+  const user = [
     "Aşağıdaki Jira kartını doğrulayan test case'leri yaz. Kartın kapsamı dışına ÇIKMA:",
     "kartla ilgisi olmayan genel sayfa testleri üretme.",
     "",
-    "Çıktıyı SADECE şu JSON biçiminde ver, başka hiçbir metin ekleme.",
-    // Olculdu: model metin icinde \" kacisli tirnak kullandiginda yanit bazen
-    // bozuk JSON cikiyor. Tirnagi yasaklamak bu hatanin kaynagini kurutuyor.
-    "Metin alanlarının İÇİNDE çift tırnak KULLANMA (gerekiyorsa tek tırnak ya da tırnaksız yaz).",
+    FORMAT_RULE,
     `{"items":[{"nodeId":"${nodeId}","cases":[{"title":"...","type":"happy|negative|...",`
       + `"steps":[{"action":"...","expected":"..."}]}]}]}`,
     "",
@@ -283,14 +362,18 @@ export function buildCardPrompt({ card, nodeId, types = ["happy", "negative"], l
     "---",
     `### Yazılacağı düğüm (${nodeId})`,
     renderUser(ctx, secilen, limit),
-  ].join("\n");
+    retrieval.block ? `\n---\n${retrieval.block}` : "",
+  ].filter((x) => x !== "").join("\n");
 
   return {
-    prompt,
+    prompt: `${SYSTEM}\n\n${user}`,
+    system: SYSTEM,
+    user,
     card: { key: card.key, summary: card.summary ?? "" },
     node: { id: nodeId, name: node.name, yol: ctx.yol },
     types: secilen,
     limit,
+    retrieval: retrieval.meta,
   };
 }
 

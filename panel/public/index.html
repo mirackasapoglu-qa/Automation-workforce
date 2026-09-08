@@ -1051,11 +1051,17 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
                 title="Diskteki son olcumu ve gecmisi yeniden okur (olcum yapmaz)">Yenile</button>
         <button id="perfRunBtn" style="width:auto;margin:0" onclick="runPerfSweep()"
                 title="33 rotayi bastan olcer (~6-8 dk). Kapi oturumunu kullanir, veri degistirmez.">Yeniden olc</button>
-        <button id="paBtn" onclick="perfPrompt()"
-                title="Claude Code icin istem uretir — panel modeli kendisi cagirmaz, anahtar istemez">
+        <button id="paOneBtn" data-ai-oneclick hidden onclick="perfGenerate()"
+                title="Tek tikla: panel modeli cagirir, bulgular kapidan gecip burada listelenir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
             <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3"/><circle cx="12" cy="12" r="3.2"/>
-          </svg>AI yorumu
+          </svg>Tek tıkla yorum
+        </button>
+        <button id="paBtn" onclick="perfPrompt()"
+                title="Claude Code icin istem uretir — kopyala, yapistir, JSON'u geri yapistir (anahtar istemez)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3"/><circle cx="12" cy="12" r="3.2"/>
+          </svg>İstem üret
         </button>
         <span class="mono" id="paState"></span>
       </div>
@@ -1109,8 +1115,14 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
           <textarea id="sgReq" rows="3" placeholder="Ne için senaryo önerilsin?&#10;Örn: Mağazalar sayfasındaki tasarım açıklarını kapatan senaryolar"></textarea>
           <div class="sg-presets" id="sgPresets"></div>
           <div class="row" style="margin-bottom:0;align-items:center">
+            <button id="sgOneBtn" data-ai-oneclick hidden onclick="scenarioGenerate()"
+                    title="Tek tikla: panel modeli cagirir, senaryolar 3 katmanli kapidan gecip burada listelenir">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M5 12h14M13 6l6 6-6 6"/>
+              </svg>Tek tıkla öner
+            </button>
             <button id="sgBtn" onclick="scenarioPrompt()"
-                    title="Claude Code icin istem uretir — panel modeli kendisi cagirmaz, anahtar istemez">
+                    title="Claude Code icin istem uretir — kopyala, yapistir, JSON'u geri yapistir (anahtar istemez)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <path d="M5 12h14M13 6l6 6-6 6"/>
               </svg>İstem üret
@@ -1251,7 +1263,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
         <input id="vScope" placeholder="Kapsam (orn. /sepet adet artirma)">
         <!-- Kart alani: verdict'i Jira karti yorumuna cevirebilmek icin.
              Bos birakilabilir; o zaman kayit yalniz yerelde kalir. -->
-        <input id="vCard" placeholder="Jira karti (orn. MAC-7074) — opsiyonel">
+        <input id="vCard" placeholder="Jira karti — opsiyonel">
         <select id="vStatus">
           <option value="">Durum sec...</option>
           <option value="pass">pass</option>
@@ -1340,6 +1352,132 @@ function uiConfirm(mesaj, opt = {}) {
   });
 }
 
+/**
+ * Tek satirlik metin sorusu — tarayicinin `prompt()`unun temali karsiligi
+ * (generateSpec bunu kullaniyordu; alert/confirm ile ayni kategoride bloklayici
+ * bir diyalogdu). Vazgec/Escape → null, Enter/Tamam → metin.
+ * @returns {Promise<string|null>}
+ */
+function uiPrompt(mesaj, varsayilan = '', opt = {}) {
+  return new Promise((resolve) => {
+    document.getElementById('uiAsk')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'uiAsk';
+    ov.innerHTML = `<div class="box" role="dialog" aria-modal="true">
+        <h3>${esc(opt.title || 'Bilgi gerekiyor')}</h3>
+        <div class="msg">${esc(mesaj)}</div>
+        <input id="uiAskInput" type="text" style="width:100%;margin:0 0 12px" value="${esc(varsayilan)}">
+        <div class="row3">
+          <button id="uiAskNo">${esc(opt.cancel || 'Vazgeç')}</button>
+          <button id="uiAskYes">${esc(opt.ok || 'Tamam')}</button>
+        </div>
+      </div>`;
+    const input = ov.querySelector('#uiAskInput');
+    const kapat = (cevap) => { document.removeEventListener('keydown', tus); ov.remove(); resolve(cevap); };
+    const tus = (e) => { if (e.key === 'Escape') kapat(null); if (e.key === 'Enter') kapat(input.value); };
+    ov.querySelector('#uiAskNo').onclick = () => kapat(null);
+    ov.querySelector('#uiAskYes').onclick = () => kapat(input.value);
+    ov.onclick = (e) => { if (e.target === ov) kapat(null); };
+    document.addEventListener('keydown', tus);
+    document.body.appendChild(ov);
+    input.focus();
+    input.select();
+  });
+}
+
+/**
+ * Genel bakis satirindaki "durdur" dugmesi bunu cagiriyordu ama fonksiyon
+ * TANIMLI DEGILDI (ReferenceError, hicbir sey olmuyordu — 2026-08-29 taramasi).
+ * #stopBtn ile ayni yol: /api/stop, siradaki kosumlar da temizlenir.
+ */
+async function stopRun() {
+  const r = await post('/api/stop');
+  if (!r.ok) uiToast(r.error || 'Durdurulamadı.', { type: 'err', title: 'Koşum' });
+  else uiToast(`Koşum durduruluyor${r.cleared ? `, sıradaki ${r.cleared} koşum iptal edildi` : ''}.`, { type: 'info' });
+}
+
+// ---------------- AI saglayici (tek tik) ----------------
+/**
+ * Sunucu hangi yolu kullaniyor: api (ANTHROPIC_API_KEY) · cli (yerel Claude
+ * Code) · manual (yalniz istem uret + yapistir). Tek tik dugmeleri buna gore
+ * gorunur; metinler de sabit "CLI cagirir" demek yerine gercek yolu soyler.
+ */
+let AI_STATUS = { mode: 'manual', oneClick: false };
+async function loadAiStatus() {
+  try {
+    AI_STATUS = await (await fetch('/api/ai/status')).json();
+  } catch {
+    AI_STATUS = { mode: 'manual', oneClick: false };
+  }
+  document.querySelectorAll('[data-ai-oneclick]').forEach((el) => {
+    el.hidden = !AI_STATUS.oneClick;
+    el.title = aiYolMetni();
+  });
+  return AI_STATUS;
+}
+function aiYolMetni() {
+  if (AI_STATUS.mode === 'api') return `Panel modeli kendisi çağırır: ${AI_STATUS.model} (API anahtarı, ücretli)`;
+  if (AI_STATUS.mode === 'cli') return 'Panel makinedeki Claude Code CLI\'sini çağırır (kullanıcının oturumu, ~15-40 sn)';
+  return 'Tek tık kapalı: ANTHROPIC_API_KEY ver ya da Claude Code CLI kur';
+}
+/** Tek tik onayi: yol + maliyet uyarisi tek yerden. */
+async function aiOnay(ne) {
+  const yol = AI_STATUS.mode === 'api'
+    ? `${AI_STATUS.model} ile API anahtarı üzerinden (ücretli${AI_STATUS.budget?.capUsd ? `, bugün $${AI_STATUS.budget.usd.toFixed(2)} / $${AI_STATUS.budget.capUsd.toFixed(2)}` : ''})`
+    : 'makinedeki Claude Code CLI ile (kullanıcının oturumu)';
+  return uiConfirm(`${ne}\n\nYol: ${yol}, ~15-40 sn.`, { title: 'Tek tıkla üret', ok: 'Üret', danger: false });
+}
+/** Uretim hatasini tek bicimde goster; 501 ise elle yola dusulecegini soyle. */
+function aiHata(d, hedefState) {
+  const msg = `${d.error || 'Üretilemedi.'}${d.hint ? `\n${d.hint}` : ''}`;
+  if (hedefState) { hedefState.className = 'mono err'; hedefState.textContent = d.error || 'üretilemedi'; }
+  uiToast(msg, { type: 'err', title: d.code === 'NO_PROVIDER' ? 'Tek tık kapalı' : 'Üretilemedi' });
+}
+function aiSonucSatiri(d) {
+  return `${(d.ms / 1000).toFixed(1)} sn${d.cost != null ? ` · $${Number(d.cost).toFixed(3)}` : ''}${d.model ? ` · ${d.model}` : ''}${d.retrieval?.chunks ? ` · ${d.retrieval.chunks} repo parçası` : ''}`;
+}
+
+/** Perf: tek tikla yorum (olcum sunucuda okunur, bulgular kapidan gecer). */
+async function perfGenerate() {
+  if (!await aiOnay('Son perf ölçümü modele yorumlatılacak; uydurma rota içeren bulgular kapıda elenir.')) return;
+  const btn = $('#paBtn'); const one = $('#paOneBtn');
+  btn.disabled = true; if (one) one.disabled = true;
+  $('#paState').textContent = 'model çalışıyor…';
+  $('#paOut').innerHTML = ''; $('#paFlow').innerHTML = '';
+  try {
+    const d = await post('/api/perf/generate', {});
+    if (!d.ok) { aiHata(d, $('#paState')); if (d.code === 'NO_PROVIDER') await loadAiStatus(); return; }
+    renderPerfFindings(d);
+    $('#paState').textContent = `${d.findings.length} bulgu${d.dropped?.length ? `, ${d.dropped.length} kapıda elendi` : ''} · ${aiSonucSatiri(d)}`;
+  } finally {
+    btn.disabled = false; if (one) one.disabled = false;
+  }
+}
+
+/** Senaryo: tek tikla oneri (ayni 3 katmanli kapi). */
+async function scenarioGenerate() {
+  const request = $('#sgReq').value.trim();
+  if (!request) { $('#sgState').textContent = 'istek metni gerekli'; return; }
+  const limit = Number($('#sgLimit').value);
+  if (!await aiOnay(`"${request.slice(0, 80)}${request.length > 80 ? '…' : ''}" için en fazla ${limit} senaryo önerilecek; dayanaksız olanlar kapıda elenir.`)) return;
+  const btn = $('#sgBtn'); const one = $('#sgOneBtn');
+  btn.disabled = true; if (one) one.disabled = true;
+  $('#sgState').textContent = 'model çalışıyor…';
+  $('#sgOut').innerHTML = ''; $('#sgFlow').innerHTML = '';
+  try {
+    const d = await post('/api/scenarios/generate', { request, limit });
+    if (!d.ok) {
+      if (d.code === 'NO_ORACLE') { $('#sgState').textContent = ''; $('#sgOut').innerHTML = `<div class="sg-warn"><p>${esc(d.error)}</p></div>`; return; }
+      aiHata(d, $('#sgState')); if (d.code === 'NO_PROVIDER') await loadAiStatus(); return;
+    }
+    renderScenarios(d);
+    const a = d.audit || {};
+    $('#sgState').textContent = `${a.accepted ?? 0} kabul${a.droppedNoOracle?.length ? `, ${a.droppedNoOracle.length} dayanaksız` : ''}${a.rejectedByContext?.length ? `, ${a.rejectedByContext.length} bağlam dışı` : ''} · ${aiSonucSatiri(d)}`;
+  } finally {
+    btn.disabled = false; if (one) one.disabled = false;
+  }
+}
+
 /** Yazma istekleri: token zorunlu (CSRF ve yerel surec riskini kapatir). */
 async function post(url, body) {
   const res = await fetch(url, {
@@ -1375,7 +1513,9 @@ async function post(url, body) {
 // Anahtar: buton id'si ya da buton metni. Kosum butonlarinin metni runs.json'daki
 // `tip` alanindan gelir (komutun yaninda dursun diye).
 const TIPS = {
-  '#stopBtn': 'Calisan kosumu durdurur (SIGTERM). Tarayici kapanir, o kosumun sonucu yazilmaz.',
+  '#stopBtn': 'Calisan kosumu durdurur (SIGTERM) ve siradaki kosumlari iptal eder. Tarayici kapanir, o kosumun sonucu yazilmaz.',
+  '#paOneBtn': 'Tek tikla perf yorumu: panel son olcumu modele verir (sunucuda API anahtari, yerelde Claude Code CLI). Uydurma rota iceren bulgu kapida elenir. ~15-40 sn, ucretli.',
+  '#sgOneBtn': 'Tek tikla senaryo onerisi: istek + repo baglami modele gider, donen senaryolar 3 katmanli kapidan gecer (dayanaksiz olan elenir). ~15-40 sn, ucretli.',
   '#siteRunBtn': "iframe'de acik olan rotanin testini baslatir. Yalnizca whitelist'teki kosum calisir; serbest komut calistirilamaz.",
   '#siteDesignBtn': 'Sagda o rotanin Figma frame\'ini acar. Kaydirma senkronludur; rota degisince tasarim da degisir. Render onbellekten gelir, Figma\'ya cagri yapmaz.',
   '#siteDiffBtn': 'Acik rota icin tasarim diff\'i kosar (~45 sn) ve Tasarim diff sekmesine gecer.',
@@ -2499,9 +2639,9 @@ async function openCardGen(key) {
           </select>
         </label>
         <button style="width:auto" onclick="cardGenOneClick('${key}')"
-                title="Panel, makinedeki Claude Code CLI'sini cagirir ve case'leri dogrudan agaca yazar (~15-30 sn)">Tek tikla uret</button>
+                title="Panel modeli kendisi cagirir (sunucuda API anahtari, yerelde Claude Code CLI) ve case'leri dogrudan agaca yazar (~15-40 sn)">Tek tikla uret</button>
         <button style="width:auto" onclick="cardGenPrompt('${key}')"
-                title="CLI yoksa ya da kontrol etmek istersen: istemi kopyalayip Claude Code'a kendin verirsin">Istem uret</button>
+                title="Tek tik kapaliysa ya da kontrol etmek istersen: istemi kopyalayip Claude Code'a kendin verirsin">Istem uret</button>
         <span class="mono" id="jGenState"></span>
       </div>
       <div id="jGenFlow"></div>
@@ -2518,24 +2658,26 @@ async function cardGenOneClick(key) {
   const nodeId = $('#jGenNode').value;
   const limit = Number($('#jGenLimit').value);
   const yol = $('#jGenNode').selectedOptions[0].textContent;
-  if (!await uiConfirm(`${key} kartından test case üretilecek.\n\nHedef: ${yol}\nEn fazla ${limit} case\n\n`
-    + 'Panel makinedeki Claude Code CLI\'sini çağırır (~15-30 sn, ücretli).',
-    { title: 'Test case üret', ok: 'Üret', danger: false })) return;
+  if (!AI_STATUS.oneClick) {
+    // Saglayici yok: dogrudan istem yoluna gec, kullaniciyi 501 ile karsilastirma.
+    uiToast(aiYolMetni() + ' — istem üret + yapıştır yoluna geçildi.', { type: 'info' });
+    return cardGenPrompt(key);
+  }
+  if (!await aiOnay(`${key} kartından test case üretilecek ve doğrudan ağaca yazılacak.\n\nHedef: ${yol}\nEn fazla ${limit} case`)) return;
   const st = $('#jGenState');
   st.className = 'mono';
-  st.textContent = 'Claude Code calisiyor…';
+  st.textContent = AI_STATUS.mode === 'api' ? `${AI_STATUS.model} çalışıyor…` : 'Claude Code çalışıyor…';
   $('#jGenFlow').innerHTML = '';
   const d = await post('/api/jira/testcases/generate', { key, nodeId, limit,
     types: ['happy', 'negative', 'regression', 'ui'] });
   if (!d.ok) {
-    st.className = 'mono err';
-    st.textContent = d.error || 'uretilemedi';
+    aiHata(d, st);
     $('#jGenFlow').innerHTML = d.hint ? `<p class="sg-hint">${esc(d.hint)}</p>` : '';
+    if (d.code === 'NO_PROVIDER') { await loadAiStatus(); return cardGenPrompt(key); }
     return;
   }
   const atlanan = (d.sonuc ?? []).reduce((a, x) => a + (x.skipped || 0), 0);
-  st.textContent = `${d.written} case yazildi${atlanan ? `, ${atlanan} tekrar atlandi` : ''}`
-    + ` · ${(d.ms / 1000).toFixed(1)} sn${d.cost != null ? ` · $${d.cost.toFixed(3)}` : ''}`;
+  st.textContent = `${d.written} case yazildi${atlanan ? `, ${atlanan} tekrar atlandi` : ''} · ${aiSonucSatiri(d)}`;
   $('#jGenFlow').innerHTML = `<p class="sg-hint">Case'ler <b>taslak</b> olarak ${esc(yol)} altina yazildi
     (kart: ${esc(key)}). Kosum kaydi yok — kosulmadan "gecti" secilemez.
     Kapsam agacinda gormek icin ust bardaki <b>Kapsam</b> dugmesi.</p>`;
@@ -2730,8 +2872,8 @@ async function generateSpec() {
   if (!assertCount() && !await uiConfirm(
     'Kaydedilen adımlarda hiç iddia (assertion) yok. Üretilen spec sadece gezinir, hiçbir şeyi doğrulamaz.',
     { title: 'İddiasız spec', ok: 'Yine de üret' })) return;
-  const title = prompt('Spec basligi:', 'kaydedilen akis');
-  if (title === null) return;
+  const title = await uiPrompt('Spec başlığı (test.describe adı olur):', 'kaydedilen akis', { title: 'Spec üret', ok: 'Üret' });
+  if (title === null || !title.trim()) return;
   const btn = $('#recGen');
   btn.disabled = true;
   try {
@@ -4201,6 +4343,7 @@ setInterval(checkPanelVersion, 5 * 60 * 1000);
 // oradan cagirmak "not defined" veriyordu (bu blok henuz ayristirilmamis oluyor).
 syncHeadless();
 loadPreflight();
+loadAiStatus();
 setInterval(loadPreflight, 10 * 60 * 1000);
 loadGateStatus();
 setInterval(loadGateStatus, 5 * 60 * 1000);
