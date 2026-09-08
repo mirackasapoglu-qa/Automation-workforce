@@ -26,8 +26,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { tokenize, termFreq } from "./text.mjs";
+import { redactText, secretValuesFromEnv } from "./redact.mjs";
 
-export const VERSION = 1;
+/** v2: parçalar maskeleniyor (gizli veri); v1 indeks bayat sayılır ve yeniden kurulur. */
+export const VERSION = 2;
 const MAX_CHUNK = 1600;
 
 export const indexFile = (root = process.cwd()) => path.join(root, "panel-data", "rag", "index.json");
@@ -194,6 +196,23 @@ export function buildIndex({ root = process.cwd() } = {}) {
     chunks.push(...produced);
   }
 
+  /*
+   * MASKELEME — indekse yazılmadan ÖNCE. Ortamdaki gizli değerler (kapı
+   * şifresi gibi) + bilinen token kalıpları + `X_PASSWORD=...` satırları.
+   * Ölçüldü 2026-09-08: CLAUDE.md'deki kapı şifresi indekse girip
+   * `/api/rag/search`ten dönüyordu. Sorgu zamanında değil kurulumda
+   * maskeleniyor ki diskteki dosya da temiz olsun.
+   */
+  const secrets = secretValuesFromEnv();
+  let redactions = 0;
+  for (const c of chunks) {
+    const t = redactText(c.text, { values: secrets });
+    const h = redactText(c.title, { values: secrets });
+    c.text = t.text;
+    c.title = h.text;
+    redactions += t.redactions + h.redactions;
+  }
+
   const postings = Object.create(null);
   const lens = new Array(chunks.length);
   let total = 0;
@@ -217,6 +236,7 @@ export function buildIndex({ root = process.cwd() } = {}) {
     avgLen: chunks.length ? total / chunks.length : 0,
     postings,
     graph,
+    redactions,
   };
 }
 
@@ -290,5 +310,6 @@ export function stats(index) {
     sources: index.sources.length,
     byKind: index.sources.reduce((a, s) => { a[s.kind] = (a[s.kind] || 0) + s.chunks; return a; }, {}),
     graph: index.graph ? Object.keys(index.graph).length : 0,
+    redactions: index.redactions ?? 0,
   };
 }

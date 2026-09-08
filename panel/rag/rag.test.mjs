@@ -94,6 +94,23 @@ test("kaydet/yukle/bayatlik: dosya degisince isStale true, ensureIndex yeniden k
   assert.ok(fresh.sources.some((s) => s.file === "docs.md"));
 });
 
+test("indeks kurulurken gizli degerler maskelenir: ortamdaki sifre parcaya girmez", () => {
+  fs.writeFileSync(path.join(root, "KIMLIK.md"), "# Kimlik\n\n## Kapı\n\nGeçici erişim kapısı `GATE_USER` / `GATE_PASSWORD` (`admin` / `cok-gizli-sifre-9`). Bu satır uzun olsun ki parça sayılsın.\n");
+  process.env.GATE_PASSWORD = "cok-gizli-sifre-9";
+  try {
+    const idx = buildIndex({ root });
+    assert.ok(idx.redactions >= 1, "en az bir maskeleme");
+    const hit = search(idx, "kapı şifre gizli", { k: 3 }).find((h) => h.file === "KIMLIK.md");
+    assert.ok(hit, "parça indekste");
+    assert.ok(!hit.text.includes("cok-gizli-sifre-9"), "sifre metni parcada YOK");
+    assert.ok(hit.text.includes("[gizli]"));
+    assert.equal(stats(idx).redactions, idx.redactions);
+  } finally {
+    delete process.env.GATE_PASSWORD;
+    fs.unlinkSync(path.join(root, "KIMLIK.md"));
+  }
+});
+
 test("contextFor bagLam blogu uretir, karakter butcesine uyar", () => {
   const ctx = contextFor({ query: "sepet adet", root, maxChars: 800, k: 3 });
   assert.ok(ctx);

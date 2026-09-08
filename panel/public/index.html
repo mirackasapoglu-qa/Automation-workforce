@@ -810,6 +810,11 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 <script>window.HQ_NAV = __HQ_NAV__;</script>
 <script src="/nav.js"></script>
 <script>HqNav.mount({ surface: "panel", leaf: "Genel bakis" });</script>
+<!-- Arayuz JS'inin ayri dosyalari (panel/public/js). KLASIK script: asagidaki
+     satir ici kod bunlara adla bakiyor (uiToast, runRequest, perfGenerate...). -->
+<script src="/js/dialogs.js"></script>
+<script src="/js/run-client.js"></script>
+<script src="/js/ai-client.js"></script>
 
 
 <main>
@@ -1284,199 +1289,12 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 const $ = (s) => document.querySelector(s);
 const PANEL_TOKEN = document.querySelector('meta[name=panel-token]')?.content || '';
 
-/**
- * BILDIRIMLER — tarayicinin alert/confirm'i yerine panelin kendi dili.
- *
- * `alert` kutusu "localhost:4646 web sitesinin mesaji" basligiyla, tema
- * dısında, sayfayi kilitleyerek cikiyordu. Iki yerine gecen:
- *   uiToast(...)   → sag altta yigin, kendiliginden kapanir (hata mesajlari
- *                    kapanmaz: kullanici okumadan kaybolmasin)
- *   uiConfirm(...) → Promise<boolean> donen onay diyalogu; Escape = vazgec.
- *
- * ⚠️ uiConfirm ASENKRON. Cagiran fonksiyon `await` etmeli — `if (!uiConfirm(...))`
- * her zaman false doner (Promise truthy'dir) ve yikici islem ONAY SORMADAN
- * calisir. Cagri yerlerini degistirirken bu tuzaga dikkat.
+/*
+ * uiToast / uiConfirm / uiPrompt → /js/dialogs.js
+ * runRequest / stopRun          → /js/run-client.js
+ * AI tek tik (perfGenerate, scenarioGenerate, loadAiStatus, aiOnay…) → /js/ai-client.js
+ * Hepsi global; yukleme sirasi <head> sonrasindaki <script src> etiketlerinde.
  */
-function uiToast(mesaj, opt = {}) {
-  const tip = opt.type || 'info';
-  let yigin = document.getElementById('uiToasts');
-  if (!yigin) {
-    yigin = document.createElement('div');
-    yigin.id = 'uiToasts';
-    document.body.appendChild(yigin);
-  }
-  const t = document.createElement('div');
-  t.className = 'ui-toast ' + (tip === 'err' ? 'err' : tip === 'ok' ? 'ok' : '');
-  t.setAttribute('role', tip === 'err' ? 'alert' : 'status');
-  const renk = tip === 'err' ? 'var(--no)' : tip === 'ok' ? 'var(--ok)' : 'var(--acc)';
-  const baslik = opt.title || (tip === 'err' ? 'Hata' : tip === 'ok' ? 'Tamam' : 'Bilgi');
-  t.innerHTML = `<div class="hd"><span class="dot" style="background:${renk}"></span>${esc(baslik)}
-      <button class="x" title="Kapat">×</button></div>
-    <div class="bd">${esc(mesaj)}</div>`;
-  t.querySelector('.x').onclick = () => t.remove();
-  yigin.appendChild(t);
-  // Hata mesaji KENDILIGINDEN KAPANMAZ: kullanici okumadan kaybolmasi,
-  // alert'ten daha kotu bir davranis olurdu.
-  const sure = opt.ms ?? (tip === 'err' ? 0 : 6000);
-  if (sure) setTimeout(() => t.remove(), sure);
-  return t;
-}
-
-/** @returns {Promise<boolean>} */
-function uiConfirm(mesaj, opt = {}) {
-  return new Promise((resolve) => {
-    document.getElementById('uiAsk')?.remove();
-    const ov = document.createElement('div');
-    ov.id = 'uiAsk';
-    ov.innerHTML = `<div class="box" role="dialog" aria-modal="true">
-        <h3>${esc(opt.title || 'Onay gerekiyor')}</h3>
-        <div class="msg">${esc(mesaj)}</div>
-        <div class="row3">
-          <button id="uiAskNo">${esc(opt.cancel || 'Vazgeç')}</button>
-          <button id="uiAskYes" class="${opt.danger === false ? '' : 'danger'}">${esc(opt.ok || 'Devam et')}</button>
-        </div>
-      </div>`;
-    const kapat = (cevap) => {
-      document.removeEventListener('keydown', tus);
-      ov.remove();
-      resolve(cevap);
-    };
-    const tus = (e) => { if (e.key === 'Escape') kapat(false); if (e.key === 'Enter') kapat(true); };
-    ov.querySelector('#uiAskNo').onclick = () => kapat(false);
-    ov.querySelector('#uiAskYes').onclick = () => kapat(true);
-    // Dis tiklama = vazgec (yikici islemde kazara onay riski yok).
-    ov.onclick = (e) => { if (e.target === ov) kapat(false); };
-    document.addEventListener('keydown', tus);
-    document.body.appendChild(ov);
-    ov.querySelector('#uiAskYes').focus();
-  });
-}
-
-/**
- * Tek satirlik metin sorusu — tarayicinin `prompt()`unun temali karsiligi
- * (generateSpec bunu kullaniyordu; alert/confirm ile ayni kategoride bloklayici
- * bir diyalogdu). Vazgec/Escape → null, Enter/Tamam → metin.
- * @returns {Promise<string|null>}
- */
-function uiPrompt(mesaj, varsayilan = '', opt = {}) {
-  return new Promise((resolve) => {
-    document.getElementById('uiAsk')?.remove();
-    const ov = document.createElement('div');
-    ov.id = 'uiAsk';
-    ov.innerHTML = `<div class="box" role="dialog" aria-modal="true">
-        <h3>${esc(opt.title || 'Bilgi gerekiyor')}</h3>
-        <div class="msg">${esc(mesaj)}</div>
-        <input id="uiAskInput" type="text" style="width:100%;margin:0 0 12px" value="${esc(varsayilan)}">
-        <div class="row3">
-          <button id="uiAskNo">${esc(opt.cancel || 'Vazgeç')}</button>
-          <button id="uiAskYes">${esc(opt.ok || 'Tamam')}</button>
-        </div>
-      </div>`;
-    const input = ov.querySelector('#uiAskInput');
-    const kapat = (cevap) => { document.removeEventListener('keydown', tus); ov.remove(); resolve(cevap); };
-    const tus = (e) => { if (e.key === 'Escape') kapat(null); if (e.key === 'Enter') kapat(input.value); };
-    ov.querySelector('#uiAskNo').onclick = () => kapat(null);
-    ov.querySelector('#uiAskYes').onclick = () => kapat(input.value);
-    ov.onclick = (e) => { if (e.target === ov) kapat(null); };
-    document.addEventListener('keydown', tus);
-    document.body.appendChild(ov);
-    input.focus();
-    input.select();
-  });
-}
-
-/**
- * Genel bakis satirindaki "durdur" dugmesi bunu cagiriyordu ama fonksiyon
- * TANIMLI DEGILDI (ReferenceError, hicbir sey olmuyordu — 2026-08-29 taramasi).
- * #stopBtn ile ayni yol: /api/stop, siradaki kosumlar da temizlenir.
- */
-async function stopRun() {
-  const r = await post('/api/stop');
-  if (!r.ok) uiToast(r.error || 'Durdurulamadı.', { type: 'err', title: 'Koşum' });
-  else uiToast(`Koşum durduruluyor${r.cleared ? `, sıradaki ${r.cleared} koşum iptal edildi` : ''}.`, { type: 'info' });
-}
-
-// ---------------- AI saglayici (tek tik) ----------------
-/**
- * Sunucu hangi yolu kullaniyor: api (ANTHROPIC_API_KEY) · cli (yerel Claude
- * Code) · manual (yalniz istem uret + yapistir). Tek tik dugmeleri buna gore
- * gorunur; metinler de sabit "CLI cagirir" demek yerine gercek yolu soyler.
- */
-let AI_STATUS = { mode: 'manual', oneClick: false };
-async function loadAiStatus() {
-  try {
-    AI_STATUS = await (await fetch('/api/ai/status')).json();
-  } catch {
-    AI_STATUS = { mode: 'manual', oneClick: false };
-  }
-  document.querySelectorAll('[data-ai-oneclick]').forEach((el) => {
-    el.hidden = !AI_STATUS.oneClick;
-    el.title = aiYolMetni();
-  });
-  return AI_STATUS;
-}
-function aiYolMetni() {
-  if (AI_STATUS.mode === 'api') return `Panel modeli kendisi çağırır: ${AI_STATUS.model} (API anahtarı, ücretli)`;
-  if (AI_STATUS.mode === 'cli') return 'Panel makinedeki Claude Code CLI\'sini çağırır (kullanıcının oturumu, ~15-40 sn)';
-  return 'Tek tık kapalı: ANTHROPIC_API_KEY ver ya da Claude Code CLI kur';
-}
-/** Tek tik onayi: yol + maliyet uyarisi tek yerden. */
-async function aiOnay(ne) {
-  const yol = AI_STATUS.mode === 'api'
-    ? `${AI_STATUS.model} ile API anahtarı üzerinden (ücretli${AI_STATUS.budget?.capUsd ? `, bugün $${AI_STATUS.budget.usd.toFixed(2)} / $${AI_STATUS.budget.capUsd.toFixed(2)}` : ''})`
-    : 'makinedeki Claude Code CLI ile (kullanıcının oturumu)';
-  return uiConfirm(`${ne}\n\nYol: ${yol}, ~15-40 sn.`, { title: 'Tek tıkla üret', ok: 'Üret', danger: false });
-}
-/** Uretim hatasini tek bicimde goster; 501 ise elle yola dusulecegini soyle. */
-function aiHata(d, hedefState) {
-  const msg = `${d.error || 'Üretilemedi.'}${d.hint ? `\n${d.hint}` : ''}`;
-  if (hedefState) { hedefState.className = 'mono err'; hedefState.textContent = d.error || 'üretilemedi'; }
-  uiToast(msg, { type: 'err', title: d.code === 'NO_PROVIDER' ? 'Tek tık kapalı' : 'Üretilemedi' });
-}
-function aiSonucSatiri(d) {
-  return `${(d.ms / 1000).toFixed(1)} sn${d.cost != null ? ` · $${Number(d.cost).toFixed(3)}` : ''}${d.model ? ` · ${d.model}` : ''}${d.retrieval?.chunks ? ` · ${d.retrieval.chunks} repo parçası` : ''}`;
-}
-
-/** Perf: tek tikla yorum (olcum sunucuda okunur, bulgular kapidan gecer). */
-async function perfGenerate() {
-  if (!await aiOnay('Son perf ölçümü modele yorumlatılacak; uydurma rota içeren bulgular kapıda elenir.')) return;
-  const btn = $('#paBtn'); const one = $('#paOneBtn');
-  btn.disabled = true; if (one) one.disabled = true;
-  $('#paState').textContent = 'model çalışıyor…';
-  $('#paOut').innerHTML = ''; $('#paFlow').innerHTML = '';
-  try {
-    const d = await post('/api/perf/generate', {});
-    if (!d.ok) { aiHata(d, $('#paState')); if (d.code === 'NO_PROVIDER') await loadAiStatus(); return; }
-    renderPerfFindings(d);
-    $('#paState').textContent = `${d.findings.length} bulgu${d.dropped?.length ? `, ${d.dropped.length} kapıda elendi` : ''} · ${aiSonucSatiri(d)}`;
-  } finally {
-    btn.disabled = false; if (one) one.disabled = false;
-  }
-}
-
-/** Senaryo: tek tikla oneri (ayni 3 katmanli kapi). */
-async function scenarioGenerate() {
-  const request = $('#sgReq').value.trim();
-  if (!request) { $('#sgState').textContent = 'istek metni gerekli'; return; }
-  const limit = Number($('#sgLimit').value);
-  if (!await aiOnay(`"${request.slice(0, 80)}${request.length > 80 ? '…' : ''}" için en fazla ${limit} senaryo önerilecek; dayanaksız olanlar kapıda elenir.`)) return;
-  const btn = $('#sgBtn'); const one = $('#sgOneBtn');
-  btn.disabled = true; if (one) one.disabled = true;
-  $('#sgState').textContent = 'model çalışıyor…';
-  $('#sgOut').innerHTML = ''; $('#sgFlow').innerHTML = '';
-  try {
-    const d = await post('/api/scenarios/generate', { request, limit });
-    if (!d.ok) {
-      if (d.code === 'NO_ORACLE') { $('#sgState').textContent = ''; $('#sgOut').innerHTML = `<div class="sg-warn"><p>${esc(d.error)}</p></div>`; return; }
-      aiHata(d, $('#sgState')); if (d.code === 'NO_PROVIDER') await loadAiStatus(); return;
-    }
-    renderScenarios(d);
-    const a = d.audit || {};
-    $('#sgState').textContent = `${a.accepted ?? 0} kabul${a.droppedNoOracle?.length ? `, ${a.droppedNoOracle.length} dayanaksız` : ''}${a.rejectedByContext?.length ? `, ${a.rejectedByContext.length} bağlam dışı` : ''} · ${aiSonucSatiri(d)}`;
-  } finally {
-    btn.disabled = false; if (one) one.disabled = false;
-  }
-}
 
 /** Yazma istekleri: token zorunlu (CSRF ve yerel surec riskini kapatir). */
 async function post(url, body) {
@@ -1728,8 +1546,10 @@ async function startRun(id, opt = {}) {
   $('#log').textContent = '';
   document.querySelector('.tabs button[data-tab=log]').click();
   const headless = opt.live ? false : HEADLESS;
-  const r = await post('/api/run', { id, headless, record: !!opt.record });
-  if (!r.ok) { appendLog('PANEL HATASI: ' + r.error, true); return; }
+  const r = await runRequest({ id, headless, record: !!opt.record }, { label: id });
+  if (!r.ok) { if (r.code !== 'BUSY') appendLog('PANEL HATASI: ' + r.error, true); return; }
+  if (r.queued) { appendLog(`-- ${id} siraya alindi (${r.position}.) --`); return; }
+  if (r.deduped) return;
   appendLog(`-- ${id} basladi${opt.live ? ' · canli (pencere aciliyor)' : ''}${opt.record ? ' · kayit acik' : ''} --`);
 }
 
@@ -1759,6 +1579,12 @@ es.addEventListener('run-start', e => {
   const t = $('#ovLiveTitle'); if (t) t.textContent = `Canli kosum · ${d.label}`;
   $('#ovSpin')?.classList.add('on');
   renderOverviewHistory();
+});
+es.addEventListener('run-queued', e => {
+  const d = JSON.parse(e.data);
+  const n = d.pending?.length ?? 0;
+  const pill = $('#activePill');
+  if (pill) pill.title = n ? `sırada ${n} koşum: ${d.pending.map(x => x.label).join(', ')}` : '';
 });
 es.addEventListener('log', e => {
   const d = JSON.parse(e.data);
@@ -1949,8 +1775,8 @@ async function runCase(file, title, repeat = 1) {
   const params = { specs: [file], grep: title.slice(0, 80), repeatEach: repeat, headed: false };
   document.querySelector('.tabs button[data-tab=log]').click();
   $('#log').textContent = '';
-  const r = await post('/api/run', { id: 'custom', params });
-  if (!r.ok) appendLog('PANEL: ' + r.error, true);
+  const r = await runRequest({ id: 'custom', params }, { label: 'parametreli koşum' });
+  if (!r.ok && r.code !== 'BUSY') appendLog('PANEL: ' + r.error, true);
 }
 
 $('#qCase').addEventListener('input', renderCases);
@@ -2008,8 +1834,8 @@ async function runCustom() {
   if (!params.specs.length) return uiToast('En az bir spec seç.', { type: 'err' });
   document.querySelector('.tabs button[data-tab=log]').click();
   $('#log').textContent = '';
-  const r = await post('/api/run', { id: 'custom', params });
-  if (!r.ok) appendLog('PANEL: ' + r.error, true);
+  const r = await runRequest({ id: 'custom', params }, { label: 'parametreli koşum' });
+  if (!r.ok && r.code !== 'BUSY') appendLog('PANEL: ' + r.error, true);
 }
 
 // ---------------- Site (iframe) ----------------
@@ -3246,8 +3072,11 @@ async function runPerfSweep() {
   const eski = b.textContent;
   b.textContent = 'olculuyor...';
   try {
-    const r = await post('/api/run', { id: 'perf-sweep', headless: true });
-    if (!r.ok) { uiToast(r.error || 'Başlatılamadı.', { type: 'err' }); b.disabled = false; b.textContent = eski; return; }
+    const r = await runRequest({ id: 'perf-sweep', headless: true }, { label: 'perf sweep' });
+    if (!r.ok || r.queued) {
+      if (!r.ok && r.code !== 'BUSY') uiToast(r.error || 'Başlatılamadı.', { type: 'err' });
+      b.disabled = false; b.textContent = eski; return;
+    }
     document.querySelector('.tabs button[data-tab=log]').click();
   } catch (e) {
     uiToast('Panel sunucusuna ulaşılamadı: ' + e.message, { type: 'err' });
@@ -3824,8 +3653,12 @@ async function refreshGate() {
   const el = $('#gatePill');
   const before = el.textContent;
   el.textContent = 'yenileniyor…';
-  const d = await post('/api/run', { id: 'gate-refresh' });
-  if (d.error) { el.textContent = before; uiToast(d.error, { type: 'err', title: 'Kapı yenilenemedi' }); return; }
+  const d = await runRequest({ id: 'gate-refresh' }, { label: 'kapı yenileme' });
+  if (!d.ok || d.queued) {
+    el.textContent = before;
+    if (!d.ok && d.code !== 'BUSY') uiToast(d.error, { type: 'err', title: 'Kapı yenilenemedi' });
+    return;
+  }
   // Kosum bitince run-end olayi geliyor; orada tekrar okunuyor.
 }
 

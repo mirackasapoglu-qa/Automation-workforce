@@ -44,21 +44,31 @@ test("CLAUDE_BIN calistirilabilir bir dosyaya isaret edince mode=cli", async () 
   const bin = path.join(tmp, "claude");
   fs.writeFileSync(bin, "#!/bin/sh\necho hi\n", { mode: 0o755 });
   process.env.CLAUDE_BIN = bin;
-  // 60 sn onbellek: yeni modul ornegi ile olc
-  const fresh = await import(`./provider.mjs?cli=${Date.now()}`);
-  assert.equal(fresh.mode(), "cli");
-  assert.equal(fresh.status().cliBin, bin);
+  ai.resetCliCache(); // 60 sn PATH onbellegi — testte acikca dusurulur
+  assert.equal(ai.mode(), "cli");
+  assert.equal(ai.status().cliBin, bin);
   process.env.CLAUDE_BIN = path.join(tmp, "yok");
+  ai.resetCliCache();
 });
 
 test("anahtar varken api yolu; CLI olsa bile anahtar once gelir", async () => {
   process.env.ANTHROPIC_API_KEY = "sk-test";
-  const fresh = await import(`./provider.mjs?api=${Date.now()}`);
-  assert.equal(fresh.mode(), "api");
-  assert.equal(fresh.status().model, "claude-opus-5");
+  ai.resetCliCache();
+  assert.equal(ai.mode(), "api");
+  assert.equal(ai.status().model, "claude-opus-5");
   process.env.AI_PROVIDER = "manual";
-  assert.equal(fresh.mode(), "manual", "AI_PROVIDER=manual sirayi ezer");
+  assert.equal(ai.mode(), "manual", "AI_PROVIDER=manual sirayi ezer");
   delete process.env.AI_PROVIDER;
+});
+
+test("stable zemin API yolunda ayri sistem blogu olarak gider, CLI yolunda metne eklenir", async () => {
+  process.env.ANTHROPIC_API_KEY = "sk-test";
+  let body = null;
+  globalThis.fetch = async (url, init) => { body = JSON.parse(init.body); return new Response(JSON.stringify(okBody("x")), { status: 200 }); };
+  await ai.ask({ purpose: "t", system: "S", stable: "ZEMIN", user: "U" });
+  assert.equal(body.system.length, 2);
+  assert.equal(body.system[1].text, "ZEMIN");
+  assert.equal(body.system[1].cache_control, undefined, "kisa zemin: bayrak yok");
 });
 
 test("api yolunda ask: json doner, deftere yazilir, harcama toplanir", async () => {
@@ -68,7 +78,7 @@ test("api yolunda ask: json doner, deftere yazilir, harcama toplanir", async () 
   assert.equal(r.provider, "api");
   assert.deepEqual(r.json, { items: [] });
   const s = budget.spentToday();
-  assert.equal(s.calls, 1);
+  assert.ok(s.calls >= 1, "defterde en az bu cagri var (onceki testler de yazmis olabilir)");
   assert.ok(s.usd > 0);
   assert.ok(fs.existsSync(path.join(tmp, "panel-data", "ai-usage.jsonl")));
 });

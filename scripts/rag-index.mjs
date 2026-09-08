@@ -11,8 +11,13 @@
  * tanı ve "bu sorguya ne geliyor" sorusu için. Sunucuda `panel-data` volume
  * olduğu için imaj build'inde kurmanın anlamı yok — ilk istekte ~100 ms'de kurulur.
  */
+import { loadEnv } from "../env.mjs";
 import { buildIndex, saveIndex, loadIndex, stats } from "../panel/rag/index.mjs";
 import { search, contextFor } from "../panel/rag/retrieve.mjs";
+
+// .env'deki gizli DEGERLER maskelemenin en kesin katmani (rag/redact.mjs);
+// script'ten kurulan indeks de sunucuyla ayni ortami gormeli.
+loadEnv();
 
 const argv = process.argv.slice(2);
 const arg = (k, d = null) => { const i = argv.indexOf(k); return i === -1 ? d : argv[i + 1]; };
@@ -45,5 +50,5 @@ const index = buildIndex();
 const file = saveIndex(index);
 const s = stats(index);
 console.log(`indeks yazıldı: ${file} (${Date.now() - t0} ms)`);
-console.log(`  parça: ${s.chunks} · terim: ${s.terms} · kaynak dosya: ${s.sources} · graf dosya komşuluğu: ${s.graph}`);
+console.log(`  parça: ${s.chunks} · terim: ${s.terms} · kaynak dosya: ${s.sources} · graf dosya komşuluğu: ${s.graph} · maskelenen gizli değer: ${s.redactions}`);
 console.log(`  türe göre: ${Object.entries(s.byKind).map(([k2, v]) => `${k2}=${v}`).join(" · ")}`);

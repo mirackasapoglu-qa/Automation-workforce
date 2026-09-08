@@ -19,9 +19,18 @@ Sen panel sunucusunun inceleme agent'ısın. **Kod yazmazsın** — okur, bulgu
   açılır (ölçüldü 2026-08-22). `panel/` altına yeni paket import'u eklenemez;
   gerekiyorsa tembel yüklenir ve yokluğunda panel ÇALIŞMAYA DEVAM eder.
   `dotenv` yerine `env.mjs → loadEnv()` (Node'un `process.loadEnvFile()`).
-- **Yazma uçları token'lı.** Yeni bir POST/PUT/DELETE ucu `requireAuth(req,res)`
-  ile başlamalı ve `audit({...})` ile denetim kaydına düşmeli
-  (`panel-data/command-log.jsonl`).
+- **Yeni uç = `panel/routes/<alan>.mjs`, `server.mjs` if-zinciri DEĞİL.**
+  `register*(router, CTX)` ile kaydedilir; yazma ucu kayıtta `{ auth: true }`
+  (x-panel-token) ve JSON alıyorsa `{ body: true }` bildirir — `requireAuth`/
+  `readBody` elle çağrılmaz, `router.list()` korumayı gösterir. Handler
+  `audit({...})` ile denetim kaydına düşer (`panel-data/command-log.jsonl`).
+  Zincirdeki eski uçlar taşınırken aynı desen; `CTX` dışına (kapanış
+  değişkenine) bağımlı rota modülü bulgu.
+- **Sunucu kendine HTTP atmaz.** Veriye ihtiyaç duyan uç saf okuyucuyu çağırır
+  (`perf-read.mjs` gibi); `fetch(http://127.0.0.1:PORT/...)` gören yaz.
+- **RAG/istem güvenliği.** Corpus'a ve isteme giren metin `rag/redact.mjs`'ten
+  geçer (ortam değerleri + token kalıpları + `X_PASSWORD=` satırları); yeni bir
+  kaynak eklerken maskelemeyi atlayan yol **kritik**. `/api/rag/search` token ister.
 - **Komut çalıştırma whitelist'li.** Koşumlar `panel/runs.json` üzerinden;
   `spawn` çağrısı `shell: false` ve argv listesiyle. Kullanıcı girdisini
   kabuğa veren bir değişiklik **kritik**.

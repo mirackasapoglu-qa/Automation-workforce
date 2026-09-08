@@ -113,11 +113,22 @@ export function askClaude(prompt) {
         e.code = "CLI_ERROR";
         return reject(e);
       }
+      /*
+       * `modelUsage` birden fazla model içerebilir (CLI alt görevler için
+       * küçük model kullanıyor). "İlk anahtar" yanıltıcıydı (ölçüldü: 3 case
+       * üretiminde haiku görünüyordu) — asıl üretimi yapan, en çok çıktı
+       * token'ı olan modeldir; hepsi `models` ile ayrıca verilir.
+       */
+      const usage = zarf.modelUsage ?? {};
+      const models = Object.keys(usage);
+      const outTok = (m) => Number(usage[m]?.outputTokens ?? usage[m]?.output_tokens ?? 0);
+      const model = models.length ? models.reduce((a, b) => (outTok(b) > outTok(a) ? b : a)) : null;
       resolve({
         text: String(zarf.result ?? ""),
         costUsd: typeof zarf.total_cost_usd === "number" ? zarf.total_cost_usd : null,
         durationMs: Date.now() - t0,
-        model: Object.keys(zarf.modelUsage ?? {})[0] ?? null,
+        model,
+        models,
         sessionId: zarf.session_id ?? null,
       });
     });

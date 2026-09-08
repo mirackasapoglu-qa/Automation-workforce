@@ -286,8 +286,8 @@ deseniyle aynı mantıkta:
   kapı reddi (`applyFromModel` fırlatırsa) 422 `REJECTED` · diğerleri 502.
   `hintFor` kullanıcıya "şimdi ne yapayım" satırını verir.
 - **Kapılar değişmedi.** `gate()`/`applyCases()`/`allowedNodeIds` veri yolunda,
-  sağlayıcıdan bağımsız koşulsuz çalışır. `generateAndApply()` (server.mjs) üç
-  özelliğin ortak gövdesi: model → kapı → yaz.
+  sağlayıcıdan bağımsız koşulsuz çalışır. `generateAndApply()` (`routes/ai.mjs`)
+  üç özelliğin ortak gövdesi: model → kapı → yaz.
 - İstem kurucular artık `{prompt, system, user, retrieval}` döner: `prompt`
   kopyala-yapıştır/CLI için tek metin, `system`+`user` API için ayrı (sistem
   bloğu önbelleğe alınır).
@@ -314,7 +314,7 @@ parça, 5.372 terim, kurulum 62 ms, indeks 546 KB.
 npm run rag:index                                   # kur + özet
 node scripts/rag-index.mjs --query "sepet adet 406" # ne geliyor?
 node scripts/rag-index.mjs --context "..."          # isteme girecek blok
-curl "localhost:4646/api/rag/search?q=sepet&k=5"    # salt okur
+curl -H "x-panel-token: $T" "localhost:4646/api/rag/search?q=sepet&k=5"   # token ister (repo metni döner)
 ```
 
 - **Türkçe tuzağı burada da**: `İ`/`ı` NFD + `\p{Mn}` at + `ı→i` (figma-diff'te
@@ -357,6 +357,76 @@ Tek slot korunuyor (Playwright `test-results/`i koşum başında siler). Eklenen
   talimatı sunucu API'sine çevrildi. `site/src/pages/Index.tsx`'teki 4 sabit
   `localhost:4646` linki `HqNav.url("panel")`'dan çözülüyor.
 - `npm run panel:check` yeşil: çekirdek yorumlarındaki 20 proje işareti nötrlendi.
+
+### 4) İkinci tur (aynı gün): yapısal ayrıştırma + inceleme bulguları
+
+İlk tur mevcut mimariye sadık kalıp "üstüne eklemişti"; inceleme dört gerçek
+kusur ve bir yapısal borç gösterdi. Hepsi ölçülerek kapatıldı (65 birim testi,
+sunucu 4699'da curl + tarayıcı, UI-only Docker imajı).
+
+**Sunucu yapısı — yeni uçlar `panel/routes/` altına, if-zincirine DEĞİL:**
+
+```
+panel/http/router.mjs   createRouter() — kayıtta { auth:true, body:true }; bilinen yol
+                         yanlış metod → 405; router.list() tüm uçları ve korumayı söyler
+panel/http/sse.mjs      SSE havuzu (add/write/broadcast) — /api/events + diff/koşum olayları
+panel/run-engine.mjs    koşum motoru: tek slot, idempotency, kuyruk, journal, kapsam yazımı;
+                         spawn ENJEKTE edilir → gerçek alt süreçle birim testli
+panel/perf-read.mjs     perf ölçümünü diskten okur (eskiden /api/perf kendine HTTP atıyordu)
+panel/routes/ai.mjs     senaryo · perf · test case (prompt/apply/generate) + generateAndApply
+panel/routes/runs.mjs   /api/run*, /api/stop, /api/events, /api/runs/history, /api/scope/run*
+panel/routes/rag.mjs    /api/rag/status (açık) · /search (TOKEN) · /reindex (token)
+panel/routes/assets.mjs /js/*.js — panel arayüzünün ayrı dosyaları (yol kontrolü + .js)
+```
+
+`server.mjs`: 3.345 → 2.563 satır. `CTX` (send, audit, engine, sse, readTree, …)
+rota modüllerine enjekte edilir; modüller sunucunun kapanışına bağlı değil.
+Dispatch `try`'ın başında: kayıtlı uç yoksa eski zincire düşer. **Taşınmayanlar
+bilinçli**: Jira, Figma, crawl, record, sessions, oauth uçları zincirde kaldı —
+kimlik/tarayıcı gerektirdikleri için ölçülmeden taşınmadı; taşınırken aynı
+`register*(router, CTX)` deseni kullanılır.
+
+⚠️ `child.on("error")` motorda var: eskiden `npx` bulunamazsa dinleyicisiz
+'error' olayı PANELİ düşürüyordu; şimdi log + `run-end(-1)`.
+
+**Kapatılan kusurlar (ölçülmüş):**
+- **Gizli veri sızıntısı** — `panel/rag/redact.mjs`, üç katman: ortamdaki
+  `*PASSWORD/*TOKEN/*SECRET/*KEY` DEĞERLERİ (≥6 kr) nerede geçerse geçsin,
+  bilinen token kalıpları (sk-ant-, figd_, xox?-, ATATT, Bearer/Basic, PEM),
+  `X_PASSWORD=değer` satırları ve şifre geçen satırlardaki `(kullanıcı / şifre)`
+  çiftleri. İndeks v2 (v1 bayat sayılıp yeniden kurulur); `scripts/rag-index.mjs`
+  `loadEnv()` çağırır ki script de sunucuyla aynı değerleri maskelesin. Ölçüm:
+  `password123` sorgusu artık 0 parça döndürüyor, isteme de girmiyor (4 maskeleme).
+  `/api/rag/search` token ister.
+- **Önbellek süs değil** — `rag/digest.mjs → stableDigest()`: CLAUDE.md'nin kural
+  bölümleri (tuzak/hijyen/kural/guard/kimlik/ortam) + `docs/*.md`, deterministik,
+  ≤16 k karakter, maskeli. `provider.ask({system, stable, user})` → API yolunda
+  ayrı sistem bloğu; `cache_control` YALNIZCA `system+stable` eşiği
+  (`AI_CACHE_MIN_TOKENS`, varsayılan 1100 / Haiku 2100) aşınca konur
+  (`buildSystemBlocks`, birim testli). `usage.cache_read_input_tokens` deftere
+  (`cacheRead`) ve yanıta (`cache`) düşer — sıfır kalıyorsa eşiği yükselt.
+  Perf istemi zemin almaz (sayısal ölçüm). CLI yolunda zemin metne eklenir.
+- **Arayüz `requestId`/kuyruk göndermiyordu** — `public/js/run-client.js →
+  runRequest()`: anahtar = koşum + parametre + 5 sn'lik zaman kovası (çift tık
+  aynı isteği tekrarlar, sunucu `deduped` döner); 409 BUSY'de "sıraya al?" sorar,
+  evet → `queue:true`. Beş `/api/run` çağrısının hepsi buradan geçer
+  (`post('/api/run'` doğrudan çağrısı 0). SSE `run-queued` → aktif pill'in title'ı.
+- **Test hijyeni** — `AI_RETRY_MS` (testte 1 ms, 2 sn beklemeler kalktı),
+  `provider.resetCliCache()` (import cache-busting hilesi kalktı).
+- **CLI model etiketi** — `claude-cli.mjs` en çok çıktı token'ı olan modeli
+  seçer, `models` listesini de verir (ilk anahtar haiku gösteriyordu).
+
+**Arayüz dosyaları** (`panel/public/js/`, klasik script, global — satır içi
+kod ve `onclick="…"` adla bakıyor; `<script src>` etiketleri satır içi bloktan
+ÖNCE): `dialogs.js` (uiToast/uiConfirm/uiPrompt), `run-client.js`
+(runRequest/stopRun), `ai-client.js` (loadAiStatus/aiOnay/perfGenerate/
+scenarioGenerate). `index.html` 4.331 satır; kalan ~3.000 satırlık satır içi
+kodun parçalanması ayrı iş — `onclick` globalleri yüzünden modül geçişi tek
+seferde yapılamaz, dosya dosya `window.*` yüzeyiyle taşınır (bu üçü örnek).
+
+**Hâlâ borç (bilinçli):** kuyruk bellekte (yeniden başlatınca kaybolur), bütçe
+tavanı süreç başına (iki replika ayrı sayar), maliyet liste fiyatından tahmin,
+gerçek anahtarla başarılı çağrı sunucuda ölçülecek.
 
 ## Ayağa kaldırma
 

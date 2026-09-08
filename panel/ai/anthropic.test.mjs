@@ -12,10 +12,21 @@ import path from "node:path";
 // Kimlik: env üzerinden (dosya/OAuth okuyucu boş kalsın diye geçici cwd).
 process.chdir(fs.mkdtempSync(path.join(os.tmpdir(), "ai-test-")));
 process.env.ANTHROPIC_API_KEY = "sk-test";
+process.env.AI_RETRY_MS = "1"; // tekrar beklemesi testte 2 sn olmasin
 delete process.env.AI_MODEL;
 delete process.env.AI_EFFORT;
 
-const { complete, estimateCost, settings } = await import("./anthropic.mjs");
+const { complete, estimateCost, settings, buildSystemBlocks } = await import("./anthropic.mjs");
+
+test("onbellek bayragi YALNIZCA sabit onek esigi asinca konur (kisa istemde sus olmaz)", () => {
+  const kisa = buildSystemBlocks({ system: "kurallar", stable: "kisa zemin", cacheMinTokens: 1100 });
+  assert.equal(kisa.length, 2);
+  assert.equal(kisa[1].cache_control, undefined);
+  const uzun = buildSystemBlocks({ system: "kurallar", stable: "x".repeat(4400), cacheMinTokens: 1100 });
+  assert.deepEqual(uzun[1].cache_control, { type: "ephemeral", ttl: "1h" });
+  assert.equal(uzun[0].cache_control, undefined, "bayrak sabit blokta, talimatta degil");
+  assert.equal(buildSystemBlocks({ system: "", stable: "", cacheMinTokens: 1100 }).length, 0);
+});
 
 const realFetch = globalThis.fetch;
 const calls = [];
@@ -39,14 +50,16 @@ const okBody = (text, extra = {}) => ({
 });
 
 test("istek govdesi sozlesmeye uyar: basliklar, system cache, adaptive thinking, effort, sema", async () => {
-  mockFetch([{ body: okBody('{"a":1}') }]);
-  const r = await complete({ system: "S", user: "U", schema: { type: "object", properties: { a: { type: "integer" } }, required: ["a"], additionalProperties: false } });
+  mockFetch([{ body: okBody('{"a":1}', { usage: { input_tokens: 100, output_tokens: 20, cache_read_input_tokens: 1200, cache_creation_input_tokens: 0 } }) }]);
+  const r = await complete({ system: "S", stable: "z".repeat(4800), user: "U", schema: { type: "object", properties: { a: { type: "integer" } }, required: ["a"], additionalProperties: false } });
   const c = calls[0];
   assert.equal(c.url, "https://api.anthropic.com/v1/messages");
   assert.equal(c.init.headers["x-api-key"], "sk-test");
   assert.equal(c.init.headers["anthropic-version"], "2023-06-01");
   assert.equal(c.body.model, "claude-opus-5");
-  assert.deepEqual(c.body.system[0].cache_control, { type: "ephemeral", ttl: "1h" });
+  assert.equal(c.body.system[0].text, "S");
+  assert.deepEqual(c.body.system[1].cache_control, { type: "ephemeral", ttl: "1h" });
+  assert.deepEqual(r.cache, { read: 1200, write: 0, flagged: true });
   assert.deepEqual(c.body.thinking, { type: "adaptive" });
   assert.equal(c.body.output_config.effort, "high");
   assert.equal(c.body.output_config.format.type, "json_schema");

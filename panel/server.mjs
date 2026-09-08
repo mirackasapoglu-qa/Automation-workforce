@@ -56,15 +56,6 @@ const ordersEnv = () =>
     ? {}
     : { [PROJECT.env.ordersVar]: ordersOverride ? "1" : "0" };
 import { figmaForRoute } from "./figma-map.mjs";
-import {
-  buildContext,
-  buildPrompt as buildScenarioPrompt,
-  applyFromModel as applyScenarios,
-} from "./scenario-suggest.mjs";
-import {
-  buildPrompt as buildPerfPrompt,
-  applyFromModel as applyPerfFindings,
-} from "./perf-analyze.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker, setCapability, setConnectorCut } from "./connectors/index.mjs";
 import * as oauth from "./oauth.mjs";
@@ -73,20 +64,21 @@ import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
 import * as crawler from "./crawler.mjs";
 import * as sessions from "./sessions.mjs";
-import { buildPrompt, buildCardPrompt, applyFromModel } from "./testcase-gen.mjs";
 import { runCommentDraft, verdictCommentDraft } from "./jira-report.mjs";
 import { capture as perfCapture, list as perfHistory, diffRoutes } from "./perf-history.mjs";
 /*
- * AI: panel modeli TEK kapidan cagirir (ai/provider.mjs). Sira: ANTHROPIC_API_KEY
- * (sunucu) → yerel Claude Code CLI → elle yapistirma. Butce, esazamanlilik ve
- * kayit orada; burada yalnizca HTTP eslemesi var.
+ * HTTP katmani: yeni uclar panel/routes/*.mjs icinde, createRouter ile kayitli
+ * (auth/body bayraklari kayitta). Kosum motoru run-engine.mjs; SSE havuzu
+ * http/sse.mjs. Asagidaki if-zinciri henuz tasinmamis eski uclar icin duruyor.
  */
-import * as ai from "./ai/provider.mjs";
-import { SCHEMA as TESTCASE_SCHEMA } from "./testcase-gen.mjs";
-import { SCHEMA as SCENARIO_SCHEMA } from "./scenario-suggest.mjs";
-import { SCHEMA as PERF_SCHEMA } from "./perf-analyze.mjs";
-import { ensureIndex as ragEnsure, stats as ragStats } from "./rag/index.mjs";
-import { search as ragSearch } from "./rag/retrieve.mjs";
+import { createRouter } from "./http/router.mjs";
+import { createSseHub } from "./http/sse.mjs";
+import { createRunEngine } from "./run-engine.mjs";
+import { readPerfData } from "./perf-read.mjs";
+import { registerAiRoutes } from "./routes/ai.mjs";
+import { registerRagRoutes } from "./routes/rag.mjs";
+import { registerRunRoutes } from "./routes/runs.mjs";
+import { registerAssetRoutes } from "./routes/assets.mjs";
 import { createRunGate } from "./run-queue.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
@@ -697,306 +689,28 @@ function startDiff({ path: routePath }) {
 }
 
 // ---------------- SSE ----------------
-const sseClients = new Set();
-function broadcast(event, data) {
-  const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-  for (const res of sseClients) {
-    try {
-      res.write(msg);
-    } catch {
-      sseClients.delete(res);
-    }
-  }
-}
+const sse = createSseHub();
+const broadcast = (event, data) => sse.broadcast(event, data);
 
-// ---------------- kosum ----------------
-let active = null; // { id, child, startedAt, lines: [] }
-
-/**
- * Kosum kapisi: idempotency (`requestId` ile cift tik/iki sekme ayni kosumu
- * iki kez baslatmaz — ayni sonuc doner) + kisa FIFO kuyruk (`queue:true`).
- * Tek slot korunuyor: Playwright `test-results/`i kosum basinda temizliyor,
- * paralel iki kosum birbirinin kanitini siler. Saf mantik run-queue.mjs'te.
+// ---------------- kosum motoru ----------------
+/*
+ * Tek slot + idempotency + kuyruk run-engine.mjs'te (birim testli). Buradaki
+ * tek is bagimliliklari vermek; hicbir uc kendi basina spawn ETMEZ.
  */
-const runGate = createRunGate();
-
-/** Slot bosalinca siradaki kosumu baslatir; baslatilamayan atlanir, log'a duser. */
-function drainRunQueue() {
-  const next = runGate.dequeue();
-  if (!next) return;
-  const r = startRun(next.runId, next.params, next.headless, next.record, {});
-  if (!r.ok) {
-    broadcast("log", { stream: "err", line: `[kuyruk] ${next.runId} baslatilamadi: ${r.error}` });
-    drainRunQueue();
-  }
-}
-
-/** Arayuz icin anlik durum: suren kosum + sira. */
-const runState = () => ({
-  active: active ? { id: active.id, label: active.label, startedAt: active.startedAt } : null,
-  pending: runGate.pending(),
+const engine = createRunEngine({
+  root: ROOT,
+  runs: RUNS,
+  pkgScripts: PKG_SCRIPTS,
+  buildCustomArgs,
+  draftFile,
+  ensureDraftBridge,
+  broadcast,
+  audit,
+  journal: runJournal,
+  mergeHistory,
+  lastResults,
+  applyRunResults,
 });
-
-/**
- * Model cagrisi → kapidan gecir → yaz — uc uretim ozelliginin ORTAK govdesi.
- * `apply` veri yolundaki kapidir (gate/applyCases), saglayicidan bagimsiz
- * kosulsuz calisir. Hata kodu → HTTP eslemesi ai.httpStatusFor'da tek yerde.
- */
-async function generateAndApply({ purpose, built, schema, apply, res }) {
-  const t0 = Date.now();
-  let r;
-  try {
-    r = await ai.ask({ purpose, system: built.system, user: built.user, schema });
-  } catch (e) {
-    const code = e.code ?? null;
-    audit({ event: `${purpose}-error`, code, message: String(e.message).slice(0, 200), ms: Date.now() - t0 });
-    return send(res, ai.httpStatusFor(code), {
-      ok: false, error: e.message, code, hint: ai.hintFor(code), provider: ai.mode(),
-    });
-  }
-  let out;
-  try {
-    out = apply(r.json);
-  } catch (e) {
-    // Model cevap verdi ama kapi/veri yolu reddetti: ucret odendi, sebep acik yazilsin.
-    audit({ event: `${purpose}-rejected`, message: String(e.message).slice(0, 200), costUsd: r.costUsd, ms: r.durationMs });
-    return send(res, 422, {
-      ok: false, error: e.message, code: "REJECTED", provider: r.provider, model: r.model, cost: r.costUsd, ms: r.durationMs,
-    });
-  }
-  audit({
-    event: purpose, provider: r.provider, model: r.model, costUsd: r.costUsd, ms: r.durationMs,
-    retrieval: built.retrieval?.chunks ?? 0, ...(out.audit ?? {}),
-  });
-  return send(res, 200, {
-    ok: true, ...out.body,
-    provider: r.provider, model: r.model, cost: r.costUsd, ms: r.durationMs,
-    usage: r.usage ?? null, retrieval: built.retrieval ?? null, requestId: r.requestId ?? null,
-  });
-}
-
-/**
- * Kapsam agacindan tetiklenen kosum. Kosum bitince sonuc bu dugumun
- * otomatik test case'ine yazilir. Ayni anda tek kosum oldugu icin tek slot yeterli.
- */
-let scopeRun = null; // { nodeId, runId, specs }
-
-/**
- * @param headless true ise koşumdan `--headed` cikarilir ve npm script'i olan
- *   kosumlar dogrudan `npx playwright test`e cevrilir.
- *
- * NEDEN: 21 kosumun 17'si `--headed`. Playwright headed modda TEST BASINA bir
- * tarayici penceresi aciyor; 5 testlik bir spec 5 pencere demek. Kullanici
- * "surekli browser aciliyor" derken bunu goruyor. Anahtar panelde, kosum
- * tanimlarini degistirmeye gerek yok.
- */
-/**
- * KAYIT AYARI. Panelden gelen `record` bayragi video+trace'i HER teste acar
- * (`on`); verilmezse config varsayilani (`retain-on-failure`) gecerli kalir.
- * Sabit olarak `on` yapmadik: 33 rotalik sweep'te yuzlerce MB ve belirgin
- * yavaslama demek.
- */
-const recordEnv = (record) =>
-  record ? { PW_VIDEO: "on", PW_TRACE: "on" } : {};
-
-function startRun(runId, params, headless = false, record = false, meta = {}) {
-  // Idempotency: ayni requestId 60 sn icinde tekrar gelirse ILK sonucun aynisi.
-  const prior = runGate.recall(meta.requestId);
-  if (prior) return prior;
-
-  if (active) {
-    if (meta.queue) {
-      const q = runGate.enqueue({
-        runId, params: params ?? null, headless, record,
-        label: RUNS[runId]?.label ?? runId, requestId: meta.requestId ?? null,
-      });
-      if (q.ok) {
-        runGate.remember(meta.requestId, q);
-        audit({ event: "run-queued", id: runId, position: q.position, params: params ?? null });
-        broadcast("run-queued", { id: runId, position: q.position, ...runState() });
-      }
-      return q;
-    }
-    return {
-      ok: false,
-      code: "BUSY",
-      error: `Zaten kosuyor: ${active.id}`,
-      active: { id: active.id, label: active.label, startedAt: active.startedAt },
-      hint: "Bitmesini bekle, Durdur'a bas ya da `queue:true` ile siraya al.",
-    };
-  }
-
-  let cmd;
-  let args;
-  let label;
-
-  if (runId === "draft") {
-    // Taslak koşumu AYRI config ile: testDir karantinaya bakar ve rapor
-    // test-results/draft-results.json'a yazilir — gercek suite'in son
-    // sonuclari ve case oran defteri kirlenmez.
-    const d = draftFile(params?.name);
-    if (!d)
-      return {
-        ok: false,
-        error: "Taslak bulunamadi (ad gecersiz ya da dosya yok)",
-      };
-    const proj = params?.project === "mobile" ? "mobile" : "chromium";
-    ensureDraftBridge();
-    cmd = "npx";
-    args = [
-      "playwright",
-      "test",
-      "--config",
-      "playwright.draft.config.ts",
-      d.base,
-      `--project=${proj}`,
-    ];
-    if (params?.headed) args.push("--headed");
-    label = `Taslak: ${d.base} (${proj}${params?.headed ? ", headed" : ""})`;
-  } else if (runId === "custom") {
-    const built = buildCustomArgs(params);
-    if (built.errors.length)
-      return { ok: false, error: built.errors.join(" · ") };
-    cmd = "npx";
-    args = built.args;
-    label = `Parametreli: ${(params.specs ?? []).join(", ")}${params.grep ? ` -g "${params.grep}"` : ""}${
-      params.repeatEach > 1 ? ` ×${params.repeatEach}` : ""
-    }${params.headed ? " (headed)" : ""}`;
-  } else {
-    const run = RUNS[runId];
-    if (!run) return { ok: false, error: `Whitelist'te yok: ${runId}` };
-    cmd = run.cmd;
-    args = run.args;
-    label = run.label;
-
-    if (headless) {
-      // `npm run test:x` seklindeki kosumlar --headed'i package.json'da tasiyor;
-      // args'tan cikarmak yetmez, script'i dogrudan playwright cagrisina ceviriyoruz.
-      if (cmd === "npm" && args[0] === "run") {
-        const scriptName = args[1];
-        const script = PKG_SCRIPTS[scriptName] || "";
-        const parts = script.split(/\s+/).filter((x) => x && x !== "--headed");
-        if (parts[0] === "playwright") {
-          cmd = "npx";
-          args = parts;
-          label = run.label.replace(/\(headed\)/i, "(headless)");
-        }
-      } else {
-        const filtered = args.filter((a) => a !== "--headed");
-        if (filtered.length !== args.length) {
-          args = filtered;
-          label = run.label.replace(/\(headed\)/i, "(headless)");
-        }
-      }
-    }
-  }
-
-  const child = spawn(cmd, args, {
-    cwd: ROOT,
-    /*
-     * NOT: `ordersEnv()` BILINCLI OLARAK burada DEGIL. Tanimli ama hicbir yerde
-     * kullanilmiyor (olculdu 2026-08-26): yani panelin "siparis tamamlama"
-     * override'i kosum surecine gecmiyor. Buraya eklemek yikici siparis
-     * testlerinin davranisini degistirir — guard'a dokunmak ayri bir karar,
-     * kayit ozelligiyle birlikte sessizce yapilmamali.
-     */
-    env: { ...process.env, FORCE_COLOR: "0", ...recordEnv(record) },
-    shell: false, // kabuk YOK — argv olarak gecirilir
-  });
-
-  audit({
-    event: "run",
-    id: runId,
-    label,
-    argv: [cmd, ...args],
-    params: params ?? null,
-    record: record || undefined,
-  });
-
-  active = { id: runId, label, child, startedAt: Date.now(), lines: [] };
-  // Kosum gunlugu: genel bakis ekranindaki "kosum gecmisi" bundan beslenir.
-  active.journalId = runJournal.start({ runId, label, argv: [cmd, ...args].join(" ") });
-  broadcast("run-start", {
-    id: runId,
-    label,
-    startedAt: active.startedAt,
-    argv: [cmd, ...args].join(" "),
-  });
-
-  const push = (chunk, stream) => {
-    for (const line of chunk.toString().split("\n")) {
-      if (!line.trim()) continue;
-      active.lines.push(line);
-      if (active.lines.length > 4000) active.lines.shift();
-      broadcast("log", { stream, line });
-    }
-  };
-  child.stdout.on("data", (c) => push(c, "out"));
-  child.stderr.on("data", (c) => push(c, "err"));
-
-  child.on("close", (code) => {
-    try {
-      mergeHistory();
-    } catch {
-      /* rapor yoksa sessiz gec */
-    }
-    const summary = active.lines.slice(-40).join("\n");
-    const durationMs = Date.now() - active.startedAt;
-    try {
-      runJournal.finish(active.journalId, { code, durationMs, counts: lastResults()?.counts ?? null });
-    } catch { /* gunluk yazilamazsa kosum akisi etkilenmez */ }
-    broadcast("run-end", {
-      id: runId,
-      code,
-      durationMs,
-      summary,
-    });
-
-    /* Kapsam agacindan tetiklendiyse sonucu dugume yaz. `mergeHistory()`
-     * yukarida cagrildi, yani results.json guncel. Hata YUTULMAZ: yazma
-     * basarisiz olursa log'a dusulur, sessizce kaybolmaz. */
-    if (scopeRun && scopeRun.runId === runId) {
-      const bekleyen = scopeRun;
-      scopeRun = null;
-      try {
-        const out = applyRunResults({
-          nodeId: bekleyen.nodeId,
-          specs: bekleyen.specs,
-          results: lastResults(),
-          durationMs,
-          code,
-        });
-        audit({ event: "scope-run-write", nodeId: bekleyen.nodeId, written: out.written });
-        broadcast("scope-run-end", { nodeId: bekleyen.nodeId, ...out });
-        broadcast("log", {
-          stream: "out",
-          line: `[kapsam] ${bekleyen.nodeId}: ${out.perSpec.map((p) => `${p.spec} ${p.status ?? "?"}`).join(", ")}`,
-        });
-      } catch (e) {
-        broadcast("log", { stream: "err", line: `[kapsam] sonuc yazilamadi: ${e.message}` });
-        broadcast("scope-run-end", { nodeId: bekleyen.nodeId, error: e.message });
-      }
-    }
-    active = null;
-    // Slot bosaldi: sirada bekleyen varsa hemen baslat (SSE run-start yine gider).
-    drainRunQueue();
-  });
-
-  const result = { ok: true, id: runId, journalId: active.journalId };
-  runGate.remember(meta.requestId, result);
-  return result;
-}
-
-/**
- * Durdur = suren kosum + SIRA. Kullanici "durdur" derken kuyruktakinin
- * hemen ardindan baslamasini beklemez; sirayi korumak isteyen `all:false` verir.
- */
-function stopRun({ all = true } = {}) {
-  const cleared = all ? runGate.clear() : 0;
-  if (!active) return { ok: cleared > 0, error: cleared ? undefined : "Kosan bir sey yok", cleared };
-  active.child.kill("SIGTERM");
-  return { ok: true, cleared };
-}
 
 // ---------------- verdict ----------------
 function verdictPath(key) {
@@ -1125,11 +839,33 @@ async function readBody(req) {
   return chunks.length ? JSON.parse(Buffer.concat(chunks).toString()) : {};
 }
 
+// ---------------- yonlendirici ----------------
+/*
+ * YENI UCLAR BURAYA: panel/routes/<alan>.mjs icinde register*(router, CTX).
+ * Kayitta `auth:true` (x-panel-token) ve `body:true` (JSON govde) bildirilir;
+ * token kontrolu ya da govde okuma unutulamaz, `router.list()` hepsini soyler.
+ * Asagidaki if-zinciri tasinmamis eski uclar icindir; yenisi oraya eklenmez.
+ */
+const router = createRouter();
+const CTX = {
+  send, readBody, requireAuth, audit, broadcast, sse, engine,
+  RUNS, ROOT, DATA_DIR, ENV, BASE_URL,
+  buildCustomArgs, journal: runJournal, readTree, findScopeNode, getCard,
+  readPerf: () => readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE }),
+};
+registerAssetRoutes(router, { send, publicDir: path.join(__dirname, "public") });
+registerRunRoutes(router, CTX);
+registerAiRoutes(router, CTX);
+registerRagRoutes(router, CTX);
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
   const p = url.pathname;
 
   try {
+    // Kayitli uclar (routes/*.mjs) once; eslesmezse eski zincire duser.
+    if (await router.dispatch(req, res, { ...CTX, url })) return;
+
     if (p === "/" || p === "/index.html") {
       const html = fs
         .readFileSync(path.join(__dirname, "public", "index.html"), "utf8")
@@ -1336,39 +1072,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     /**
-     * TEST CASE URETIMI — tek yol, anahtarsiz.
-     *
-     * Panel model CAGIRMAZ (Anthropic anahtari/`ant` profili istemez): yalnizca
-     * secili dugumlerin baglamindan prompt kurar. Kullanici prompt'u Claude
-     * Code'a verir, donen JSON'u /apply agaca yazar. Uretilenler TASLAK:
-     * kosum kaydi yok, "gecti" secilemez.
-     */
-    if (p === "/api/scope/testcases/prompt" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { nodeIds, types, limit } = await readBody(req);
-      try {
-        const out = buildPrompt({ nodeIds, types, limit });
-        audit({ event: "testcase-prompt", nodes: out.nodes.length });
-        return send(res, 200, { ok: true, ...out });
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    if (p === "/api/scope/testcases/apply" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req);
-      try {
-        const out = applyFromModel(body);
-        audit({ event: "testcase-apply", written: out.written });
-        broadcast("log", { stream: "out", line: `[case] elle uretim: ${out.written} case yazildi` });
-        return send(res, 200, { ok: true, ...out });
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /**
      * Bir kart (Jira Task ID) ile bir/birden çok kapsam ağacı düğümünü bağlar —
      * insanın drawer'daki "Jira Task ID ekle" akışının agent'lar için sunucu
      * karşılığı (bkz. product-owner agent'ı). Bağladığı Task ID bilinen ve "done"
@@ -1546,49 +1249,6 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok: silindi });
     }
 
-    /**
-     * Kapsam agacindaki bir dugumden GERCEK kosum tetikler.
-     *
-     * Dugumdeki `runRef.runId` whitelist'te olmak ZORUNDA — panelin kosum
-     * guvenligi (whitelist disi komut calismaz) burada da gecerli.
-     */
-    if (p === "/api/scope/run" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { nodeId, headless = true } = await readBody(req);
-      const { tree } = readTree();
-      const node = findScopeNode(tree, nodeId);
-      if (!node) return send(res, 404, { ok: false, error: "Dugum bulunamadi." });
-      const ref = node.runRef ?? {};
-      if (!ref.runId) {
-        return send(res, 400, {
-          ok: false,
-          error: "Bu dugume bagli bir kosum yok (runRef bos).",
-        });
-      }
-      if (!RUNS[ref.runId]) {
-        return send(res, 400, {
-          ok: false,
-          error: `Kosum whitelist'te yok: ${ref.runId}`,
-        });
-      }
-      // Kapsam kosumu SIRAYA ALINMAZ: scopeRun tek slot, kuyruktaki ikinci
-      // dugum ilkinin sonucunu ezerdi. Mesgulse 409 + suren kosum bilgisi.
-      const started = startRun(ref.runId, null, Boolean(headless));
-      if (!started.ok) return send(res, started.code === "BUSY" ? 409 : 400, started);
-      scopeRun = { nodeId, runId: ref.runId, specs: ref.specs ?? [] };
-      audit({ event: "scope-run-start", nodeId, runId: ref.runId });
-      return send(res, 200, { ok: true, runId: ref.runId, specs: scopeRun.specs });
-    }
-
-    /** Dugumden tetiklenen kosum suruyor mu (arayuz butonu bunu izler). */
-    if (p === "/api/scope/run-state") {
-      return send(res, 200, {
-        running: Boolean(active),
-        activeRunId: active?.id ?? null,
-        scopeNodeId: scopeRun?.nodeId ?? null,
-      });
-    }
-
     /* ---------------- Tarama (URL → kapsam agaci) ----------------
      * Playwright panelin baslangicinda YUKLENMEZ; crawler.mjs onu yalnizca
      * tarama basladiginda dinamik import eder.
@@ -1706,9 +1366,7 @@ const server = http.createServer(async (req, res) => {
           tip: r.tip ?? "",
           cmd: [r.cmd, ...(r.args ?? [])].join(" "),
         })),
-        active: active
-          ? { id: active.id, label: active.label, startedAt: active.startedAt }
-          : null,
+        active: engine.active(),
         knownIssues: knownIssues(),
       });
     }
@@ -1881,89 +1539,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     /**
-     * KART → TEST CASE istemi (anahtarsiz yol, kart baglamiyla).
-     * Kartin ozeti/aciklamasi/yorumlari + hedef dugumun baglami tek isteme
-     * giriyor; donen JSON mevcut /api/scope/testcases/apply ucundan aynen
-     * yaziliyor (tek yazma yolu — kapi ve id sayaci orada).
-     */
-    if (p === "/api/jira/testcases/prompt" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { key, nodeId, types, limit } = await readBody(req);
-      if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
-      try {
-        const card = await getCard(String(key));
-        if (card.error) return send(res, 502, { ok: false, error: card.error });
-        const out = buildCardPrompt({
-          card,
-          nodeId,
-          types,
-          limit: Math.min(Math.max(Number(limit) || 4, 1), 12),
-        });
-        audit({ event: "jira-testcase-prompt", key, nodeId, types: out.types.length });
-        return send(res, 200, { ok: true, ...out });
-      } catch (e) {
-        audit({ event: "jira-testcase-prompt-error", key, message: e.message.slice(0, 200) });
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /**
-     * TEK TIK TEST CASE URETIMI.
-     *
-     * Panel istemi kurar, makinede kurulu Claude Code CLI'sini cagirir, donen
-     * JSON'u ayni yazma yolundan (applyFromModel) agaca yazar. Anahtar
-     * gerekmez: CLI kullanicinin oturumuyla kimlikli.
-     *
-     * Kopyala-yapistir ucu (`/prompt` + `/apply`) KALDIRILMADI: CLI yoksa,
-     * kimlik dusmusse ya da cagri zaman asimina ugrarsa geri donulecek bir yol
-     * kalmasi gerekiyor — tek yolu CLI'ye baglamak, CLI'siz bir makinede
-     * ozelligi tamamen kapatirdi.
-     */
-    /*
-     * Saglayici: ai/provider.mjs (API anahtari → CLI → elle). Sema API'de sunucu
-     * tarafinda zorlanir; CLI'de gevsek ayristirma + duzeltici tekrar orada.
-     * Yazma yolu DEGISMEDI: applyFromModel (kapi + id sayaci) tek yer.
-     */
-    if (p === "/api/jira/testcases/generate" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { key, nodeId, types, limit } = await readBody(req);
-      if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
-      let built;
-      try {
-        const card = await getCard(String(key));
-        if (card.error) return send(res, 502, { ok: false, error: card.error });
-        built = buildCardPrompt({ card, nodeId, types, limit: Math.min(Math.max(Number(limit) || 4, 1), 12) });
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-      return generateAndApply({
-        purpose: "jira-testcase-generate", built, schema: TESTCASE_SCHEMA, res,
-        apply: (json) => {
-          const out = applyFromModel({ items: json?.items, card: String(key), allowedNodeIds: [nodeId] });
-          return { body: out, audit: { card: String(key), written: out.written } };
-        },
-      });
-    }
-
-    if (p === "/api/scope/testcases/generate" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { nodeIds, types, limit } = await readBody(req);
-      let built;
-      try {
-        built = buildPrompt({ nodeIds, types, limit: Math.min(Math.max(Number(limit) || 4, 1), 12) });
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-      return generateAndApply({
-        purpose: "scope-testcase-generate", built, schema: TESTCASE_SCHEMA, res,
-        apply: (json) => {
-          const out = applyFromModel({ items: json?.items, card: null, allowedNodeIds: nodeIds });
-          return { body: out, audit: { nodes: (nodeIds ?? []).length, written: out.written } };
-        },
-      });
-    }
-
-    /**
      * KOSUM SONUCU → yorum TASLAGI. Jira'ya YAZMAZ; metni dondurur, gonderme
      * yine /api/jira/comment ucundan ve onayla oluyor (bkz. jira-report.mjs).
      */
@@ -2033,165 +1608,18 @@ const server = http.createServer(async (req, res) => {
 
     // ---------------- Jira: YAZMA (yalnizca panelden tetiklenir) ----------------
     /**
-     * Senaryo onerisi — ANAHTARSIZ yol. Panel model CAGIRMAZ; iki uc var:
-     *   /prompt → baglamdan Claude Code'a verilecek istemi kurar,
-     *   /apply  → donen JSON'u 3 katmanli kapidan gecirir.
-     * Kapi CAGRI yolunda degil VERI yolunda: elle yapistirilan JSON de ayni
-     * katmanlardan geciyor, yapistirmak kapiyi atlamanin yolu degil.
-     */
-    if (p === "/api/scenarios/prompt" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { request, limit } = await readBody(req);
-      if (!request || !String(request).trim()) {
-        return send(res, 400, { ok: false, error: "request zorunlu" });
-      }
-      const lim = Math.min(Math.max(Number(limit) || 5, 1), 10);
-      try {
-        const out = buildScenarioPrompt({ request: String(request), limit: lim });
-        audit({
-          event: "scenario-prompt",
-          chars: String(request).length,
-          limit: lim,
-          oracles: out.context.oracleSources.length,
-        });
-        return send(res, 200, {
-          ok: true,
-          prompt: out.prompt,
-          limit: lim,
-          suites: out.context.suites.length,
-          oracleSources: out.context.oracleSources.length,
-        });
-      } catch (e) {
-        audit({ event: "scenario-prompt-error", code: e.code ?? null, message: e.message.slice(0, 200) });
-        return send(res, e.code === "NO_ORACLE" ? 409 : 400, {
-          ok: false,
-          error: e.message,
-          code: e.code ?? null,
-        });
-      }
-    }
-
-    if (p === "/api/scenarios/apply" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req);
-      const lim = Math.min(Math.max(Number(body.limit) || 5, 1), 10);
-      try {
-        const out = applyScenarios({ scenarios: body.scenarios, limit: lim });
-        audit({
-          event: "scenario-apply",
-          accepted: out.audit.accepted,
-          dropped: out.audit.droppedNoOracle.length,
-          rejected: out.audit.rejectedByContext.length,
-        });
-        return send(res, 200, { ok: true, ...out });
-      } catch (e) {
-        audit({ event: "scenario-apply-error", message: e.message.slice(0, 200) });
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /** TEK TIK senaryo onerisi: istem kur → saglayici → ayni 3 katmanli kapi. */
-    if (p === "/api/scenarios/generate" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { request, limit } = await readBody(req);
-      if (!request || !String(request).trim()) return send(res, 400, { ok: false, error: "request zorunlu" });
-      const lim = Math.min(Math.max(Number(limit) || 5, 1), 10);
-      let built;
-      try {
-        built = buildScenarioPrompt({ request: String(request), limit: lim });
-      } catch (e) {
-        return send(res, e.code === "NO_ORACLE" ? 409 : 400, { ok: false, error: e.message, code: e.code ?? null });
-      }
-      return generateAndApply({
-        purpose: "scenario-generate", built, schema: SCENARIO_SCHEMA, res,
-        apply: (json) => {
-          const out = applyScenarios({ scenarios: json?.scenarios, limit: lim });
-          return { body: out, audit: { accepted: out.audit.accepted, dropped: out.audit.droppedNoOracle.length, rejected: out.audit.rejectedByContext.length } };
-        },
-      });
-    }
-
-    /**
      * Perf olcumleri. `scripts/perf-sweep.mjs` cikitisini okur — veri zaten
      * diskte duruyordu ama gorunecek yer yoktu; iki yapisal bulgu (token x3,
      * menu cache'siz) terminalde python ile okunarak bulundu.
      */
     if (p === "/api/perf") {
-      const dir = path.join(DATA_DIR, "perf");
-      if (!fs.existsSync(dir))
-        return send(res, 200, { routes: [], endpoints: [], measuredAt: null });
-      const files = fs
-        .readdirSync(dir)
-        .filter((f) => f.endsWith(".json") && f !== "_summary.json");
-      const routes = [];
-      const epMap = new Map();
-      let measuredAt = null;
-      for (const f of files) {
-        let d;
-        try {
-          d = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"));
-        } catch {
-          continue;
-        }
-        if (!d.route) continue;
-        if (!measuredAt || (d.measuredAt && d.measuredAt > measuredAt))
-          measuredAt = d.measuredAt;
-        // "Bizim API'miz hata dondu" filtresi: host'u profilin apiHostMatch'i
-        // ile eslesenler. Profil vermemisse tum 4xx/5xx sayilir.
-        const bad = (d.failed || []).filter(
-          (x) => (!API_HOST_RE || API_HOST_RE.test(x.host || "")) && x.status >= 400,
-        );
-        routes.push({
-          route: d.route,
-          lcp: d.metrics?.lcpMs ?? null,
-          load: d.metrics?.loadMs ?? null,
-          ttfb: d.metrics?.ttfbMs ?? null,
-          requests: d.requestCount ?? null,
-          api: d.apiCount ?? null,
-          notFound: !!d.metrics?.notFound,
-          duplicates: (d.duplicates || []).length,
-          siteErrors: bad.length,
-          consoleErrors: (d.consoleErrors || []).length,
-        });
-        for (const e of d.endpoints || []) {
-          const cur = epMap.get(e.endpoint) || {
-            endpoint: e.endpoint,
-            routes: 0,
-            calls: 0,
-            maxMs: 0,
-            dupRoutes: 0,
-          };
-          cur.routes += 1;
-          cur.calls += e.calls || 0;
-          cur.maxMs = Math.max(cur.maxMs, e.maxMs || 0);
-          if ((e.calls || 0) > 1) cur.dupRoutes += 1;
-          epMap.set(e.endpoint, cur);
-        }
-      }
-      routes.sort((a, b) => (b.lcp ?? 0) - (a.lcp ?? 0));
-      const endpoints = [...epMap.values()].sort((a, b) => b.maxMs - a.maxMs);
-      const payload = {
-        measuredAt,
-        routes,
-        endpoints,
-        totals: {
-          routes: routes.length,
-          requests: routes.reduce((a, r) => a + (r.requests || 0), 0),
-          api: routes.reduce((a, r) => a + (r.api || 0), 0),
-          endpoints: endpoints.length,
-          dupEndpoints: endpoints.filter((e) => e.dupRoutes > 0).length,
-        },
-      };
-      /*
-       * GECMISE YAKALAMA — burada, cunku `panel-data/perf/` her sweep'te
-       * UZERINE yaziliyor ve sweep'i kim kosarsa kossun (panel, script, elle)
-       * bu uc mutlaka okunuyor. `measuredAt` anahtar: ayni olcum iki kez
-       * kaydedilmiyor. Yakalama hatasi olcumu GOLGELEMEZ.
-       */
-      try {
-        perfCapture(payload);
-      } catch (e) {
-        audit({ event: "perf-history-capture-error", message: e.message.slice(0, 160) });
+      // Okuma perf-read.mjs'te (AI uclari da ayni fonksiyonu cagirir, kendine
+      // HTTP atmaz). Yakalama burada: panel-data/perf her sweep'te ezildigi
+      // icin bu uc okundugunda olcum gecmise dusmeli; hata olcumu golgelemez.
+      const payload = readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE });
+      if (payload.measuredAt) {
+        try { perfCapture(payload); }
+        catch (e) { audit({ event: "perf-history-capture-error", message: e.message.slice(0, 160) }); }
       }
       return send(res, 200, payload);
     }
@@ -2201,9 +1629,10 @@ const server = http.createServer(async (req, res) => {
      * mevcut olcum de geçmise dusmus oluyor (kullanici "Yenile"ye basmadan).
      */
     if (p === "/api/perf/history") {
+      // Mevcut olcumu gecmise dusur — dogrudan okuma, kendine HTTP yok.
       try {
-        const r = await fetch(`http://127.0.0.1:${PORT}/api/perf`);
-        await r.json();
+        const cur = readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE });
+        if (cur.measuredAt) perfCapture(cur);
       } catch { /* olcum okunamadiysa gecmis yine donsun */ }
       const rows = perfHistory(Number(url.searchParams.get("limit")) || 40);
       return send(res, 200, {
@@ -2450,77 +1879,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     /**
-     * Perf yorumu — ANAHTARSIZ yol (senaryo onericiyle ayni desen).
-     * Olcum HER IKI ucta da sunucuda okunur, istemciden gelmez: yoksa uydurma
-     * bir rota listesi gonderip "uydurma rota" kapisini gecmek mumkun olurdu.
-     */
-    const readPerf = async () => {
-      const r = await fetch(`http://127.0.0.1:${PORT}/api/perf`);
-      return r.json();
-    };
-
-    if (p === "/api/perf/prompt" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      let perf;
-      try {
-        perf = await readPerf();
-      } catch (e) {
-        return send(res, 500, { ok: false, error: `perf verisi okunamadi: ${e.message}` });
-      }
-      try {
-        const out = buildPerfPrompt(perf);
-        audit({ event: "perf-prompt", routes: out.routes });
-        return send(res, 200, { ok: true, ...out });
-      } catch (e) {
-        audit({ event: "perf-prompt-error", message: e.message.slice(0, 200) });
-        return send(res, 409, { ok: false, error: e.message });
-      }
-    }
-
-    if (p === "/api/perf/apply" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req);
-      let perf;
-      try {
-        perf = await readPerf();
-      } catch (e) {
-        return send(res, 500, { ok: false, error: `perf verisi okunamadi: ${e.message}` });
-      }
-      try {
-        const out = applyPerfFindings(perf, body);
-        audit({ event: "perf-apply", findings: out.findings.length, dropped: out.dropped.length });
-        return send(res, 200, { ok: true, ...out });
-      } catch (e) {
-        audit({ event: "perf-apply-error", message: e.message.slice(0, 200) });
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /** TEK TIK perf yorumu: olcum sunucuda okunur → saglayici → uydurma rota kapisi. */
-    if (p === "/api/perf/generate" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      let perf;
-      try {
-        perf = await readPerf();
-      } catch (e) {
-        return send(res, 500, { ok: false, error: `perf verisi okunamadi: ${e.message}` });
-      }
-      let built;
-      try {
-        built = buildPerfPrompt(perf);
-      } catch (e) {
-        return send(res, 409, { ok: false, error: e.message });
-      }
-      return generateAndApply({
-        purpose: "perf-generate", built, schema: PERF_SCHEMA, res,
-        apply: (json) => {
-          const out = applyPerfFindings(perf, json);
-          return { body: out, audit: { findings: out.findings.length, dropped: out.dropped.length } };
-        },
-      });
-    }
-
-    /**
      * Kapi oturumunun sagligi. Dosya yasina DEGIL, storageState icindeki
      * `temporary_auth_verified` cookie'sinin gercek son kullanma tarihine bakar.
      * 2026-08-20'de suresi dolmus bir kapi 33 rotalik perf sweep'i sessizce
@@ -2577,60 +1935,6 @@ const server = http.createServer(async (req, res) => {
         hoursLeft: hoursLeft === null ? null : Number(hoursLeft.toFixed(2)),
         ageHours: Number(ageH.toFixed(2)),
         env,
-      });
-    }
-
-    /**
-     * AI saglayici durumu: hangi yol (api/cli/manual), model, bugunku harcama.
-     * Aga CIKMAZ (anahtari dogrulamak = ucretli istek). Arayuz "Tek tikla"
-     * dugmelerini buna gore gosterir/gizler.
-     */
-    if (p === "/api/ai/status") {
-      return send(res, 200, { ok: true, ...ai.status() });
-    }
-
-    /**
-     * RAG v1 uclari. `search` salt okur (token yok, yan etkisi yok); `reindex`
-     * diske yazar (token). Indeks bayatsa `ensureIndex` zaten kendi kurar —
-     * reindex, "tree.json'u elle degistirdim, hemen gorsun" icin.
-     */
-    if (p === "/api/rag/status") {
-      const idx = ragEnsure();
-      return send(res, 200, { ok: Boolean(idx), ...(ragStats(idx) ?? { error: "indeks kurulamadi" }) });
-    }
-    if (p === "/api/rag/search") {
-      const q = (url.searchParams.get("q") || "").trim();
-      if (!q) return send(res, 400, { ok: false, error: "q zorunlu" });
-      const k = Math.min(Math.max(Number(url.searchParams.get("k")) || 8, 1), 25);
-      const idx = ragEnsure();
-      if (!idx) return send(res, 503, { ok: false, error: "indeks kurulamadi" });
-      const hits = ragSearch(idx, q, { k }).map((h) => ({ ...h, text: h.text.slice(0, 600) }));
-      return send(res, 200, { ok: true, q, k, hits, builtAt: idx.builtAt });
-    }
-    if (p === "/api/rag/reindex" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const t0 = Date.now();
-      const idx = ragEnsure({ force: true });
-      audit({ event: "rag-reindex", chunks: idx?.chunks?.length ?? 0, ms: Date.now() - t0 });
-      return send(res, idx ? 200 : 500, { ok: Boolean(idx), ms: Date.now() - t0, ...(ragStats(idx) ?? {}) });
-    }
-
-    /** Modele ne gonderilecegini onizler — cagri YAPMAZ, token gerekmez. */
-    if (p === "/api/scenarios/context") {
-      const ctx = buildContext({
-        limit: Number(url.searchParams.get("limit")) || 5,
-      });
-      /*
-       * Eskiden burada iki eksik daha raporlaniyordu: `sdkReady` (@anthropic-ai/sdk
-       * kurulu mu) ve `authReady` (kimlik var mi). Panel model cagirmadigi icin
-       * ikisi de kalkti — kalan tek onkosul BAGLAM: dayanak kaynagi yoksa oneri
-       * kapali, cunku Kural 1 uygulanamaz.
-       */
-      return send(res, 200, {
-        suites: ctx.suites.length,
-        existingCases: ctx.existingCases.length,
-        oracleSources: ctx.oracleSources,
-        ready: ctx.oracleSources.length > 0,
       });
     }
 
@@ -3040,7 +2344,7 @@ ${testBlock}
     if (p === "/api/record/run" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const body = await readBody(req);
-      const r = startRun("draft", {
+      const r = engine.start("draft", {
         name: body.name,
         project: body.project,
         headed: !!body.headed,
@@ -3209,76 +2513,6 @@ ${testBlock}
     }
 
     if (p === "/api/specs") return send(res, 200, listSpecs());
-
-    /** Genel bakis: kosum gecmisi (yeniden eskiye). */
-    if (p === "/api/runs/history") {
-      const n = Math.min(Math.max(Number(url.searchParams.get("limit")) || 12, 1), 50);
-      return send(res, 200, { runs: runJournal.list(n, active?.journalId ?? null) });
-    }
-
-    // Parametreli kosumun uretecegi komutu ONCE gosterir (calistirmaz)
-    if (p === "/api/run/preview" && req.method === "POST") {
-      const body = await readBody(req);
-      const built = buildCustomArgs(body.params ?? {});
-      return send(res, 200, {
-        ok: !built.errors.length,
-        errors: built.errors,
-        command: ["npx", ...built.args].join(" "),
-      });
-    }
-
-    /**
-     * Kosum baslat. `requestId` (istemci uretir) ayni istegi idempotent yapar;
-     * `queue:true` slot doluysa siraya alir. Mesgul → 409 (arayuz `code`a bakar).
-     */
-    if (p === "/api/run" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const { id, params, headless, record, requestId, queue } = await readBody(req);
-      const r = startRun(id, params, Boolean(headless), Boolean(record), {
-        requestId: typeof requestId === "string" ? requestId.slice(0, 80) : null,
-        queue: Boolean(queue),
-      });
-      const status = r.ok ? 200 : ["BUSY", "QUEUE_FULL", "DUPLICATE"].includes(r.code) ? 409 : 400;
-      return send(res, status, r);
-    }
-
-    /** Suren kosum + sira (arayuz ve agent'lar icin; token gerekmez). */
-    if (p === "/api/run/state") {
-      return send(res, 200, { ok: true, ...runState() });
-    }
-
-    if (p === "/api/stop" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req).catch(() => ({}));
-      const all = body?.all !== false;
-      audit({ event: "stop", id: active?.id ?? null, clearQueue: all });
-      return send(res, 200, stopRun({ all }));
-    }
-
-    if (p === "/api/events") {
-      res.writeHead(200, {
-        "content-type": "text/event-stream",
-        "cache-control": "no-cache",
-        connection: "keep-alive",
-      });
-      res.write(": bagli\n\n");
-      sseClients.add(res);
-      if (runGate.size()) {
-        res.write(`event: run-queued\ndata: ${JSON.stringify(runState())}\n\n`);
-      }
-      if (active) {
-        res.write(
-          `event: run-start\ndata: ${JSON.stringify({ id: active.id, label: active.label, startedAt: active.startedAt })}\n\n`,
-        );
-        for (const line of active.lines.slice(-200)) {
-          res.write(
-            `event: log\ndata: ${JSON.stringify({ stream: "out", line })}\n\n`,
-          );
-        }
-      }
-      req.on("close", () => sseClients.delete(res));
-      return;
-    }
 
     // kanit gorselleri ve raporlar
     if (p.startsWith("/evidence/")) {

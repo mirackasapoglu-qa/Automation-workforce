@@ -15,6 +15,10 @@
  * (scenario-suggest / perf-analyze / testcase-gen → applyFromModel) ve sağlayıcı
  * ne olursa olsun koşulsuz çalışır.
  *
+ * `stable`: sorgudan bağımsız sabit zemin (rag/digest.mjs). API yolunda ayrı
+ * sistem bloğu olarak gider ve eşiği aşınca önbelleklenir; CLI yolunda metne
+ * eklenir (CLI'de önbellek yok, o yüzden çağıran kısa tutar).
+ *
  * Bu dosya proje adı bilmez (`npm run panel:check`).
  */
 import fs from "node:fs";
@@ -27,6 +31,10 @@ const err = (code, message, extra = {}) => Object.assign(new Error(message), { c
 
 // ---- CLI var mı (PATH taraması, 60 sn önbellek — her preflight'ta disk taramasın)
 let cliCache = { at: 0, bin: null };
+
+/** Testler ve "CLI'yi yeni kurdum" durumu için önbelleği düşürür. */
+export function resetCliCache() { cliCache = { at: 0, bin: null }; }
+
 export function cliBinary() {
   if (Date.now() - cliCache.at < 60_000) return cliCache.bin;
   let found = null;
@@ -104,12 +112,13 @@ export function status() {
  *
  * @param {object} p
  * @param {string} p.purpose  denetim/defter etiketi (ör. "testcase-generate")
- * @param {string} p.system   sabit talimat
+ * @param {string} p.system   kısa talimat
+ * @param {string} [p.stable] sabit zemin (önbelleklenebilir)
  * @param {string} p.user     bağlam + istek
  * @param {object} [p.schema] JSON Schema
  * @param {number} [p.maxTokens]
  */
-export async function ask({ purpose = "ai", system = "", user, schema = null, maxTokens } = {}) {
+export async function ask({ purpose = "ai", system = "", stable = "", user, schema = null, maxTokens } = {}) {
   const m = mode();
   if (m === "manual") {
     throw err("NO_PROVIDER",
@@ -121,9 +130,12 @@ export async function ask({ purpose = "ai", system = "", user, schema = null, ma
   const t0 = Date.now();
   try {
     const out = await withSlot(() => (m === "api"
-      ? complete({ system, user, schema, maxTokens })
-      : viaCli({ system, user, schema })));
-    record({ purpose, provider: m, model: out.model, ok: true, costUsd: out.costUsd, ms: out.durationMs, usage: out.usage ?? null });
+      ? complete({ system, stable, user, schema, maxTokens })
+      : viaCli({ system, stable, user, schema })));
+    record({
+      purpose, provider: m, model: out.model, ok: true, costUsd: out.costUsd, ms: out.durationMs,
+      usage: out.usage ?? null, cacheRead: out.cache?.read ?? null, cacheWrite: out.cache?.write ?? null,
+    });
     return { provider: m, ...out };
   } catch (e) {
     record({ purpose, provider: m, model: e.model ?? null, ok: false, code: e.code ?? null, costUsd: e.costUsd ?? null, ms: Date.now() - t0, error: String(e.message).slice(0, 200) });
@@ -132,12 +144,12 @@ export async function ask({ purpose = "ai", system = "", user, schema = null, ma
 }
 
 /**
- * CLI yolu. Sistem + kullanıcı tek metin olarak gider (CLI'nin sistem alanı
- * yok). Bozuk JSON ARALIKLI bir sorun (aynı istem bir geçerli bir bozuk
+ * CLI yolu. Sistem + zemin + kullanıcı tek metin olarak gider (CLI'nin sistem
+ * alanı yok). Bozuk JSON ARALIKLI bir sorun (aynı istem bir geçerli bir bozuk
  * üretti, ölçüldü) — tek seferlik düzeltici tekrar burada, çağıranlarda değil.
  */
-async function viaCli({ system, user, schema }) {
-  const prompt = [system, user].filter(Boolean).join("\n\n");
+async function viaCli({ system, stable, user, schema }) {
+  const prompt = [system, stable, user].filter(Boolean).join("\n\n");
   let r = await askClaude(prompt);
   let json = null;
   if (schema) {
@@ -151,10 +163,13 @@ async function viaCli({ system, user, schema }) {
       json = parseJsonLoose(r.text);
     }
   }
-  return { text: r.text, json, usage: null, costUsd: r.costUsd, durationMs: r.durationMs, model: r.model, stopReason: "end_turn", requestId: r.sessionId ?? null, retried: r.retried ?? false };
+  return {
+    text: r.text, json, usage: null, costUsd: r.costUsd, cache: null, durationMs: r.durationMs,
+    model: r.model, models: r.models ?? null, stopReason: "end_turn", requestId: r.sessionId ?? null, retried: r.retried ?? false,
+  };
 }
 
-/** Hata kodu → HTTP durumu (server.mjs tek yerden eşler). */
+/** Hata kodu → HTTP durumu (rotalar tek yerden eşler). */
 export function httpStatusFor(code) {
   switch (code) {
     case "NO_PROVIDER":
@@ -184,6 +199,7 @@ export function hintFor(code) {
     case "REFUSAL": return "Model isteği reddetti; istem metnini gözden geçir.";
     case "TRUNCATED": return "Yanıt kesildi; en fazla case/senaryo sayısını düşür ya da AI_MAX_TOKENS'ı artır.";
     case "BAD_JSON": return "Model geçerli JSON döndürmedi; bir kez daha dene, tekrar ederse 'İstem üret' yolunu kullan.";
+    case "BAD_REQUEST": return "API isteği reddetti (gövde/şema); mesajı Console loguyla karşılaştır, AI_MODEL değerini kontrol et.";
     default: return "Tekrar dene; sürerse 'İstem üret' ile kopyala-yapıştır yolu çalışır.";
   }
 }
