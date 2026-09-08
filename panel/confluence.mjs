@@ -8,7 +8,7 @@
  * yapıyor (Figma ile PAYLAŞILAN aynı fonksiyon, bkz. o dosyadaki gerekçe).
  *
  * ⚠️ KİMLİK VE HOST PROJE-BAĞIMSIZ TUTULUYOR: bu panel artık yalnızca
- * Machinarium için değil, herkese açılacak şekilde düşünülüyor, o yüzden
+ * tek bir şirket için değil, herkese açılacak şekilde düşünülüyor, o yüzden
  * hiçbir yerde sabit bir *.atlassian.net yazmıyoruz.
  *  - Kendi kimlik dosyası var (`~/.confluence-credentials`,
  *    `CONFLUENCE_EMAIL`/`CONFLUENCE_TOKEN`) ama VERİLMEMİŞSE Jira'nın
