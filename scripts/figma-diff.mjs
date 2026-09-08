@@ -41,14 +41,18 @@ const ENV = (process.env.HOMEE_ENV ?? "test").toLowerCase();
 const BASE_URL =
   process.env[`BASE_URL_${ENV.toUpperCase()}`] ?? "https://redesign-prod.test.tepehome.com.tr";
 
-function figmaToken() {
-  const f = path.join(os.homedir(), ".figma-credentials");
-  if (!fs.existsSync(f)) throw new Error("~/.figma-credentials yok (FIGMA_TOKEN)");
-  const m = fs.readFileSync(f, "utf8").match(/FIGMA_TOKEN\s*=\s*(\S+)/);
-  if (!m) throw new Error("~/.figma-credentials içinde FIGMA_TOKEN yok");
-  return m[1];
+/*
+ * Kimlik: ortam > OAuth > ~/.figma-credentials (connectors/credentials.mjs).
+ * Sunucuda home boş; panel bu script'i env ile spawn ediyor ve FIGMA_TOKEN
+ * oradan gelir. Dosyayı doğrudan okumak container'da "dosya yok" ile düşüyordu.
+ */
+async function figmaToken() {
+  const { resolveCreds } = await import("../panel/connectors/credentials.mjs");
+  const r = resolveCreds(".figma-credentials", ["FIGMA_TOKEN"]);
+  if (!r.ok) throw new Error("FIGMA_TOKEN yok — ortam değişkeni ver ya da ~/.figma-credentials yaz");
+  return r.values.FIGMA_TOKEN;
 }
-const TOKEN = figmaToken();
+const TOKEN = await figmaToken();
 
 /**
  * Figma çağrıları ÖNBELLEKLİ. Tam düğüm ağacı çekmek pahalı ve API agresif

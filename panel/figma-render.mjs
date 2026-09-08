@@ -6,21 +6,24 @@
  * kovasında rahat); tam ağaç çağrısı buradan YAPILMAZ çünkü 429 riski var.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { figmaForRoute, FIGMA_FILE, FIGMA_ROUTES } from "./figma-map.mjs";
 import { noteResponse } from "./figma-quota.mjs";
-import { isCut } from "./connectors/cuts.mjs";
+import { resolveCreds } from "./connectors/credentials.mjs";
 
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
 
+/*
+ * Kimlik resolveCreds ile: ortam > OAuth > ~/.figma-credentials. Eskiden dosya
+ * DOGRUDAN okunuyordu; sunucuda (container, home bos) preflight "Figma ok"
+ * derken render "~/.figma-credentials yok" ile dusuyordu — env'e konan
+ * FIGMA_TOKEN'i yalniz connector goruyordu, bu dosya gormuyordu. Salter
+ * (kopar) resolveCreds icinde: kopukken ok:false doner, ayrica sormaya gerek yok.
+ */
+const CRED_HINT = "FIGMA_TOKEN yok — ortam degiskeni ver ya da ~/.figma-credentials yaz";
 function token() {
-  // Bu dosya kimligi resolveCreds yerine DOGRUDAN okuyor (eski tutarsizlik);
-  // salteri burada da sormazsak "koparildi" yazan Figma render etmeye devam eder.
-  if (isCut("figma")) return null;
-  const f = path.join(os.homedir(), ".figma-credentials");
-  if (!fs.existsSync(f)) return null;
-  return fs.readFileSync(f, "utf8").match(/FIGMA_TOKEN\s*=\s*(\S+)/)?.[1] ?? null;
+  const r = resolveCreds(".figma-credentials", ["FIGMA_TOKEN"]);
+  return r.ok ? r.values.FIGMA_TOKEN : null;
 }
 
 const keyPath = (k, ext) => path.join(CACHE_DIR, k.replace(/[^A-Za-z0-9_.-]/g, "_") + "." + ext);
@@ -49,7 +52,7 @@ async function fetchTree(nodeId) {
   const f = keyPath(`shallow_${FIGMA_FILE}_${nodeId}`, "json");
 
   const t = token();
-  if (!t) throw new Error("~/.figma-credentials yok");
+  if (!t) throw new Error(CRED_HINT);
   // SIG sorgu: frame id/ad/boyut icin yeterli, tam agactan cok daha ucuz
   const url = `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(nodeId)}&depth=2`;
   const res = await fetch(url, { headers: { "X-Figma-Token": t } });
@@ -131,7 +134,7 @@ export async function renderForRoute(routePath) {
   }
 
   const t = token();
-  if (!t) return { error: "~/.figma-credentials yok", map };
+  if (!t) return { error: CRED_HINT, map };
   const imgUrl = `https://api.figma.com/v1/images/${FIGMA_FILE}` +
     `?ids=${encodeURIComponent(frame.id)}&format=png&scale=1`;
   const res = await fetch(imgUrl, { headers: { "X-Figma-Token": t } });

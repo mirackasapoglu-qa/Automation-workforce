@@ -16,7 +16,6 @@
  * çalışmaz; `--renders-only` ile 2) da atlanır → tek `/v1/images` çağrısı.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { FIGMA_ROUTES, FIGMA_FILE } from "../panel/figma-map.mjs";
 import { noteResponse } from "../panel/figma-quota.mjs";
@@ -36,10 +35,13 @@ const RENDERS_ONLY = process.argv.includes("--renders-only");
 const CACHE = path.join(process.cwd(), "panel-data", "figma-cache");
 fs.mkdirSync(CACHE, { recursive: true });
 
-const TOKEN = fs
-  .readFileSync(path.join(os.homedir(), ".figma-credentials"), "utf8")
-  .match(/FIGMA_TOKEN\s*=\s*(\S+)/)?.[1];
-if (!TOKEN) throw new Error("~/.figma-credentials içinde FIGMA_TOKEN yok");
+// Kimlik: ortam > OAuth > ~/.figma-credentials — sunucuda tek yol env.
+const TOKEN = await (async () => {
+  const { resolveCreds } = await import("../panel/connectors/credentials.mjs");
+  const r = resolveCreds(".figma-credentials", ["FIGMA_TOKEN"]);
+  if (!r.ok) throw new Error("FIGMA_TOKEN yok — ortam değişkeni ver ya da ~/.figma-credentials yaz");
+  return r.values.FIGMA_TOKEN;
+})();
 
 const kp = (k, ext) => path.join(CACHE, k.replace(/[^A-Za-z0-9_.-]/g, "_") + "." + ext);
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
