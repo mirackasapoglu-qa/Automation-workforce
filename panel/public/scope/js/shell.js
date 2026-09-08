@@ -7,7 +7,7 @@ import {
   migrateTypes, migrateLinks, migrateJira, migrateJiraAnalyses, migrateNotes, migrateResourceLinks, migrateStatusMeta,
   migrateTestCases, migrateTestCaseSteps, fixIdCounter, dedupeEntityIds, treeHasProgress, computeSearchVisibleIds, FACET_META
 } from './data.js';
-import { openAttentionPanel } from './attention-panel.js';
+import { renderAttentionView, attentionBadgeCount } from './attention-view.js';
 import { renderNode } from './tree-view.js';
 import { renderDiagram, applyDiagramZoom } from './diagram-view.js';
 import { renderBoard } from './board-view.js';
@@ -15,7 +15,7 @@ import { renderDrawer, closeDrawer } from './drawer.js';
 import { openSitemapImportModal } from './sitemap-import.js';
 import { toggleSelectMode, buildBulkBar } from './bulk-actions.js';
 
-let indicatorEl, switchButtons = {}, selectBtnEl;
+let indicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
 
 export function renderProgress() {
   const stats = computeStats(state.tree);
@@ -189,14 +189,6 @@ export function buildToolbar() {
   selectBtnEl.onclick = toggleSelectMode;
   left.appendChild(selectBtnEl);
 
-  const attentionBtn = document.createElement('button');
-  attentionBtn.type = 'button';
-  attentionBtn.className = 'btn';
-  attentionBtn.innerHTML = ICON.statusWarn + '<span>Bayat/Bekleyen Test Case\'ler</span>';
-  attentionBtn.title = 'Hiç koşulmamış veya uzun süredir yeniden doğrulanmamış test case\'leri tek listede göster';
-  attentionBtn.onclick = openAttentionPanel;
-  left.appendChild(attentionBtn);
-
   toolbar.appendChild(left);
 
   const searchWrap = document.createElement('div');
@@ -236,7 +228,8 @@ export function buildToolbar() {
   const VIEWS = [
     { key: 'tree', label: 'Ağaç', icon: ICON.viewTree },
     { key: 'diagram', label: 'Diyagram', icon: ICON.viewDiagram },
-    { key: 'board', label: 'Pano', icon: ICON.viewBoard }
+    { key: 'board', label: 'Pano', icon: ICON.viewBoard },
+    { key: 'attention', label: 'Dikkat', icon: ICON.statusWarn },
   ];
   switchButtons = {};
   VIEWS.forEach(v => {
@@ -244,13 +237,27 @@ export function buildToolbar() {
     btn.type = 'button';
     btn.className = state.currentView === v.key ? 'active' : '';
     btn.innerHTML = v.icon + `<span>${v.label}</span>`;
+    if (v.key === 'attention') {
+      attentionBadgeEl = document.createElement('span');
+      attentionBadgeEl.className = 'vs-badge';
+      btn.appendChild(attentionBadgeEl);
+    }
     btn.onclick = () => setView(v.key);
     switcher.appendChild(btn);
     switchButtons[v.key] = btn;
   });
   toolbar.appendChild(switcher);
+  refreshAttentionBadge();
 
   return toolbar;
+}
+
+/** "Dikkat" sekmesindeki sayı rozeti — taranmış her şeyin toplamı (bkz. attention-view.js). */
+export function refreshAttentionBadge() {
+  if (!attentionBadgeEl) return;
+  const n = attentionBadgeCount();
+  attentionBadgeEl.textContent = n || '';
+  attentionBadgeEl.hidden = !n;
 }
 
 export function positionIndicator() {
@@ -278,15 +285,21 @@ export function renderContent() {
   const old = state.root.querySelector('.fw-content');
   const fresh = document.createElement('div');
   fresh.className = 'fw-content';
-  fresh.appendChild(renderProgress());
 
-  if (state.selectMode) fresh.appendChild(buildBulkBar());
+  // "Dikkat" görünümü ağaç ilerleme kutucuklarını / toplu seçim çubuğunu paylaşmaz —
+  // kendi kendine yeten bir bulgu listesi (bkz. attention-view.js).
+  if (state.currentView !== 'attention') {
+    fresh.appendChild(renderProgress());
+    if (state.selectMode) fresh.appendChild(buildBulkBar());
+  }
 
   const q = state.searchQuery.trim().toLowerCase();
   const hasFilter = q || state.activeFacets.size;
   const visibleIds = hasFilter ? computeSearchVisibleIds(state.tree, q, state.activeFacets) : null;
 
-  if (state.currentView === 'diagram') {
+  if (state.currentView === 'attention') {
+    fresh.appendChild(renderAttentionView(renderContent));
+  } else if (state.currentView === 'diagram') {
     fresh.appendChild(renderDiagram(visibleIds));
   } else if (state.currentView === 'board') {
     fresh.appendChild(renderBoard(visibleIds));
@@ -308,6 +321,7 @@ export function renderContent() {
   }
 
   if (old) old.replaceWith(fresh); else state.root.appendChild(fresh);
+  refreshAttentionBadge();
 
   if (state.drawerNode) {
     if (findNode(state.tree, state.drawerNode.id)) renderDrawer();

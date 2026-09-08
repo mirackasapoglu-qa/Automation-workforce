@@ -209,7 +209,7 @@ export function stopJiraStatusPolling() {
  * yalnızca O AN drawer'ı açık olan tek düğüm için çalışır; bu, ağaçtaki TÜM
  * jiraTasks'ları tek istekte tarar — kimse drawer'ı açmasa bile Jira'da statü
  * değişikliği fark edilsin diye (bkz. CLAUDE.md → "Flowscope: Jira durumu →
- * otomatik 'Hatalı'"). Tetikleyici: attention-panel.js açılışı.
+ * otomatik 'Hatalı'"). Tetikleyici: attention-view.js'daki "Tara" düğmesi.
  *
  * Sunucu ağacı DOĞRUDAN diskte değiştirebildiği için (flagged.length>0 ise),
  * bir şey değiştiyse istemcinin bellekteki kopyası `reloadPersistedTree()` ile

@@ -36,6 +36,13 @@ export const state = {
   currentDiagramScale: 1,
   diagramLayoutCache: null,
 
+  // "Dikkat" görünümü (bkz. attention-view.js). Test case listesi her zaman anlık/yerel
+  // hesaplanır, ama Jira/Tasarım/Doküman gerçek ağ isteği attığı için OTURUM BOYUNCA
+  // önbelleklenir: sekmeye her giriş çıkışta otomatik ateşlenmez, yalnızca "Tara"
+  // butonuna basınca gerçek istek gider. null = bu oturumda hiç taranmadı.
+  attentionCategory: 'all', // 'all' | 'testcase' | 'jira' | 'design' | 'confluence'
+  attentionCache: { jira: null, design: null, confluence: null },
+
   searchQuery: '',
   activeFacets: new Set(),
 

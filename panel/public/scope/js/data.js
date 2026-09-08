@@ -567,7 +567,7 @@ export function computeSearchVisibleIds(nodes, query, facets) {
 }
 
 // Ağaç genelinde "koşulmayı bekleyen" (hiç koşum almamış) ve "bayat" (son koşumu ✅ ama
-// DEFAULT_STALE_DAYS'ten eski) test case'leri tek listede toplar — bkz. attention-panel.js.
+// DEFAULT_STALE_DAYS'ten eski) test case'leri tek listede toplar — bkz. attention-view.js.
 // Zaten ❌/⚠️ olanlar dahil edilmez, onlar zaten Hatalı/Uyarılı istatistiğinde görünür oluyor;
 // buradaki amaç "gözden kaçmış, dikkat gerektiren" öğeleri yüzeye çıkarmak.
 export function collectAttentionTestCases(nodes) {

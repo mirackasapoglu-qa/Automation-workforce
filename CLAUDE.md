@@ -1205,9 +1205,10 @@ yanıtı enjekte edilerek) doğrulandı:
   eklenen tek bir Task ID'yi kontrol ederken, bu ağaçtaki TÜM `jiraTasks`'ı tek
   istekte (`collectJiraTaskIds` + tek `tracker().statusByKeys()` çağrısı)
   yeniden değerlendirir. Aynı "bilinen + done değil → ❌" kuralı uygulanır.
-  **Tetikleyici: "Bayat/Bekleyen Test Case'ler" panelinin açılışı**
-  (`attention-panel.js`) — ayrı bir buton yok, zaten "dikkat gerektiren şeyler"
-  paneli olduğu için oraya eklendi.
+  **Tetikleyici**: 2026-09-03'te "Bayat/Bekleyen Test Case'ler" panelinin
+  açılışıydı (otomatik); 2026-09-08'de "Dikkat" görünümüne taşınırken elle
+  "Tara" düğmesine değişti — bkz. aşağıdaki "Flowscope: 'Dikkat' görünümü"
+  bölümü, gerekçe orada.
 - **Tersi de raporlanır (uygulanmaz)**: zaten ❌ olan ama bağlı TÜM Task
   ID'leri artık "Done" olan düğümler `reviewSuggested` ile aynı panelde
   "İnsan Onayı Bekliyor" başlığı altında listelenir — ❌'dan otomatik
@@ -1289,8 +1290,11 @@ zaman insanın elinde) ve neden'i açıklayan bir not düşer.
   değişti" ile "senin baktığın frame değişti" aynı şey değil. Frame-seviyesi
   tespit tam ağaç ister (pahalı, 429 riski); dosya seviyesi tek ucuz istekle
   kaba ama işe yarar bir "bak" sinyali veriyor.
-- **Tetikleyici**: Jira taramasıyla AYNI nokta — "Bayat/Bekleyen Test Case'ler"
-  paneli açılışı (`attention-panel.js`), ayrı "Tasarım" alt başlığı altında.
+- **Tetikleyici**: ⚠️ 2026-09-08'de değişti — artık panel açılışında OTOMATİK
+  ateşlenmiyor. "Dikkat" görünümündeki Tasarım kartının elle "Tara" düğmesine
+  basılınca gerçek istek gider (bkz. aşağıdaki "Flowscope: 'Dikkat' görünümü"
+  bölümü). Bu bölümün geri kalanı (önbellek, ölçüm sınırı, sweep mantığı)
+  değişmedi.
 - Canlıda (gerçek panel + tarayıcı, sahte `/api/scope/design/sweep` yanıtı
   enjekte edilerek) ve doğrudan fonksiyon testiyle (gerçek `tree.json`'a geçici
   test düğümü eklenip yedeklenip geri alınarak) doğrulandı: drift varken ⚠️'ye
@@ -1313,9 +1317,10 @@ mantığı (✅ + lastVerifiedAt'tan sonra değişmiş → ⚠️, tek yönlü) 
 DEĞİŞMİYOR — yalnızca notun metnine giren `sourceLabel` ("Tasarım" / "Confluence
 dokümanı") farklı. `/api/scope/design/sweep` bu genel fonksiyonları `type:"figma"`
 ile çağırıyor; yeni `POST /api/scope/confluence/sweep` `type:"confluence"` ile.
-İstemci tarafında da aynı ilke: `attention-panel.js → renderDriftSection()` tek
-bir ortak render fonksiyonu, Figma ve Confluence bölümleri yalnızca metin/uç
-farkıyla onu çağırıyor (`renderDesignDriftSection` / `renderConfluenceDriftSection`).
+İstemci tarafında da aynı ilke: `attention-view.js → buildDriftSection()` tek
+bir ortak bileşen, Figma ve Confluence bölümleri yalnızca metin/uç farkıyla
+onu çağırıyor (⚠️ bu dosya 2026-09-08'de `attention-panel.js`'ten yeniden
+adlandırıldı/yeniden yazıldı — bkz. aşağıdaki "Flowscope: 'Dikkat' görünümü").
 İkisi de AYNI rozet sınıfını (`attention-badge-drift`) paylaşıyor — Kaynaklar
 panelindeki tüm resource chip ikonları da zaten tek bir mor tona (`#c4b5fd`)
 sahip, tutarlılık için yeni bir renk icat edilmedi.
@@ -1358,6 +1363,66 @@ birebir doğrulanarak) test edilmesi, Cloud (`/wiki` eklenir) vs Data Center
 (`/wiki` eklenmez) URL kurulumunun ayrı ayrı doğrulanması, ve canlı panelde
 (sahte + gerçek uç, sıfır konsol hatası, Figma sweep'inin genelleme sonrası hâlâ
 çalıştığının regresyon kontrolü) — hepsi push'tan önce geçti.
+
+## Flowscope: "Dikkat" görünümü — modaldan kalıcı sekmeye (2026-09-08)
+
+"Bayat/Bekleyen Test Case'ler" **modalı tamamen kaldırıldı**, yerine
+Ağaç/Diyagram/Pano'nun yanına dördüncü bir **görünüm** eklendi: **Dikkat**
+(`shell.js → VIEWS`, `state.currentView`). Kullanıcı isteğiyle yapılan bir
+UI/UX gözden geçirmesi sonucu — eski modalın üç somut sorunu vardı:
+
+1. **Ad yanıltıcıydı**: buton "Bayat/Bekleyen Test Case'ler" diyordu ama içeriği
+   çoktan Jira/Figma/Confluence drift'ini de kapsıyordu.
+2. **Sayı yanlıştı**: modal başlığındaki rozet SADECE test case sayısını
+   sayıyordu, Jira/Tasarım/Doküman bulgularını hiç saymıyordu.
+3. **Kademeli yükleme modalı zıplatıyordu**: panel her açıldığında Jira/Figma/
+   Confluence sweep'leri OTOMATİK ateşleniyordu, üçü farklı anlarda dolup
+   modalın boyunu/içeriğini gözünün önünde değiştiriyordu.
+
+**Çözüm, tek tek:**
+
+- **Modal → kalıcı görünüm**: `attention-panel.js` silindi, yerine
+  `attention-view.js` geldi (`renderAttentionView()` diğer view'lar
+  —`renderDiagram`/`renderBoard`— gibi `shell.js → renderContent()`'e
+  DOM döner, overlay/kapatma YOK). Sekmeler arası geçişte state korunur
+  (`state.attentionCategory`, `state.attentionCache`) — Ağaç'a geçip geri
+  dönmek sıfırdan kurulum + yeniden tarama gerektirmez.
+- **Otomatik ateşleme kaldırıldı**: Jira/Tasarım/Doküman artık panel/sekme
+  açılışında OTOMATİK sorgulanmaz. Her biri kendi "Tara" düğmesini bekleyen
+  nötr bir kart olarak başlar (`attention-scan-card`); sonucu OTURUM BOYUNCA
+  önbellekler (`state.attentionCache.{jira,design,confluence}`, `null` =
+  "bu oturumda hiç taranmadı"). Bunun özel bir kazancı var: Jira sweep'inin
+  (`statusByKeys`) HİÇ önbelleği yok (bkz. "Flowscope: Jira taraması..."
+  bölümü) — artık gerçek Jira çağrısı yalnızca SEN "Tara"ya bastığında gidiyor,
+  sekmeye her giriş çıkışta değil. Ayrıca bir de **"Tümünü Tara"** düğmesi var
+  (üçünü `Promise.all` ile birden tetikler — kota paylaşan Figma/Confluence
+  için bile sorun değil, ikisi ayrı dosya/sayfa anahtarları sorguluyor).
+- **Doğru toplam rozet**: "Dikkat" sekmesinin üstündeki sayı (`shell.js →
+  refreshAttentionBadge()`, `attention-view.js → attentionBadgeCount()`)
+  test case'lerin + (yalnızca TARANMIŞ) Jira/Tasarım/Doküman bulgularının
+  toplamı. Taranmamış bir kaynak sayıma 0 olarak GİRMEZ (var olan "0 sorun"
+  ile "henüz bilinmiyor" karışmasın diye) — kartın kendisi zaten "henüz
+  taranmadı" diyor, rozet buna sessizce "0" eklemiyor.
+- **Kategori sekmeleri**: Hepsi · Test Case'ler · Jira · Tasarım · Doküman
+  (`facet-pill` görselini yeniden kullanıyor, tek-seçmeli). Tek bir kaynağa
+  odaklanmak istediğinde diğer üçü hiç render edilmiyor.
+- **Renk dili düzeltildi**: `attention-badge-review` ("ONAY BEKLİYOR" — Jira'da
+  done ama düğüm hâlâ ❌) yeşilden (`var(--good)`) accent'e (`var(--accent)`)
+  çekildi — yeşil zaten ✅ "Tamamlandı"nın rengiydi, "bu bir başarı" gibi yanlış
+  bir sinyal veriyordu; bu bir bilgi/aksiyon sinyali, başarı değil.
+- Satıra tıklayınca artık "modalı kapat + drawer'ı aç" değil sadece drawer
+  açılıyor (`goToNode()`) — kapatılacak bir modal yok, drawer diğer
+  görünümlerde olduğu gibi üstte açılıyor.
+
+Canlıda test edildi (gerçek panel + tarayıcı): otomatik ateşlemenin GERÇEKTEN
+kalktığı (sekmeye girince üç kart da nötr, ağ isteği YOK), "Tara"nın gerçek
+uca gittiği ve sonucu önbelleklediği, kategori filtresinin doğru daralttığı,
+"Tümünü Tara"nın üçünü birden tazelediği, rozetin taranan bulgulara göre
+doğru sayıp gizlendiği (`hidden`, inline `display` DEĞİL), satır tıklamasının
+drawer'ı doğru düğümde açtığı, Ağaç görünümüne dönüşün bozulmadığı ve sekmeler
+arası geçişte "Dikkat" durumunun (önbellek + kategori) korunduğu — sıfır
+konsol hatasıyla. Kaynak dosyalardaki (`data.js`, `jira.js`, `design-drift.js`,
+`server.mjs`) eski `attention-panel.js` referansları da güncellendi.
 
 ## Agent'lar (`.claude/agents/`)
 

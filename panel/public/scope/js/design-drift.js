@@ -1,8 +1,8 @@
 // Tasarım Drift Radarı — istemci ucu. Sunucudaki /api/scope/design/sweep'i
 // tetikler: ✅ + Figma kaynaklı düğümler için dosya son-değişim tarihini
 // lastVerifiedAt'la kıyaslar, drift varsa düğümü ⚠️'ye çeker (tek yönlü,
-// bkz. panel/scope.mjs → sweepResourceDrift). attention-panel.js bunu Jira
-// taramasıyla aynı noktadan (panel açılışı) çağırır.
+// bkz. panel/scope.mjs → sweepResourceDrift). attention-view.js'teki "Tara"
+// düğmesi bunu Jira taramasıyla aynı bileşenden (buildDriftSection) çağırır.
 import { reloadPersistedTree } from './data.js';
 
 export async function runDesignDriftSweep() {

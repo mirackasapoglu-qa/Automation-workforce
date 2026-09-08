@@ -1283,8 +1283,8 @@ const server = http.createServer(async (req, res) => {
      * TEK istekte tracker'a sorar (Figma bölümündeki "istek sayısını düşür"
      * ilkesiyle aynı gerekçe — bkz. CLAUDE.md), sonra `sweepJiraStatuses` ile
      * hem yeni ❌'ları uygular hem "done ama hâlâ ❌" listesini (insan onayı
-     * bekliyor) döner. Flowscope'un "Bayat/Bekleyen Test Case'ler" panelini
-     * açan kullanıcı bu taramayı da tetikler (bkz. attention-panel.js).
+     * bekliyor) döner. Flowscope'un "Dikkat" görünümündeki Jira kartının
+     * "Tara" düğmesi bu ucu çağırır (bkz. attention-view.js).
      */
     if (p === "/api/scope/jira/sweep" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
@@ -1318,8 +1318,8 @@ const server = http.createServer(async (req, res) => {
      * yaprak düğümleri toplar, benzersiz dosya anahtarları için TEK TEK (ama
      * az sayıda, önbellekli) `lastModified` sorar, `sweepResourceDrift` ile
      * `lastVerifiedAt`'tan sonra değişenleri ⚠️'ye çeker. Jira sweep'iyle aynı
-     * tetikleyici nokta: "Bayat/Bekleyen Test Case'ler" paneli açılınca
-     * (bkz. attention-panel.js). Figma kimliği yok/koparılmışsa ya da 429
+     * tetikleyici nokta: "Dikkat" görünümündeki Tasarım kartının "Tara"
+     * düğmesi (bkz. attention-view.js). Figma kimliği yok/koparılmışsa ya da 429
      * alırsa ilgili dosyalar sessizce atlanır, sweep patlamaz.
      */
     if (p === "/api/scope/design/sweep" && req.method === "POST") {
