@@ -7,6 +7,7 @@ import { renderContent } from './shell.js';
 import { openMenu } from './dropdown.js';
 import { openJiraPrompt } from './jira.js';
 import { openDrawer } from './drawer.js';
+import { uiConfirm } from './dialog.js';
 
 export function buildTypeChip(node) {
   const btn = document.createElement('button');
@@ -125,10 +126,16 @@ export function buildActionButtons(node) {
   delBtn.className = 'icon-btn icon-btn-danger';
   delBtn.title = 'Sil';
   delBtn.innerHTML = ICON.trash;
-  delBtn.onclick = () => {
+  delBtn.onclick = async () => {
     const savedX = window.scrollX, savedY = window.scrollY;
     const restore = () => window.scrollTo(savedX, savedY);
-    if (confirm(`"${node.name}" silinsin mi?`)) removeNode(node.id);
+    const altSayisi = (node.children ?? []).length;
+    // uiConfirm ASENKRON — await'siz hali her zaman truthy doner ve silme onaysiz calisir.
+    const onay = await uiConfirm(
+      `"${node.name}" silinecek${altSayisi ? ` (altındaki ${altSayisi} öğeyle birlikte)` : ''}. Bu işlem geri alınamaz.`,
+      { title: 'Düğümü sil', ok: 'Sil' },
+    );
+    if (onay) removeNode(node.id);
     restore();
     requestAnimationFrame(restore);
     requestAnimationFrame(() => requestAnimationFrame(restore));

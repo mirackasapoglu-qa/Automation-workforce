@@ -14,6 +14,7 @@ import { renderBoard } from './board-view.js';
 import { renderDrawer, closeDrawer } from './drawer.js';
 import { openSitemapImportModal } from './sitemap-import.js';
 import { toggleSelectMode, buildBulkBar } from './bulk-actions.js';
+import { uiToast } from './dialog.js';
 
 let indicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
 
@@ -89,7 +90,7 @@ export function importData(file) {
       persist();
       renderContent();
     } catch (e) {
-      alert('Geçersiz yedek dosyası.');
+      uiToast(`Geçersiz yedek dosyası: ${e?.message ?? 'JSON okunamadı'}`, { type: 'err', title: 'İçe aktarılamadı' });
     }
   };
   reader.readAsText(file);

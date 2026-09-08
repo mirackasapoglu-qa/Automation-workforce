@@ -140,9 +140,9 @@ function buildTestRunPrompt(node, ancestors) {
     + `değil) gerçekten uygula, gözlemi "expected" ile karşılaştır. steps/title'a DOKUNMA — sonucu KENDİ `
     + `node id'sindeki testCases[].status alanına ✅/❌/⚠️ olarak yaz VE testCases[].runs dizisine `
     + `{id: 'tcr<sayı>', at: <ISO tarih>, status, note} şeklinde yeni bir kayıt ekle (id çakışmasın diye mevcut `
-    + `en yüksek 'tcr<sayı>'den devam et) — koşum notu asla steps/title'a değil, sadece runs'a eklenir `
-    + `(Flowscope'un http://localhost:8934 origin'indeki tarayıcı localStorage'ı, "flowTool.tree.v2" — `
-    + `127.0.0.1 origin'inde DEĞİL, localhost'ta). Bunun için qa-test-runner agent'ını kullan. Silme/ödeme/`
+    + `en yüksek 'tcr<sayı>'den devam et) — koşum notu asla steps/title'a değil, sadece runs'a eklenir. `
+    + `Veri SUNUCUDA: ağacı GET ${location.origin}/api/scope/tree ile oku, değişikliği aynı adrese PUT ile `
+    + `(x-panel-token başlığıyla) yaz; tarayıcı localStorage'ı kaynak DEĞİL. Silme/ödeme/`
     + `onaylama gibi kalıcı yan etkili adımları tetikleme; bir adımı net şekilde doğrulayamıyorsan tahminle `
     + `✅ verme, ⚠️ işaretleyip nedenini runs notuna ekle.`
   );

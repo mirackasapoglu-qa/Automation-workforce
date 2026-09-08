@@ -2,6 +2,7 @@
 import { state, newId, newNoteId, newJiraId, newResourceLinkId, newStatusHistoryId, newJiraAnalysisId, newTestCaseId, newTestStepId, newTestRunId } from './state.js';
 import { NEXT_TYPE, DEFAULT_NAME, STATUS_RANK } from './constants.js';
 import { renderContent } from './shell.js';
+import { uiConfirm } from './dialog.js';
 
 /**
  * ⛔ localStorage anahtarlari EMEKLI. Agac artik sunucuda
@@ -446,8 +447,13 @@ export function removeNode(id) {
   renderContent();
 }
 
-export function clearAll() {
-  if (!confirm('Tüm veriler silinsin mi? Bu işlem geri alınamaz.')) return;
+export async function clearAll() {
+  // uiConfirm ASENKRON: await sart, yoksa agac onaysiz silinir.
+  const onay = await uiConfirm(
+    'Kapsam ağacındaki TÜM düğümler, test case\'leri ve notlar silinecek. Bu işlem geri alınamaz.\nSunucuda tek kademe yedek (tree.json.bak) kalır.',
+    { title: 'Tüm verileri sil', ok: 'Hepsini sil' },
+  );
+  if (!onay) return;
   state.tree = [];
   persist();
   renderContent();

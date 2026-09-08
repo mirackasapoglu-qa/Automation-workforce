@@ -9,7 +9,25 @@ import ServicesSection from "../components/ServicesSection";
 const HERO_VIDEO =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260405_074625_a81f018a-956b-43fb-9aee-4d1508e30e6a.mp4";
 
+/**
+ * Panelin adresi ORTAK BARDAN sorulur (shared/nav/nav.js → HqNav.url), sayfaya
+ * sabit yazılmaz. Burada dört bağlantı `http://localhost:4646` sabitiyle
+ * duruyordu; sunucuda (panel aynı origin'de, 4646 yok) hepsi ölü linkti.
+ * Bar yüklenmemişse yerel varsayılana düşer — Onboarding.tsx ile aynı desen.
+ */
+function usePanelUrl() {
+  const nav = typeof window !== "undefined" ? window.HqNav : undefined;
+  return (nav?.url("panel") || "http://localhost:4646/").replace(/\/+$/, "");
+}
+
 export default function Index() {
+  const panelUrl = usePanelUrl();
+  const panelHost = panelUrl.replace(/^https?:\/\//, "");
+  // Site proxy'si (iframe) panelin bir port üstünde; sunucuda ters vekil
+  // arkasında ayrı port yok, o yüzden yalnızca localhost'ta gösterilir.
+  const proxyUrl = /localhost|127\.0\.0\.1/.test(panelUrl)
+    ? panelUrl.replace(/:(\d+)$/, (_, p) => `:${Number(p) + 1}`)
+    : null;
   return (
     <div className="bg-black">
       <div className="min-h-screen overflow-hidden relative flex flex-col">
@@ -27,12 +45,12 @@ export default function Index() {
               className="liquid-glass rounded-full pl-6 pr-2 py-2 flex items-center gap-3"
               onSubmit={(e) => {
                 e.preventDefault();
-                window.open("http://localhost:4646", "_blank");
+                window.location.assign(panelUrl + "/");
               }}
             >
               <input
                 type="text"
-                defaultValue="localhost:4646"
+                defaultValue={panelHost}
                 aria-label="Panel adresi"
                 className="flex-1 bg-transparent outline-none text-white placeholder:text-white/40 text-sm"
                 placeholder="Panel adresi"
@@ -63,15 +81,13 @@ export default function Index() {
 
         <div className="relative z-10 flex justify-center gap-4 pb-12">
           {[
-            { Icon: Terminal, href: "http://localhost:4646/#log", label: "Canlı log" },
-            { Icon: FileText, href: "http://localhost:4646/report", label: "Playwright raporu" },
-            { Icon: Gauge, href: "http://localhost:4647", label: "Site proxy" },
+            { Icon: Terminal, href: `${panelUrl}/#log`, label: "Canlı log" },
+            { Icon: FileText, href: `${panelUrl}/report`, label: "Playwright raporu" },
+            ...(proxyUrl ? [{ Icon: Gauge, href: proxyUrl, label: "Site proxy" }] : []),
           ].map(({ Icon, href, label }) => (
             <a
               key={label}
               href={href}
-              target="_blank"
-              rel="noreferrer"
               title={label}
               aria-label={label}
               className="liquid-glass rounded-full p-4 text-white/80 hover:text-white hover:bg-white/5 transition-all"
