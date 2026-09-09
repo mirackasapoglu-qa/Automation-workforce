@@ -1,43 +1,63 @@
 /**
- * Figma connector — "design" yeteneği.
+ * Figma sağlayıcısı — "design" yeteneği.
  *
  * ⚠️ HİÇ ÇAĞRI YAPMAZ. Üç uç da Tier 1 ve View/Collab koltuğunda limit ayda 6
  * istek; durumu yoklamanın kendisi kotayı bitiriyordu. Durum, gerçek çağrıların
- * `figma-quota.mjs`'e bıraktığı nottan okunur. Bu kural connector arayüzüne
- * geçerken de korunuyor — check() saf yerel okuma.
+ * `figma-quota.mjs`'e bıraktığı nottan okunur. check() saf yerel okuma.
+ *
+ * KİMLİK: kişisel erişim token'ı (`figd_…`, `X-Figma-Token` başlığı).
+ * Figma OAuth'u Faz 3'te (token yenileme + dört çağrı yerinde başlık değişimi).
  */
 import fs from "node:fs";
 import path from "node:path";
-import { resolveCreds, credLabel } from "./credentials.mjs";
+import { resolve, credLabel } from "../auth/credential-store.mjs";
 import { quotaCheck } from "../figma-quota.mjs";
 
 export const key = "figma";
 export const label = "Figma";
 export const icon = "figma";
+export const order = 20;
 export const capabilities = ["design"];
-export const credential = { file: ".figma-credentials", vars: ["FIGMA_TOKEN"] };
+
+export const auth = {
+  apiKey: {
+    file: ".figma-credentials",
+    vars: [{ name: "FIGMA_TOKEN", label: "Kişisel erişim token'ı (figd_…)", secret: true }],
+    setupUrl: "https://www.figma.com/settings",
+    steps: ["Figma > Settings > Personal access tokens ile token üret", "Token'ı buraya gir (kota yüzünden ağa çıkılıp doğrulanmaz; ilk gerçek çağrı doğrular)"],
+  },
+};
+
+export const credential = { file: auth.apiKey.file, vars: auth.apiKey.vars.map((v) => v.name) };
 export const credentialLabel = credLabel(credential.file, credential.vars);
-
-/** Token uretme sayfasi — panel "kimlik" satirini buraya link yapar. */
-export const setupUrl = "https://www.figma.com/settings";
-
-export const setupFix = [
-  "Figma > Settings > Personal access tokens ile token üret",
-  "echo 'FIGMA_TOKEN=figd_...' > ~/.figma-credentials && chmod 600 ~/.figma-credentials",
-];
+export const setupUrl = auth.apiKey.setupUrl;
+export const setupFix = auth.apiKey.steps;
 
 const NOTES_FILE = path.join(process.cwd(), "panel-data", "quota-notes.json");
 const readJson = (f, d) => { try { return JSON.parse(fs.readFileSync(f, "utf8")); } catch { return d; } };
 
-export function configured() { return resolveCreds(credential.file, credential.vars).ok; }
+export function configured() { return resolve(key, credential.vars, { file: credential.file }).ok; }
+
+/**
+ * Panelden kimlik kaydedilince çağrılır. AĞA ÇIKMAZ (kota): token biçimen
+ * doğruysa kabul; gerçek doğrulama ilk diff/render çağrısında olur.
+ * `check()` kota bloke olunca "blocked" döner — o token'ın geçersizliği değil.
+ */
+export function probe() {
+  const r = resolve(key, credential.vars, { file: credential.file });
+  if (!r.ok) return { ok: false, detail: "FIGMA_TOKEN yok" };
+  const looksRight = /^figd_/.test(r.values.FIGMA_TOKEN) || r.values.FIGMA_TOKEN.length >= 20;
+  return looksRight
+    ? { ok: true, detail: "kaydedildi — kota yüzünden ağa çıkılmadı, ilk gerçek çağrı doğrular" }
+    : { ok: false, detail: "token biçimi beklenen gibi değil (figd_… ya da 20+ karakter)" };
+}
 
 /** MCP tarafı: çağrı yapılmaz, elle tutulan nottan okunur. */
 function mcpPart() {
   const n = readJson(NOTES_FILE, {}).figmaMcp;
   if (!n) return { label: "MCP", state: "unknown", detail: "not yok" };
   if (n.dailyLimit) {
-    return { label: "MCP", state: "ok",
-      detail: `${n.dailyLimit}/gün${n.perMinute ? `, ${n.perMinute}/dk` : ""} (${n.seat} seat)` };
+    return { label: "MCP", state: "ok", detail: `${n.dailyLimit}/gün${n.perMinute ? `, ${n.perMinute}/dk` : ""} (${n.seat} seat)` };
   }
   const resets = n.resetsAt ? new Date(n.resetsAt) : null;
   const open = resets ? Date.now() > resets.getTime() : false;
@@ -55,7 +75,7 @@ const worstOf = (states) => WORST.find((w) => states.includes(w)) ?? "unknown";
 
 export function check() {
   if (!configured()) {
-    return { state: "off", detail: "~/.figma-credentials yok — tasarım diff'i kapalı", parts: [], fix: setupFix };
+    return { state: "off", detail: "FIGMA_TOKEN yok — tasarım diff'i kapalı", parts: [], fix: setupFix };
   }
   const parts = [
     { label: "/files", ...quotaCheck("files", { key: "figmaFiles", label: "/files" }) },

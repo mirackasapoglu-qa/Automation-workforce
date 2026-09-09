@@ -28,8 +28,13 @@
  *  - Prefill YOK (400). Biçimi şema ya da sistem talimatı belirler.
  *  - `stop_reason: "refusal"` HTTP 200 ile gelir — içerik okunmadan kontrol.
  */
-import { resolveCreds } from "../connectors/credentials.mjs";
+import { resolve as resolveCred } from "../auth/credential-store.mjs";
 
+/**
+ * Depo anahtarı sağlayıcı adı (`claude-code`), dosya adı `.anthropic-credentials`
+ * — ikisi eşleşmediği için uyumluluk sarmalayıcısı değil depo doğrudan çağrılır.
+ */
+export const PROVIDER_KEY = "claude-code";
 export const CRED = { file: ".anthropic-credentials", vars: ["ANTHROPIC_API_KEY"] };
 export const DEFAULT_MODEL = "claude-opus-5";
 const API_VERSION = "2023-06-01";
@@ -74,7 +79,7 @@ export function settings() {
 
 /** Anahtar var mı, nereden (env|file). Yoksa null. */
 export function apiKey() {
-  const r = resolveCreds(CRED.file, CRED.vars);
+  const r = resolveCred(PROVIDER_KEY, CRED.vars, { file: CRED.file });
   return r.ok ? { key: r.values.ANTHROPIC_API_KEY, source: r.source } : null;
 }
 

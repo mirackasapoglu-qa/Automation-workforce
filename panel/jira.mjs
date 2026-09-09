@@ -31,8 +31,16 @@ export const CRED_LABEL = credLabel(CRED.file, CRED.vars);
 /** İnsan tarafına: kimlik yoksa gösterilecek tek satır. */
 export const CRED_HINT = `JIRA_EMAIL / JIRA_TOKEN yok — ortam değişkeni ver ya da ~/${CRED.file} yaz`;
 
-const resolved = resolveCreds(CRED.file, CRED.vars);
-const creds = resolved.ok ? resolved.values : null;
+/*
+ * KİMLİK ÇAĞRI ANINDA ÇÖZÜLÜR. Eskiden modül yüklenirken bir kez çözülüp
+ * donuyordu: panelden bağlanmak (ya da token'ı yenilemek) ancak süreç yeniden
+ * başlayınca görünüyordu (ölçüldü 2026-09-08). Depo ucuz (üç küçük dosya),
+ * her istekte okumak sorun değil.
+ */
+const creds = () => {
+  const r = resolveCreds(CRED.file, CRED.vars);
+  return r.ok ? { values: r.values, source: r.source } : null;
+};
 
 /**
  * Profil değerleri; her biri aynı adlı ortam değişkeniyle ezilebilir
@@ -58,22 +66,25 @@ export const JIRA = {
   projectFieldId: process.env.JIRA_PROJECT_FIELD || P.projectFieldId,
   projectFieldValueId: process.env.JIRA_PROJECT_FIELD_VALUE || P.projectFieldValueId,
   sprintFieldId: process.env.JIRA_SPRINT_FIELD || P.sprintFieldId || "",
-  available: Boolean(creds),
-  email: creds?.JIRA_EMAIL ?? "",
-  /** "env" | "file" | null — kimliğin nereden geldiği (sunucu teşhisi için). */
-  credSource: resolved.source,
+  /** Kimlik var mı — her okumada taze (getter). */
+  get available() { return Boolean(creds()); },
+  get email() { return creds()?.values.JIRA_EMAIL ?? ""; },
+  /** "env" | "store" | "oauth" | "file" | null — kimliğin nereden geldiği. */
+  get credSource() { return creds()?.source ?? null; },
 };
 
-const authHeader = creds
-  ? "Basic " + Buffer.from(`${creds.JIRA_EMAIL}:${creds.JIRA_TOKEN}`).toString("base64")
-  : null;
+/** Basic başlığı — çağrı anında; kimlik yoksa null. */
+function authHeader() {
+  const c = creds();
+  return c ? "Basic " + Buffer.from(`${c.values.JIRA_EMAIL}:${c.values.JIRA_TOKEN}`).toString("base64") : null;
+}
 
 async function api(pathAndQuery, { method = "GET", body } = {}) {
-  if (!authHeader) throw new Error(CRED_HINT);
+  if (!authHeader()) throw new Error(CRED_HINT);
   const res = await fetch(`${JIRA.host}${pathAndQuery}`, {
     method,
     headers: {
-      authorization: authHeader,
+      authorization: authHeader(),
       accept: "application/json",
       ...(body ? { "content-type": "application/json" } : {}),
     },
@@ -309,7 +320,7 @@ export async function createBug({
 
 /** Karta dosya ekler (multipart; X-Atlassian-Token: no-check zorunlu). */
 export async function attachFile(key, filePath) {
-  if (!authHeader) throw new Error(CRED_HINT);
+  if (!authHeader()) throw new Error(CRED_HINT);
   const fs = await import("node:fs");
   const path = await import("node:path");
   const name = path.basename(filePath);
@@ -317,7 +328,7 @@ export async function attachFile(key, filePath) {
   form.append("file", new Blob([fs.readFileSync(filePath)]), name);
   const res = await fetch(`${JIRA.host}/rest/api/3/issue/${key}/attachments`, {
     method: "POST",
-    headers: { authorization: authHeader, "X-Atlassian-Token": "no-check" },
+    headers: { authorization: authHeader(), "X-Atlassian-Token": "no-check" },
     body: form,
   });
   const text = await res.text();

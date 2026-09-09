@@ -57,8 +57,7 @@ const ordersEnv = () =>
     : { [PROJECT.env.ordersVar]: ordersOverride ? "1" : "0" };
 import { figmaForRoute } from "./figma-map.mjs";
 import { preflight } from "./preflight.mjs";
-import { tracker, setCapability, setConnectorCut } from "./connectors/index.mjs";
-import * as oauth from "./oauth.mjs";
+import { tracker } from "./connectors/index.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift } from "./scope.mjs";
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
@@ -79,6 +78,7 @@ import { registerAiRoutes } from "./routes/ai.mjs";
 import { registerRagRoutes } from "./routes/rag.mjs";
 import { registerRunRoutes } from "./routes/runs.mjs";
 import { registerAssetRoutes } from "./routes/assets.mjs";
+import { registerConnectorRoutes } from "./routes/connectors.mjs";
 import { createRunGate } from "./run-queue.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
@@ -852,11 +852,16 @@ const CTX = {
   RUNS, ROOT, DATA_DIR, ENV, BASE_URL,
   buildCustomArgs, journal: runJournal, readTree, findScopeNode, getCard,
   readPerf: () => readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE }),
+  /* Baglanti rotalari: OAuth /start token'i query'de karsilastirir, geri donus
+   * adresi istegin genel adresinden turer (publicOriginFor). */
+  panelToken: PANEL_TOKEN,
+  publicOriginFor,
 };
 registerAssetRoutes(router, { send, publicDir: path.join(__dirname, "public") });
 registerRunRoutes(router, CTX);
 registerAiRoutes(router, CTX);
 registerRagRoutes(router, CTX);
+registerConnectorRoutes(router, CTX);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -1711,117 +1716,6 @@ const server = http.createServer(async (req, res) => {
         stale: newest > BOOT_MS,
         env: ENV,
       });
-    }
-
-    // ---------------- OAuth: "Baglan" → izin ver → bitti ----------------
-    /*
-     * ⚠️ Bu uc TARAYICI NAVIGASYONU ile cagrilir; fetch degil, bu yuzden
-     * `x-panel-token` BASLIGI GONDERILEMEZ. Token query'de (`?t=`) gelir ve
-     * burada ayni sekilde karsilastirilir. Sebep yalnizca CSRF degil: panel
-     * internete acik bir domainde durursa yabanci biri akisi baslatip KENDI
-     * hesabini panele baglayabilir.
-     */
-    const mStart = p.match(/^\/api\/oauth\/([a-z0-9-]+)\/start$/);
-    if (mStart && req.method === "GET") {
-      const svc = mStart[1];
-      if (url.searchParams.get("t") !== PANEL_TOKEN) {
-        return send(res, 403, { code: "STALE_TOKEN", error: "Panel token gerekli (baglanti akisi panelden baslatilir)." });
-      }
-      try {
-        const origin = publicOriginFor(req);
-        const to = oauth.authorizeUrl(DATA_DIR, svc, origin);
-        audit({ kind: "oauth/start", service: svc, origin });
-        res.writeHead(302, { location: to, "cache-control": "no-store" });
-        return res.end();
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /*
-     * Saglayicinin geri dondugu yer. Tarayicida acik oldugu icin yanit JSON
-     * degil kucuk bir HTML: sonucu soyler ve panele geri gonderir.
-     */
-    if (p === "/api/oauth/callback" && req.method === "GET") {
-      const page = (baslik, govde, iyi) => {
-        res.writeHead(iyi ? 200 : 400, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-        res.end(`<!doctype html><meta charset="utf-8"><title>${baslik}</title>`
-          + `<style>body{font:14px/1.5 system-ui;margin:0;display:grid;place-items:center;height:100vh;background:#f7f7f8;color:#18181b}`
-          + `.k{background:#fff;border:1px solid #e4e4e7;border-radius:12px;padding:22px 26px;max-width:520px}`
-          + `b{color:${iyi ? "#15803d" : "#b91c1c"}}code{background:#f4f4f5;padding:1px 5px;border-radius:4px;word-break:break-all}`
-          + `a{color:#5b5bd6}</style>`
-          + `<div class="k"><p><b>${baslik}</b></p><p>${govde}</p>`
-          + `<p><a href="/">← QA Paneli'ne dön</a></p></div>`);
-      };
-      try {
-        const r = await oauth.handleCallback(DATA_DIR, url.searchParams, publicOriginFor(req));
-        audit({ kind: "oauth/connected", service: r.svc });
-        return page(`${r.label} bağlandı`, "Token panele kaydedildi. Bu sekmeyi kapatabilirsin.", true);
-      } catch (e) {
-        return page("Bağlanamadı", `<code>${String(e.message)}</code>`, false);
-      }
-    }
-
-    /*
-     * Tek seferlik kurulum: saglayicida olusturulan uygulamanin client id /
-     * secret'i. OAuth'ta "tek tik" ancak bu kayittan SONRA mumkun (Claude
-     * Desktop'ta o kaydi Anthropic yapmis, burada bir kere biz yapiyoruz).
-     */
-    const mClient = p.match(/^\/api\/oauth\/([a-z0-9-]+)\/client$/);
-    if (mClient && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req);
-      try {
-        const out = oauth.saveClientCreds(DATA_DIR, mClient[1], body.clientId, body.clientSecret);
-        audit({ kind: "oauth/client-saved", service: mClient[1] });
-        return send(res, 200, out);
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    const mDisc = p.match(/^\/api\/oauth\/([a-z0-9-]+)\/disconnect$/);
-    if (mDisc && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      try {
-        const out = oauth.disconnect(DATA_DIR, mDisc[1]);
-        audit({ kind: "oauth/disconnect", service: mDisc[1] });
-        return send(res, 200, out);
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /*
-     * "Bu projede kullan": yetenek → connector eslemesini panelden degistirir
-     * (`panel-data/connectors.json`). Profil KODU degismez.
-     */
-    if (p === "/api/connectors/use" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req);
-      try {
-        const out = setCapability(body.capability, body.connector ?? null);
-        audit({ kind: "connectors/use", capability: String(body.capability), connector: String(body.connector) });
-        return send(res, 200, out);
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
-    }
-
-    /**
-     * Bir baglantiyi elle kopar / geri bagla. Hicbir kimlik SILINMEZ; yalnizca
-     * `panel-data/connector-cuts.json` sarteri degisir (bkz. connectors/cuts.mjs).
-     */
-    if (p === "/api/connectors/cut" && req.method === "POST") {
-      if (!requireAuth(req, res)) return;
-      const body = await readBody(req);
-      try {
-        const out = setConnectorCut(String(body.key ?? ""), Boolean(body.cut));
-        audit({ kind: "connectors/cut", connector: String(body.key), cut: Boolean(body.cut) });
-        return send(res, 200, out);
-      } catch (e) {
-        return send(res, 400, { ok: false, error: e.message });
-      }
     }
 
     if (p === "/api/preflight") {

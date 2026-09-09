@@ -1,95 +1,27 @@
 /**
- * Kimlik dosyası okuyucu — TEK yer.
+ * UYUMLULUK SARMALAYICISI — asıl kimlik deposu `panel/auth/credential-store.mjs`.
  *
- * NEDEN: aynı `KEY=value` ayrıştırması üç ayrı dosyada üç kez yazılmıştı
- * (jira.mjs::readCreds, preflight.mjs::figmaTokenExists, credLine). Yeni bir
- * servis eklerken dördüncüsünü yazmak zorunda kalmayalım.
+ * Eski çağıranlar (`panel/jira.mjs`, `panel/confluence.mjs`, `figma-render.mjs`,
+ * `scripts/figma-*.mjs`) `resolveCreds(".<servis>-credentials", vars)` diyor.
+ * Dosya adından sağlayıcı anahtarı türetilir (`.jira-credentials` → `jira`) ve
+ * depoya yönlendirilir; böylece panelden girilen kimliği (panel kaydı) ve
+ * OAuth token'ını bu çağıranlar da görür. Yeni kod doğrudan
+ * `resolve(svc, vars)` kullanmalı.
  *
- * Konvansiyon: her servis `~/.<servis>-credentials` dosyasında, satır başına
- * bir `DEGISKEN=deger`. Ortam değişkeni her zaman dosyayı EZER — tek seferlik
- * denemeler için (`LINEAR_API_KEY=... npm run panel`).
+ * ⚠️ Dosya adı sağlayıcı anahtarıyla EŞLEŞMEYEN tek durum Claude
+ * (`.anthropic-credentials` ↔ `claude-code`): `panel/ai/anthropic.mjs` bu yüzden
+ * depoyu doğrudan çağırır, bu sarmalayıcıyı değil.
  */
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { isCut } from "./cuts.mjs";
+import { resolve } from "../auth/credential-store.mjs";
+export { readCredFile, credLabel } from "../auth/credential-store.mjs";
 
-/** `~/.<ad>` dosyasını okur; yoksa/okunamazsa boş obje. */
-export function readCredFile(dosyaAdi) {
-  const f = path.join(os.homedir(), dosyaAdi);
-  const out = {};
-  try {
-    for (const line of fs.readFileSync(f, "utf8").split("\n")) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.+?)\s*$/);
-      if (m) out[m[1]] = m[2];
-    }
-  } catch { /* dosya yok: bos obje */ }
-  return out;
-}
+const serviceFromFile = (dosyaAdi) => String(dosyaAdi).replace(/^\./, "").replace(/-credentials$/, "");
 
 /**
- * `.linear-credentials` → `linear`. OAuth deposu servis adıyla anahtarlanıyor.
- */
-const serviceFromFile = (dosyaAdi) => dosyaAdi.replace(/^\./, "").replace(/-credentials$/, "");
-
-/**
- * OAuth ile bağlanmış token'lar: `panel-data/oauth/<servis>.json`.
- * Dosyayı `panel/oauth.mjs` yazar; burada SADECE okunur (o modülü import
- * etmiyoruz: connector'lar sunucu koduna bağımlı olmasın).
- */
-function readOauthStore(dosyaAdi) {
-  const svc = serviceFromFile(dosyaAdi);
-  const f = path.join(process.cwd(), "panel-data", "oauth", `${svc}.json`);
-  try {
-    const j = JSON.parse(fs.readFileSync(f, "utf8"));
-    return j && typeof j.vars === "object" ? j : null;
-  } catch { return null; }
-}
-
-/**
- * Bir servisin kimliğini çözer. Sıra: **ortam > OAuth > dosya**.
- *
- * OAuth dosyanın ÜSTÜNDE: "Bağlan"a basmak bilinçli ve taze bir eylem, eski
- * bir `~/.<servis>-credentials` onu gölgelememeli. Ortam en üstte kalıyor —
- * tek seferlik denemeler (`LINEAR_API_KEY=... npm run panel`) ve sunucuda
- * elle verilen kimlik için.
- *
- * `tokenType`: OAuth token'ı gönderilirken kullanılacak şema. PAT ile OAuth
- * token'ının başlığı bazı serviste farklı (Linear PAT'ta şema yok, OAuth'ta
- * `Bearer`) — çağıran taraf bunu okuyup başlığı ona göre kurar.
- *
- * @returns {{values: object, ok: boolean, source: "env"|"oauth"|"file"|null, tokenType: string|null}}
+ * @param {string} dosyaAdi `.jira-credentials` gibi
+ * @param {string[]} vars
+ * @returns {{values:object, ok:boolean, source:string|null, tokenType:string|null}}
  */
 export function resolveCreds(dosyaAdi, vars) {
-  /*
-   * Elle koparilmis servis: kimlik VAR ama kullanilmaz. Kesme noktasi bilerek
-   * burasi — depoyu (dosya/OAuth) hic ellemedigimiz icin geri acmak tek tik,
-   * ve `panel/jira.mjs` gibi registry'yi atlayip dogrudan kimlik cozen
-   * cagiranlar da ayni sonucu gorur. Cikti "kimlik yok" ile ayni sekle sahip:
-   * tum tuketiciler o yolu zaten dogru isliyor.
-   */
-  if (isCut(serviceFromFile(dosyaAdi))) {
-    return { values: {}, ok: false, source: null, tokenType: null, cut: true };
-  }
-  const fromFile = readCredFile(dosyaAdi);
-  const oauth = readOauthStore(dosyaAdi);
-  const values = {};
-  let usedEnv = false;
-  let usedOauth = false;
-  for (const v of vars) {
-    if (process.env[v]) { values[v] = process.env[v]; usedEnv = true; }
-    else if (oauth?.vars?.[v]) { values[v] = oauth.vars[v]; usedOauth = true; }
-    else if (fromFile[v]) values[v] = fromFile[v];
-  }
-  const ok = vars.every((v) => Boolean(values[v]));
-  const source = ok ? (usedEnv ? "env" : usedOauth ? "oauth" : "file") : null;
-  return { values, ok, source, tokenType: source === "oauth" ? (oauth?.tokenType ?? "Bearer") : null };
+  return resolve(serviceFromFile(dosyaAdi), vars, { file: dosyaAdi });
 }
-
-/**
- * İnsan tarafına gösterilecek kimlik satırı. Ortam değişkeni seçeneğini de
- * SÖYLER: container'da (Dokploy) home dizininde dosya olmuyor, tek yol env —
- * satır sadece dosyayı yazınca kullanıcı orada tıkanıyordu.
- */
-export const credLabel = (dosyaAdi, vars) =>
-  `${vars.join(" / ")} ortam değişkeni ya da ~/${dosyaAdi}`;

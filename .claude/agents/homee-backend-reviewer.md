@@ -42,6 +42,14 @@ Sen panel sunucusunun inceleme agent'ısın. **Kod yazmazsın** — okur, bulgu
   proje adı, Jira anahtarı, host, rota/kart eşlemesi GEÇMEZ — hepsi
   `panel/projects/<proje>.mjs`'de. Çekirdek "Jira" demez, "tracker" der
   (`connectors/index.mjs → capability()`).
+- **Sağlayıcı = tek dosya (`panel/providers/<id>.mjs`).** Kimlik bildirimi
+  (`auth.apiKey` / `auth.oauth2`) dosyanın içinde; registry otomatik keşfeder.
+  Kimlik ÇÖZÜMÜ yalnız `auth/credential-store.mjs → resolve()` ile ve **çağrı
+  anında** — modül yüklenirken çözüp saklayan kod bulgu (Jira bir kez donmuştu).
+  `fs.readFileSync(homedir()…)` ile doğrudan dosya okuyan kod **kritik**.
+  Panelden kaydedilen kimlik `probe()`/`check()` ile doğrulanır; `warn` kabul
+  değildir. Kimlik DEĞERİ denetim kaydına yazılmaz, yalnız değişken adları.
+  OAuth token'ı süreliyse çağrı öncesi `ensureFresh` çağrılmalı.
 - **Guard'lara dokunma.** `ordersEnv()` bilinçli olarak koşum ortamına
   geçirilmiyor; sipariş tamamlama kilidini etkileyen bir değişiklik ayrı bir
   karardır, sessizce yapılamaz.

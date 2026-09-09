@@ -1,36 +1,31 @@
 /**
- * MobAI connector — "device" yeteneği (fiziksel cihaz).
+ * MobAI sağlayıcısı — "device" yeteneği (fiziksel cihaz).
  *
  * MCP'den değil HTTP köprüsünden okur: bedava, anlık ve panel bağımsız kalır.
+ * Kimlik YOK (yerel köprü): `auth` bildirimi boş, panelden "Bağlan…" çıkmaz.
+ *
+ * Köprü adresi MOBAI_BRIDGE ile değişir; `off` (ya da boş) "bu makinede cihaz
+ * yok" demektir. ⚠️ Adres eskiden SABİT 127.0.0.1:8686'ydı; sunucuda her
+ * preflight 2,5 sn timeout bekliyordu (ölçüldü 2026-09-02). Sunucuda
+ * `MOBAI_BRIDGE=off` ver: yoklama YAPILMAZ. Cihaz uzaktaysa adresi yaz.
  */
 export const key = "mobai";
 export const label = "MobAI";
 export const icon = null;
+export const order = 60;
 export const capabilities = ["device"];
 
-/*
- * Köprü adresi MOBAI_BRIDGE ile değişir; `off` (ya da boş) "bu makinede cihaz
- * yok" demektir.
- *
- * ⚠️ Adres eskiden SABİT 127.0.0.1:8686'ydı. Sunucuda (Dokploy) ne MobAI
- * uygulaması ne cihaz var; connector her preflight'ta 2,5 sn timeout'a kadar
- * bekleyip "köprü kapalı" diyordu — hiçbir ayarla açılamayan, ölçümü de
- * yavaşlatan bir satır (ölçüldü 2026-09-02: <sunucu-domain> →
- * /api/preflight `mobai: off "köprü kapalı (http://127.0.0.1:8686)"`).
- * Sunucuda `MOBAI_BRIDGE=off` ver: yoklama YAPILMAZ, satır "bu makinede yok"
- * der. Cihaz gerçekten uzaktaysa adresi yaz (tünel/host.docker.internal).
- */
 const RAW = (process.env.MOBAI_BRIDGE ?? "http://127.0.0.1:8686").trim();
 const DISABLED = RAW === "" || RAW.toLowerCase() === "off" || RAW.toLowerCase() === "none";
 const BRIDGE = DISABLED ? null : RAW.replace(/\/+$/, "");
 
-/** Yerel değil: ağa çıkar. Registry kullanılmayan connector'ı bu yüzden yoklamaz. */
+/** Yerel değil: ağa çıkar. Registry kullanılmayan sağlayıcıyı bu yüzden yoklamaz. */
 export const local = false;
 
+/** Girilecek kimlik yok — köprü adresi ortamdan. */
+export const auth = {};
 export const credential = { bridge: BRIDGE ?? "kapalı (MOBAI_BRIDGE=off)" };
 export const credentialLabel = BRIDGE ? `köprü ${BRIDGE}` : "MOBAI_BRIDGE=off — cihaz köprüsü kapalı";
-
-/** Yerel uygulama; uretilecek token yok — bu yuzden setupUrl VERILMEZ. */
 
 export const setupFix = [
   "MobAI uygulamasını açık tut — köprüyü o sağlıyor",
@@ -52,8 +47,7 @@ export async function check() {
       state: "off",
       detail: "bu makinede cihaz köprüsü yok (MOBAI_BRIDGE=off)",
       note: "Cihaz otomasyonu MobAI'nin kurulu olduğu makinede çalışır; sunucuda kapalı.",
-      fix: ["Cihaz uzaktaysa: MOBAI_BRIDGE=http://<host>:8686",
-            "Bu projede cihaz hiç kullanılmıyorsa profilde device: null"],
+      fix: ["Cihaz uzaktaysa: MOBAI_BRIDGE=http://<host>:8686", "Bu projede cihaz hiç kullanılmıyorsa profilde device: null"],
     };
   }
   try {

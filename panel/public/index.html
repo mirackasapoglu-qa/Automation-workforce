@@ -3365,7 +3365,7 @@ function pfCard(c) {
       ${rozet}
     </div>
     ${c.parts?.length ? parts : `<div class="cx-row"><span class="cx-v">${esc(c.detail ?? '')}</span></div>`}
-    ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${esc(c.credential)}${cxSetupLink(c)}</span></div>` : ''}
+    ${c.credential ? `<div class="cx-row"><span class="cx-k">kimlik</span><span class="cx-v mono">${c.credentialSource ? `<b>${esc(c.credentialSourceLabel)}</b> · ` : ''}${esc(c.credential)}${cxSetupLink(c)}</span></div>` : ''}
     ${c.note ? `<div class="cx-note">${esc(c.note)}</div>` : ''}
     ${cxActions(c)}
     ${fix}
@@ -3415,9 +3415,9 @@ function cxRecoverPlan(c) {
   if (c.state === 'ok') return null;
   if (c.key === 'gate') return { kind: 'gate', label: 'Kapıyı yenile', hint: "~45 sn, whitelist'li koşum" };
   if (c.key === 'sessions') return { kind: 'session', label: 'Oturum aç', hint: 'Kapsam ekranı, görünür pencere' };
-  if (c.setupUrl && /^https:\/\//.test(String(c.setupUrl))) {
-    return { kind: 'token', label: 'Yeniden bağlan', url: String(c.setupUrl),
-             hint: 'token sayfası yeni sekmede açılır' };
+  if (c.auth?.apiKey) {
+    return { kind: 'connect', label: c.auth.apiKey.connected ? 'Yeniden bağlan' : 'Bağlan…',
+             hint: 'kimliği panele gir — kaydedince doğrulanır' };
   }
   return null;
 }
@@ -3449,20 +3449,10 @@ async function cxRecover(key) {
   if (!plan) return;
   if (plan.kind === 'uncut') return cxCut(key, false);
   if (plan.kind === 'oauth') { location.href = `/api/oauth/${key}/start?t=${encodeURIComponent(PANEL_TOKEN)}`; return; }
-  if (plan.kind === 'setup') return cxSetupOpen(key);
+  if (plan.kind === 'setup') return cxConnectOpen(key);
   if (plan.kind === 'gate') { pfPanelClose(); return refreshGate(); }
   if (plan.kind === 'session') { location.href = '/scope#import'; return; }
-  if (plan.kind === 'token') {
-    /*
-     * Token sayfasi yeni sekmede acilir. Panel token'i KENDISI yazamaz (kimlik
-     * cozumu env/dosya, bkz. connectors/credentials.mjs) — bu yuzden nereye
-     * yazilacagi soylenir ve sekmeden donuldugunde durum tekrar okunur.
-     */
-    CX_RECHECK = true;
-    window.open(plan.url, '_blank', 'noopener');
-    uiToast(c.credential ? `Yeni token'ı buraya yaz: ${c.credential}` : 'Token sayfası açıldı',
-      { title: `${c.label} yeniden bağlanıyor` });
-  }
+  if (plan.kind === 'connect') return cxConnectOpen(key);
 }
 
 /** Token sekmesinden donunce durumu tazele — el ile "yenile"ye basilmasin. */
@@ -3501,28 +3491,83 @@ function cxActions(c) {
       + `bu projede kullan</button>`);
   }
 
-  if (!parcalar.length) return '';
+  if (c.auth?.apiKey?.source === 'store' && !c.cut) {
+    parcalar.push(`<button class="cx-btn" onclick="cxCredRemove('${esc(c.key)}')">kimliği sil</button>`
+      + `<span class="cx-hint">panel kaydı silinir; ortam değişkeni ya da dosya varsa kalır</span>`);
+  }
+  if (!parcalar.length && !c.auth?.apiKey) return '';
   return `<div class="cx-act">${parcalar.join('')}</div>`
-    + (o?.supported && !o.clientReady ? `<div class="cx-setup-box" id="cxSetup-${esc(c.key)}" hidden></div>` : '');
+    + (c.auth?.apiKey || o?.supported ? `<div class="cx-setup-box" id="cxSetup-${esc(c.key)}" hidden></div>` : '');
 }
 
-/** Tek seferlik OAuth uygulama kaydi kutusu. */
-function cxSetupOpen(key) {
+/**
+ * BAGLANTI KUTUSU — saglayici ne sunuyorsa onu gosterir (Faz 1, 2026-09-08):
+ *   OAuth destekliyorsa: izin ekranina git (uygulama kaydi yoksa tek seferlik kurulum)
+ *   API anahtari aliyorsa: alanlar sunucudan (auth.apiKey.vars), "kaydet ve dogrula"
+ * Iki yol ayni kutuda; kimlik sunucuda panel-data/credentials/<svc>.json (0600).
+ * Eskiden Jira/Figma icin dugme yalnizca token sayfasini yeni sekmede aciyordu
+ * ve kimligi dosyaya yazmak insana kaliyordu — sunucuda imkansizdi.
+ */
+function cxConnectOpen(key) {
   const c = PF_LAST?.checks.find(x => x.key === key);
-  const o = c?.oauth;
-  if (!o) return;
   const box = document.getElementById(`cxSetup-${key}`);
-  if (!box) return;
+  if (!c || !box) return;
+  const ak = c.auth?.apiKey;
+  const o = c.auth?.oauth2;
   box.hidden = false;
-  box.innerHTML = `
-    <div class="cx-fix-h">TEK SEFERLİK KURULUM</div>
-    ${o.appSetupSteps.map((x, i) => `<div class="cx-step">${i + 1}. ${esc(x)}</div>`).join('')}
-    <a class="cx-setup" href="${esc(o.appSetupUrl)}" target="_blank" rel="noreferrer noopener">uygulama oluştur ↗</a>
-    <div class="cx-step">Callback / Redirect URL:</div>
-    <code class="cx-copy" onclick="cxCopy(this)" title="Kopyalamak için tıkla">${esc(o.redirectUri)}</code>
-    <input id="cxCid-${esc(key)}" placeholder="Client ID" autocomplete="off">
-    <input id="cxSec-${esc(key)}" placeholder="Client Secret" autocomplete="off">
-    <button class="cx-btn cx-btn-go" onclick="cxSaveClient('${esc(key)}')">kaydet ve bağlan</button>`;
+  const oauthPart = !o?.supported ? '' : o.clientReady
+    ? `<div class="cx-fix-h">OAUTH</div>
+       <button class="cx-btn cx-btn-go" onclick="cxRecoverOauth('${esc(key)}')">${o.connected ? 'Yeniden bağlan' : 'İzin ekranına git'}</button>
+       <span class="cx-hint">token'ı sen görmezsin; süresi dolunca kendiliğinden yenilenir</span>`
+    : `<div class="cx-fix-h">OAUTH — TEK SEFERLİK KURULUM</div>
+       ${(o.appSetupSteps || []).map((x, i) => `<div class="cx-step">${i + 1}. ${esc(x)}</div>`).join('')}
+       <a class="cx-setup" href="${esc(o.appSetupUrl)}" target="_blank" rel="noreferrer noopener">uygulama oluştur ↗</a>
+       <div class="cx-step">Callback / Redirect URL:</div>
+       <code class="cx-copy" onclick="cxCopy(this)" title="Kopyalamak için tıkla">${esc(o.redirectUri)}</code>
+       <input id="cxCid-${esc(key)}" placeholder="Client ID" autocomplete="off">
+       <input id="cxSec-${esc(key)}" placeholder="Client Secret" autocomplete="off">
+       <button class="cx-btn cx-btn-go" onclick="cxSaveClient('${esc(key)}')">kaydet ve bağlan</button>`;
+  const keyPart = !ak ? '' : `<div class="cx-fix-h">${o?.supported ? 'YA DA API ANAHTARI' : 'KİMLİK'}</div>
+       ${(ak.steps || []).map((x, i) => `<div class="cx-step">${i + 1}. ${esc(x)}</div>`).join('')}
+       ${ak.setupUrl ? `<a class="cx-setup" href="${esc(ak.setupUrl)}" target="_blank" rel="noreferrer noopener">token al ↗</a>` : ''}
+       ${ak.vars.map(v => `<input id="cxVar-${esc(key)}-${esc(v.name)}" type="${v.secret ? 'password' : 'text'}" placeholder="${esc(v.label)}" autocomplete="off">`).join('')}
+       <button class="cx-btn cx-btn-go" onclick="cxSaveCreds('${esc(key)}')">kaydet ve doğrula</button>
+       <span class="cx-hint" id="cxCredState-${esc(key)}">${ak.source && ak.source !== 'store' ? `şu an kaynak: ${esc(c.credentialSourceLabel)}` : ''}</span>`;
+  box.innerHTML = oauthPart + keyPart;
+  box.querySelector('input')?.focus();
+}
+
+function cxRecoverOauth(key) {
+  location.href = `/api/oauth/${key}/start?t=${encodeURIComponent(PANEL_TOKEN)}`;
+}
+
+async function cxSaveCreds(key) {
+  const c = PF_LAST?.checks.find(x => x.key === key);
+  const ak = c?.auth?.apiKey;
+  if (!ak) return;
+  const vars = {};
+  for (const v of ak.vars) {
+    const el = document.getElementById(`cxVar-${key}-${v.name}`);
+    vars[v.name] = el?.value?.trim() ?? '';
+    if (!vars[v.name]) return uiToast(`${v.label} zorunlu`, { type: 'err' });
+  }
+  const st = document.getElementById(`cxCredState-${key}`);
+  if (st) st.textContent = 'doğrulanıyor…';
+  const d = await post(`/api/connectors/${key}/credentials`, { vars });
+  if (!d.ok) {
+    if (st) st.textContent = '';
+    return uiToast(`${d.error}${d.fix?.length ? '\n' + d.fix.join('\n') : ''}`, { type: 'err', title: 'Bağlanamadı' });
+  }
+  uiToast(`${c.label} bağlandı: ${d.detail || d.state}`, { type: 'ok' });
+  loadPreflight(true);
+}
+
+async function cxCredRemove(key) {
+  if (!(await uiConfirm(`${key} için panel kaydı silinsin mi? Ortam değişkeni ya da dosya varsa onlar kalır.`, { ok: 'Sil' }))) return;
+  const d = await post(`/api/connectors/${key}/credentials/remove`, {});
+  if (d.error) return uiToast(d.error, { type: 'err' });
+  uiToast('Panel kaydı silindi', { type: 'ok' });
+  loadPreflight(true);
 }
 
 function cxCopy(el) {

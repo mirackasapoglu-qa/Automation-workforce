@@ -1,38 +1,43 @@
 /**
- * Claude connector — "ai" yeteneği (senaryo önerme, perf yorumlama, test case
- * üretimi). Anahtar `claude-code` olarak KALDI: profiller (`connectors.ai`)
- * ve `panel-data/connectors.json` bu adı taşıyor.
+ * Claude sağlayıcısı — "ai" yeteneği (senaryo önerme, perf yorumlama, test case
+ * üretimi). Anahtar `claude-code` olarak KALDI: profiller (`connectors.ai`) ve
+ * `panel-data/connectors.json` bu adı taşıyor.
  *
  * Üç yol, tek sıra (panel/ai/provider.mjs):
- *   api    — ANTHROPIC_API_KEY (sunucu: tek anahtar, başka kurulum yok)
+ *   api    — ANTHROPIC_API_KEY (sunucu: tek anahtar; panelden de girilebilir)
  *   cli    — makinedeki Claude Code CLI (geliştirici: kendi oturumu + MCP'leri)
  *   manual — istem üret + yapıştır (her zaman açık, hiç kimlik istemez)
  *
  * Durum AĞA ÇIKMADAN verilir: anahtarı doğrulamak ücretli bir istek; geçersiz
- * anahtar ilk gerçek çağrıda AUTH koduyla görünür ve arayüz ne yapılacağını söyler.
- * `manual` → `warn`: özellik kapanmadı ama "tek tık" yok; rozet amber yanar,
- * sunucuya anahtar konmadığını hatırlatır. Yerelde CLI varken `ok`.
+ * anahtar ilk gerçek çağrıda AUTH koduyla görünür.
  */
 import { status, cliBinary } from "../ai/provider.mjs";
 import { CRED } from "../ai/anthropic.mjs";
-import { credLabel } from "./credentials.mjs";
+import { credLabel } from "../auth/credential-store.mjs";
 
 export const key = "claude-code";
 export const label = "Claude";
 export const icon = null;
+export const order = 10;
 export const capabilities = ["ai"];
-export const credential = { file: CRED.file, vars: CRED.vars };
-export const credentialLabel =
-  `${credLabel(CRED.file, CRED.vars)} (sunucu) · yerel Claude Code CLI · ya da elle yapıştırma`;
 
-/** Anahtar sayfası — panel "kimlik" satırını buraya link yapar. */
-export const setupUrl = "https://platform.claude.com/settings/keys";
+export const auth = {
+  apiKey: {
+    file: CRED.file,
+    vars: [{ name: "ANTHROPIC_API_KEY", label: "Anthropic API anahtarı (sk-ant-…)", secret: true }],
+    setupUrl: "https://console.anthropic.com/settings/keys",
+    steps: [
+      "Anthropic Console > API Keys ile anahtar üret ve buraya gir",
+      "Sunucuda alternatif: ANTHROPIC_API_KEY ortam değişkeni (+ isteğe bağlı AI_MODEL, AI_DAILY_USD)",
+      "Yerelde anahtar yoksa Claude Code CLI (`claude`) kullanılır; o da yoksa istem üret + yapıştır",
+    ],
+  },
+};
 
-export const setupFix = [
-  "Sunucu: Dokploy'a ANTHROPIC_API_KEY ver (isteğe bağlı AI_MODEL, AI_DAILY_USD)",
-  "Yerel: npm i -g @anthropic-ai/claude-code → `claude` PATH'te olsun (CLAUDE_BIN ile yol verilebilir)",
-  "İkisi de yoksa 'İstem üret' + yapıştır yolu çalışmaya devam eder",
-];
+export const credential = { file: auth.apiKey.file, vars: auth.apiKey.vars.map((v) => v.name) };
+export const credentialLabel = `${credLabel(CRED.file, CRED.vars)} (sunucu) · yerel Claude Code CLI · ya da elle yapıştırma`;
+export const setupUrl = auth.apiKey.setupUrl;
+export const setupFix = auth.apiKey.steps;
 
 /** Elle yol her zaman var; "kurulu" demek tek tık var demek. */
 export function configured() { return status().mode !== "manual"; }
@@ -47,7 +52,7 @@ export function check() {
     return {
       state: "ok",
       detail: `API anahtarı · ${s.model} · effort ${s.effort}`,
-      note: `Tek tık üretim açık. ${harcama}. Kimlik: ${s.keySource === "env" ? "ortam değişkeni" : "~/.anthropic-credentials"}. Günlük tavan AI_DAILY_USD ile.`,
+      note: `Tek tık üretim açık. ${harcama}. Günlük tavan AI_DAILY_USD ile.`,
       parts: [
         { label: "yol", state: "ok", detail: "Messages API" },
         { label: "bütçe", state: b?.capUsd && b.usd >= b.capUsd ? "blocked" : "ok", detail: harcama },

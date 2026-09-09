@@ -428,6 +428,60 @@ seferde yapılamaz, dosya dosya `window.*` yüzeyiyle taşınır (bu üçü örn
 tavanı süreç başına (iki replika ayrı sayar), maliyet liste fiyatından tahmin,
 gerçek anahtarla başarılı çağrı sunucuda ölçülecek.
 
+## Provider yapısı — Faz 1 (2026-09-08, henüz commit'lenmedi)
+
+"Connector" artık **provider**: kimlik bildirimi sağlayıcı dosyasının içinde,
+çözümü tek depoda, OAuth akışı ve yenileme ortak çekirdekte. İstek: sunucuda
+deploy sonrası tak-çalıştır, panelden bağlanma, 20 sağlayıcıya ölçeklenme.
+
+```
+panel/providers/<id>.mjs        7 sağlayıcı (claude-code, confluence, figma, jira, linear, mobai, slack)
+                                key · label · icon · order · capabilities[] · configured() · check()
+                                auth: { apiKey?: {file, vars:[{name,label,secret}], setupUrl, steps},
+                                        oauth2?: {authorizeUrl, tokenUrl, scope, var, tokenType, pkce?, readToken?, appSetup*} }
+                                probe()? — panelden kaydedilen kimliği doğrular (Figma: ağa çıkmadan)
+                                + yetenek nesnesi (tracker / design / docs / chat / device)
+panel/auth/credential-store.mjs ortam > panel kaydı (panel-data/credentials/<id>.json, 0600) > ~/.<id>-credentials
+                                resolve() SENKRON ve çağrı anında; save/remove/stored; eski panel-data/oauth/ okunurken TAŞINIR
+panel/auth/oauth2.mjs           authorizeUrl (state + PKCE) · handleCallback · refreshAccessToken · ensureFresh (tek uçuş) · statusFor
+panel/connectors/index.mjs      registry: providers/*.mjs OTOMATİK keşif + yüzey doğrulaması (bozuk dosya açılışta hata)
+panel/connectors/credentials.mjs UYUMLULUK: resolveCreds(".<id>-credentials", vars) → depo (eski çağıranlar dokunulmadı)
+panel/routes/connectors.mjs     /api/connectors/use|cut · /<id>/credentials (kaydet + DOĞRULA) · /<id>/credentials/remove
+                                /api/oauth/<id>/start · /callback · /<id>/client · /<id>/disconnect
+```
+
+- **Yeni sağlayıcı = tek dosya.** `providers/` altına koy; listeye satır yok.
+  Zorunlu yüzey eksikse panel açılışta hangi dosyanın neyi eksik olduğunu söyler.
+- **Kimlik çağrı anında çözülür.** `panel/jira.mjs` eskiden modül yüklenirken
+  bir kez çözüp donuyordu; panelden bağlanmak yeniden başlatma istiyordu
+  (ölçüldü). `JIRA.available/email/credSource` artık getter, `authHeader()` fonksiyon.
+- **Panelden kimlik: kaydet → doğrula → tut ya da geri al.** `POST
+  /api/connectors/<id>/credentials` değeri yazar, `probe()` (yoksa `check()`,
+  yalnız `ok`/`unknown` kabul) çağırır; başarısızsa önceki kayıt geri gelir.
+  Ölçüldü: sahte Jira kimliği önce `warn` ile kabul ediliyordu (Jira 401'i
+  "token eskimiş olabilir" sayıyor) — `warn` artık RED. Değerler denetim
+  kaydına DÜŞMEZ, yalnız adlar. Ortam değişkeni varsa panel kaydı onu
+  ezemez → 409 `ENV_WINS`, kullanıcıya söylenir.
+- **OAuth token'ları yenilenir.** Depo `refreshToken` + `expiresAt` tutar;
+  Linear/Slack her API çağrısından önce `ensureFresh` (5 dk kala, tek uçuş,
+  dönen refresh token eskisinin yerine). Faz 2 (Atlassian 3LO) ve Faz 3 (Figma)
+  aynı çekirdeği kullanır; bugün OAuth yalnız Linear ve Slack'te.
+- **Arayüz:** her sağlayıcı kartında tek "Bağlan…"; kutu sağlayıcı ne sunuyorsa
+  onu gösterir (OAuth izin ekranı / tek seferlik uygulama kaydı / API anahtarı
+  alanları — alanlar sunucudan, `auth.apiKey.vars`). "kimlik" satırı kaynağı
+  yazar (ortam değişkeni · panel kaydı · OAuth · dosya). Panel kaydı varsa
+  "kimliği sil". `cxSetupOpen` kalktı, `token` (yeni sekmede link) yolu kalktı.
+- **Şalter (kopar) depoyu görür:** `resolve()` kopuk sağlayıcıda `cut:true`
+  döner; Claude anahtarı da artık `claude-code` şalterine bağlı (eskiden
+  `.anthropic-credentials` dosya adıyla ayrı bir anahtara bakıyordu, şalter
+  onu hiç kesmiyordu).
+- Ölçüm: 86 birim testi (`auth/credential-store`, `auth/oauth2` PKCE +
+  callback + yenileme tek uçuş + eski depo taşıma, `connectors/registry`);
+  4699'da curl: sahte Jira → 400 `VERIFY_FAILED` + kayıt yok, Figma biçim
+  kontrolü, env kazanır 409, tokensiz 403, `/api/oauth/*/start` 403/400, 405;
+  tarayıcıda Jira kartı → "Bağlan…" → iki alan (token `password`) → kaydet →
+  401 metni toast'ta.
+
 ## Ayağa kaldırma
 
 **"Panel ayağa kaldır" = `npm run up`** — panel ve landing/onboarding sitesi BİRLİKTE kalkar.
