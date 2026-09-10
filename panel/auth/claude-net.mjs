@@ -15,7 +15,20 @@
  * ⚠️ Kimlik göndermez, gövde göndermez: yalnız TCP+TLS+HTTP kuruluyor mu ona
  * bakar. HERHANGİ bir HTTP yanıtı (405/404/400 dahil) "ulaşıldı" demektir —
  * bu yüzden durum kodu başarı ölçütü DEĞİL, yalnız kanıt olarak yazılır.
+ *
+ * ⚠️ "Node ulaşıyor" ≠ "CLI ulaşıyor". Claude Code CLI **bun ile derlenmiş**
+ * tek parça bir binary; ağ yığını Node'unkiyle AYNI DEĞİL. İki ölçülebilir
+ * fark var ve ikisi de tam olarak "istek sessizce takılır" belirtisi verir:
+ *   1) IPv6: Node 20+ `autoSelectFamily` ile IPv4'e ~250 ms'de düşer, bun
+ *      düşmez — container'ın IPv6 yolu kara delikse Node çalışır, CLI asılır.
+ *   2) Vekil (proxy) değişkenleri: bun `HTTPS_PROXY`/`HTTP_PROXY`'yi kendisi
+ *      uygular, Node'un `fetch`i UYGULAMAZ — vekil bozuksa aynı asimetri.
+ * `diagnose()` ikisini de ayrı ayrı ölçer; `reachability()` "ağ tamamen açık
+ * mı" sorusunu, `diagnose()` "CLI neden takıldı" sorusunu cevaplar.
  */
+
+import dns from "node:dns/promises";
+import net from "node:net";
 
 /** Ölçülen adresler — sıra önemli değil, ikisi de paralel denenir. */
 export const HOSTS = [
@@ -53,4 +66,66 @@ export function summarize({ ok, checks }) {
   return ok
     ? `Sunucunun Anthropic'e çıkışı var (${parca.join(" · ")}), yani engel ağda değil.`
     : `⚠️ Sunucudan çıkış sorunlu — ${parca.join(" · ")}. Token değişimi bu yüzden takılmış olabilir.`;
+}
+
+// ---------------------------------------------------------------- derin teşhis
+
+/** Vekil değişkenleri — bun uygular, Node'un fetch'i uygulamaz. */
+const PROXY_VARS = ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy", "NO_PROXY", "no_proxy"];
+
+/** Kullanıcı adı/parola içerebilir: `user:pass@` kısmı maskelenir. */
+const maskProxy = (v) => String(v).replace(/\/\/[^@/]*@/, "//***@");
+
+const tcp = (host, port, family, timeoutMs) => new Promise((res) => {
+  const t0 = Date.now();
+  const s = net.connect({ host, port, family, timeout: timeoutMs });
+  const bitir = (ok, error) => { try { s.destroy(); } catch { /* kapali */ } res({ host, family, ok, error, ms: Date.now() - t0 }); };
+  s.once("connect", () => bitir(true, null));
+  s.once("timeout", () => bitir(false, `${timeoutMs} ms içinde bağlanamadı`));
+  s.once("error", (e) => bitir(false, e.code || e.message));
+});
+
+const gerekli = async (fn) => { try { return { ok: true, value: await fn() }; } catch (e) { return { ok: false, error: e.code || e.message }; } };
+
+/**
+ * "CLI neden takıldı" ölçümü: DNS (iki ayrı çözücüyle), IPv4/IPv6 ayrı ayrı
+ * TCP bağlantısı, vekil değişkenleri.
+ * @returns {Promise<object>}
+ */
+export async function diagnose({ host = "platform.claude.com", port = 443, timeoutMs = 5000 } = {}) {
+  // getaddrinfo (Node'un fetch'inin kullandığı) vs c-ares (bun'ın kullandığı sınıf)
+  const lookup = await gerekli(() => dns.lookup(host, { all: true }));
+  const v4 = await gerekli(() => dns.resolve4(host));
+  const v6 = await gerekli(() => dns.resolve6(host));
+
+  const adresler = [
+    ...(v4.ok ? v4.value.slice(0, 2).map((ip) => ({ ip, family: 4 })) : []),
+    ...(v6.ok ? v6.value.slice(0, 2).map((ip) => ({ ip, family: 6 })) : []),
+  ];
+  const baglanti = await Promise.all(adresler.map(({ ip, family }) => tcp(ip, port, family, timeoutMs)));
+
+  const proxy = PROXY_VARS.filter((k) => process.env[k]).map((k) => ({ name: k, value: maskProxy(process.env[k]) }));
+  const v4ok = baglanti.some((b) => b.family === 4 && b.ok);
+  const v6var = baglanti.some((b) => b.family === 6);
+  const v6ok = baglanti.some((b) => b.family === 6 && b.ok);
+
+  const sebepler = [];
+  if (proxy.length) sebepler.push(`vekil değişkeni tanımlı (${proxy.map((p) => p.name).join(", ")}) — bun bunu uygular, Node uygulamaz; CLI'nin takılması buradan olabilir`);
+  if (v6var && !v6ok && v4ok) sebepler.push("IPv6 kara delik: IPv4 bağlanıyor, IPv6 bağlanmıyor. Node IPv4'e düşer, bun düşmez — CLI tam bu yüzden asılır. Container'da IPv6'yı kapat ya da yolu düzelt");
+  if (!v4ok && !v6ok) sebepler.push("hiçbir adrese TCP bağlantısı kurulamadı");
+  if (!lookup.ok) sebepler.push(`DNS çözümlenemedi: ${lookup.error}`);
+
+  return {
+    host, port,
+    dns: {
+      getaddrinfo: lookup.ok ? lookup.value.map((a) => `${a.address} (v${a.family})`) : `HATA: ${lookup.error}`,
+      A: v4.ok ? v4.value : `HATA: ${v4.error}`,
+      AAAA: v6.ok ? v6.value : `HATA: ${v6.error}`,
+    },
+    tcp: baglanti,
+    proxy,
+    ipv4: v4ok, ipv6: v6var ? v6ok : null,
+    sebepler,
+    ozet: sebepler.length ? sebepler.join(" · ") : "DNS, IPv4/IPv6 ve vekil tarafında sorun görünmüyor.",
+  };
 }

@@ -19,7 +19,7 @@
  * 10 dk sonra düşer; sunucu yeniden başlarsa akış kaybolur ("yeniden başlat").
  */
 import * as accounts from "../auth/claude-accounts.mjs";
-import { reachability, summarize } from "../auth/claude-net.mjs";
+import { reachability, summarize, diagnose } from "../auth/claude-net.mjs";
 import { cliBinary } from "../ai/provider.mjs";
 import { invalidatePreflight } from "../connectors/index.mjs";
 
@@ -32,7 +32,7 @@ export function registerClaudeRoutes(router, ctx) {
   const { send, audit } = ctx;
   // `alive`: akis hala ayakta mi — arayuz kod kutusunu kapatsin mi karar verir.
   const fail = (res, e) => send(res, httpFor(e.code), {
-    ok: false, code: e.code ?? null, error: e.message, alive: e.alive ?? null, net: e.net ?? null,
+    ok: false, code: e.code ?? null, error: e.message, alive: e.alive ?? null, net: e.net ?? null, derin: e.derin ?? null,
   });
 
   router.get("/api/claude/accounts", ({ res }) => send(res, 200, {
@@ -45,8 +45,10 @@ export function registerClaudeRoutes(router, ctx) {
   }));
 
   router.get("/api/claude/net", async ({ res }) => {
-    const net = await reachability();
-    return send(res, 200, { ok: true, ...net, ozet: summarize(net) });
+    // Iki soru, iki olcum: "ag acik mi" (reachability) ve "CLI neden takildi"
+    // (diagnose — DNS, IPv4/IPv6 ayri ayri, vekil degiskenleri).
+    const [net, derin] = await Promise.all([reachability(), diagnose()]);
+    return send(res, 200, { ok: true, ...net, ozet: summarize(net), derin });
   }, { auth: true });
 
   router.prefix("POST", "/api/claude/accounts", async ({ res, rest, body }) => {
@@ -80,6 +82,15 @@ export function registerClaudeRoutes(router, ctx) {
               if (net) {
                 e.message += ` ${summarize(net)}`;
                 e.net = net;
+              }
+              // Kod CLI'ye ULASTI ama karsilik gelmediyse soru degisir: ag genel
+              // olarak acik olsa bile CLI'nin (bun) yolu tikali olabilir.
+              if (e.echo) {
+                const derin = await diagnose().catch(() => null);
+                if (derin) {
+                  e.message += ` CLI'nin ağ yolu: ${derin.ozet}`;
+                  e.derin = derin;
+                }
               }
             }
             throw e;

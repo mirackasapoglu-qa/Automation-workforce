@@ -60,3 +60,53 @@ test("kimlik ve govde GONDERMEZ: yalniz GET, yonlendirme izlenmez", async () => 
     assert.equal(gorulen.opts.headers, undefined, "başlık (dolayısıyla kimlik) yok");
   } finally { geriAl(); }
 });
+
+// -------------------------------------------------- derin teşhis (diagnose)
+
+test("diagnose: IPv6 kara deligi TESPIT EDILIR (Node duser, bun dusmez)", async () => {
+  const { diagnose } = await import("./claude-net.mjs");
+  const dns = await import("node:dns/promises");
+  const net = await import("node:net");
+  const asilLookup = dns.default.lookup, asilR4 = dns.default.resolve4, asilR6 = dns.default.resolve6;
+  const asilConnect = net.default.connect;
+  dns.default.lookup = async () => [{ address: "1.2.3.4", family: 4 }];
+  dns.default.resolve4 = async () => ["1.2.3.4"];
+  dns.default.resolve6 = async () => ["2600::1"];
+  // IPv4 baglanir, IPv6 zaman asimina duser.
+  net.default.connect = ({ host }) => {
+    const ev = {};
+    const s = { once: (k, f) => { ev[k] = f; return s; }, destroy: () => {} };
+    setImmediate(() => (host === "1.2.3.4" ? ev.connect?.() : ev.timeout?.()));
+    return s;
+  };
+  try {
+    const d = await diagnose({ host: "ornek.invalid", timeoutMs: 50 });
+    assert.equal(d.ipv4, true);
+    assert.equal(d.ipv6, false);
+    assert.match(d.ozet, /IPv6 kara delik/);
+    assert.match(d.ozet, /bun düşmez/);
+  } finally {
+    dns.default.lookup = asilLookup; dns.default.resolve4 = asilR4; dns.default.resolve6 = asilR6;
+    net.default.connect = asilConnect;
+  }
+});
+
+test("diagnose: vekil degiskeni bildirilir, parola MASKELENIR", async () => {
+  const { diagnose } = await import("./claude-net.mjs");
+  const dns = await import("node:dns/promises");
+  const asilLookup = dns.default.lookup, asilR4 = dns.default.resolve4, asilR6 = dns.default.resolve6;
+  dns.default.lookup = async () => [{ address: "1.2.3.4", family: 4 }];
+  dns.default.resolve4 = async () => [];
+  dns.default.resolve6 = async () => [];
+  process.env.HTTPS_PROXY = "http://kullanici:gizliparola@vekil.local:3128";
+  try {
+    const d = await diagnose({ host: "ornek.invalid", timeoutMs: 50 });
+    assert.equal(d.proxy[0].name, "HTTPS_PROXY");
+    assert.ok(!d.proxy[0].value.includes("gizliparola"), "parola sızmaz");
+    assert.match(d.proxy[0].value, /\/\/\*\*\*@vekil\.local/);
+    assert.match(d.ozet, /vekil değişkeni tanımlı/);
+  } finally {
+    delete process.env.HTTPS_PROXY;
+    dns.default.lookup = asilLookup; dns.default.resolve4 = asilR4; dns.default.resolve6 = asilR6;
+  }
+});
