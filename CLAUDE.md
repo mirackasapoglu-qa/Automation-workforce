@@ -550,6 +550,33 @@ Düzeltme `sendCode()`: önce metin, `ENTER_GAP_MS` (300 ms) bekle, sonra AYRI
 bir yazmada `\r`. Ölçüm: 92 karakterlik kod artık 674 ms'de gerçek cevap
 alıyor (öncesi: 60 sn sessizlik).
 
+### Token okuma: ekran PARÇALI yazılıyor (2026-09-10, aynı gün ikinci bulgu)
+
+Enter düzeltmesinden sonra relay çalıştı ve CLI token'ı **üretti** — ama panel
+onu okuyamadı ve kullanıcıya "hesapta aktif abonelik yok" diye **yanlış sebep**
+söyledi (ekranda "Store this token securely." yazıyorken). Sebep: TUI metni
+imleç hareketleriyle parçalayarak yazıyor ve parça sınırı `sk-ant-oat`
+çapasının ORTASINA denk gelebiliyor ("sk-ant-" … "oat01-…"), ya da token'ın
+gövdesine boşluk giriyor.
+
+Üç katman eklendi (`tokenFromScreen`):
+1. **Bölge okuyucu (ÖNCE)** — token her zaman "Your OAuth token …:" ile
+   "Store this token securely." arasında; o bölgede token'dan başka bir şey
+   olmadığı için bölgedeki TÜM boşluklar atılıp aranıyor. Bitiş çapasının
+   basılmış olması satırın tamamlandığını da garanti ediyor.
+2. Satır okuyucu (sonra) — temiz durumlar ve satır kırılması için.
+3. `tokenFromConfigDir()` — CLI yapılandırma dizinine yazmışsa oradan kurtarır.
+
+⚠️ **SIRA ÖNEMLİ.** Satır okuyucu önce koşarsa token'ın ortasındaki boşlukta
+kesip **kırpılmış** token'ı kabul ediyor: ölçüldü, 105 karakterlik token 53
+karakter olarak kaydedildi (kayıt geçerli görünür, her `claude -p` patlar).
+
+Ayrıca: token üretildiği hâlde ayrıştırılamazsa ham ekran
+`panel-data/claude/diag/<loginId>.txt` (0600) dosyasına yazılıyor ve hata
+mesajı yolunu veriyor — token KAYBOLMASIN, sunucudan `grep -o
+"sk-ant-oat[A-Za-z0-9_-]*"` ile kurtarılabilsin. Başarı ekranı basılmışken
+hata metni artık "abonelik" demiyor.
+
 ⚠️ **Yanlış teşhis dersi:** bu bulunana kadar ölçüm zinciri sırayla "abonelik
 askıda", "sunucunun çıkışı yok" ve "IPv6 kara deliği" derken **üçü de
 yanlıştı**. Sonuncusu koda da yazılmıştı ve canlıda "container'da IPv6'yı

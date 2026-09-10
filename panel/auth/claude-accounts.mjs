@@ -243,6 +243,68 @@ export const screenTail = (raw, n = 3) => maskToken(plain(raw))
  * @returns {string|null}
  */
 export function tokenFromScreen(raw, { exited = false } = {}) {
+  // ⚠️ SIRA ÖNEMLİ: önce BÖLGE, sonra satır. Ters sırada, token'ın ORTASINA
+  // düşen bir boşluk (TUI imleci ilerletince oluşuyor) satır okuyucusunda
+  // erken eşleşiyor ve KIRPILMIŞ token kabul ediliyordu — ölçüldü: 105
+  // karakterlik token 53 karakter olarak kaydedildi. Bölge okuyucusu iki çapa
+  // arasındaki tüm boşlukları attığı için böyle bir kırpma yapamaz.
+  const bolgeden = tokenFromRegion(raw);
+  if (bolgeden) return bolgeden;
+  return tokenFromLines(raw, { exited });
+}
+
+/**
+ * Başarı ekranının BİLİNEN yapısından okur: token her zaman "Your OAuth
+ * token …:" ile "Store this token securely." ARASINDA ve o bölgede token'dan
+ * başka bir şey yok — bu yüzden bölgedeki TÜM boşlukları atmak güvenli
+ * (metnin geri kalanında atmak "Store"u token'a yapıştırırdı).
+ *
+ * Bitiş çapasının basılmış olması aynı zamanda token satırının TAMAMLANDIĞI
+ * anlamına gelir: yarım kare riski de kalkar.
+ *
+ * Canlıda 2026-09-10: CLI token'ı ÜRETTİ, ekranda "Store this token
+ * securely." göründü, panel token'ı okuyamadı ve kullanıcıya "abonelik yok"
+ * gibi YANLIŞ bir sebep söyledi — TUI metni parçalayarak yazdığı ve parça
+ * sınırı `sk-ant-oat` çapasının ORTASINA denk geldiği için.
+ */
+function tokenFromRegion(raw) {
+  /*
+   * `duz`: büyük/küçük harf KORUNUR (token büyük-küçük duyarlı), yalnız
+   * boşluklar atılır; çapa araması ayrı bir küçük harfli kopyada yapılır.
+   */
+  const duz = plain(raw).replace(/\s+/g, "");          // büyük/küçük KORUNUR
+  const kucuk = duz.toLowerCase();
+  const bas = kucuk.indexOf("oauthtoken");
+  const son = kucuk.indexOf("storethistoken");
+  if (bas >= 0 && son > bas) {
+    const m = duz.slice(bas, son).match(TOKEN_RE);
+    if (m) return m[0];
+  }
+  return null;
+}
+
+/** Başarı ekranı basıldı mı — boşluksuz aranır (TUI kelimeleri parçalıyor). */
+export function successOnScreen(raw) {
+  return /createdsuccessfully|storethistokensecurely/i.test(squash(raw));
+}
+
+/**
+ * Token'ı CLI'nin yapılandırma dizininden okumayı dener — ekran hiç
+ * ayrıştırılmasa bile kurtarır. `setup-token`'ın yazıp yazmadığı sürüme göre
+ * değişebiliyor, o yüzden ZORUNLU değil: bulursa kullanılır, bulamazsa ekran.
+ */
+export function tokenFromConfigDir(dir) {
+  for (const f of [".credentials.json", "credentials.json", ".claude.json"]) {
+    try {
+      const m = fs.readFileSync(path.join(dir, f), "utf8").match(TOKEN_RE);
+      if (m) return m[0];
+    } catch { /* yok */ }
+  }
+  return null;
+}
+
+/** Satır bazlı okuma (temiz durum) — kırılmış satırı da birleştirir. */
+function tokenFromLines(raw, { exited = false } = {}) {
   const lines = plain(raw).split("\n");
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/sk-ant-oat[\w-]+/);
@@ -260,6 +322,21 @@ export function tokenFromScreen(raw, { exited = false } = {}) {
     if (satirBitti && TOKEN_RE.test(tok)) return tok;
   }
   return null;
+}
+
+/**
+ * Ham ekranı diske yazar (0600) — token üretildiği hâlde ayrıştırılamadığında
+ * KAYBOLMASIN diye. İçinde token geçebilir: hesap deposuyla aynı hassasiyette
+ * dizinde durur ve aynı izinlerle yazılır.
+ * @returns {string|null} dosya yolu
+ */
+function dumpScreen(loginId, raw) {
+  try {
+    const f = path.join(root(), "panel-data", "claude", "diag", `${loginId}.txt`);
+    fs.mkdirSync(path.dirname(f), { recursive: true });
+    fs.writeFileSync(f, String(raw), { mode: 0o600 });
+    return f;
+  } catch { return null; }
 }
 
 /** Bekleyen girişler (bellek): { id, child, raw, label, at, url, exit }. */
@@ -395,12 +472,28 @@ export async function submitCode(loginId, code) {
   }, CODE_TIMEOUT_MS, state);
 
   if (!sonuc && state.exit) {
+    // Son çare: CLI kendi yapılandırma dizinine yazmış olabilir.
+    const dosyadan = tokenFromConfigDir(state.tmpCfg);
+    if (dosyadan) {
+      const kurtarilan = save({ label: state.label, token: dosyadan, source: "relay" });
+      cancelLogin(loginId);
+      return kurtarilan;
+    }
     const son = screenTail(state.raw, 3);
+    const basariliydi = successOnScreen(state.raw);
+    // ⚠️ Başarı ekranı basıldıysa sebep ABONELİK DEĞİLDİR — token üretildi ama
+    // okunamadı. Yanlış sebep söylemek kullanıcıyı saatlerce yanlış yere
+    // baktırıyor (canlıda oldu). Ham ekranı 0600 ile saklayıp yolunu veriyoruz:
+    // token kaybolmasın, sunucudan elle kurtarılabilsin.
+    const dokum = basariliydi ? dumpScreen(loginId, state.raw) : null;
     cancelLogin(loginId);
     throw Object.assign(
-      err("CLI_EXIT", `Claude CLI kodu işledi ama token vermeden kapandı${son ? ` — ekranın son satırları: ${son}` : ""}.`
-        + " En sık sebebi: hesapta aktif Claude aboneliği yok ya da kuruluş politikası uzun ömürlü abonelik token'ına izin vermiyor (o durumda API anahtarı yolunu kullan)."),
-      { alive: false, screen: son },
+      err("CLI_EXIT", basariliydi
+        ? `Token ÜRETİLDİ ama panel ekrandan okuyamadı — kaybolmasın diye ham ekran ${dokum ?? "(yazılamadı)"} dosyasına yazıldı (0600).`
+          + " Sunucuda `grep -o \"sk-ant-oat[A-Za-z0-9_-]*\" <dosya>` ile alıp panele yapıştırabilirsin. Bu bir abonelik sorunu DEĞİL."
+        : `Claude CLI kodu işledi ama token vermeden kapandı${son ? ` — ekranın son satırları: ${son}` : ""}.`
+          + " En sık sebebi: hesapta aktif Claude aboneliği yok ya da kuruluş politikası uzun ömürlü abonelik token'ına izin vermiyor (o durumda API anahtarı yolunu kullan)."),
+      { alive: false, screen: son, dump: dokum },
     );
   }
   if (!sonuc) {

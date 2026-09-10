@@ -249,3 +249,53 @@ test("sendCode: kod ve Enter AYRI yazmalarda gider (uzun kod yapistirma sayiliyo
   assert.ok(yazmalar[1].at - yazmalar[0].at >= 35, "aralarinda gercek bir boslukla");
   assert.ok(Date.now() - t0 >= 35);
 });
+
+test("tokenFromScreen: PARCALANMIS token (canlida olusan durum) bolgeden okunur", () => {
+  // ⚠️ Canlida 2026-09-10: CLI token'i URETTI, ekranda "Store this token
+  // securely." gorundu ama panel token'i okuyamadi — TUI metni parcalayarak
+  // yaziyor ve parca siniri `sk-ant-oat` capasinin ORTASINA denk gelmisti.
+  const T = `sk-ant-oat01-${"Q".repeat(90)}`;
+  const parcali = [
+    " ✓ Long-lived authentication token created successfully!",
+    "",
+    " Your OAuth token (valid for 1 year):",
+    "",
+    ` sk-ant- oat01-${"Q".repeat(40)}   ${"Q".repeat(50)}`,   // capa VE govde bolunmus
+    "",
+    " Store this token securely. You won't be able to see it again.",
+    " Use this token by setting: export CLAUDE_CODE_OAUTH_TOKEN=<token>",
+  ].join("\n");
+  assert.equal(acc.tokenFromScreen(parcali), T, "bölge içindeki boşluklar atılarak birleştirilir");
+  assert.equal(acc.successOnScreen(parcali), true);
+
+  // Bosluksuz (glued) ekran da ayni sekilde okunur — TUI genelde boyle yaziyor.
+  const glued = `YourOAuthtoken(validfor1year):${T}Storethistokensecurely.`;
+  assert.equal(acc.tokenFromScreen(glued), T);
+
+  // "Store" token'a YAPISMAZ: bolge disina tasmaz.
+  assert.ok(!acc.tokenFromScreen(parcali).includes("Store"));
+});
+
+test("successOnScreen: basari YOKKEN false (abonelik mesaji yanlislikla basari sayilmasin)", () => {
+  assert.equal(acc.successOnScreen("Your Claude account is on hold. Visit billing"), false);
+  assert.equal(acc.successOnScreen("OAuth error: Invalid code"), false);
+});
+
+test("tokenFromConfigDir: CLI yapilandirma dizinine yazdiysa oradan kurtarilir", () => {
+  const d = fs.mkdtempSync(path.join(tmp, "cfg-kurtarma-"));
+  assert.equal(acc.tokenFromConfigDir(d), null, "dosya yoksa null");
+  const T = `sk-ant-oat01-${"R".repeat(90)}`;
+  fs.writeFileSync(path.join(d, ".credentials.json"), JSON.stringify({ claudeAiOauth: { accessToken: T } }));
+  assert.equal(acc.tokenFromConfigDir(d), T);
+});
+
+test("tokenFromScreen: token ORTASINDAKI bosluk KIRPMAYA yol acmaz", () => {
+  // Simulasyon yakaladi: TUI imleci ilerletince token'in ortasina bosluk
+  // giriyor; satir okuyucusu orada kesip 105 karakterlik token'i 53 karakter
+  // olarak kabul ediyordu. Bolge okuyucusu ONCE kosmali.
+  const T = `sk-ant-oat01-${"Z".repeat(92)}`;
+  const ekran = ` Your OAuth token (valid for 1 year):\n\n ${T.slice(0, 53)}  ${T.slice(53)}\n\n Store this token securely.\n`;
+  const okunan = acc.tokenFromScreen(ekran);
+  assert.equal(okunan, T);
+  assert.equal(okunan.length, T.length, "kirpilmadan tam okunur");
+});
