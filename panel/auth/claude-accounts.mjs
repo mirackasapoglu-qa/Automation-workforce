@@ -206,14 +206,36 @@ export function relaySupported({ claudeBin } = {}) {
 }
 
 /**
- * Terminal süslerini at. ⚠️ İmleç-ileri dizisi (`ESC[<n>C`) BOŞLUĞA çevrilir:
- * TUI kelimeleri boşluk yazmak yerine imleci ilerleterek diziyor, düz atılınca
- * ekran "Requstfailed withstatus code" gibi yapışık çıkıyordu (ölçüldü).
+ * Terminal süslerini at.
+ *
+ * ⚠️ İmleç-ileri dizisi (`ESC[<n>C`) BOŞLUĞA çevrilir: TUI kelimeleri boşluk
+ * yazmak yerine imleci ilerleterek diziyor, düz atılınca ekran
+ * "Requstfailed withstatus code" gibi yapışık çıkıyordu (ölçüldü).
+ *
+ * ⚠️ ELEME TAM OLMAK ZORUNDA. İlk sürüm yalnız `ESC[<sayı;?><harf>` biçimini
+ * atıyordu; CLI'nin bastığı `ESC[>4m` (modifyOtherKeys), `ESC[<u` (kitty
+ * klavye), `ESC(B` (karakter kümesi) ve `ESC7`/`ESC8` (imleç kaydet/geri
+ * yükle) bu kalıba UYMUYOR. ESC karakteri kontrol karakteri olarak atılınca
+ * geriye `[>4m`, `[<u`, `(B`, **`7`**, **`8`** gibi DÜZ METİN kalıyordu
+ * (canlıda ölçüldü: ekran özetinde `(B[>4m[<u78[>4m[<u` göründü).
+ * Bu kalıntı token'ın yanına düşerse eşleşmeyi kırar, ORTASINA düşerse
+ * token'a rakam ekleyip BOZUK kaydeder. Bu yüzden eleme artık CSI'nin tam
+ * dilbilgisini, karakter kümesi seçimlerini ve iki karakterli dizileri
+ * kapsıyor.
  */
 const plain = (s) => String(s)
-  .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
-  .replace(/\x1b\[(\d*)C/g, (_, n) => " ".repeat(Math.min(Number(n || 1), 200)))
-  .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
+  // OSC (köprü/başlık) ve DCS/PM/APC blokları — kendi sonlandırıcılarıyla.
+  .replace(/\x1b\][\s\S]*?(?:\x07|\x1b\\)/g, "")
+  .replace(/\x1b[P^_X][\s\S]*?\x1b\\/g, "")
+  // İmleç-ileri BOŞLUĞA çevrilir (TUI kelimeleri böyle diziyor).
+  .replace(/\x1b\[([0-9]*)C/g, (_, n) => " ".repeat(Math.min(Number(n || 1), 200)))
+  // TAM CSI: parametre baytları 0x30-0x3f (`<` `>` `=` `?` dahil), ara
+  // baytlar 0x20-0x2f, bitiş 0x40-0x7e.
+  .replace(/\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g, "")
+  // Karakter kümesi seçimi: ESC ( B gibi.
+  .replace(/\x1b[()*+][\x20-\x2f]*[\x30-\x7e]/g, "")
+  // İki karakterli diziler: ESC7 / ESC8 (imleç kaydet/geri yükle), ESC=, ESC>, ESC M …
+  .replace(/\x1b[@-Z\\-_0-9=><]/g, "")
   .replace(/[\r\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
 const squash = (s) => plain(s).replace(/\s+/g, "").toLowerCase();
 

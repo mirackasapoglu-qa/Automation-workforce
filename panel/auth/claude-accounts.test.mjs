@@ -299,3 +299,24 @@ test("tokenFromScreen: token ORTASINDAKI bosluk KIRPMAYA yol acmaz", () => {
   assert.equal(okunan, T);
   assert.equal(okunan.length, T.length, "kirpilmadan tam okunur");
 });
+
+test("plain: CLI'nin bastigi TUM diziler elenir (ESC7/ESC8 rakam birakiyordu)", () => {
+  // Canlida olculdu: ekran ozetinde `(B[>4m[<u78[>4m[<u` gorundu — bunlar
+  // elenmemis ESC(B, ESC[>4m, ESC[<u, ESC7, ESC8 kalintilaridir. `7`/`8`
+  // token'in ORTASINA dusrse token'a rakam ekleyip BOZUK kaydettirir.
+  const T = `sk-ant-oat01-${"K".repeat(92)}`;
+  const cop = "\x1b(B\x1b[>4m\x1b[<u\x1b7\x1b8\x1b[?25l\x1b[39m";
+  const ekran = ` Your OAuth token (valid for 1 year):\n\n ${cop}${T.slice(0, 40)}${cop}${T.slice(40)}${cop}\n\n ${cop}Store this token securely.\n`;
+  const okunan = acc.tokenFromScreen(ekran);
+  assert.equal(okunan, T, "kalinti karakter token'a KARISMAZ");
+  assert.ok(!/[78]{2}/.test(okunan.slice(13)), "ESC7/ESC8 kalintisi sizmaz");
+  // Ozet metninde de kalinti gorunmemeli.
+  assert.ok(!acc.screenTail(`${cop}bir satir${cop}`).includes("[>4m"), "ozet temiz");
+  assert.ok(!acc.screenTail(`\x1b7\x1b8son satir`).match(/^78/), "ESC7/8 rakam birakmaz");
+});
+
+test("plain: DCS/OSC bloklari ve karakter kumesi secimleri elenir", () => {
+  const T = `sk-ant-oat01-${"L".repeat(92)}`;
+  const ekran = ` Your OAuth token:\n \x1b]8;;https://x\x07${T}\x1b]8;;\x07\n Store this token securely.\n`;
+  assert.equal(acc.tokenFromScreen(ekran), T);
+});

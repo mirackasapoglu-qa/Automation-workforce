@@ -567,6 +567,21 @@ gövdesine boşluk giriyor.
 2. Satır okuyucu (sonra) — temiz durumlar ve satır kırılması için.
 3. `tokenFromConfigDir()` — CLI yapılandırma dizinine yazmışsa oradan kurtarır.
 
+⚠️ **ANSI ELEMESİ TAM OLMAK ZORUNDA.** İlk sürüm yalnız `ESC[<sayı;?><harf>`
+biçimini atıyordu; CLI ayrıca `ESC[>4m` (modifyOtherKeys), `ESC[<u` (kitty
+klavye), `ESC(B` (karakter kümesi) ve `ESC7`/`ESC8` (imleç kaydet/geri yükle)
+basıyor. ESC kontrol karakteri olarak atılınca geriye `[>4m`, `[<u`, `(B` ve
+**düz `7`/`8` rakamları** kalıyordu (canlıda görüldü: `(B[>4m[<u78[>4m[<u`).
+Bu kalıntı token'ın yanına düşerse eşleşmeyi kırar, **ortasına düşerse token'a
+rakam ekleyip BOZUK kaydeder**. `plain()` artık CSI'nin tam dilbilgisini
+(parametre 0x30-0x3f, ara 0x20-0x2f, bitiş 0x40-0x7e), OSC/DCS bloklarını,
+karakter kümesi seçimlerini ve iki karakterli dizileri eliyor.
+
+**Kurtarma tek komut:** `node scripts/claude-token-recover.mjs` — en yeni
+dökümü panelin GÜNCEL ayrıştırıcısıyla yeniden okur (yani ayrıştırıcı
+düzeldikçe eski dökümler de kurtarılabilir hâle gelir). `--yapi` token'ı
+BASMADAN maskeli yapıyı gösterir; teşhis paylaşırken bunu kullan.
+
 ⚠️ **SIRA ÖNEMLİ.** Satır okuyucu önce koşarsa token'ın ortasındaki boşlukta
 kesip **kırpılmış** token'ı kabul ediyor: ölçüldü, 105 karakterlik token 53
 karakter olarak kaydedildi (kayıt geçerli görünür, her `claude -p` patlar).
