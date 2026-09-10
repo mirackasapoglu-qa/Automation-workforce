@@ -491,6 +491,20 @@ geliştirici makinesinde kart yapıştırma yolunu gösterir, sunucuda relay aç
   değişirse ayrıştırma kırılır.
 - `panel-data` volume bağlı değilse hesaplar deploy'da uçar ve herkes yeniden bağlanır.
 
+**Kaldırmanın üç seviyesi (karıştırma):**
+
+| Ne | Nasıl | Kimliğe ne olur |
+|---|---|---|
+| Geçici kapat | Bağlantılar → Claude rozeti → **kopar** | Hiçbir şey silinmez; tek tık üretim kapanır (`mode: manual`), geri bağlamak tek tık |
+| Bir hesabı kaldır | Kart → "Hesap ekle / yönet…" → hesabın yanındaki **sil** | O hesabın token'ı ve `panel-data/claude/config/<id>/` dizini silinir; diğer hesaplar durur |
+| Token'ı gerçekten iptal et | claude.ai → Settings | Panel bunu YAPAMAZ; sunucudan silmek token'ı geçersiz kılmaz |
+
+⚠️ Şalter `mode()` içinde SORULUR. Eskiden yalnız `resolveCred` içinde
+sorulurdu; API anahtarı yolu kesiliyordu ama hesap ve yerel CLI yolları
+kesilmiyordu — **Claude koparılmışken tek tık üretim çalışmaya devam
+ediyordu** (ölçüldü 2026-09-10). Yeni bir yol eklerken şalteri `mode()`
+seviyesinde sor, tek tek kimlik çözücülerde değil.
+
 ⚠️ **Aynı turda bulunan gerçek hata:** `claude-cli.mjs` istemi `child.stdin`e
 yazıyordu ama **stdin'de hata dinleyicisi yoktu**. CLI istemi okumadan çıkarsa
 (bozuk token, sürüm uyuşmazlığı, çökme) `EPIPE` yakalanmamış hata olarak

@@ -27,6 +27,10 @@ import { apiKey, settings, complete } from "./anthropic.mjs";
 import { askClaude, parseJsonLoose } from "../claude-cli.mjs";
 import { assertBudget, record, spentToday, withSlot } from "./budget.mjs";
 import * as accounts from "../auth/claude-accounts.mjs";
+import { isCut } from "../connectors/cuts.mjs";
+
+/** Bu sağlayıcının kayıt defterindeki anahtarı — şalter (kopar) bununla sorulur. */
+const PROVIDER = "claude-code";
 
 const err = (code, message, extra = {}) => Object.assign(new Error(message), { code, ...extra });
 
@@ -69,6 +73,13 @@ function isExecutable(f) {
  * Hesap varsa CLI'nin PATH'te olması yine şart — komutu o çalıştırıyor.
  */
 export function mode() {
+  /*
+   * ⚠️ ŞALTER ÖNCE. "Kopar" bu servisi KULLANMA demek; API anahtarı yolu zaten
+   * `resolveCred` içinde kesiliyordu ama hesap ve yerel CLI yolları kesilmiyordu
+   * — Claude koparılmışken tek tık üretim çalışmaya devam ediyordu (ölçüldü
+   * 2026-09-10). Kimlik SİLİNMEZ: geri bağlamak tek tık.
+   */
+  if (isCut(PROVIDER)) return "manual";
   const forced = (process.env.AI_PROVIDER || "auto").trim().toLowerCase();
   const cliReady = Boolean(cliBinary());
   if (forced === "api") return apiKey() ? "api" : "manual";
@@ -115,12 +126,16 @@ export function status() {
         : `yerel Claude Code CLI (${cliBinary()}) — makinedeki oturum`,
     };
   }
+  const kopuk = isCut(PROVIDER);
   return {
     ...base,
     model: null,
+    cut: kopuk || undefined,
     accounts: accounts.list(),
     relay: accounts.relaySupported({ claudeBin: cliBinary() }),
-    detail: "tek tık kapalı — Claude hesabı ekle, ANTHROPIC_API_KEY ver ya da Claude Code CLI kur; istem üret + yapıştır yolu açık",
+    detail: kopuk
+      ? "bağlantı koparıldı — kimlik ve hesaplar yerinde, rozete tıklayınca geri gelir"
+      : "tek tık kapalı — Claude hesabı ekle, ANTHROPIC_API_KEY ver ya da Claude Code CLI kur; istem üret + yapıştır yolu açık",
   };
 }
 
@@ -140,8 +155,9 @@ export function status() {
 export async function ask({ purpose = "ai", system = "", stable = "", user, schema = null, maxTokens, account = null } = {}) {
   const m = mode();
   if (m === "manual") {
-    throw err("NO_PROVIDER",
-      "Tek tık üretim kapalı: ne Claude hesabı, ne ANTHROPIC_API_KEY, ne Claude Code CLI var. İstem üret + yapıştır yolu çalışır.");
+    throw err("NO_PROVIDER", isCut(PROVIDER)
+      ? "Claude bağlantısı koparılmış — Bağlantılar kartındaki rozete tıklayıp geri bağla (kimlik ve hesaplar yerinde duruyor)."
+      : "Tek tık üretim kapalı: ne Claude hesabı, ne ANTHROPIC_API_KEY, ne Claude Code CLI var. İstem üret + yapıştır yolu çalışır.");
   }
   if (!user || !String(user).trim()) throw err("BAD_INPUT", "istem boş");
   assertBudget();
