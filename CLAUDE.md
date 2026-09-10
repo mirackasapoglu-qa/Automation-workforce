@@ -591,6 +591,18 @@ alternatif ekran **bilinçli olarak yok** — gerekmiyor, olsaydı sessizce yanl
 sonuç üretebilirdi. `plain()` artık bu fonksiyon; token okuma, hata özeti ve
 anahtar kelime araması hepsi GERÇEK ekran üstünde çalışıyor.
 
+⚠️ **EKRAN TAMPONU SIFIRLANMAZ — son ve en ince hata buydu.** TUI ekranı
+**farksal** boyuyor: değişmeyen sütunların üzerinden `\e[<n>C` ile atlayıp
+yalnız değişeni yazıyor. Kod göndermeden önce `state.raw = ""` yapınca
+terminalin "hafızası" siliniyor ve atlanan sütunlarda karakter yerine
+**boşluk** kalıyordu: token ekranda `sk-ant- <100 karakter>` diye ikiye
+bölünüyor, hiçbir okuyucu birleştiremiyordu (canlı döküm 757 bayt — tam bir
+ekran için fazlasıyla küçük, ilk ipucu buydu). Artık akışın tamamı tutuluyor;
+gönderim anında yalnız bir **işaret** (`mark`) alınıyor: token TÜM akıştan
+(gerçek ekran) okunuyor, hata kelimeleri ise sadece işaretten sonrasında
+aranıyor — önceki denemenin ekranda kalan hatası yeni denemeyi düşürmesin.
+Ekranı canlandıran her okuyucu için kural: **geçmişi atma.**
+
 ⚠️ **LF sütunu da sıfırlıyor.** Gerçek terminalde LF yalnız satır atlar (sütunu
 CR sıfırlar); burada sıfırlanmazsa `\n` ile ayrılan ikinci satır ekranın
 ortasına kayıyor ve okuma bozuluyordu.

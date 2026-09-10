@@ -320,3 +320,18 @@ test("plain: DCS/OSC bloklari ve karakter kumesi secimleri elenir", () => {
   const ekran = ` Your OAuth token:\n \x1b]8;;https://x\x07${T}\x1b]8;;\x07\n Store this token securely.\n`;
   assert.equal(acc.tokenFromScreen(ekran), T);
 });
+
+test("FARKSAL boyama: gecmis atilirsa token delik desik olur", () => {
+  // Canlida olculdu 2026-09-10: TUI degismeyen sutunlarin uzerinden \e[<n>C
+  // ile ATLIYOR. Kod gonderilmeden once tampon sifirlanirsa o sutunlar bosluk
+  // kaliyor ve token ekranda `sk-ant- <100 karakter>` diye ikiye bolunuyordu.
+  const T = `sk-ant-oat01-${"J".repeat(92)}`;
+  const oncekiKare = `\x1b[6;2H${T}`;                       // govde: ONCEKI kare
+  const sonrakiKare = "\x1b[4;2HYour OAuth token (valid for 1 year):"
+    + `\x1b[6;2Hsk-ant-\x1b[${T.length - 7}C\x1b[K`        // yalniz onek tazeleniyor
+    + "\x1b[8;2HStore this token securely.";
+  assert.equal(acc.tokenFromScreen(oncekiKare + sonrakiKare, { exited: true }), T,
+    "tum akis verilirse token TAM okunur");
+  assert.equal(acc.tokenFromScreen(sonrakiKare, { exited: true }), null,
+    "gecmis atilirsa okunamaz — tampon SIFIRLANMAMALI");
+});

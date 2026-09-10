@@ -458,7 +458,18 @@ export async function submitCode(loginId, code) {
   if (!c) throw err("BAD_INPUT", "Kod boş.");
   if (!/^[\w#.\-=/+]{6,300}$/.test(c)) throw err("BAD_INPUT", "Kod biçimi geçersiz (tarayıcıdaki kodun tamamını kopyala).");
 
-  state.raw = "";
+  /*
+   * ⚠️ TAMPON SIFIRLANMAZ. TUI ekranı FARKSAL boyuyor: değişmeyen sütunların
+   * üstünden `\e[1C` ile atlayıp yalnız değişeni yazıyor. Ekranı canlandıran
+   * bir okuyucu için bu, "geçmişi atarsan ekran delik deşik olur" demek —
+   * ölçüldü 2026-09-10: kod göndermeden önce tampon sıfırlanınca token
+   * ekranda `sk-ant- <100 karakter>` diye BOŞLUKLA ikiye bölünüyor ve
+   * okunamıyordu (döküm 757 bayt, yani tam ekran için fazlasıyla küçük).
+   * Bunun yerine bir İŞARET tutuluyor: token TÜM akıştan (gerçek ekran)
+   * okunuyor, hata kelimeleri ise yalnız işaretten sonraki kısımda aranıyor —
+   * önceki denemenin ekranda kalan hatası yeni denemeyi düşürmesin.
+   */
+  const mark = state.raw.length;
   try {
     await sendCode(state.child.stdin, c);
   } catch { throw err("EXPIRED", "Giriş süreci kapanmış — yeniden başlat."); }
@@ -469,7 +480,7 @@ export async function submitCode(loginId, code) {
     // CLI'nin HER hata durumu ekrana "OAuth error: …" basiyor (binary'den
     // dogrulandi); "account_on_hold" ise bu oneki KULLANMIYOR ve surec 500 ms
     // sonra oluyor — o yol asagidaki cikis kontroluyle yakalanir.
-    const t = squash(state.raw);
+    const t = squash(state.raw.slice(mark));
     if (/oautherror|invalidcode/.test(t)) {
       return { hata: screenTail(state.raw, 2) || "kod reddedildi" };
     }
