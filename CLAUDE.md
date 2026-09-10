@@ -567,6 +567,40 @@ gövdesine boşluk giriyor.
 2. Satır okuyucu (sonra) — temiz durumlar ve satır kırılması için.
 3. `tokenFromConfigDir()` — CLI yapılandırma dizinine yazmışsa oradan kurtarır.
 
+### Ekran ayrıştırma değil, ekran ÖYKÜNMESİ (`panel/auth/tty-screen.mjs`)
+
+Üç ayrı ayrıştırma denemesi (satır bazlı → bölge bazlı → tam ANSI elemesi)
+sırayla çuvalladıktan sonra canlı döküm gerçek sebebi gösterdi: **CLI ekranı
+satır satır yazmıyor, imleci konumlandırarak boyuyor.**
+
+```
+\e[1C\e[2B sk-ant-…  \e[K token\e[19G(valid\e[26Gfor\e[30G1\e[32Gyear):
+```
+
+Token'ın baytları, kendi başlık satırının ("Your OAuth token (valid for 1
+year):") baytlarının **arasından** akıyor — yani **bayt sırası ekrandaki
+görsel sıra değil**. Akışı düz metin sayan HİÇBİR ayrıştırma bunu doğru
+okuyamaz; "başlıkla 'Store this token' arasını al" mantığı da tam bu yüzden
+boş döndü (çapa `oauthtoken` akışta bitişik değil).
+
+`renderScreen()` baytları bir terminal gibi işleyip satır tamponu kuruyor:
+imleç hareketi (CUU/CUD/CUF/CUB/CHA/CUP/VPA), satır/ekran silme (EL/ED),
+DECSC/DECRC (`ESC7`/`ESC8`), CR/LF/BS/TAB. SGR ve `?` ile başlayan özel modlar
+görünmez oldukları için atlanıyor. Kaydırma, çift genişlikli karakter ve
+alternatif ekran **bilinçli olarak yok** — gerekmiyor, olsaydı sessizce yanlış
+sonuç üretebilirdi. `plain()` artık bu fonksiyon; token okuma, hata özeti ve
+anahtar kelime araması hepsi GERÇEK ekran üstünde çalışıyor.
+
+⚠️ **LF sütunu da sıfırlıyor.** Gerçek terminalde LF yalnız satır atlar (sütunu
+CR sıfırlar); burada sıfırlanmazsa `\n` ile ayrılan ikinci satır ekranın
+ortasına kayıyor ve okuma bozuluyordu.
+
+⚠️ **`@xterm/headless` bilinçli olarak KULLANILMADI.** Doğru aday oydu (VS
+Code'un terminal motoru) ama panelin sıfır çalışma-zamanı bağımlılığı kuralını
+delerdi (bkz. dotenv ve Anthropic SDK'nın sökülme gerekçesi). Bir TUI'nin
+kullandığı ~10 dizi için 110 satır yeterli; yetmediği gün `renderScreen()`
+arkasına o paketi koymak tek dosyalık değişiklik.
+
 ⚠️ **ANSI ELEMESİ TAM OLMAK ZORUNDA.** İlk sürüm yalnız `ESC[<sayı;?><harf>`
 biçimini atıyordu; CLI ayrıca `ESC[>4m` (modifyOtherKeys), `ESC[<u` (kitty
 klavye), `ESC(B` (karakter kümesi) ve `ESC7`/`ESC8` (imleç kaydet/geri yükle)
