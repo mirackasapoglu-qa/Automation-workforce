@@ -37,11 +37,12 @@ function stable() {
 export function registerAiRoutes(router, ctx) {
   const { send, audit, getCard, readPerf } = ctx;
 
-  async function generateAndApply({ purpose, built, schema, apply, res, useStable = true }) {
+  async function generateAndApply({ purpose, built, schema, apply, res, useStable = true, account = null }) {
     const t0 = Date.now();
     let r;
     try {
-      r = await ai.ask({ purpose, system: built.system, stable: useStable ? stable() : "", user: built.user, schema });
+      // `account`: hangi Claude aboneligi (CLI yolu). Verilmezse ilk hesap.
+      r = await ai.ask({ purpose, system: built.system, stable: useStable ? stable() : "", user: built.user, schema, account });
     } catch (e) {
       const code = e.code ?? null;
       audit({ event: `${purpose}-error`, code, message: String(e.message).slice(0, 200), ms: Date.now() - t0 });
@@ -55,12 +56,12 @@ export function registerAiRoutes(router, ctx) {
       return send(res, 422, { ok: false, error: e.message, code: "REJECTED", provider: r.provider, model: r.model, cost: r.costUsd, ms: r.durationMs });
     }
     audit({
-      event: purpose, provider: r.provider, model: r.model, costUsd: r.costUsd, ms: r.durationMs,
+      event: purpose, provider: r.provider, model: r.model, account: r.account?.label ?? null, costUsd: r.costUsd, ms: r.durationMs,
       retrieval: built.retrieval?.chunks ?? 0, cacheRead: r.cache?.read ?? null, ...(out.audit ?? {}),
     });
     return send(res, 200, {
       ok: true, ...out.body,
-      provider: r.provider, model: r.model, cost: r.costUsd, ms: r.durationMs,
+      provider: r.provider, model: r.model, account: r.account ?? null, cost: r.costUsd, ms: r.durationMs,
       usage: r.usage ?? null, cache: r.cache ?? null, retrieval: built.retrieval ?? null, requestId: r.requestId ?? null,
     });
   }
@@ -91,12 +92,12 @@ export function registerAiRoutes(router, ctx) {
   }, { auth: true, body: true });
 
   router.post("/api/scope/testcases/generate", ({ res, body }) => {
-    const { nodeIds, types, limit } = body;
+    const { nodeIds, types, limit, account } = body;
     let built;
     try { built = buildPrompt({ nodeIds, types, limit: clampLimit(limit, 4, 12) }); }
     catch (e) { return send(res, 400, { ok: false, error: e.message }); }
     return generateAndApply({
-      purpose: "scope-testcase-generate", built, schema: TESTCASE_SCHEMA, res,
+      purpose: "scope-testcase-generate", built, schema: TESTCASE_SCHEMA, res, account,
       apply: (json) => {
         const out = applyFromModel({ items: json?.items, card: null, allowedNodeIds: nodeIds });
         return { body: out, audit: { nodes: (nodeIds ?? []).length, written: out.written } };
@@ -121,7 +122,7 @@ export function registerAiRoutes(router, ctx) {
   }, { auth: true, body: true });
 
   router.post("/api/jira/testcases/generate", async ({ res, body }) => {
-    const { key, nodeId, types, limit } = body;
+    const { key, nodeId, types, limit, account } = body;
     if (!key) return send(res, 400, { ok: false, error: "key zorunlu" });
     let built;
     try {
@@ -132,7 +133,7 @@ export function registerAiRoutes(router, ctx) {
       return send(res, 400, { ok: false, error: e.message });
     }
     return generateAndApply({
-      purpose: "jira-testcase-generate", built, schema: TESTCASE_SCHEMA, res,
+      purpose: "jira-testcase-generate", built, schema: TESTCASE_SCHEMA, res, account,
       apply: (json) => {
         const out = applyFromModel({ items: json?.items, card: String(key), allowedNodeIds: [nodeId] });
         return { body: out, audit: { card: String(key), written: out.written } };
@@ -175,14 +176,14 @@ export function registerAiRoutes(router, ctx) {
   }, { auth: true, body: true });
 
   router.post("/api/scenarios/generate", ({ res, body }) => {
-    const { request, limit } = body;
+    const { request, limit, account } = body;
     if (!request || !String(request).trim()) return send(res, 400, { ok: false, error: "request zorunlu" });
     const lim = clampLimit(limit, 5, 10);
     let built;
     try { built = buildScenarioPrompt({ request: String(request), limit: lim }); }
     catch (e) { return send(res, e.code === "NO_ORACLE" ? 409 : 400, { ok: false, error: e.message, code: e.code ?? null }); }
     return generateAndApply({
-      purpose: "scenario-generate", built, schema: SCENARIO_SCHEMA, res,
+      purpose: "scenario-generate", built, schema: SCENARIO_SCHEMA, res, account,
       apply: (json) => {
         const out = applyScenarios({ scenarios: json?.scenarios, limit: lim });
         return { body: out, audit: { accepted: out.audit.accepted, dropped: out.audit.droppedNoOracle.length, rejected: out.audit.rejectedByContext.length } };
@@ -215,17 +216,17 @@ export function registerAiRoutes(router, ctx) {
     }
   }, { auth: true, body: true });
 
-  router.post("/api/perf/generate", ({ res }) => {
+  router.post("/api/perf/generate", ({ res, body }) => {
     const perf = readPerf();
     let built;
     try { built = buildPerfPrompt(perf); }
     catch (e) { return send(res, 409, { ok: false, error: e.message }); }
     return generateAndApply({
-      purpose: "perf-generate", built, schema: PERF_SCHEMA, res, useStable: false,
+      purpose: "perf-generate", built, schema: PERF_SCHEMA, res, useStable: false, account: body?.account ?? null,
       apply: (json) => {
         const out = applyPerfFindings(perf, json);
         return { body: out, audit: { findings: out.findings.length, dropped: out.dropped.length } };
       },
     });
-  }, { auth: true });
+  }, { auth: true, body: true });
 }

@@ -96,7 +96,46 @@
     });
   }
 
+  /**
+   * Listeden secim — `uiConfirm`in acilir kutulu kardesi. Vazgec/Escape → null.
+   * Claude hesap secimi bunu kullaniyor: hangi abonelikle kosulacagi kullanicinin
+   * karari, panel kendiliginden baskasinin hesabina gecmez.
+   * @param {string} mesaj
+   * @param {{value:string,label:string}[]} secenekler
+   * @returns {Promise<string|null>}
+   */
+  function uiChoose(mesaj, secenekler, opt = {}) {
+    return new Promise((resolve) => {
+      const list = (secenekler || []).filter((s) => s && s.value != null);
+      if (!list.length) return resolve(null);
+      const ov = askBox({
+        title: opt.title || "Seçim", mesaj,
+        okLabel: opt.ok || "Devam et", cancelLabel: opt.cancel || "Vazgeç", danger: false,
+      });
+      const box = ov.querySelector(".box");
+      const sel = document.createElement("select");
+      sel.id = "uiAskSelect";
+      sel.style.cssText = "width:100%;margin:0 0 12px";
+      for (const s of list) {
+        const o = document.createElement("option");
+        o.value = s.value;
+        o.textContent = s.label ?? s.value;
+        if (opt.value != null && String(opt.value) === String(s.value)) o.selected = true;
+        sel.appendChild(o);
+      }
+      box.insertBefore(sel, box.querySelector(".row3"));
+      const kapat = (cevap) => { document.removeEventListener("keydown", tus); ov.remove(); resolve(cevap); };
+      const tus = (e) => { if (e.key === "Escape") kapat(null); if (e.key === "Enter") kapat(sel.value); };
+      ov.querySelector("#uiAskNo").onclick = () => kapat(null);
+      ov.querySelector("#uiAskYes").onclick = () => kapat(sel.value);
+      ov.onclick = (e) => { if (e.target === ov) kapat(null); };
+      document.addEventListener("keydown", tus);
+      sel.focus();
+    });
+  }
+
   window.uiToast = uiToast;
   window.uiConfirm = uiConfirm;
   window.uiPrompt = uiPrompt;
+  window.uiChoose = uiChoose;
 })();

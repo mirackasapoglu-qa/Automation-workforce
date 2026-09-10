@@ -1,0 +1,167 @@
+/**
+ * Claude hesapları — depo (her platform) + panelden giriş relay'i (yalnız Linux).
+ *
+ * Relay testi GERÇEK bir pty kullanır (`script`) ama SAHTE bir `claude`
+ * çalıştırır: Anthropic'e hiç gidilmez, gerçek hesap kullanılmaz. macOS'ta
+ * BSD `script` borulu stdin ile pty açamadığı için (ölçüldü) o testler atlanır;
+ * sunucu Linux olduğu için üretim yolu kapsanmış olur.
+ *
+ * Koşum: node --test panel/auth/claude-accounts.test.mjs
+ */
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "claude-acct-"));
+process.chdir(tmp);
+// Modul zaman asimlarini yuklenirken okuyor: testte kisa tut (hata yollari 60 sn beklemesin).
+process.env.CLAUDE_LOGIN_URL_TIMEOUT_MS = "6000";
+process.env.CLAUDE_LOGIN_CODE_TIMEOUT_MS = "8000";
+const acc = await import("./claude-accounts.mjs");
+
+const TOKEN = (n) => `sk-ant-oat01-${"x".repeat(30)}${n}`;
+const LINUX = process.platform === "linux";
+
+test("kaydet/listele: token yanita SIZMAZ, yalniz son dort hane", () => {
+  const out = acc.save({ label: "Murat", token: TOKEN("A") });
+  assert.equal(out.id, "claude-1");
+  assert.equal(out.label, "Murat");
+  const list = acc.list();
+  assert.equal(list.length, 1);
+  assert.equal(list[0].token, undefined, "token listede YOK");
+  assert.match(list[0].tokenTail, /…\w{4}$/);
+  assert.equal(list[0].source, "paste");
+  assert.ok(Date.parse(list[0].expiresAt) > Date.now(), "bir yillik gecerlilik");
+  const f = path.join(acc.accountsDir(), "claude-1.json");
+  assert.equal(fs.statSync(f).mode & 0o777, 0o600, "0600 ile yazilir");
+});
+
+test("her hesap ayri conf dizini alir: claude-1, claude-2, …", () => {
+  const b = acc.save({ label: "Ayşe", token: TOKEN("B") });
+  const c = acc.save({ label: "Can", token: TOKEN("C") });
+  assert.equal(b.id, "claude-2");
+  assert.equal(c.id, "claude-3");
+  for (const id of ["claude-1", "claude-2", "claude-3"]) {
+    assert.ok(fs.existsSync(acc.configDir(id)), `${id} conf dizini`);
+  }
+  assert.equal(acc.count(), 3);
+  assert.deepEqual(acc.list().map((a) => a.label), ["Murat", "Ayşe", "Can"]);
+});
+
+test("envFor: hesabin token'i + kendi conf dizini; id verilmezse ilki", () => {
+  const e2 = acc.envFor("claude-2");
+  assert.equal(e2.label, "Ayşe");
+  assert.equal(e2.env.CLAUDE_CODE_OAUTH_TOKEN, TOKEN("B"));
+  assert.equal(e2.env.CLAUDE_CONFIG_DIR, acc.configDir("claude-2"));
+  assert.equal(acc.envFor().id, "claude-1", "id yoksa ilk hesap");
+  assert.throws(() => acc.envFor("claude-99"), /Hesap yok/);
+});
+
+test("token dogrulamasi: bicim, tekrar, etiket kirpma", () => {
+  assert.throws(() => acc.save({ label: "x", token: "sk-ant-api03-yanlis" }), /biçimi/);
+  assert.throws(() => acc.save({ label: "x", token: TOKEN("A") }), /zaten kayıtlı/);
+  const uzun = acc.save({ label: "y".repeat(200), token: TOKEN("D") });
+  assert.equal(acc.list().find((a) => a.id === uzun.id).label.length, 60);
+  acc.remove(uzun.id);
+});
+
+test("yeniden adlandir ve sil: conf dizini de gider, bosalan numara tekrar kullanilir", () => {
+  acc.rename("claude-3", "Can Y.");
+  assert.equal(acc.list().find((a) => a.id === "claude-3").label, "Can Y.");
+  acc.remove("claude-2");
+  assert.ok(!fs.existsSync(acc.configDir("claude-2")), "conf dizini silindi");
+  assert.equal(acc.count(), 2);
+  const yeni = acc.save({ label: "Yeni", token: TOKEN("E") });
+  assert.equal(yeni.id, "claude-2", "bosalan numara tekrar kullanilir");
+  acc.remove("claude-2");
+  assert.deepEqual(acc.remove("claude-9"), { ok: true, removed: false });
+});
+
+test("touch: son kullanim isaretlenir", () => {
+  assert.equal(acc.list().find((a) => a.id === "claude-1").lastUsedAt, null);
+  acc.touch("claude-1");
+  assert.ok(acc.list().find((a) => a.id === "claude-1").lastUsedAt);
+  acc.touch("yok-boyle"); // hata firlatmaz
+});
+
+test("relaySupported: macOS'ta kapali (sebep yazili), Linux'ta script+cli sarti", () => {
+  const r = acc.relaySupported({ claudeBin: "/bin/echo" });
+  if (LINUX) assert.equal(r.ok, true);
+  else {
+    assert.equal(r.ok, false);
+    assert.match(r.reason, /Linux|yapıştır/);
+  }
+  const yok = acc.relaySupported({ claudeBin: null });
+  if (LINUX && !process.env.PATH?.includes("claude")) assert.equal(typeof yok.ok, "boolean");
+});
+
+test("relay desteklenmiyorsa startLogin NO_RELAY firlatir", { skip: LINUX ? "Linux'ta relay acik" : false }, async () => {
+  await assert.rejects(acc.startLogin({ label: "x", claudeBin: "/bin/echo" }), (e) => e.code === "NO_RELAY");
+});
+
+// ---------------------------------------------------------------- relay (Linux)
+const skipRelay = LINUX ? false : "pty relay yalniz Linux'ta (BSD script borulu stdin ile pty acmiyor)";
+
+/** Sahte `claude setup-token`: OSC-8 adres basar, kodu bekler, token ya da hata doner. */
+function fakeClaude(behaviour) {
+  const f = path.join(tmp, `fake-claude-${behaviour}.sh`);
+  fs.writeFileSync(f, `#!/bin/sh
+printf '\\033]8;id=1;https://claude.com/cai/oauth/authorize?code=true&client_id=test&scope=user%%3Ainference&code_challenge_method=S256&state=abc\\007tikla\\033]8;;\\007\\n'
+printf 'Paste code here if prompted > '
+read code
+case "${behaviour}" in
+  ok)      printf '\\nSuccess! Token: sk-ant-oat01-RELAY0123456789ABCDEFGHIJ%s\\n' "$(echo "$code" | cut -c1-4)" ;;
+  bad)     printf '\\nOAuth error: Invalid code. Please make sure the full code was copied. Press Enter to retry.\\n'; sleep 30 ;;
+  silent)  sleep 30 ;;
+esac
+`, { mode: 0o755 });
+  return f;
+}
+
+test("panelden giris: adres yakalanir, kod iletilir, token kaydedilir", { skip: skipRelay }, async () => {
+  const once = acc.pendingCount();
+  const { loginId, url } = await acc.startLogin({ label: "Relay Kullanıcı", claudeBin: fakeClaude("ok") });
+  try {
+    const u = new URL(url);
+    assert.equal(u.origin + u.pathname, "https://claude.com/cai/oauth/authorize");
+    assert.equal(u.searchParams.get("scope"), "user:inference");
+    assert.equal(acc.pendingCount(), once + 1);
+    const out = await acc.submitCode(loginId, "KOD1234567890");
+    assert.equal(out.label, "Relay Kullanıcı");
+    const rec = acc.list().find((a) => a.id === out.id);
+    assert.equal(rec.source, "relay");
+    assert.equal(acc.pendingCount(), once, "basarili girisde akis kapanir");
+    assert.ok(acc.envFor(out.id).env.CLAUDE_CODE_OAUTH_TOKEN.startsWith("sk-ant-oat01-RELAY"));
+    acc.remove(out.id);
+  } finally {
+    acc.cancelLogin(loginId);
+  }
+});
+
+test("gecersiz kod: BAD_CODE, akis AYAKTA kalir (kullanici tekrar dener)", { skip: skipRelay }, async () => {
+  const once = acc.pendingCount();
+  const { loginId } = await acc.startLogin({ label: "Tekrar", claudeBin: fakeClaude("bad") });
+  await assert.rejects(acc.submitCode(loginId, "YANLISKOD123"), (e) => e.code === "BAD_CODE" && /Invalid code/i.test(e.message));
+  assert.equal(acc.pendingCount(), once + 1, "akis dusmedi — kullanici kodu yeniden yapistirabilir");
+  acc.cancelLogin(loginId);
+  assert.equal(acc.pendingCount(), once);
+});
+
+test("kod dogrulamasi ve bilinmeyen akis", { skip: skipRelay }, async () => {
+  const { loginId } = await acc.startLogin({ label: "Dogrulama", claudeBin: fakeClaude("silent") });
+  // Bicim kontrolu surece HIC yazmaz: sessiz sahte CLI ile de aninda doner.
+  await assert.rejects(acc.submitCode(loginId, ""), (e) => e.code === "BAD_INPUT");
+  await assert.rejects(acc.submitCode(loginId, "kısa"), (e) => e.code === "BAD_INPUT");
+  await assert.rejects(acc.submitCode("login-yok", "KOD1234567890"), (e) => e.code === "EXPIRED");
+  acc.cancelLogin(loginId);
+});
+
+test("adres gelmezse NO_URL ve surec oldurulur", { skip: skipRelay }, async () => {
+  const sessiz = path.join(tmp, "fake-noop.sh");
+  fs.writeFileSync(sessiz, "#!/bin/sh\nsleep 30\n", { mode: 0o755 });
+  const once = acc.pendingCount();
+  await assert.rejects(acc.startLogin({ label: "x", claudeBin: sessiz }), (e) => e.code === "NO_URL");
+  assert.equal(acc.pendingCount(), once, "adres gelmeyen akis birakilmaz");
+});

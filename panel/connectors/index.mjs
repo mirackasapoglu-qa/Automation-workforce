@@ -171,6 +171,16 @@ function authSummary(mod, origin) {
   if (mod.auth?.oauth2) {
     out.oauth2 = OAUTH2.statusFor({ dataDir: DATA_DIR, svc: mod.key, cfg: mod.auth.oauth2, origin });
   }
+  /*
+   * Cok hesapli kimlik (Claude aboneligi): bildirim registry'de generic,
+   * VERI saglayicidan — `accountState()` varsa liste ve giris yolu ondan gelir.
+   * Registry hangi servis oldugunu bilmez; kart da bilmek zorunda degil.
+   */
+  if (mod.auth?.accounts) {
+    let state = {};
+    try { state = mod.accountState?.() ?? {}; } catch { state = {}; }
+    out.accounts = { ...mod.auth.accounts, ...state };
+  }
   return out;
 }
 

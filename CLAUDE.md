@@ -428,7 +428,82 @@ seferde yapılamaz, dosya dosya `window.*` yüzeyiyle taşınır (bu üçü örn
 tavanı süreç başına (iki replika ayrı sayar), maliyet liste fiyatından tahmin,
 gerçek anahtarla başarılı çağrı sunucuda ölçülecek.
 
-## Provider yapısı — Faz 1 (2026-09-08, henüz commit'lenmedi)
+## Claude hesapları — kişi kendi aboneliğiyle bağlanır (2026-09-10)
+
+**İstek:** ekipte herkesin API anahtarı yok; kişi kendi Claude hesabıyla
+çalışsın, sunucuda birden fazla hesap dursun, kişi hangisiyle koşacağını seçsin.
+
+**Yol (Anthropic'in belgelediği):** `claude setup-token` → bir yıllık OAuth
+token'ı → panel `claude -p`'yi `CLAUDE_CODE_OAUTH_TOKEN` ile çalıştırır.
+Token'la doğrudan API'ye GİDİLMEZ; Claude Code gider, izin verilen kullanım bu.
+
+```
+panel/auth/claude-accounts.mjs   depo + relay: save/list/remove/envFor/touch,
+                                 startLogin → submitCode → cancelLogin
+panel/routes/claude.mjs          /api/claude/accounts[ /login/{start,code,cancel} | /rename | /remove ]
+panel-data/claude/accounts/<id>.json   token (0600) — TOKEN BAŞKA HİÇBİR YERDE YOK
+panel-data/claude/config/<id>/         her hesabın kendi CLAUDE_CONFIG_DIR'i
+```
+
+**İki ekleme yolu, tek depo:**
+1. **Panelden giriş (relay).** Panel sunucuda `claude setup-token`'ı sözde
+   terminalde başlatır, Anthropic'in giriş adresini karta koyar; kişi kendi
+   tarayıcısında girer, dönen kodu panele yapıştırır. Kişinin makinesine
+   kurulum YOK.
+2. **Token yapıştır.** Kişi kendi makinesinde `claude setup-token` çalıştırıp
+   token'ı yapıştırır. Her yerde çalışır; relay yoksa tek yol budur.
+
+⚠️ **Relay yalnız Linux'ta.** Ölçüldü 2026-09-10: `setup-token` BORU üzerinde
+hiçbir şey basmıyor, gerçek terminal şart. Node'da yerleşik pty yok, `node-pty`
+yerel derleme ister (sıfır bağımlılık kuralı). Çözüm `script(1)`:
+`script -qec "<komut>" /dev/null` — Linux'ta (bsdutils, Debian imajında hazır)
+borulu stdin ile çalışır; macOS'un BSD `script`i stdin'in TTY olmasını istiyor
+ve `tcgetattr/ioctl: Operation not supported on socket` ile düşüyor. Bu yüzden
+geliştirici makinesinde kart yapıştırma yolunu gösterir, sunucuda relay açıktır.
+
+**Relay'in ölçülmüş mekaniği:**
+- Giriş adresi ekrandaki metinden DEĞİL **OSC-8 köprü dizisinden** okunur
+  (`ESC ] 8 ; … ; <URL> BEL`): ekranda adres satırlara bölünüyor, köprüdeki
+  hâli tam. Yakalanan adres `scope=user:inference`, PKCE `S256`.
+- CLI'nin TUI'si kelimeleri imleç hareketiyle diziyor: metin eşleşmesi
+  **boşluksuz** yapılır (`pastecodehere`), yoksa hiç eşleşmez.
+- Kod `\r` (Enter) ile gönderilir; girdi ekranda yıldızla maskeleniyor.
+- Geçersiz kodda CLI "Invalid code… Press Enter to retry" der ve **ayakta
+  kalır** — akış düşürülmez, kişi kodu yeniden yapıştırır.
+- Bekleyen akış sunucu belleğinde, 10 dk; süreç yeniden başlarsa akış kaybolur
+  ("yeniden başlat"). PKCE doğrulayıcısı o süreçte olduğu için iki adım aynı
+  süreçte olmak zorunda.
+
+**Kullanım ve sınır:**
+- Üretimde hesap seçilir (`account` alanı): tek tık onayı birden fazla hesap
+  varsa aynı anda hesap seçicisidir (`uiChoose`); seçim tarayıcıda hatırlanır
+  (`qa-panel-ai-account`, panel ve Flowscope aynı anahtar).
+- ⚠️ **OTOMATİK HESAP DEĞİŞTİRME YOK.** Her token bir kişinin aboneliğidir;
+  limit dolunca başkasının hesabına düşmek hesap paylaşımıdır ve sözleşmeye
+  aykırıdır. Limit hatası `RATE_LIMIT` + hesap adıyla gösterilir, seçim insana
+  kalır. Bunu "eksik" sanıp otomatik rotasyon eklemeyin.
+- Sıra: hesap varsa **abonelik yolu API anahtarından ÖNCE** gelir (ekip bilinçli
+  olarak bağladı); anahtar yolu isteyene açık kalır, elle yapıştırma her zaman var.
+- Token hiçbir yanıtta ve hiçbir denetim kaydında geçmez; listede son dört hane
+  (`tokenTail`). Defterde hesap ADI durur (`ai-usage.jsonl → account`).
+- İmajda Claude Code CLI kurulu (`@anthropic-ai/claude-code@2.1.267`, sabit
+  sürüm). Yükseltirken relay testlerini **Linux'ta** koş: CLI'nin ekran biçimi
+  değişirse ayrıştırma kırılır.
+- `panel-data` volume bağlı değilse hesaplar deploy'da uçar ve herkes yeniden bağlanır.
+
+⚠️ **Aynı turda bulunan gerçek hata:** `claude-cli.mjs` istemi `child.stdin`e
+yazıyordu ama **stdin'de hata dinleyicisi yoktu**. CLI istemi okumadan çıkarsa
+(bozuk token, sürüm uyuşmazlığı, çökme) `EPIPE` yakalanmamış hata olarak
+**panelin tamamını düşürüyordu** (ölçüldü: sunucu süreci öldü, ECONNREFUSED).
+Koşum motorundaki `child.on("error")` ile aynı sınıf. Artık yakalanıyor, sebep
+hata mesajına giriyor, panel ayakta kalıyor (`panel/claude-cli.test.mjs`).
+
+⚠️ **Arayüz tuzağı:** `cxRecoverPlan` içinde çok hesaplı sağlayıcı kontrolü
+`state === 'ok'` erken dönüşünden ÖNCE olmalı. Sonra konulduğunda ilk hesap
+eklenip kart "ok" olunca "Hesap ekle" düğmesi kayboluyor ve **ikinci hesap hiç
+eklenemiyordu** (ölçüldü). Hesap eklemek bir kurtarma değil, sürekli bir eylem.
+
+## Provider yapısı — Faz 1 (2026-09-08)
 
 "Connector" artık **provider**: kimlik bildirimi sağlayıcı dosyasının içinde,
 çözümü tek depoda, OAuth akışı ve yenileme ortak çekirdekte. İstek: sunucuda

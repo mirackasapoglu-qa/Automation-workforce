@@ -2489,12 +2489,13 @@ async function cardGenOneClick(key) {
     uiToast(aiYolMetni() + ' — istem üret + yapıştır yoluna geçildi.', { type: 'info' });
     return cardGenPrompt(key);
   }
-  if (!await aiOnay(`${key} kartından test case üretilecek ve doğrudan ağaca yazılacak.\n\nHedef: ${yol}\nEn fazla ${limit} case`)) return;
+  const onay = await aiOnay(`${key} kartından test case üretilecek ve doğrudan ağaca yazılacak.\n\nHedef: ${yol}\nEn fazla ${limit} case`);
+  if (!onay.ok) return;
   const st = $('#jGenState');
   st.className = 'mono';
   st.textContent = AI_STATUS.mode === 'api' ? `${AI_STATUS.model} çalışıyor…` : 'Claude Code çalışıyor…';
   $('#jGenFlow').innerHTML = '';
-  const d = await post('/api/jira/testcases/generate', { key, nodeId, limit,
+  const d = await post('/api/jira/testcases/generate', { key, nodeId, limit, account: onay.account,
     types: ['happy', 'negative', 'regression', 'ui'] });
   if (!d.ok) {
     aiHata(d, st);
@@ -3412,6 +3413,17 @@ function cxRecoverPlan(c) {
           hint: "izin ekranına gider, token'ı sen görmezsin" }
       : { kind: 'setup', label: 'Bağlan…', hint: 'ilk kez: uygulama kaydı gerekiyor' };
   }
+  /*
+   * ⚠️ COK HESAPLI SAGLAYICI, `state === 'ok'` KONTROLUNDEN ONCE. Aksi halde
+   * ilk hesap eklenip kart "ok" olunca "Hesap ekle" dugmesi kayboluyor ve
+   * IKINCI hesap hic eklenemiyordu (olculdu 2026-09-10 — tarayicida kutu hic
+   * acilmadi). Hesap eklemek bir kurtarma degil, surekli bir eylem.
+   */
+  if (c.auth?.accounts) {
+    const n = c.auth.accounts.list?.length ?? 0;
+    return { kind: 'connect', label: n ? 'Hesap ekle / yönet…' : 'Hesap ekle…',
+             hint: n ? `${n} hesap bağlı — yenisini ekle ya da sil` : 'kendi Claude hesabınla bağlan' };
+  }
   if (c.state === 'ok') return null;
   if (c.key === 'gate') return { kind: 'gate', label: 'Kapıyı yenile', hint: "~45 sn, whitelist'li koşum" };
   if (c.key === 'sessions') return { kind: 'session', label: 'Oturum aç', hint: 'Kapsam ekranı, görünür pencere' };
@@ -3527,13 +3539,14 @@ function cxConnectOpen(key) {
        <input id="cxCid-${esc(key)}" placeholder="Client ID" autocomplete="off">
        <input id="cxSec-${esc(key)}" placeholder="Client Secret" autocomplete="off">
        <button class="cx-btn cx-btn-go" onclick="cxSaveClient('${esc(key)}')">kaydet ve bağlan</button>`;
-  const keyPart = !ak ? '' : `<div class="cx-fix-h">${o?.supported ? 'YA DA API ANAHTARI' : 'KİMLİK'}</div>
+  const accPart = c.auth?.accounts ? cxClaudeBox(c) : '';
+  const keyPart = !ak ? '' : `<div class="cx-fix-h">${accPart ? 'YA DA API ANAHTARI' : (o?.supported ? 'YA DA API ANAHTARI' : 'KİMLİK')}</div>
        ${(ak.steps || []).map((x, i) => `<div class="cx-step">${i + 1}. ${esc(x)}</div>`).join('')}
        ${ak.setupUrl ? `<a class="cx-setup" href="${esc(ak.setupUrl)}" target="_blank" rel="noreferrer noopener">token al ↗</a>` : ''}
        ${ak.vars.map(v => `<input id="cxVar-${esc(key)}-${esc(v.name)}" type="${v.secret ? 'password' : 'text'}" placeholder="${esc(v.label)}" autocomplete="off">`).join('')}
        <button class="cx-btn cx-btn-go" onclick="cxSaveCreds('${esc(key)}')">kaydet ve doğrula</button>
        <span class="cx-hint" id="cxCredState-${esc(key)}">${ak.source && ak.source !== 'store' ? `şu an kaynak: ${esc(c.credentialSourceLabel)}` : ''}</span>`;
-  box.innerHTML = oauthPart + keyPart;
+  box.innerHTML = accPart + oauthPart + keyPart;
   box.querySelector('input')?.focus();
 }
 
@@ -3567,6 +3580,108 @@ async function cxCredRemove(key) {
   const d = await post(`/api/connectors/${key}/credentials/remove`, {});
   if (d.error) return uiToast(d.error, { type: 'err' });
   uiToast('Panel kaydı silindi', { type: 'ok' });
+  loadPreflight(true);
+}
+
+/**
+ * CLAUDE HESAPLARI — kisi kendi abonelgiyle baglanir (API anahtari sart degil).
+ *
+ * Iki yol, ikisi de ayni depoya yazar:
+ *   Panelden giris (sunucu, Linux): panel `claude setup-token`'i sozde terminalde
+ *     baslatir, Anthropic'in giris adresini burada gosterir; kisi kendi
+ *     tarayicisinda girer, donen kodu buraya yapistirir.
+ *   Token yapistir: kisi kendi makinesinde `claude setup-token` kosar, cikan
+ *     sk-ant-oat… token'ini buraya yapistirir. Her yerde calisir.
+ *
+ * ⚠️ Limit dolunca panel BASKA hesaba GECMEZ (abonelik paylasimi); uretimde
+ * hangi hesabin kosacagini kullanici secer.
+ */
+let CX_LOGIN = null;   // suren panelden-giris akisi: { loginId, key }
+
+function cxClaudeBox(c) {
+  const list = c.auth?.accounts?.list ?? AI_STATUS?.accounts ?? [];
+  const relay = c.auth?.accounts?.relay ?? AI_STATUS?.relay ?? { ok: false };
+  const satirlar = list.length
+    ? list.map(a => `<div class="cx-row"><span class="cx-k">${esc(a.label)}</span>`
+        + `<span class="cx-v mono">${esc(a.id)} · ${esc(a.tokenTail || '')}`
+        + `${a.expired ? ' · <b>süresi dolmuş</b>' : ''}${a.lastUsedAt ? ` · son kullanım ${esc(new Date(a.lastUsedAt).toLocaleDateString('tr-TR'))}` : ' · hiç kullanılmadı'}</span>`
+        + `<button class="cx-btn" onclick="cxClaudeRemove('${esc(a.id)}')">sil</button></div>`).join('')
+    : '<div class="cx-step">Henüz hesap yok.</div>';
+  const girisDugmesi = relay.ok
+    ? `<button class="cx-btn cx-btn-go" onclick="cxClaudeLogin()">Panelden giriş</button>`
+      + `<span class="cx-hint">adres çıkar, kendi tarayıcında girersin</span>`
+    : `<span class="cx-hint">${esc(relay.reason || 'panelden giriş bu makinede kapalı')}</span>`;
+  return `<div class="cx-fix-h">CLAUDE HESAPLARI</div>${satirlar}
+    <div class="cx-fix-h">HESAP EKLE</div>
+    <input id="cxAccLabel" placeholder="Kimin hesabı (ör. Murat)" autocomplete="off">
+    ${girisDugmesi}
+    <div id="cxAccLogin"></div>
+    <div class="cx-step">Ya da kendi makinende <code>claude setup-token</code> çalıştırıp token'ı yapıştır:</div>
+    <input id="cxAccToken" type="password" placeholder="sk-ant-oat…" autocomplete="off">
+    <button class="cx-btn cx-btn-go" onclick="cxClaudeToken()">Token'ı kaydet</button>`;
+}
+
+async function cxClaudeLogin() {
+  const label = document.getElementById('cxAccLabel')?.value?.trim();
+  if (!label) return uiToast('Önce hesabın kime ait olduğunu yaz.', { type: 'err' });
+  const box = document.getElementById('cxAccLogin');
+  box.innerHTML = '<div class="cx-step">giriş adresi hazırlanıyor…</div>';
+  const d = await post('/api/claude/accounts/login/start', { label });
+  if (!d.ok) { box.innerHTML = ''; return uiToast(d.error || 'Başlatılamadı.', { type: 'err', title: 'Panelden giriş' }); }
+  CX_LOGIN = { loginId: d.loginId };
+  box.innerHTML = `<div class="cx-step">1. Bu adresi <b>kendi tarayıcında</b> aç ve kendi Claude hesabınla gir:</div>
+    <a class="cx-setup" href="${esc(d.url)}" target="_blank" rel="noreferrer noopener">giriş sayfasını aç ↗</a>
+    <code class="cx-copy" onclick="cxCopy(this)" title="Kopyalamak için tıkla">${esc(d.url)}</code>
+    <div class="cx-step">2. Sayfadaki kodu buraya yapıştır:</div>
+    <input id="cxAccCode" placeholder="Anthropic'in verdiği kod" autocomplete="off">
+    <button class="cx-btn cx-btn-go" onclick="cxClaudeCode()">Kodu gönder</button>
+    <button class="cx-btn" onclick="cxClaudeCancel()">vazgeç</button>
+    <span class="cx-hint">akış 10 dk açık kalır</span>`;
+  document.getElementById('cxAccCode')?.focus();
+}
+
+async function cxClaudeCode() {
+  if (!CX_LOGIN) return;
+  const code = document.getElementById('cxAccCode')?.value?.trim();
+  if (!code) return uiToast('Kodu yapıştır.', { type: 'err' });
+  const d = await post('/api/claude/accounts/login/code', { loginId: CX_LOGIN.loginId, code });
+  if (!d.ok) {
+    // Gecersiz kodda akis AYAKTA kalir: kullanici kodu yeniden yapistirabilir.
+    uiToast(d.error || 'Kod kabul edilmedi.', { type: 'err', title: 'Giriş' });
+    if (d.code === 'EXPIRED' || d.code === 'TIMEOUT') { CX_LOGIN = null; document.getElementById('cxAccLogin').innerHTML = ''; }
+    return;
+  }
+  CX_LOGIN = null;
+  uiToast(`"${d.label}" hesabı eklendi (${d.id}).`, { type: 'ok' });
+  await loadAiStatus();
+  loadPreflight(true);
+}
+
+async function cxClaudeCancel() {
+  if (CX_LOGIN) await post('/api/claude/accounts/login/cancel', { loginId: CX_LOGIN.loginId });
+  CX_LOGIN = null;
+  const box = document.getElementById('cxAccLogin');
+  if (box) box.innerHTML = '';
+}
+
+async function cxClaudeToken() {
+  const label = document.getElementById('cxAccLabel')?.value?.trim();
+  const token = document.getElementById('cxAccToken')?.value?.trim();
+  if (!label) return uiToast('Önce hesabın kime ait olduğunu yaz.', { type: 'err' });
+  if (!token) return uiToast('Token boş.', { type: 'err' });
+  const d = await post('/api/claude/accounts', { label, token });
+  if (!d.ok) return uiToast(d.error || 'Kaydedilemedi.', { type: 'err', title: 'Hesap eklenemedi' });
+  uiToast(`"${d.label}" hesabı eklendi (${d.id}).`, { type: 'ok' });
+  await loadAiStatus();
+  loadPreflight(true);
+}
+
+async function cxClaudeRemove(id) {
+  if (!(await uiConfirm(`${id} hesabı panelden silinsin mi? Token claude.ai ayarlarından ayrıca iptal edilebilir.`, { ok: 'Sil' }))) return;
+  const d = await post('/api/claude/accounts/remove', { id });
+  if (!d.ok) return uiToast(d.error || 'Silinemedi.', { type: 'err' });
+  uiToast('Hesap silindi', { type: 'ok' });
+  await loadAiStatus();
   loadPreflight(true);
 }
 

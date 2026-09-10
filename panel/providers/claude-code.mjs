@@ -14,6 +14,7 @@
 import { status, cliBinary } from "../ai/provider.mjs";
 import { CRED } from "../ai/anthropic.mjs";
 import { credLabel } from "../auth/credential-store.mjs";
+import * as accounts from "../auth/claude-accounts.mjs";
 
 export const key = "claude-code";
 export const label = "Claude";
@@ -22,6 +23,21 @@ export const order = 10;
 export const capabilities = ["ai"];
 
 export const auth = {
+  /**
+   * Abonelik hesapları — kişi kendi Claude hesabıyla bağlanır (API anahtarı
+   * gerekmez). Arayüz bu bildirimi görünce hesap listesi + "Hesap ekle" çizer;
+   * uçlar `panel/routes/claude.mjs`, depo `auth/claude-accounts.mjs`.
+   */
+  accounts: {
+    kind: "claude-subscription",
+    endpoint: "/api/claude/accounts",
+    steps: [
+      "Panelden giriş (sunucu): 'Hesap ekle' → çıkan adresi kendi tarayıcında aç → kendi Claude hesabınla gir → kodu panele yapıştır",
+      "Ya da kendi makinende: `claude setup-token` → çıkan sk-ant-oat… token'ını panele yapıştır",
+      "Her hesap sunucuda kendi yapılandırma dizinini alır (claude-1, claude-2, …)",
+      "Limit dolunca panel BAŞKA hesaba geçmez — abonelik paylaşımı olurdu; hesabı sen seçersin",
+    ],
+  },
   apiKey: {
     file: CRED.file,
     vars: [{ name: "ANTHROPIC_API_KEY", label: "Anthropic API anahtarı (sk-ant-…)", secret: true }],
@@ -29,7 +45,7 @@ export const auth = {
     steps: [
       "Anthropic Console > API Keys ile anahtar üret ve buraya gir",
       "Sunucuda alternatif: ANTHROPIC_API_KEY ortam değişkeni (+ isteğe bağlı AI_MODEL, AI_DAILY_USD)",
-      "Yerelde anahtar yoksa Claude Code CLI (`claude`) kullanılır; o da yoksa istem üret + yapıştır",
+      "Abonelik hesabı eklenmişse o öncelikli; anahtar yolu isteyene açık kalır",
     ],
   },
 };
@@ -41,6 +57,14 @@ export const setupFix = auth.apiKey.steps;
 
 /** Elle yol her zaman var; "kurulu" demek tek tık var demek. */
 export function configured() { return status().mode !== "manual"; }
+
+/**
+ * Kartın göreceği hesap durumu (TOKEN YOK). Registry bunu `auth.accounts`
+ * bildirimiyle birleştirip arayüze verir.
+ */
+export function accountState() {
+  return { list: accounts.list(), relay: accounts.relaySupported({ claudeBin: cliBinary() }) };
+}
 
 export function check() {
   const s = status();
@@ -61,10 +85,30 @@ export function check() {
     };
   }
   if (s.mode === "cli") {
+    const list = accounts.list();
+    const relay = accounts.relaySupported({ claudeBin: cliBinary() });
+    if (list.length) {
+      const suresiDolan = list.filter((a) => a.expired);
+      return {
+        state: suresiDolan.length === list.length ? "warn" : "ok",
+        detail: `Claude aboneliği · ${list.length} hesap`,
+        note: `Her hesap kendi token'ı ve kendi yapılandırma diziniyle koşar. ${harcama}. `
+          + "Limit dolunca panel başka hesaba GEÇMEZ — hesabı sen seçersin.",
+        parts: [
+          ...list.map((a) => ({
+            label: a.label,
+            state: a.expired ? "warn" : "ok",
+            detail: `${a.id}${a.lastUsedAt ? ` · son kullanım ${new Date(a.lastUsedAt).toLocaleDateString("tr-TR")}` : " · hiç kullanılmadı"}${a.expired ? " · süresi dolmuş" : ""}`,
+          })),
+          { label: "panelden giriş", state: relay.ok ? "ok" : "unknown", detail: relay.ok ? "açık" : relay.reason },
+        ],
+        fix: suresiDolan.length ? ["Süresi dolan hesabı sil ve yeniden ekle (token bir yıllık)"] : [],
+      };
+    }
     return {
       state: "ok",
       detail: `yerel Claude Code CLI · ${cliBinary()}`,
-      note: `Tek tık üretim açık (kullanıcının Claude Code oturumu ve MCP'leriyle). ${harcama}. Sunucuda bu yol yok — orada ANTHROPIC_API_KEY.`,
+      note: `Tek tık üretim açık (bu makinedeki Claude Code oturumuyla). ${harcama}. Sunucuda hesap ekle ya da ANTHROPIC_API_KEY ver.`,
       parts: [{ label: "yol", state: "ok", detail: "claude -p (araçlar kapalı)" }],
       fix: [],
     };
@@ -72,8 +116,8 @@ export function check() {
   return {
     state: "warn",
     detail: "tek tık kapalı — yalnızca istem üret + yapıştır",
-    note: "Ne ANTHROPIC_API_KEY ne Claude Code CLI bulundu. Üç AI özelliği kopyala-yapıştır ile çalışmaya devam eder.",
+    note: "Ne Claude hesabı, ne ANTHROPIC_API_KEY, ne Claude Code CLI bulundu. Üç AI özelliği kopyala-yapıştır ile çalışmaya devam eder.",
     parts: [{ label: "yol", state: "warn", detail: "elle" }],
-    fix: setupFix,
+    fix: auth.accounts.steps,
   };
 }

@@ -31,10 +31,20 @@ export const CLI_HINT =
   "kopyala-yapıştır yolu çalışmaya devam eder.";
 
 /**
- * @param {string} prompt tam istem (bağlamı içinde taşımalı)
- * @returns {Promise<{text: string, costUsd: number|null, durationMs: number, model: string|null, sessionId: string|null}>}
+ * Kullanım/limit hatasını ayırt eder: kullanıcıya "tekrar dene" demek yerine
+ * hangi hesabın limitinin dolduğunu ve ne zaman açılacağını söyleyebilelim.
+ * Hesaplar arası OTOMATİK GEÇİŞ YOK (abonelik paylaşımı) — seçim insana kalır.
  */
-export function askClaude(prompt) {
+const LIMIT_RE = /(usage limit|rate limit|limit reached|too many requests|quota|resets? at|try again (later|in))/i;
+
+/**
+ * @param {string} prompt tam istem (bağlamı içinde taşımalı)
+ * @param {{env?: object, bin?: string, account?: {id:string,label:string}}} [opt]
+ *   env     → hesaba özgü ortam (CLAUDE_CODE_OAUTH_TOKEN + CLAUDE_CONFIG_DIR)
+ *   account → hata mesajlarında ve defterde görünecek hesap
+ * @returns {Promise<{text: string, costUsd: number|null, durationMs: number, model: string|null, models: string[]|null, sessionId: string|null}>}
+ */
+export function askClaude(prompt, { env = null, bin = null, account = null } = {}) {
   if (!prompt || !String(prompt).trim())
     return Promise.reject(new Error("istem boş"));
 
@@ -42,9 +52,17 @@ export function askClaude(prompt) {
     let child;
     try {
       child = spawn(
-        BIN,
+        bin || BIN,
         ["-p", "--output-format", "json", "--allowedTools", ""],
-        { cwd: os.tmpdir(), env: process.env, stdio: ["pipe", "pipe", "pipe"] },
+        {
+          cwd: os.tmpdir(),
+          /*
+           * Hesap ortamı: `CLAUDE_CODE_OAUTH_TOKEN` + `CLAUDE_CONFIG_DIR`.
+           * Verilmezse sürecin kendi ortamı (geliştiricinin kendi oturumu).
+           */
+          env: env ? { ...process.env, ...env } : process.env,
+          stdio: ["pipe", "pipe", "pipe"],
+        },
       );
     } catch (e) {
       const err = new Error(CLI_HINT);
@@ -86,10 +104,14 @@ export function askClaude(prompt) {
       bitti = true;
       clearTimeout(timer);
       if (code !== 0) {
+        const ham = (err || out).slice(0, 300);
         const e = new Error(
-          `CLI ${code} koduyla çıktı: ${(err || out).slice(0, 300)}`,
+          LIMIT_RE.test(ham)
+            ? `${account ? `"${account.label}" hesabının` : "Hesabın"} kullanım limiti dolmuş görünüyor: ${ham}`
+            : `CLI ${code} koduyla çıktı: ${ham}`,
         );
-        e.code = "CLI_ERROR";
+        e.code = LIMIT_RE.test(ham) ? "RATE_LIMIT" : "CLI_ERROR";
+        e.account = account?.label ?? null;
         return reject(e);
       }
       let zarf;
@@ -107,10 +129,15 @@ export function askClaude(prompt) {
         });
       }
       if (zarf.is_error) {
+        const ham = String(zarf.result ?? "").slice(0, 300);
+        const limit = LIMIT_RE.test(ham);
         const e = new Error(
-          `CLI hata döndürdü: ${String(zarf.result ?? "").slice(0, 300)}`,
+          limit
+            ? `${account ? `"${account.label}" hesabının` : "Hesabın"} kullanım limiti dolmuş görünüyor: ${ham}`
+            : `CLI hata döndürdü: ${ham}`,
         );
-        e.code = "CLI_ERROR";
+        e.code = limit ? "RATE_LIMIT" : "CLI_ERROR";
+        e.account = account?.label ?? null;
         return reject(e);
       }
       /*
@@ -133,7 +160,22 @@ export function askClaude(prompt) {
       });
     });
 
-    child.stdin.end(String(prompt));
+    /*
+     * ⚠️ stdin'de HATA DINLEYICISI ŞART. CLI istemi okumadan çıkarsa (bozuk
+     * token, sürüm uyuşmazlığı, çökme) boruya yazmak `EPIPE` üretir; dinleyici
+     * yoksa Node bunu YAKALANMAMIŞ hata sayar ve PANELİN TAMAMI düşer
+     * (ölçüldü 2026-09-10: sahte CLI ile sunucu süreci öldü, ECONNREFUSED).
+     * Koşum motorundaki `child.on("error")` ile aynı sınıf hata — burada da
+     * yutulmaz, sebep close handler'ında raporlanır.
+     */
+    child.stdin.on("error", (e) => {
+      err += `\n[stdin] ${e.code === "EPIPE" ? "CLI istemi okumadan çıktı (EPIPE)" : e.message}`;
+    });
+    try {
+      child.stdin.end(String(prompt));
+    } catch (e) {
+      err += `\n[stdin] ${e.message}`;
+    }
   });
 }
 

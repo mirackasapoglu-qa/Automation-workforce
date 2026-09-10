@@ -26,6 +26,11 @@
 #     kurulum adımı yok. (figma-render / figma-diff / figma-prewarm 2026-09-08'e
 #     kadar dosyayı DOĞRUDAN okuyordu; sunucuda preflight "Figma ok" derken
 #     render "dosya yok" ile düşüyordu — artık hepsi resolveCreds.)
+#   - Claude hesapları (ANTHROPIC_API_KEY'e ALTERNATİF): kişi kendi aboneliğiyle
+#     bağlanır — Bağlantılar → Claude → "Hesap ekle". Sunucuda relay açık
+#     (`script` + CLI imajda hazır). Hesap kayıtları ve her hesabın kendi
+#     yapılandırma dizini /app/panel-data altında: VOLUME BAĞLI DEĞİLSE deploy'da
+#     uçar ve herkes yeniden bağlanır. Otomatik hesap değiştirme YOK.
 #   - ANTHROPIC_API_KEY: AI tek tık üretim (senaryo · perf yorumu · test case).
 #     Verilmezse üç özellik "istem üret + yapıştır" ile çalışmaya devam eder.
 #     İsteğe bağlı: AI_MODEL (varsayılan claude-opus-5), AI_EFFORT (high),
@@ -91,6 +96,25 @@ RUN if [ "$WITH_BROWSERS" = "1" ]; then \
     else \
       echo "WITH_BROWSERS=0 — tarayici kurulmadi, kosum tetikleme CALISMAZ"; \
     fi
+
+# ---- Claude Code CLI: abonelik hesabiyla tek tik uretim + "panelden giris"
+#
+# Panel modeli iki yoldan cagirabiliyor: ANTHROPIC_API_KEY (Messages API) ya da
+# kullanicinin kendi Claude ABONELIGI. Ikincisi bu CLI'yi gerektiriyor: panel
+# `claude -p` komutunu hesabin token'i (CLAUDE_CODE_OAUTH_TOKEN) ve kendi
+# yapilandirma diziniyle (CLAUDE_CONFIG_DIR) calistirir.
+#
+# "Panelden giris" (kullanici kendi makinesine hicbir sey kurmadan hesap ekler)
+# `claude setup-token`'i sozde terminalde kosturur; bunun icin `script(1)` sart
+# ve Debian taban imajinda bsdutils ile HAZIR gelir (olculdu 2026-09-10:
+# /usr/bin/script mevcut). macOS'un BSD `script`i borulu stdin ile pty acamiyor,
+# bu yuzden panelden giris YALNIZ sunucuda (Linux) acik.
+#
+# Surum SABIT: CLI'nin cikti bicimi (JSON zarfi, setup-token ekrani) degisince
+# panelin ayristirmasi kirilabilir. Yukseltirken `npm run test:panel` yeterli
+# degil — panel/auth/claude-accounts.test.mjs'i LINUX'ta kos (relay testleri).
+RUN npm i -g @anthropic-ai/claude-code@2.1.267 \
+ && claude --version
 
 # ---- kaynak + landing build'i
 COPY . .

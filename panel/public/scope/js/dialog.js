@@ -59,6 +59,49 @@ export function uiToast(mesaj, opt = {}) {
   return t;
 }
 
+/**
+ * Listeden secim — `uiConfirm`in acilir kutulu kardesi (panelin `uiChoose`u ile
+ * ayni sozlesme). Vazgec/Escape → null.
+ * @param {string} mesaj
+ * @param {{value:string,label:string}[]} secenekler
+ * @returns {Promise<string|null>}
+ */
+export function uiChoose(mesaj, secenekler, opt = {}) {
+  ensureCss();
+  return new Promise((resolve) => {
+    const list = (secenekler || []).filter((s) => s && s.value != null);
+    if (!list.length) return resolve(null);
+    document.getElementById('fwAsk')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'fwAsk';
+    const box = document.createElement('div'); box.className = 'box'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+    const h = document.createElement('h3'); h.textContent = opt.title || 'Seçim';
+    const msg = document.createElement('div'); msg.className = 'msg'; msg.textContent = String(mesaj ?? '');
+    const sel = document.createElement('select');
+    sel.style.cssText = 'width:100%;margin:0 0 16px;font:inherit;font-size:13px;padding:7px;border-radius:var(--radius-sm,6px);border:1px solid var(--border,#2b3640);background:var(--surface-raised,transparent);color:var(--text,#e6eaee)';
+    for (const s of list) {
+      const o = document.createElement('option');
+      o.value = s.value; o.textContent = s.label ?? s.value;
+      if (opt.value != null && String(opt.value) === String(s.value)) o.selected = true;
+      sel.appendChild(o);
+    }
+    const row = document.createElement('div'); row.className = 'row';
+    const no = document.createElement('button'); no.textContent = opt.cancel || 'Vazgeç';
+    const yes = document.createElement('button'); yes.className = 'primary'; yes.textContent = opt.ok || 'Devam et';
+    row.append(no, yes);
+    box.append(h, msg, sel, row);
+    ov.appendChild(box);
+    const kapat = (cevap) => { document.removeEventListener('keydown', tus); ov.remove(); resolve(cevap); };
+    const tus = (e) => { if (e.key === 'Escape') kapat(null); if (e.key === 'Enter') kapat(sel.value); };
+    no.onclick = () => kapat(null);
+    yes.onclick = () => kapat(sel.value);
+    ov.onclick = (e) => { if (e.target === ov) kapat(null); };
+    document.addEventListener('keydown', tus);
+    document.body.appendChild(ov);
+    sel.focus();
+  });
+}
+
 /** @returns {Promise<boolean>} */
 export function uiConfirm(mesaj, opt = {}) {
   ensureCss();

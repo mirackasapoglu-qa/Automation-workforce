@@ -12,7 +12,22 @@
 import { openAiAssistModal } from './ai-assist.js';
 import { loadPersisted } from './data.js';
 import { renderContent } from './shell.js';
-import { uiToast, uiConfirm } from './dialog.js';
+import { uiToast, uiConfirm, uiChoose } from './dialog.js';
+
+/**
+ * Secilen Claude hesabi tarayicida hatirlanir — panelin ana ekraniyla AYNI
+ * anahtar (`qa-panel-ai-account`), iki yuzeyde ayri secim olmasin.
+ */
+const ACCOUNT_KEY = 'qa-panel-ai-account';
+function rememberedAccount(list) {
+  if (!list?.length) return null;
+  let saved = null;
+  try { saved = localStorage.getItem(ACCOUNT_KEY); } catch { saved = null; }
+  return list.some((a) => a.id === saved) ? saved : list[0].id;
+}
+function rememberAccount(id) {
+  try { if (id) localStorage.setItem(ACCOUNT_KEY, id); } catch { /* ozel pencere */ }
+}
 
 function headers() {
   return { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' };
@@ -44,7 +59,7 @@ function ozet(out) {
   return [
     `${out.written} case yazıldı${atlanan ? `, ${atlanan} tekrar atlandı` : ''}.`,
     hatali.length ? `Yazılamayan düğüm: ${hatali.map((x) => `${x.nodeId} (${x.error})`).join(', ')}` : '',
-    out.ms != null ? `${(out.ms / 1000).toFixed(1)} sn${out.cost != null ? ` · $${Number(out.cost).toFixed(3)}` : ''}${out.model ? ` · ${out.model}` : ''}` : '',
+    out.ms != null ? `${(out.ms / 1000).toFixed(1)} sn${out.cost != null ? ` · $${Number(out.cost).toFixed(3)}` : ''}${out.model ? ` · ${out.model}` : ''}${out.account?.label ? ` · ${out.account.label}` : ''}` : '',
     out.retrieval?.chunks ? `Bağlam: ${out.retrieval.chunks} repo parçası kullanıldı.` : '',
     'Case\'ler TASLAK — koşum kaydı yok, koşulmadan "geçti" seçilemez.',
   ].filter(Boolean).join('\n');
@@ -62,14 +77,32 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
 
   const ai = await aiStatus();
   if (ai.oneClick) {
-    const yol = ai.mode === 'api' ? `${ai.model} (API anahtarı, ücretli)` : 'yerel Claude Code CLI';
-    const onay = await uiConfirm(
-      `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\nYol: ${yol}, ~15-40 sn.`,
-      { title: 'Tek tıkla test case üret', ok: 'Üret', cancel: 'İstemi kendim vereyim', danger: false },
-    );
+    /*
+     * Hangi Claude hesabiyla kosulacak: birden fazla hesap varsa onay kutusu
+     * ayni anda hesap secicisidir. Panel hesaplar arasinda OTOMATIK GECMEZ.
+     */
+    const hesaplar = ai.accounts ?? [];
+    let account = rememberedAccount(hesaplar);
+    let onay = false;
+    if (ai.mode === 'cli' && hesaplar.length > 1) {
+      const secili = await uiChoose(
+        `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\n\nHangi Claude hesabıyla koşulsun? (~15-40 sn)`,
+        hesaplar.map((a) => ({ value: a.id, label: `${a.label}${a.expired ? ' · süresi dolmuş' : ''}` })),
+        { title: 'Tek tıkla test case üret', ok: 'Üret', cancel: 'İstemi kendim vereyim', value: account },
+      );
+      if (secili) { account = secili; onay = true; rememberAccount(secili); }
+    } else {
+      const yol = ai.mode === 'api'
+        ? `${ai.model} (API anahtarı, ücretli)`
+        : hesaplar.length === 1 ? `"${hesaplar[0].label}" Claude hesabı` : 'yerel Claude Code CLI';
+      onay = await uiConfirm(
+        `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\nYol: ${yol}, ~15-40 sn.`,
+        { title: 'Tek tıkla test case üret', ok: 'Üret', cancel: 'İstemi kendim vereyim', danger: false },
+      );
+    }
     if (onay) {
       const bildirim = uiToast('Model çalışıyor… bu pencereyi kapatabilirsin, sonuç toast olarak gelir.', { title: 'Üretiliyor', ms: 0 });
-      const { status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit });
+      const { status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit, account });
       bildirim.remove();
       if (data.ok) {
         await loadPersisted();
