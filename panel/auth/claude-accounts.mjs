@@ -44,6 +44,17 @@ const ID_RE = /^claude-\d+$/;
 const LOGIN_TTL_MS = 10 * 60_000;
 const URL_TIMEOUT_MS = Number(process.env.CLAUDE_LOGIN_URL_TIMEOUT_MS || 45_000);
 const CODE_TIMEOUT_MS = Number(process.env.CLAUDE_LOGIN_CODE_TIMEOUT_MS || 60_000);
+const MAX_PENDING = 3;
+/** Süreç öldükten sonra son çıktının pty'den boşalması için tanınan süre. */
+const EXIT_GRACE_MS = Number(process.env.CLAUDE_LOGIN_EXIT_GRACE_MS || 400);
+/**
+ * Pty genişliği. Ink metni TERMİNAL GENİŞLİĞİNDE kendisi kırıyor: ölçüldü
+ * 2026-09-10, varsayılan pty 80 sütun ve 346 karakterlik giriş adresi ekrana
+ * 5 satır hâlinde iniyor. Aynı kırılma token'a da uygulanır ve ekrandan
+ * okunan token SESSİZCE KIRPILIR (kayıt geçerli görünür, her `claude -p`
+ * çağrısı sonra "geçersiz token" der). `stty cols` pty'yi genişletir.
+ */
+const PTY_COLS = Number(process.env.CLAUDE_LOGIN_PTY_COLS || 400);
 
 const root = () => process.cwd();
 export const accountsDir = () => path.join(root(), "panel-data", "claude", "accounts");
@@ -183,14 +194,64 @@ export function relaySupported({ claudeBin } = {}) {
   return { ok: true };
 }
 
-/** Terminal süslerini at; boşlukları da at (TUI kelimeleri imleç hareketiyle diziyor). */
+/**
+ * Terminal süslerini at. ⚠️ İmleç-ileri dizisi (`ESC[<n>C`) BOŞLUĞA çevrilir:
+ * TUI kelimeleri boşluk yazmak yerine imleci ilerleterek diziyor, düz atılınca
+ * ekran "Requstfailed withstatus code" gibi yapışık çıkıyordu (ölçüldü).
+ */
 const plain = (s) => String(s)
   .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
+  .replace(/\x1b\[(\d*)C/g, (_, n) => " ".repeat(Math.min(Number(n || 1), 200)))
   .replace(/\x1b\[[0-9;?]*[a-zA-Z]/g, "")
   .replace(/[\r\x00-\x08\x0b\x0c\x0e-\x1f]/g, "");
 const squash = (s) => plain(s).replace(/\s+/g, "").toLowerCase();
 
-/** Bekleyen girişler (bellek): { id, child, raw, label, at }. */
+/** Ekranı kullanıcıya gösterirken token'ı maskele — hata metni loglara da düşer. */
+const maskToken = (s) => String(s).replace(/sk-ant-oat[\w-]+/g, (m) => `sk-ant-oat…${m.slice(-4)}`);
+
+/**
+ * Ekranın son anlamlı satırları — HER hata bunu taşır.
+ * Eskiden zaman aşımında kullanıcıya yalnız "yanıt gelmedi" deniyordu; CLI
+ * ekranda sebebi yazarken (ör. abonelik yok) panel onu hiç göstermiyordu.
+ */
+export const screenTail = (raw, n = 3) => maskToken(plain(raw))
+  .split("\n").map((s) => s.trim())
+  // Yildizla maskelenmis girdi yankisi ATILIR: yapistirilan kodun kuyrugu
+  // hata mesajina (ve denetim kaydina) sizmasin.
+  .filter((s) => s && !s.includes("***") && !/Paste code here/i.test(s))
+  .slice(-n).join(" · ").slice(0, 400);
+
+/**
+ * Token'ı ekrandan okur. İki tuzak birden:
+ *  1) Ham akışta ANSI dizileri var → önce `plain()`.
+ *  2) Ink token'ı terminal genişliğinde kırabilir → satır TAM genişlikte
+ *     bitiyorsa ve SONRAKİ SATIRIN TAMAMI token karakteriyse birleştir.
+ *     ("Store this token securely." gibi boşluklu satır birleştirilmez.)
+ * Satırın bittiğini görmeden (ya da süreç kapanmadan) token kabul edilmez:
+ * yarım basılmış bir kare kırpılmış token verirdi.
+ * @returns {string|null}
+ */
+export function tokenFromScreen(raw, { exited = false } = {}) {
+  const lines = plain(raw).split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/sk-ant-oat[\w-]+/);
+    if (!m) continue;
+    let tok = m[0];
+    let j = i;
+    // Satırın sonuna dayanan token kırılmış olabilir; devamı sonraki satırdadır.
+    let kirilmis = lines[i].endsWith(m[0]) && lines[i].length >= 60;
+    while (kirilmis && j + 1 < lines.length && /^[\w-]+$/.test(lines[j + 1])) {
+      tok += lines[j + 1];
+      j += 1;
+      kirilmis = lines[j].length >= 60;
+    }
+    const satirBitti = j + 1 < lines.length || exited;
+    if (satirBitti && TOKEN_RE.test(tok)) return tok;
+  }
+  return null;
+}
+
+/** Bekleyen girişler (bellek): { id, child, raw, label, at, url, exit }. */
 const PENDING = new Map();
 
 const sweep = () => {
@@ -200,12 +261,18 @@ const sweep = () => {
   }
 };
 
-const waitFor = (fn, ms) => new Promise((res) => {
+/**
+ * `fn` bir değer dönene kadar bekler. `state` verilirse SÜREÇ KAPANDIĞINDA da
+ * biter: CLI hatayı basıp çıktığında (ör. hesap askıda) eskiden tam zaman
+ * aşımı kadar boşuna bekleniyordu.
+ */
+const waitFor = (fn, ms, state = null) => new Promise((res) => {
   const t0 = Date.now();
   (function tick() {
     let v = null;
     try { v = fn(); } catch { v = null; }
     if (v) return res(v);
+    if (state?.exit && Date.now() - state.exit.at > EXIT_GRACE_MS) return res(null);
     if (Date.now() - t0 > ms) return res(null);
     setTimeout(tick, 120);
   })();
@@ -222,30 +289,47 @@ export async function startLogin({ label, claudeBin } = {}) {
   sweep();
   const sup = relaySupported({ claudeBin });
   if (!sup.ok) throw err("NO_RELAY", sup.reason);
-  if (PENDING.size >= 3) throw err("BUSY", "Aynı anda en fazla 3 giriş akışı bekleyebilir.");
+  // Terk edilmis akis yeni girisi ENGELLEMEZ: doluysa en eskisi dusurulur.
+  // (Sayfa yenilenince loginId tarayicidan gidiyordu; uc terk edilmis akis
+  // "Hesap ekle"yi 10 dk boyunca 429 BUSY ile kilitliyordu — olculdu.)
+  while (PENDING.size >= MAX_PENDING) {
+    const eski = [...PENDING.values()].sort((a, b) => a.at - b.at)[0];
+    cancelLogin(eski.id);
+  }
 
   const bin = claudeBin ?? which("claude");
   const loginId = `login-${Date.now().toString(36)}`;
   // Gecici yapilandirma: token cikana kadar kalici bir dizin acmiyoruz.
   const tmpCfg = fs.mkdtempSync(path.join(os.tmpdir(), "claude-login-"));
-  const child = spawn("script", ["-qec", `${bin} setup-token`, "/dev/null"], {
+  // `stty` pty'yi genisletir → Ink token'i satira sigdirir (bkz. PTY_COLS).
+  const komut = `stty cols ${PTY_COLS} rows 60 2>/dev/null; '${String(bin).replace(/'/g, "'\\''")}' setup-token`;
+  const child = spawn("script", ["-qec", komut, "/dev/null"], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: tmpCfg, CLAUDE_CODE_OAUTH_TOKEN: "", TERM: "dumb", NO_COLOR: "1" },
     stdio: ["pipe", "pipe", "pipe"],
     shell: false,
   });
-  const state = { id: loginId, child, raw: "", label, at: Date.now(), tmpCfg };
+  const state = { id: loginId, child, raw: "", label, at: Date.now(), tmpCfg, url: null, exit: null };
   child.stdout.on("data", (d) => { state.raw += d; });
   child.stderr.on("data", (d) => { state.raw += d; });
   child.on("error", (e) => { state.raw += `\n[relay] ${e.message}`; });
+  // ⚠️ Cikis izlenmezse hata ekrani basip olen CLI icin tam zaman asimi beklenir.
+  child.on("exit", (code, signal) => { state.exit = { code, signal, at: Date.now() }; });
+  // stdin'de dinleyici yoksa CLI istemi okumadan olunce EPIPE PANELI DUSURUR
+  // (ayni sinif hata `claude-cli.mjs`de olculmustu).
+  child.stdin.on("error", (e) => { state.raw += `\n[relay] stdin: ${e.message}`; });
   PENDING.set(loginId, state);
 
-  const url = await waitFor(() => state.raw.match(/\x1b\]8;[^;]*;(https:\/\/[^\x07\x1b]+)/)?.[1] ?? null, URL_TIMEOUT_MS);
+  const url = await waitFor(
+    () => state.raw.match(/\x1b\]8;[^;]*;(https:\/\/[^\x07\x1b]+)/)?.[1] ?? null,
+    URL_TIMEOUT_MS,
+    state,
+  );
   if (!url) {
-    try { child.kill("SIGKILL"); } catch { /* bitmis */ }
-    PENDING.delete(loginId);
-    const son = plain(state.raw).split("\n").map((s) => s.trim()).filter(Boolean).slice(-2).join(" · ");
+    const son = screenTail(state.raw, 2);
+    cancelLogin(loginId);
     throw err("NO_URL", `Giriş adresi alınamadı${son ? `: ${son}` : " (CLI yanıt vermedi)"}`);
   }
+  state.url = url;
   return { loginId, url };
 }
 
@@ -260,28 +344,52 @@ export async function submitCode(loginId, code) {
   sweep();
   const state = PENDING.get(loginId);
   if (!state) throw err("EXPIRED", "Giriş akışı bulunamadı ya da zaman aşımına uğradı — yeniden başlat.");
+  if (state.exit) {
+    const son = screenTail(state.raw, 2);
+    cancelLogin(loginId);
+    throw err("EXPIRED", `Giriş süreci kapanmış${son ? ` — ekran: ${son}` : ""}. Yeniden başlat.`);
+  }
   const c = String(code ?? "").trim();
   if (!c) throw err("BAD_INPUT", "Kod boş.");
   if (!/^[\w#.\-=/+]{6,300}$/.test(c)) throw err("BAD_INPUT", "Kod biçimi geçersiz (tarayıcıdaki kodun tamamını kopyala).");
 
-  const before = state.raw.length;
   state.raw = "";
   try { state.child.stdin.write(`${c}\r`); } catch { throw err("EXPIRED", "Giriş süreci kapanmış — yeniden başlat."); }
 
   const sonuc = await waitFor(() => {
-    const tok = state.raw.match(TOKEN_RE)?.[0];
+    const tok = tokenFromScreen(state.raw, { exited: !!state.exit });
     if (tok) return { tok };
+    // CLI'nin HER hata durumu ekrana "OAuth error: …" basiyor (binary'den
+    // dogrulandi); "account_on_hold" ise bu oneki KULLANMIYOR ve surec 500 ms
+    // sonra oluyor — o yol asagidaki cikis kontroluyle yakalanir.
     const t = squash(state.raw);
-    if (/invalidcode|oautherror|expired|denied|failed/.test(t)) return { hata: plain(state.raw).split("\n").map((s) => s.trim()).filter(Boolean).slice(-1)[0] || "kod reddedildi" };
+    if (/oautherror|invalidcode/.test(t)) {
+      return { hata: screenTail(state.raw, 2) || "kod reddedildi" };
+    }
     return null;
-  }, CODE_TIMEOUT_MS);
+  }, CODE_TIMEOUT_MS, state);
 
-  if (!sonuc) throw err("TIMEOUT", "Kod gönderildi ama yanıt gelmedi — kodu yeniden dene.");
-  if (sonuc.hata) throw err("BAD_CODE", `Kod kabul edilmedi: ${sonuc.hata}`);
+  if (!sonuc && state.exit) {
+    const son = screenTail(state.raw, 3);
+    cancelLogin(loginId);
+    throw Object.assign(
+      err("CLI_EXIT", `Claude CLI kodu işledi ama token vermeden kapandı${son ? ` — ekranın son satırları: ${son}` : ""}.`
+        + " En sık sebebi: hesapta aktif Claude aboneliği yok ya da kuruluş politikası uzun ömürlü abonelik token'ına izin vermiyor (o durumda API anahtarı yolunu kullan)."),
+      { alive: false, screen: son },
+    );
+  }
+  if (!sonuc) {
+    const son = screenTail(state.raw, 3);
+    throw Object.assign(
+      err("TIMEOUT", `Kod gönderildi ama ${Math.round(CODE_TIMEOUT_MS / 1000)} sn içinde yanıt gelmedi`
+        + `${son ? ` — ekran: ${son}` : " (CLI ekranına hiçbir şey basmadı)"}. Akış açık, kodu yeniden deneyebilirsin.`),
+      { alive: true, screen: son },
+    );
+  }
+  if (sonuc.hata) throw Object.assign(err("BAD_CODE", `Kod kabul edilmedi: ${sonuc.hata}`), { alive: !state.exit });
 
   const out = save({ label: state.label, token: sonuc.tok, source: "relay" });
   cancelLogin(loginId);
-  void before;
   return out;
 }
 
@@ -296,3 +404,26 @@ export function cancelLogin(loginId) {
 
 /** Teşhis: bekleyen giriş sayısı. */
 export const pendingCount = () => { sweep(); return PENDING.size; };
+
+/**
+ * Süren giriş akışları — panel kartı bunları GÖSTERİR ve devam ettirir.
+ * Gerekçe: `loginId` yalnız tarayıcı belleğindeydi; sayfa yenilenince akış
+ * sunucuda 10 dk yaşamaya devam ediyor ama kullanıcı ne devam edebiliyor ne
+ * iptal edebiliyordu ("3 işlem var" der, kartta hiçbir şey görünmezdi).
+ * TOKEN YOK, ekran metni YOK — yalnız akışın kimliği, etiketi ve adresi.
+ */
+export function pendingList() {
+  sweep();
+  const now = Date.now();
+  return [...PENDING.values()]
+    .sort((a, b) => a.at - b.at)
+    .map((s) => ({
+      loginId: s.id,
+      label: s.label ?? null,
+      url: s.url ?? null,
+      startedAt: new Date(s.at).toISOString(),
+      ageSec: Math.round((now - s.at) / 1000),
+      ttlSec: Math.max(0, Math.round((LOGIN_TTL_MS - (now - s.at)) / 1000)),
+      alive: !s.exit,
+    }));
+}

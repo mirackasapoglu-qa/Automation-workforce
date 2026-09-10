@@ -112,8 +112,9 @@ printf '\\033]8;id=1;https://claude.com/cai/oauth/authorize?code=true&client_id=
 printf 'Paste code here if prompted > '
 read code
 case "${behaviour}" in
-  ok)      printf '\\nSuccess! Token: sk-ant-oat01-RELAY0123456789ABCDEFGHIJ%s\\n' "$(echo "$code" | cut -c1-4)" ;;
+  ok)      printf '\\nSuccess! Token:\\nsk-ant-oat01-RELAY0123456789ABCDEFGHIJ%s\\nStore this token securely.\\n' "$(echo "$code" | cut -c1-4)" ;;
   bad)     printf '\\nOAuth error: Invalid code. Please make sure the full code was copied. Press Enter to retry.\\n'; sleep 30 ;;
+  hold)    printf '\\nYour Claude account is on hold. Visit claude.ai/settings/billing\\n'; sleep 1; exit 0 ;;
   silent)  sleep 30 ;;
 esac
 `, { mode: 0o755 });
@@ -164,4 +165,71 @@ test("adres gelmezse NO_URL ve surec oldurulur", { skip: skipRelay }, async () =
   const once = acc.pendingCount();
   await assert.rejects(acc.startLogin({ label: "x", claudeBin: sessiz }), (e) => e.code === "NO_URL");
   assert.equal(acc.pendingCount(), once, "adres gelmeyen akis birakilmaz");
+});
+
+// -------------------------------------------------- 2026-09-10'da olculen yollar
+
+test("token vermeden kapanan CLI: TAM zaman asimi beklenmez, ekran gosterilir", { skip: skipRelay }, async () => {
+  // `account_on_hold` ekrani "OAuth error" ONEKI KULLANMIYOR ve surec 500 ms
+  // sonra oluyor: eski kod 60 sn bekleyip "kodu yeniden dene" diyordu.
+  const { loginId } = await acc.startLogin({ label: "Askida", claudeBin: fakeClaude("hold") });
+  const t0 = Date.now();
+  await assert.rejects(acc.submitCode(loginId, "KOD1234567890"), (e) => {
+    assert.equal(e.code, "CLI_EXIT");
+    assert.match(e.message, /on hold/i, "ekranin son satirlari hataya girer");
+    assert.equal(e.alive, false);
+    return true;
+  });
+  assert.ok(Date.now() - t0 < 6000, `cikisla birlikte bitmeli, surdu: ${Date.now() - t0} ms`);
+  assert.ok(!acc.pendingList().some((l) => l.loginId === loginId), "olu akis birakilmaz");
+});
+
+test("dolu kuyruk yeni girisi ENGELLEMEZ: en eski akis dusurulur", { skip: skipRelay }, async () => {
+  for (const l of acc.pendingList()) acc.cancelLogin(l.loginId);
+  const ilk = await acc.startLogin({ label: "1", claudeBin: fakeClaude("silent") });
+  await acc.startLogin({ label: "2", claudeBin: fakeClaude("silent") });
+  await acc.startLogin({ label: "3", claudeBin: fakeClaude("silent") });
+  assert.equal(acc.pendingCount(), 3);
+  const yeni = await acc.startLogin({ label: "4", claudeBin: fakeClaude("silent") });
+  assert.equal(acc.pendingCount(), 3, "tavan korunur");
+  const idler = acc.pendingList().map((l) => l.loginId);
+  assert.ok(!idler.includes(ilk.loginId), "en eski akis dusuruldu");
+  assert.ok(idler.includes(yeni.loginId), "yeni akis acildi");
+  for (const l of acc.pendingList()) acc.cancelLogin(l.loginId);
+});
+
+test("pendingList: akis gorunur olur, TOKEN ve EKRAN METNI sizmaz", { skip: skipRelay }, async () => {
+  const { loginId, url } = await acc.startLogin({ label: "Gorunur", claudeBin: fakeClaude("silent") });
+  const l = acc.pendingList().find((x) => x.loginId === loginId);
+  assert.equal(l.label, "Gorunur");
+  assert.equal(l.url, url, "kart 'devam et' icin adresi gorur");
+  assert.equal(l.alive, true);
+  assert.ok(l.ttlSec > 0 && l.ttlSec <= 600);
+  assert.deepEqual(Object.keys(l).sort(), ["ageSec", "alive", "label", "loginId", "startedAt", "ttlSec", "url"]);
+  acc.cancelLogin(loginId);
+});
+
+test("tokenFromScreen: ANSI, satir kirilmasi ve yarim kare", () => {
+  const T = `sk-ant-oat01-${"A".repeat(95)}`;
+  // 1) Duz satir.
+  assert.equal(acc.tokenFromScreen(`Your OAuth token:\n${T}\nStore this token securely.\n`), T);
+  // 2) Ink 80 sutunda kirmis: satir tam genislikte bitiyor, devami alt satirda.
+  const kirik = `${T.slice(0, 80)}\n${T.slice(80)}\nStore this token securely.\n`;
+  assert.equal(acc.tokenFromScreen(kirik), T, "kirilmis token BIRLESTIRILIR (yoksa sessizce kirpilirdi)");
+  // 3) Bosluklu satir birlestirilmez: "Store" token'a yapismaz.
+  assert.equal(acc.tokenFromScreen(`${T}\nStore this token securely.\n`), T);
+  // 4) Yarim basilmis kare: satir bitmeden token kabul edilmez.
+  assert.equal(acc.tokenFromScreen(`Your OAuth token:\n${T.slice(0, 60)}`), null);
+  // 5) Surec kapandiysa son satir da kabul edilir.
+  assert.ok(acc.tokenFromScreen(`\n${T}`, { exited: true }));
+  // 6) ANSI dizileri temizlenir.
+  assert.equal(acc.tokenFromScreen(`\x1b[33m${T}\x1b[39m\nStore this\n`), T);
+});
+
+test("screenTail: token MASKELENIR, son satirlar ozetlenir", () => {
+  const raw = `\x1b[2Kbir\niki\nsk-ant-oat01-${"Z".repeat(90)}\nuc\n`;
+  const ozet = acc.screenTail(raw, 3);
+  assert.ok(!/oat01-Z/.test(ozet), "token ozete DUZ girmez");
+  assert.match(ozet, /sk-ant-oat…ZZZZ/);
+  assert.match(ozet, /iki · .* · uc$/);
 });

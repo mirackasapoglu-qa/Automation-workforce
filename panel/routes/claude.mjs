@@ -1,7 +1,7 @@
 /**
  * Claude hesap uçları — kişi başına abonelik kimliği.
  *
- *   GET  /api/claude/accounts              liste (TOKEN YOK) + relay durumu
+ *   GET  /api/claude/accounts              liste (TOKEN YOK) + relay + suren akislar
  *   POST /api/claude/accounts/login/start  {label} → {loginId, url}  (panelden giriş)
  *   POST /api/claude/accounts/login/code   {loginId, code} → {id,label}
  *   POST /api/claude/accounts/login/cancel {loginId}
@@ -22,13 +22,16 @@ import { cliBinary } from "../ai/provider.mjs";
 import { invalidatePreflight } from "../connectors/index.mjs";
 
 const httpFor = (code) => ({
-  NO_RELAY: 501, BUSY: 429, NO_URL: 502, EXPIRED: 410, TIMEOUT: 504,
+  NO_RELAY: 501, BUSY: 429, NO_URL: 502, EXPIRED: 410, TIMEOUT: 504, CLI_EXIT: 502,
   BAD_CODE: 400, BAD_INPUT: 400, BAD_TOKEN: 400, DUPLICATE: 409, NOT_FOUND: 404,
 }[code] ?? 400);
 
 export function registerClaudeRoutes(router, ctx) {
   const { send, audit } = ctx;
-  const fail = (res, e) => send(res, httpFor(e.code), { ok: false, code: e.code ?? null, error: e.message });
+  // `alive`: akis hala ayakta mi — arayuz kod kutusunu kapatsin mi karar verir.
+  const fail = (res, e) => send(res, httpFor(e.code), {
+    ok: false, code: e.code ?? null, error: e.message, alive: e.alive ?? null,
+  });
 
   router.get("/api/claude/accounts", ({ res }) => send(res, 200, {
     ok: true,
@@ -36,6 +39,7 @@ export function registerClaudeRoutes(router, ctx) {
     relay: accounts.relaySupported({ claudeBin: cliBinary() }),
     cli: cliBinary(),
     pending: accounts.pendingCount(),
+    logins: accounts.pendingList(),
   }));
 
   router.prefix("POST", "/api/claude/accounts", async ({ res, rest, body }) => {

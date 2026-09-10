@@ -474,6 +474,60 @@ geliştirici makinesinde kart yapıştırma yolunu gösterir, sunucuda relay aç
   ("yeniden başlat"). PKCE doğrulayıcısı o süreçte olduğu için iki adım aynı
   süreçte olmak zorunda.
 
+### Relay'in dört sessiz hatası — hepsi ölçülüp kapatıldı (2026-09-10, ikinci tur)
+
+Sunucuda kod gönderimi **60 sn bekleyip 504 `TIMEOUT` "kodu yeniden dene"**
+veriyordu ve neden hiçbir yerde görünmüyordu. Dokploy'a bakıldı: servis edilen
+dosyaların blob'ları HEAD ile birebir aynı, yani **deploy düşmüştü, hata
+relay'in kendisindeydi.** Docker'da (`node:22-bookworm-slim` + CLI 2.1.267)
+gerçek CLI ile ölçüldü:
+
+1. **Süreç çıkışı izlenmiyordu.** CLI'nin HER hata ekranı `OAuth error: …`
+   basmıyor: **`account_on_hold`** (abonelik yok/askıda, kuruluş politikası
+   uzun ömürlü token'a izin vermiyor) bu öneki KULLANMIYOR ve süreç 500 ms
+   sonra kapanıyor (binary'den doğrulandı). Dinleyici olmadığı için panel
+   ölmüş sürecin ekranını okumak yerine tam zaman aşımı kadar bekliyordu.
+   Artık `child.on("exit")` var; bu yol `CLI_EXIT` (502) döner ve **ekranın
+   son satırlarını** hata metnine koyar. Ölçüm: 60 sn → **1,6 sn**.
+2. **Token satır kırılmasıyla SESSİZCE KIRPILIYORDU.** Ink metni terminal
+   genişliğinde kendisi kırıyor; pty varsayılanı 80 sütun (ölçüm: 346
+   karakterlik giriş adresi ekrana 5 satır iniyor). Token ~110 karakter →
+   ilk 80'i eşleşiyor, `TOKEN_RE` geçerli sayıyor ve **kırpılmış token
+   kaydediliyordu** (kart "bağlandı" der, sonraki her `claude -p` patlar).
+   İki katman: `stty cols 400` ile pty genişletildi **ve** `tokenFromScreen()`
+   satır sonuna dayanan token'ı birleştiriyor (boşluk içeren satır
+   birleştirilmez — "Store this token securely." token'a yapışmasın).
+   Token ayrıca satırın bittiği görülmeden kabul edilmiyor: yarım basılmış
+   kare kırpılmış token verirdi.
+3. **Terk edilmiş akışlar "Hesap ekle"yi kilitliyordu.** `loginId` yalnız
+   tarayıcı belleğindeydi; sayfa yenilenince akış sunucuda 10 dk yaşıyor ama
+   ne devam edilebiliyor ne iptal edilebiliyordu — üç tanesi birikince yeni
+   giriş `429 BUSY` alıyordu (canlıda `pending: 3` ölçüldü, kullanıcı kartta
+   hiçbir şey göremiyordu). Artık: `pendingList()` akışları **karta** koyuyor
+   (etiket, kalan süre, **devam et** / **vazgeç**), kart satırında da
+   "süren giriş: N akış bekliyor" görünür, ve tavan doluyken **en eski akış
+   düşürülür** — giriş hiç kilitlenmez. TOKEN ve ekran metni bu listeye girmez.
+4. **stdin'de hata dinleyicisi yoktu** — `claude-cli.mjs`'de ölçülen EPIPE
+   sınıfı hata burada da vardı: CLI kodu okumadan ölürse yakalanmamış `EPIPE`
+   **panelin tamamını düşürürdü**. Artık yakalanıyor.
+
+Yan iyileştirmeler: `plain()` imleç-ileri dizisini (`ESC[<n>C`) **boşluğa**
+çeviriyor (ekran "Requstfailed withstatus" gibi yapışık çıkıyordu); ekran
+özetinde token maskeleniyor ve **yıldızla maskelenmiş girdi yankısı atılıyor**
+(yapıştırılan kodun kuyruğu hata mesajına sızıyordu); zaman aşımı/red
+mesajları `alive` alanı taşıyor, arayüz buna bakarak kod kutusunu açık
+bırakıyor (kullanıcı aynı kutuda yeniden dener). Panelin periyodik preflight
+yenilemesi (10 dk) süren giriş akışında **kartı yeniden çizmiyor** — kod
+kutusunu ve içine yazılmış kodu uçuruyordu.
+
+⚠️ Kalan sınır: `TIMEOUT` hâlâ mümkün — CLI ekrana hiçbir şey basmadan
+takılırsa (ör. sunucunun Anthropic'e çıkışı yoksa). O durumda hata artık
+"ekrana hiçbir şey basmadı" der ve akış ayakta kalır.
+
+⚠️ Relay testleri **Linux'ta** koşulmalı: `docker run --rm -v $PWD:/app -w /app
+node:22-bookworm-slim node --test "panel/**/*.test.mjs"` (macOS'ta relay
+testleri atlanır, 110/111 geçer).
+
 **Kullanım ve sınır:**
 - Üretimde hesap seçilir (`account` alanı): tek tık onayı birden fazla hesap
   varsa aynı anda hesap seçicisidir (`uiChoose`); seçim tarayıcıda hatırlanır

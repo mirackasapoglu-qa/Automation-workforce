@@ -3601,6 +3601,7 @@ let CX_LOGIN = null;   // suren panelden-giris akisi: { loginId, key }
 function cxClaudeBox(c) {
   const list = c.auth?.accounts?.list ?? AI_STATUS?.accounts ?? [];
   const relay = c.auth?.accounts?.relay ?? AI_STATUS?.relay ?? { ok: false };
+  const logins = c.auth?.accounts?.logins ?? AI_STATUS?.logins ?? [];
   const satirlar = list.length
     ? list.map(a => `<div class="cx-row"><span class="cx-k">${esc(a.label)}</span>`
         + `<span class="cx-v mono">${esc(a.id)} · ${esc(a.tokenTail || '')}`
@@ -3611,7 +3612,16 @@ function cxClaudeBox(c) {
     ? `<button class="cx-btn cx-btn-go" onclick="cxClaudeLogin()">Panelden giriş</button>`
       + `<span class="cx-hint">adres çıkar, kendi tarayıcında girersin</span>`
     : `<span class="cx-hint">${esc(relay.reason || 'panelden giriş bu makinede kapalı')}</span>`;
-  return `<div class="cx-fix-h">CLAUDE HESAPLARI</div>${satirlar}
+  // Suren akislar: loginId yalniz tarayici bellegindeydi, sayfa yenilenince
+  // akis sunucuda yasamaya devam edip slot tutuyor ama kartta GORUNMUYORDU.
+  const surenler = logins.length
+    ? `<div class="cx-fix-h">SÜREN GİRİŞLER</div>` + logins.map(l => `<div class="cx-row">`
+        + `<span class="cx-k">${esc(l.label || l.loginId)}</span>`
+        + `<span class="cx-v mono">${l.alive ? `${Math.max(0, Math.round(l.ttlSec / 60))} dk kaldı` : 'süreç kapandı'}</span>`
+        + (l.alive && l.url ? `<button class="cx-btn cx-btn-go" onclick="cxClaudeResume('${esc(l.loginId)}')">devam et</button>` : '')
+        + `<button class="cx-btn" onclick="cxClaudeDropLogin('${esc(l.loginId)}')">vazgeç</button></div>`).join('')
+    : '';
+  return `<div class="cx-fix-h">CLAUDE HESAPLARI</div>${satirlar}${surenler}
     <div class="cx-fix-h">HESAP EKLE</div>
     <input id="cxAccLabel" placeholder="Kimin hesabı (ör. Murat)" autocomplete="off">
     ${girisDugmesi}
@@ -3628,27 +3638,61 @@ async function cxClaudeLogin() {
   box.innerHTML = '<div class="cx-step">giriş adresi hazırlanıyor…</div>';
   const d = await post('/api/claude/accounts/login/start', { label });
   if (!d.ok) { box.innerHTML = ''; return uiToast(d.error || 'Başlatılamadı.', { type: 'err', title: 'Panelden giriş' }); }
-  CX_LOGIN = { loginId: d.loginId };
+  // ⚠️ Burada loadPreflight CAGIRMA: kart yeniden cizilir ve kod kutusu ucar.
+  cxLoginBox(d.loginId, d.url);
+}
+
+/** Kod kutusu — hem yeni akista hem "devam et"te AYNI govde kullanilir. */
+function cxLoginBox(loginId, url) {
+  CX_LOGIN = { loginId };
+  const box = document.getElementById('cxAccLogin');
+  if (!box) return;
   box.innerHTML = `<div class="cx-step">1. Bu adresi <b>kendi tarayıcında</b> aç ve kendi Claude hesabınla gir:</div>
-    <a class="cx-setup" href="${esc(d.url)}" target="_blank" rel="noreferrer noopener">giriş sayfasını aç ↗</a>
-    <code class="cx-copy" onclick="cxCopy(this)" title="Kopyalamak için tıkla">${esc(d.url)}</code>
+    <a class="cx-setup" href="${esc(url)}" target="_blank" rel="noreferrer noopener">giriş sayfasını aç ↗</a>
+    <code class="cx-copy" onclick="cxCopy(this)" title="Kopyalamak için tıkla">${esc(url)}</code>
     <div class="cx-step">2. Sayfadaki kodu buraya yapıştır:</div>
     <input id="cxAccCode" placeholder="Anthropic'in verdiği kod" autocomplete="off">
     <button class="cx-btn cx-btn-go" onclick="cxClaudeCode()">Kodu gönder</button>
     <button class="cx-btn" onclick="cxClaudeCancel()">vazgeç</button>
-    <span class="cx-hint">akış 10 dk açık kalır</span>`;
+    <span class="cx-hint">akış 10 dk açık kalır · kod kabul edilmezse aynı kutuda yeniden dene</span>`;
   document.getElementById('cxAccCode')?.focus();
+}
+
+/**
+ * Sayfa yenilenmis: sunucuda duran akisa geri baglan. Adres onclick'e
+ * GOMULMEZ (`esc` tek tirnagi kacirmiyor) — son preflight verisinden okunur.
+ */
+function cxClaudeResume(loginId) {
+  const akislar = PF_LAST?.checks?.find(c => c.key === 'claude-code')?.auth?.accounts?.logins ?? [];
+  const l = akislar.find(x => x.loginId === loginId);
+  if (!l?.url) return uiToast('Akışın adresi kayboldu — yeniden başlat.', { type: 'err' });
+  cxLoginBox(loginId, l.url);
+}
+
+/** Terk edilmis akisi dusur (slot bosalsin). */
+async function cxClaudeDropLogin(loginId) {
+  await post('/api/claude/accounts/login/cancel', { loginId });
+  if (CX_LOGIN?.loginId === loginId) { CX_LOGIN = null; const b = document.getElementById('cxAccLogin'); if (b) b.innerHTML = ''; }
+  loadPreflight(true);
 }
 
 async function cxClaudeCode() {
   if (!CX_LOGIN) return;
   const code = document.getElementById('cxAccCode')?.value?.trim();
   if (!code) return uiToast('Kodu yapıştır.', { type: 'err' });
+  const btn = document.querySelector('#cxAccLogin .cx-btn-go');
+  if (btn) { btn.disabled = true; btn.textContent = 'kod işleniyor…'; }
   const d = await post('/api/claude/accounts/login/code', { loginId: CX_LOGIN.loginId, code });
+  if (btn) { btn.disabled = false; btn.textContent = 'Kodu gönder'; }
   if (!d.ok) {
-    // Gecersiz kodda akis AYAKTA kalir: kullanici kodu yeniden yapistirabilir.
+    // Akis AYAKTA kaldiysa (gecersiz kod, zaman asimi) kutu durur: kullanici
+    // ayni kutuda yeniden dener. Surec olduyse (CLI_EXIT) kutu kapanir.
     uiToast(d.error || 'Kod kabul edilmedi.', { type: 'err', title: 'Giriş' });
-    if (d.code === 'EXPIRED' || d.code === 'TIMEOUT') { CX_LOGIN = null; document.getElementById('cxAccLogin').innerHTML = ''; }
+    if (d.alive === false || d.code === 'EXPIRED' || d.code === 'CLI_EXIT') {
+      CX_LOGIN = null;
+      const b = document.getElementById('cxAccLogin'); if (b) b.innerHTML = '';
+      loadPreflight(true);
+    }
     return;
   }
   CX_LOGIN = null;
@@ -3662,6 +3706,7 @@ async function cxClaudeCancel() {
   CX_LOGIN = null;
   const box = document.getElementById('cxAccLogin');
   if (box) box.innerHTML = '';
+  loadPreflight(true);
 }
 
 async function cxClaudeToken() {
@@ -3781,7 +3826,10 @@ async function loadPreflight(keepOpen) {
         ? `Bağlantılar — sorunlu: ${bad.map(c => c.label).join(', ')}`
         : 'Bağlantılar — hepsi bağlı';
     }
-    if (keepOpen || !$('#cxPanel').hidden) pfPanelOpen();
+    // ⚠️ Suren "panelden giris" akisinda kart YENIDEN CIZILMEZ: periyodik
+    // yenileme (10 dk) kod kutusunu ve icindeki yazilmis kodu ucuruyordu.
+    const girisAcik = !!CX_LOGIN && document.getElementById('cxAccCode');
+    if (!girisAcik && (keepOpen || !$('#cxPanel').hidden)) pfPanelOpen();
   } catch (e) {
     // Ust seritte gosterecek yer yok; hata connectors dugmesinde durur.
     const btn = $('#cxBtn');

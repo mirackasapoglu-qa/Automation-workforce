@@ -63,7 +63,13 @@ export function configured() { return status().mode !== "manual"; }
  * bildirimiyle birleştirip arayüze verir.
  */
 export function accountState() {
-  return { list: accounts.list(), relay: accounts.relaySupported({ claudeBin: cliBinary() }) };
+  return {
+    list: accounts.list(),
+    relay: accounts.relaySupported({ claudeBin: cliBinary() }),
+    // Suren "panelden giris" akislari: kart bunlari gosterir, devam ettirir,
+    // iptal eder. Yoksa terk edilmis akislar gorunmez sekilde slot tutuyordu.
+    logins: accounts.pendingList(),
+  };
 }
 
 export function check() {
@@ -87,6 +93,16 @@ export function check() {
   if (s.mode === "cli") {
     const list = accounts.list();
     const relay = accounts.relaySupported({ claudeBin: cliBinary() });
+    // Suren "panelden giris" akislari kartta GORUNUR: eskiden yalnizca
+    // "Baglan…" kutusu acilinca fark ediliyordu, o da akisi gostermiyordu.
+    const suren = accounts.pendingList();
+    const surenPart = suren.length
+      ? [{
+          label: "süren giriş",
+          state: "warn",
+          detail: `${suren.length} akış bekliyor (${suren.map((l) => l.label || l.loginId).join(", ")}) — "Bağlan…" kutusundan devam et ya da vazgeç`,
+        }]
+      : [];
     if (list.length) {
       const suresiDolan = list.filter((a) => a.expired);
       return {
@@ -101,6 +117,7 @@ export function check() {
             detail: `${a.id}${a.lastUsedAt ? ` · son kullanım ${new Date(a.lastUsedAt).toLocaleDateString("tr-TR")}` : " · hiç kullanılmadı"}${a.expired ? " · süresi dolmuş" : ""}`,
           })),
           { label: "panelden giriş", state: relay.ok ? "ok" : "unknown", detail: relay.ok ? "açık" : relay.reason },
+          ...surenPart,
         ],
         fix: suresiDolan.length ? ["Süresi dolan hesabı sil ve yeniden ekle (token bir yıllık)"] : [],
       };
@@ -109,7 +126,7 @@ export function check() {
       state: "ok",
       detail: `yerel Claude Code CLI · ${cliBinary()}`,
       note: `Tek tık üretim açık (bu makinedeki Claude Code oturumuyla). ${harcama}. Sunucuda hesap ekle ya da ANTHROPIC_API_KEY ver.`,
-      parts: [{ label: "yol", state: "ok", detail: "claude -p (araçlar kapalı)" }],
+      parts: [{ label: "yol", state: "ok", detail: "claude -p (araçlar kapalı)" }, ...surenPart],
       fix: [],
     };
   }
