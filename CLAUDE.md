@@ -520,9 +520,20 @@ bırakıyor (kullanıcı aynı kutuda yeniden dener). Panelin periyodik prefligh
 yenilemesi (10 dk) süren giriş akışında **kartı yeniden çizmiyor** — kod
 kutusunu ve içine yazılmış kodu uçuruyordu.
 
-⚠️ Kalan sınır: `TIMEOUT` hâlâ mümkün — CLI ekrana hiçbir şey basmadan
-takılırsa (ör. sunucunun Anthropic'e çıkışı yoksa). O durumda hata artık
-"ekrana hiçbir şey basmadı" der ve akış ayakta kalır.
+⚠️ `TIMEOUT` hâlâ mümkün — CLI ekrana hiçbir şey basmadan takılabiliyor
+(canlıda ölçüldü 2026-09-10: kod gönderildi, 60 sn boyunca tek bayt çıkmadı).
+Bu durumda hata mesajı **iki durumu ayırıyor** ve **ağı ölçüyor**:
+
+- `bytes: 0` → kod sürece hiç ulaşmamış olabilir
+- yıldızlı yankı var → kod **alındı**, karşılık gelmedi = token değişimi takıldı
+
+`panel/auth/claude-net.mjs` + `GET /api/claude/net` (token ister): CLI'nin
+gittiği iki adrese ulaşılıyor mu ölçer — `platform.claude.com/v1/oauth/token`
+(token değişimi) ve `claude.com/cai/oauth/authorize` (giriş sayfası), ikisi de
+CLI binary'sinden çıkarıldı. Kimlik/gövde göndermez; **herhangi bir** HTTP
+yanıtı (405/307 dahil) "ulaşıldı" sayılır. `TIMEOUT`/`CLI_EXIT` dönerken bu
+ölçüm otomatik koşup hata metnine tek satır olarak giriyor — kullanıcı
+"neden takıldı" sorusunu panelden cevaplayabilsin diye.
 
 ⚠️ Relay testleri **Linux'ta** koşulmalı: `docker run --rm -v $PWD:/app -w /app
 node:22-bookworm-slim node --test "panel/**/*.test.mjs"` (macOS'ta relay

@@ -380,10 +380,20 @@ export async function submitCode(loginId, code) {
   }
   if (!sonuc) {
     const son = screenTail(state.raw, 3);
+    // ⚠️ "Ekran bos" iki AYRI durumdur ve ayirt edilmezse yanlis yere bakilir:
+    //   (a) hic bayt gelmedi  → kod surece ULASMAMIS olabilir
+    //   (b) yalniz yildizli girdi yankisi geldi → kod ALINDI, karsilik gelmedi
+    //       (token degisimi takildi; genelde sunucunun cikisi engelli)
+    const yanki = /\*{3,}/.test(plain(state.raw));
+    const durum = son
+      ? `ekran: ${son}`
+      : yanki
+        ? `kod CLI'ye ulaştı (ekranda maskeli olarak göründü) ama karşılık gelmedi — token değişimi takıldı`
+        : `CLI ekranına tek bayt bile gelmedi (${state.raw.length} bayt) — kod sürece ulaşmamış olabilir`;
     throw Object.assign(
-      err("TIMEOUT", `Kod gönderildi ama ${Math.round(CODE_TIMEOUT_MS / 1000)} sn içinde yanıt gelmedi`
-        + `${son ? ` — ekran: ${son}` : " (CLI ekranına hiçbir şey basmadı)"}. Akış açık, kodu yeniden deneyebilirsin.`),
-      { alive: true, screen: son },
+      err("TIMEOUT", `Kod gönderildi ama ${Math.round(CODE_TIMEOUT_MS / 1000)} sn içinde yanıt gelmedi — ${durum}.`
+        + " Akış açık, kodu yeniden deneyebilirsin."),
+      { alive: true, screen: son, bytes: state.raw.length, echo: yanki },
     );
   }
   if (sonuc.hata) throw Object.assign(err("BAD_CODE", `Kod kabul edilmedi: ${sonuc.hata}`), { alive: !state.exit });

@@ -5,6 +5,7 @@
  *   POST /api/claude/accounts/login/start  {label} → {loginId, url}  (panelden giriş)
  *   POST /api/claude/accounts/login/code   {loginId, code} → {id,label}
  *   POST /api/claude/accounts/login/cancel {loginId}
+ *   GET  /api/claude/net                   Anthropic'e cikis olcumu (token ister)
  *   POST /api/claude/accounts              {label, token} → yapıştırma yolu
  *   POST /api/claude/accounts/rename       {id, label}
  *   POST /api/claude/accounts/remove       {id}
@@ -18,6 +19,7 @@
  * 10 dk sonra düşer; sunucu yeniden başlarsa akış kaybolur ("yeniden başlat").
  */
 import * as accounts from "../auth/claude-accounts.mjs";
+import { reachability, summarize } from "../auth/claude-net.mjs";
 import { cliBinary } from "../ai/provider.mjs";
 import { invalidatePreflight } from "../connectors/index.mjs";
 
@@ -30,7 +32,7 @@ export function registerClaudeRoutes(router, ctx) {
   const { send, audit } = ctx;
   // `alive`: akis hala ayakta mi — arayuz kod kutusunu kapatsin mi karar verir.
   const fail = (res, e) => send(res, httpFor(e.code), {
-    ok: false, code: e.code ?? null, error: e.message, alive: e.alive ?? null,
+    ok: false, code: e.code ?? null, error: e.message, alive: e.alive ?? null, net: e.net ?? null,
   });
 
   router.get("/api/claude/accounts", ({ res }) => send(res, 200, {
@@ -41,6 +43,11 @@ export function registerClaudeRoutes(router, ctx) {
     pending: accounts.pendingCount(),
     logins: accounts.pendingList(),
   }));
+
+  router.get("/api/claude/net", async ({ res }) => {
+    const net = await reachability();
+    return send(res, 200, { ok: true, ...net, ozet: summarize(net) });
+  }, { auth: true });
 
   router.prefix("POST", "/api/claude/accounts", async ({ res, rest, body }) => {
     try {
@@ -59,10 +66,24 @@ export function registerClaudeRoutes(router, ctx) {
           return send(res, 200, { ok: true, ...out });
         }
         case "/login/code": {
-          const out = await accounts.submitCode(body.loginId, body.code);
-          invalidatePreflight("claude-code");
-          audit({ kind: "claude/account-added", id: out.id, label: out.label, source: "relay" });
-          return send(res, 200, { ok: true, ...out });
+          try {
+            const out = await accounts.submitCode(body.loginId, body.code);
+            invalidatePreflight("claude-code");
+            audit({ kind: "claude/account-added", id: out.id, label: out.label, source: "relay" });
+            return send(res, 200, { ok: true, ...out });
+          } catch (e) {
+            // ⚠️ CLI ekrana hicbir sey basmadan takilabiliyor (olculdu). O anda
+            // tek anlamli soru "sunucu Anthropic'e cikabiliyor mu" — panelden
+            // OLCUP hata mesajina koyuyoruz, kullanici karanlikta kalmasin.
+            if (e.code === "TIMEOUT" || e.code === "CLI_EXIT") {
+              const net = await reachability().catch(() => null);
+              if (net) {
+                e.message += ` ${summarize(net)}`;
+                e.net = net;
+              }
+            }
+            throw e;
+          }
         }
         case "/login/cancel": {
           const out = accounts.cancelLogin(body.loginId);
