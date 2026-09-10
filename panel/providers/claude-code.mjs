@@ -78,6 +78,16 @@ export function check() {
   const harcama = b?.capUsd
     ? `bugün $${b.usd.toFixed(2)} / $${b.capUsd.toFixed(2)} (${b.calls} çağrı)`
     : `bugün $${(b?.usd ?? 0).toFixed(2)} (${b?.calls ?? 0} çağrı)`;
+  // Suren "panelden giris" akislari kartta GORUNUR (her modda): eskiden
+  // yalnizca "Baglan…" kutusu acilinca fark ediliyordu, o da akisi gostermiyordu.
+  const suren = accounts.pendingList();
+  const surenPart = suren.length
+    ? [{
+        label: "süren giriş",
+        state: "warn",
+        detail: `${suren.length} akış bekliyor (${suren.map((l) => l.label || l.loginId).join(", ")}) — "Bağlan…" kutusundan devam et ya da vazgeç`,
+      }]
+    : [];
   if (s.mode === "api") {
     return {
       state: "ok",
@@ -86,6 +96,7 @@ export function check() {
       parts: [
         { label: "yol", state: "ok", detail: "Messages API" },
         { label: "bütçe", state: b?.capUsd && b.usd >= b.capUsd ? "blocked" : "ok", detail: harcama },
+        ...surenPart,
       ],
       fix: [],
     };
@@ -93,16 +104,6 @@ export function check() {
   if (s.mode === "cli") {
     const list = accounts.list();
     const relay = accounts.relaySupported({ claudeBin: cliBinary() });
-    // Suren "panelden giris" akislari kartta GORUNUR: eskiden yalnizca
-    // "Baglan…" kutusu acilinca fark ediliyordu, o da akisi gostermiyordu.
-    const suren = accounts.pendingList();
-    const surenPart = suren.length
-      ? [{
-          label: "süren giriş",
-          state: "warn",
-          detail: `${suren.length} akış bekliyor (${suren.map((l) => l.label || l.loginId).join(", ")}) — "Bağlan…" kutusundan devam et ya da vazgeç`,
-        }]
-      : [];
     if (list.length) {
       const suresiDolan = list.filter((a) => a.expired);
       return {
@@ -130,11 +131,23 @@ export function check() {
       fix: [],
     };
   }
+  // CLI kurulu ama oturumsuz olabilir (sunucudaki imajda relay icin kurulu):
+  // "CLI bulunamadi" demek yaniltirdi, dogru adim "hesap ekle"dir.
+  const cliVar = Boolean(cliBinary());
+  const relay = accounts.relaySupported({ claudeBin: cliBinary() });
   return {
     state: "warn",
     detail: "tek tık kapalı — yalnızca istem üret + yapıştır",
-    note: "Ne Claude hesabı, ne ANTHROPIC_API_KEY, ne Claude Code CLI bulundu. Üç AI özelliği kopyala-yapıştır ile çalışmaya devam eder.",
-    parts: [{ label: "yol", state: "warn", detail: "elle" }],
+    note: cliVar
+      ? "Claude Code CLI kurulu ama bu makinede oturum açılmamış; hesap da anahtar da yok. "
+        + "Panelden giriş yaparak kendi aboneliğini bağla ya da ANTHROPIC_API_KEY ver. "
+        + "Üç AI özelliği o zamana kadar kopyala-yapıştır ile çalışmaya devam eder."
+      : "Ne Claude hesabı, ne ANTHROPIC_API_KEY, ne Claude Code CLI bulundu. Üç AI özelliği kopyala-yapıştır ile çalışmaya devam eder.",
+    parts: [
+      { label: "yol", state: "warn", detail: "elle" },
+      ...(cliVar ? [{ label: "panelden giriş", state: relay.ok ? "ok" : "unknown", detail: relay.ok ? "açık — hesap ekleyebilirsin" : relay.reason }] : []),
+      ...surenPart,
+    ],
     fix: auth.accounts.steps,
   };
 }

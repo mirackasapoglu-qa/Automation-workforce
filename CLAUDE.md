@@ -528,6 +528,24 @@ takılırsa (ör. sunucunun Anthropic'e çıkışı yoksa). O durumda hata artı
 node:22-bookworm-slim node --test "panel/**/*.test.mjs"` (macOS'ta relay
 testleri atlanır, 110/111 geçer).
 
+### Aynı turda çıkan ikinci yanlış durum: "oturumsuz CLI = tek tık açık"
+
+CLI sunucudaki imaja **relay için** girdi (2026-09-10, hesaplar turu) ve
+`provider.mjs → mode()` bunu "geliştirici yolu" sanıp `mode:"cli"`,
+`oneClick:true` döndürüyordu: kutuda hiç kimse giriş yapmamış olduğu hâlde
+panel "Tek tık üretim açık (bu makinedeki Claude Code oturumuyla)" diyordu ve
+her üretim kimlik hatasıyla düşerdi (canlıda ölçüldü: hesap yok, anahtar yok,
+`oneClick:true`).
+
+`cliSessionReady()` eklendi: **çıplak CLI yolu yalnız CLI'nin kendi oturumu
+varsa açılır.** Kimlik Linux'ta `<config dir>/.credentials.json` (binary'den
+doğrulandı; boş kurulumda dosya yok) — `CLAUDE_CODE_OAUTH_TOKEN` verilmişse de
+oturum sayılır. ⚠️ **macOS'ta eleme YOK**: Claude Code kimliği Keychain'e
+yazabiliyor, orada dosyanın yokluğu kanıt değil ve geliştirici yolunu kesmek
+gerçek bir gerilemeydi. `AI_PROVIDER=cli` zorlaması da elemeye takılmaz.
+Kart artık "CLI bulunamadı" demiyor: "CLI kurulu ama oturum açılmamış →
+panelden giriş yap ya da anahtar ver".
+
 **Kullanım ve sınır:**
 - Üretimde hesap seçilir (`account` alanı): tek tık onayı birden fazla hesap
   varsa aynı anda hesap seçicisidir (`uiChoose`); seçim tarayıcıda hatırlanır

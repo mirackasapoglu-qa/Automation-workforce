@@ -22,6 +22,7 @@
  * Bu dosya proje adı bilmez (`npm run panel:check`).
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { apiKey, settings, complete } from "./anthropic.mjs";
 import { askClaude, parseJsonLoose } from "../claude-cli.mjs";
@@ -72,6 +73,26 @@ function isExecutable(f) {
  * sunucu yolu) ya da makinede zaten giriş yapılmış CLI (geliştirici yolu).
  * Hesap varsa CLI'nin PATH'te olması yine şart — komutu o çalıştırıyor.
  */
+/**
+ * Kurulu CLI'nin KENDİ oturumu var mı.
+ *
+ * ⚠️ Sunucudaki imajda CLI **relay için** kurulu (panelden giriş `claude
+ * setup-token` çalıştırıyor) ama hiç kimse o kutuda giriş yapmamış olabilir.
+ * Bu ayrım yapılmadığı sürece panel hesap yokken bile "tek tık üretim açık"
+ * diyordu ve her üretim kimlik hatasıyla düşüyordu (ölçüldü 2026-09-10:
+ * sunucuda hesap yok, anahtar yok, `mode:"cli"`, `oneClick:true`).
+ *
+ * Claude Code kimliği Linux'ta `<config dir>/.credentials.json` içinde tutuyor
+ * (binary'den doğrulandı; boş kurulumda dosya yok). macOS'ta Keychain'e
+ * yazabildiği için orada dosyanın YOKLUĞU kanıt değil — eleme yalnız Linux'ta.
+ */
+function cliSessionReady() {
+  if (process.env.CLAUDE_CODE_OAUTH_TOKEN) return true;
+  if (process.platform !== "linux") return true;
+  const dir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), ".claude");
+  try { fs.accessSync(path.join(dir, ".credentials.json")); return true; } catch { return false; }
+}
+
 export function mode() {
   /*
    * ⚠️ ŞALTER ÖNCE. "Kopar" bu servisi KULLANMA demek; API anahtarı yolu zaten
@@ -89,7 +110,8 @@ export function mode() {
   // olarak kendi hesabini bagladi, panelde duran bir anahtar onu golgelememeli.
   if (cliReady && accounts.count() > 0) return "cli";
   if (apiKey()) return "api";
-  if (cliReady) return "cli";
+  // Ciplak CLI yolu yalnizca CLI'nin kendi oturumu varsa acilir.
+  if (cliReady && cliSessionReady()) return "cli";
   return "manual";
 }
 

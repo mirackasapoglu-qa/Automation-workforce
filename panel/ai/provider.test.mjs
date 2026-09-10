@@ -44,9 +44,40 @@ test("CLAUDE_BIN calistirilabilir bir dosyaya isaret edince mode=cli", async () 
   const bin = path.join(tmp, "claude");
   fs.writeFileSync(bin, "#!/bin/sh\necho hi\n", { mode: 0o755 });
   process.env.CLAUDE_BIN = bin;
+  // CLI'nin KENDI oturumu: Linux'ta <config dir>/.credentials.json aranir.
+  const cfg = fs.mkdtempSync(path.join(tmp, "cfg-"));
+  fs.writeFileSync(path.join(cfg, ".credentials.json"), "{}");
+  process.env.CLAUDE_CONFIG_DIR = cfg;
   ai.resetCliCache(); // 60 sn PATH onbellegi — testte acikca dusurulur
   assert.equal(ai.mode(), "cli");
   assert.equal(ai.status().cliBin, bin);
+  process.env.CLAUDE_BIN = path.join(tmp, "yok");
+  delete process.env.CLAUDE_CONFIG_DIR;
+  ai.resetCliCache();
+});
+
+test("CLI kurulu ama OTURUMSUZ: tek tik acilmaz (sunucudaki imaj hali)", async () => {
+  // Sunucuda CLI relay icin kurulu; kimse giris yapmamis olabilir. Eskiden
+  // panel bu durumda "tek tik uretim acik" diyordu ve her uretim kimlik
+  // hatasiyla dusuyordu (olculdu 2026-09-10).
+  const bin = path.join(tmp, "claude");
+  fs.writeFileSync(bin, "#!/bin/sh\necho hi\n", { mode: 0o755 });
+  process.env.CLAUDE_BIN = bin;
+  const bos = fs.mkdtempSync(path.join(tmp, "bos-cfg-"));   // .credentials.json YOK
+  process.env.CLAUDE_CONFIG_DIR = bos;
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  ai.resetCliCache();
+  const beklenen = process.platform === "linux" ? "manual" : "cli"; // macOS'ta kimlik Keychain'de olabilir
+  assert.equal(ai.mode(), beklenen);
+  assert.equal(ai.status().oneClick, beklenen !== "manual");
+
+  // Token verilmisse (hesap yolu) oturum vardir.
+  process.env.CLAUDE_CODE_OAUTH_TOKEN = "sk-ant-oat01-test";
+  ai.resetCliCache();
+  assert.equal(ai.mode(), "cli", "token verilince ciplak CLI yolu acilir");
+
+  delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
+  delete process.env.CLAUDE_CONFIG_DIR;
   process.env.CLAUDE_BIN = path.join(tmp, "yok");
   ai.resetCliCache();
 });
