@@ -527,6 +527,40 @@ Bu durumda hata mesajı **iki durumu ayırıyor** ve **ağı ölçüyor**:
 - `bytes: 0` → kod sürece hiç ulaşmamış olabilir
 - yıldızlı yankı var → kod **alındı**, karşılık gelmedi = token değişimi takıldı
 
+### KÖK NEDEN: uzun kod "yapıştırma" sayılıyor, Enter yutuluyor (2026-09-10)
+
+Yukarıdaki teşhis katmanları sayesinde bulundu ve **ölçüldü** (gerçek CLI,
+Linux container, aynı akış üç kez):
+
+| gönderim | sonuç |
+|---|---|
+| 25 karakterlik kod + `\r` **tek yazmada** | CLI cevap verdi (400) |
+| **184 karakterlik kod + `\r` tek yazmada** | **CLI HİÇ tepki vermedi** — ekranda yalnız yıldızlar |
+| 184 karakterlik kod, Enter **300 ms sonra ayrı** | CLI cevap verdi |
+
+CLI uzun bir girdi bloğunu **yapıştırma** kabul ediyor ve aynı yazmadaki
+Enter'ı "gönder" değil **metnin parçası** sayıyor: kod kutuda duruyor, hiç
+gönderilmiyor, ekran değişmediği için Ink tek bayt basmıyor ve akış sessizce
+zaman aşımına düşüyor. Gerçek OAuth kodu ~105 karakter, yani **üretimde her
+zaman eşiğin üstünde** — relay ilk günden beri hiç çalışmamıştı; benim
+testlerimdeki 23 karakterlik sahte kod eşiğin altında kaldığı için sorun
+geliştirmede hiç görünmedi.
+
+Düzeltme `sendCode()`: önce metin, `ENTER_GAP_MS` (300 ms) bekle, sonra AYRI
+bir yazmada `\r`. Ölçüm: 92 karakterlik kod artık 674 ms'de gerçek cevap
+alıyor (öncesi: 60 sn sessizlik).
+
+⚠️ **Yanlış teşhis dersi:** bu bulunana kadar ölçüm zinciri sırayla "abonelik
+askıda", "sunucunun çıkışı yok" ve "IPv6 kara deliği" derken **üçü de
+yanlıştı**. Sonuncusu koda da yazılmıştı ve canlıda "container'da IPv6'yı
+kapat" diye yanlış tavsiye bastı. Onu çürüten şey **kontrol ölçümü** oldu:
+geliştirici makinesindeki Docker container'ı AYNI ağ profilini veriyor
+(IPv4 bağlı, IPv6 `ENETUNREACH`) ama orada CLI 371 ms'de cevap veriyor.
+`diagnose()` artık IPv6'nın **anında hata** vermesi (normal, istemci IPv4'e
+düşer) ile **zaman aşımına düşmesi** (asıl kara delik) arasını ayırıyor.
+Bir sonraki teşhis katmanı yazılırken kural: **fark ürettiği iddia edilen
+her koşul, çalışan ortamda da var mı diye kontrol edilmeli.**
+
 `panel/auth/claude-net.mjs` + `GET /api/claude/net` (token ister): CLI'nin
 gittiği iki adrese ulaşılıyor mu ölçer — `platform.claude.com/v1/oauth/token`
 (token değişimi) ve `claude.com/cai/oauth/authorize` (giriş sayfası), ikisi de

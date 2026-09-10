@@ -109,9 +109,22 @@ export async function diagnose({ host = "platform.claude.com", port = 443, timeo
   const v6var = baglanti.some((b) => b.family === 6);
   const v6ok = baglanti.some((b) => b.family === 6 && b.ok);
 
+  /*
+   * ⚠️ IPv6 BAŞARISIZLIĞININ İKİ TÜRÜ VAR; ayırmazsan yanlış yere baktırır:
+   *   ENETUNREACH/ECONNREFUSED → ANINDA döner (ölçüm: 1-2 ms). İstemci ya
+   *     IPv4'e düşer ya da hemen hata verir; SESSİZ TAKILMA sebebi OLAMAZ.
+   *   zaman aşımı (kara delik)  → paket yutulur, istemci yanıt bekler. Node
+   *     `autoSelectFamily` ile ~250 ms'de IPv4'e düşer, bun düşmez.
+   * İlk sürüm ikisini ayırmıyor ve "IPv6 kara delik" diye YANLIŞ teşhis
+   * koyuyordu (canlıda öyle bir satır bastı). Kontrol ölçümü: geliştirici
+   * makinesindeki Docker container'ı AYNI profili veriyor (IPv4 bağlı, IPv6
+   * ENETUNREACH) ama orada CLI 371 ms'de cevap veriyor — profil tek başına
+   * suçlu değil. Gerçek sebep bambaşkaydı (bkz. ENTER_GAP_MS).
+   */
+  const v6KaraDelik = baglanti.some((b) => b.family === 6 && !b.ok && /içinde bağlanamadı/.test(String(b.error)));
   const sebepler = [];
   if (proxy.length) sebepler.push(`vekil değişkeni tanımlı (${proxy.map((p) => p.name).join(", ")}) — bun bunu uygular, Node uygulamaz; CLI'nin takılması buradan olabilir`);
-  if (v6var && !v6ok && v4ok) sebepler.push("IPv6 kara delik: IPv4 bağlanıyor, IPv6 bağlanmıyor. Node IPv4'e düşer, bun düşmez — CLI tam bu yüzden asılır. Container'da IPv6'yı kapat ya da yolu düzelt");
+  if (v6KaraDelik && v4ok) sebepler.push("IPv6 KARA DELİK: IPv6 bağlantısı hata bile vermeden zaman aşımına düşüyor. Node IPv4'e düşer, bun düşmez — sessiz takılmanın klasik sebebi budur");
   if (!v4ok && !v6ok) sebepler.push("hiçbir adrese TCP bağlantısı kurulamadı");
   if (!lookup.ok) sebepler.push(`DNS çözümlenemedi: ${lookup.error}`);
 
@@ -124,8 +137,10 @@ export async function diagnose({ host = "platform.claude.com", port = 443, timeo
     },
     tcp: baglanti,
     proxy,
-    ipv4: v4ok, ipv6: v6var ? v6ok : null,
+    ipv4: v4ok, ipv6: v6var ? v6ok : null, ipv6KaraDelik: v6KaraDelik,
     sebepler,
-    ozet: sebepler.length ? sebepler.join(" · ") : "DNS, IPv4/IPv6 ve vekil tarafında sorun görünmüyor.",
+    ozet: sebepler.length
+      ? sebepler.join(" · ")
+      : `DNS, IPv4/IPv6 ve vekil tarafında sorun görünmüyor${v6var && !v6ok ? " (IPv6 anında hata veriyor — bu NORMAL, istemci IPv4'e düşer)" : ""}.`,
   };
 }

@@ -55,6 +55,17 @@ const EXIT_GRACE_MS = Number(process.env.CLAUDE_LOGIN_EXIT_GRACE_MS || 400);
  * çağrısı sonra "geçersiz token" der). `stty cols` pty'yi genişletir.
  */
 const PTY_COLS = Number(process.env.CLAUDE_LOGIN_PTY_COLS || 400);
+/**
+ * Kod ile Enter arasındaki boşluk. ⚠️ ÖLÇÜLDÜ 2026-09-10 (gerçek CLI, Linux):
+ * kod + `\r` TEK yazmada gönderilirse CLI uzun metni **yapıştırma** sayıyor ve
+ * sondaki Enter'ı GÖNDERME değil metnin parçası kabul ediyor — kod kutuda
+ * duruyor, hiç gönderilmiyor, ekranda yalnız yıldızlar kalıyor ve akış
+ * sessizce zaman aşımına düşüyor. Ölçüm: 25 karakterlik kod tek yazmada
+ * çalıştı, 184 karakterlik kod ÇALIŞMADI, aynı kod Enter 300 ms sonra ayrı
+ * gönderilince ÇALIŞTI. Gerçek OAuth kodu ~105 karakter, yani üretimde HER
+ * ZAMAN eşiğin üstünde: bu tek satır relay'i tamamen kullanılamaz yapıyordu.
+ */
+const ENTER_GAP_MS = Number(process.env.CLAUDE_LOGIN_ENTER_GAP_MS || 300);
 
 const root = () => process.cwd();
 export const accountsDir = () => path.join(root(), "panel-data", "claude", "accounts");
@@ -334,6 +345,18 @@ export async function startLogin({ label, claudeBin } = {}) {
 }
 
 /**
+ * Kodu sürece yazar: önce METİN, sonra AYRI bir yazmada Enter.
+ * İkisi tek yazmada giderse CLI Enter'ı yapıştırmanın parçası sayıyor
+ * (bkz. ENTER_GAP_MS) — bu yüzden ayrılması ZORUNLU, süsleme değil.
+ * @param {import("node:stream").Writable} stdin
+ */
+export async function sendCode(stdin, code, { gapMs = ENTER_GAP_MS } = {}) {
+  stdin.write(code);
+  await new Promise((r) => setTimeout(r, gapMs));
+  stdin.write("\r");
+}
+
+/**
  * Tarayıcıdan alınan kodu bekleyen sürece iletir ve token'ı yakalar.
  * Geçersiz kodda CLI "Press Enter to retry" diyor ve AYAKTA kalıyor — akış
  * düşürülmez, kullanıcı kodu yeniden yapıştırabilir.
@@ -354,7 +377,9 @@ export async function submitCode(loginId, code) {
   if (!/^[\w#.\-=/+]{6,300}$/.test(c)) throw err("BAD_INPUT", "Kod biçimi geçersiz (tarayıcıdaki kodun tamamını kopyala).");
 
   state.raw = "";
-  try { state.child.stdin.write(`${c}\r`); } catch { throw err("EXPIRED", "Giriş süreci kapanmış — yeniden başlat."); }
+  try {
+    await sendCode(state.child.stdin, c);
+  } catch { throw err("EXPIRED", "Giriş süreci kapanmış — yeniden başlat."); }
 
   const sonuc = await waitFor(() => {
     const tok = tokenFromScreen(state.raw, { exited: !!state.exit });

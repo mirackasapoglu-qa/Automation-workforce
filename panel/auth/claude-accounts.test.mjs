@@ -233,3 +233,19 @@ test("screenTail: token MASKELENIR, son satirlar ozetlenir", () => {
   assert.match(ozet, /sk-ant-oat…ZZZZ/);
   assert.match(ozet, /iki · .* · uc$/);
 });
+
+test("sendCode: kod ve Enter AYRI yazmalarda gider (uzun kod yapistirma sayiliyor)", async () => {
+  // ⚠️ Olculdu 2026-09-10 (gercek CLI): kod + "\r" TEK yazmada gonderilince
+  // 184 karakterlik kod HIC gonderilmedi (ekranda yalniz yildizlar), Enter
+  // 300 ms sonra AYRI gonderilince calisti. Gercek OAuth kodu ~105 karakter.
+  const yazmalar = [];
+  const sahteStdin = { write: (v) => yazmalar.push({ v, at: Date.now() }) };
+  const kod = `ac_${"A".repeat(120)}#${"B".repeat(60)}`;
+  const t0 = Date.now();
+  await acc.sendCode(sahteStdin, kod, { gapMs: 40 });
+  assert.equal(yazmalar.length, 2, "iki ayri yazma");
+  assert.equal(yazmalar[0].v, kod, "once kodun kendisi, Enter'siz");
+  assert.equal(yazmalar[1].v, "\r", "Enter ayri yazmada");
+  assert.ok(yazmalar[1].at - yazmalar[0].at >= 35, "aralarinda gercek bir boslukla");
+  assert.ok(Date.now() - t0 >= 35);
+});

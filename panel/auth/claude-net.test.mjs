@@ -63,7 +63,7 @@ test("kimlik ve govde GONDERMEZ: yalniz GET, yonlendirme izlenmez", async () => 
 
 // -------------------------------------------------- derin teşhis (diagnose)
 
-test("diagnose: IPv6 kara deligi TESPIT EDILIR (Node duser, bun dusmez)", async () => {
+test("diagnose: IPv6 ZAMAN ASIMI kara delik sayilir, ANLIK hata sayilmaz", async () => {
   const { diagnose } = await import("./claude-net.mjs");
   const dns = await import("node:dns/promises");
   const net = await import("node:net");
@@ -83,7 +83,8 @@ test("diagnose: IPv6 kara deligi TESPIT EDILIR (Node duser, bun dusmez)", async 
     const d = await diagnose({ host: "ornek.invalid", timeoutMs: 50 });
     assert.equal(d.ipv4, true);
     assert.equal(d.ipv6, false);
-    assert.match(d.ozet, /IPv6 kara delik/);
+    assert.equal(d.ipv6KaraDelik, true, "zaman aşımı = kara delik");
+    assert.match(d.ozet, /IPv6 KARA DELİK/);
     assert.match(d.ozet, /bun düşmez/);
   } finally {
     dns.default.lookup = asilLookup; dns.default.resolve4 = asilR4; dns.default.resolve6 = asilR6;
@@ -108,5 +109,31 @@ test("diagnose: vekil degiskeni bildirilir, parola MASKELENIR", async () => {
   } finally {
     delete process.env.HTTPS_PROXY;
     dns.default.lookup = asilLookup; dns.default.resolve4 = asilR4; dns.default.resolve6 = asilR6;
+  }
+});
+
+test("diagnose: IPv6 ANINDA hata veriyorsa suclanmaz (yanlis teshis duzeltmesi)", async () => {
+  // Olculdu: gelistirici Docker'i da ayni profili veriyor (IPv4 bagli, IPv6
+  // ENETUNREACH) ve orada CLI sorunsuz calisiyor — bu profil suclu DEGIL.
+  const { diagnose } = await import("./claude-net.mjs");
+  const dns = await import("node:dns/promises");
+  const net = await import("node:net");
+  const [aL, a4, a6, aC] = [dns.default.lookup, dns.default.resolve4, dns.default.resolve6, net.default.connect];
+  dns.default.lookup = async () => [{ address: "1.2.3.4", family: 4 }];
+  dns.default.resolve4 = async () => ["1.2.3.4"];
+  dns.default.resolve6 = async () => ["2600::1"];
+  net.default.connect = ({ host }) => {
+    const ev = {};
+    const s = { once: (k, f) => { ev[k] = f; return s; }, destroy: () => {} };
+    setImmediate(() => (host === "1.2.3.4" ? ev.connect?.() : ev.error?.(Object.assign(new Error("x"), { code: "ENETUNREACH" }))));
+    return s;
+  };
+  try {
+    const d = await diagnose({ host: "ornek.invalid", timeoutMs: 50 });
+    assert.equal(d.ipv6KaraDelik, false);
+    assert.deepEqual(d.sebepler, [], "anlık hata sebep listesine GİRMEZ");
+    assert.match(d.ozet, /NORMAL, istemci IPv4'e düşer/);
+  } finally {
+    dns.default.lookup = aL; dns.default.resolve4 = a4; dns.default.resolve6 = a6; net.default.connect = aC;
   }
 });
