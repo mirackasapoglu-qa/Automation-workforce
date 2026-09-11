@@ -920,10 +920,40 @@ html, body { background: var(--bg); margin: 0; }
   margin-bottom: 6px; font-size: 12px;
 }
 .sitemap-preview-row { display: flex; align-items: center; gap: 8px; padding: 3px 10px; color: var(--text); }
+.sitemap-preview-check { flex-shrink: 0; margin: 0; }
 .sitemap-preview-type {
   font-size: 9.5px; text-transform: uppercase; letter-spacing: .3px; color: var(--text-faint);
   background: var(--surface-raised); border-radius: 999px; padding: 1px 7px; flex-shrink: 0; margin-left: auto;
 }
+.sitemap-preview-empty { padding: 14px 10px; color: var(--text-faint); font-size: 12px; text-align: center; }
+
+/* Önizleme üstü: arama + toplu seç/kaldır */
+.sitemap-preview-tools { display: flex; gap: 8px; margin-bottom: 8px; }
+.sitemap-preview-search { flex: 1 1 auto; min-width: 0; }
+.sitemap-preview-tools .btn { flex-shrink: 0; padding: 6px 10px; font-size: 11.5px; }
+.sitemap-selected-count { text-align: right; margin: 4px 2px 10px; }
+
+/* Atlanan sayfa / sınır özeti */
+.sitemap-skip-summary { font-size: 11.5px; color: var(--text-faint); margin-bottom: 10px; }
+.sitemap-skip-details { margin-top: 4px; }
+.sitemap-skip-details summary { cursor: pointer; color: var(--accent); }
+.sitemap-skip-row {
+  font-size: 11px; color: var(--text-faint); padding: 2px 0 2px 12px; word-break: break-all;
+}
+
+/* Çakışma çözüm ekranı: aynı URL'li sayfa ağaçta zaten varsa */
+.sitemap-conflict-bulk {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-faint);
+}
+.sitemap-conflict-bulk select { flex: 1 1 auto; min-width: 0; }
+.sitemap-conflict-list { max-height: 300px; overflow-y: auto; margin-bottom: 6px; }
+.sitemap-conflict-row {
+  display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 1px solid var(--border);
+}
+.sitemap-conflict-row:last-child { border-bottom: none; }
+.sitemap-conflict-label { flex: 1 1 auto; min-width: 0; font-size: 13px; color: var(--text); }
+.sitemap-conflict-row select { flex-shrink: 0; width: 160px; }
 
 /* Sonuç ekranında "beğenmedim, daha detaylı tara" bağlantısı */
 .sitemap-more-detail { margin-bottom: 14px; font-size: 12px; }

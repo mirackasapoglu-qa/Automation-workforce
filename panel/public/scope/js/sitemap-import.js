@@ -1,9 +1,10 @@
 // URL'den içerik haritası çıkarma: backend'deki Playwright tabanlı /api/crawl işini
 // başlatır, ilerlemeyi periyodik olarak sorgular, sonucu önizleyip ağaca ekler.
-import { state, newId } from './state.js';
+import { state, newId, newResourceLinkId } from './state.js';
 import { ICON } from './constants.js';
 import { persist } from './data.js';
 import { renderContent } from './shell.js';
+import { uiToast } from './dialog.js';
 
 let pollTimer = null;
 let currentJobId = null;
@@ -29,8 +30,12 @@ function closeModal() {
   if (overlay) overlay.remove();
 }
 
+/** Ağaca eklenmeden önce her düğüme gerçek id, her kaynak linkine de id basar;
+ *  seçim ekranının kullandığı geçici `_checked` alanını temizler. */
 function assignIds(node) {
   node.id = newId();
+  delete node._checked;
+  (node.resourceLinks || []).forEach(rl => { if (!rl.id) rl.id = newResourceLinkId(); });
   (node.children || []).forEach(assignIds);
   return node;
 }
@@ -47,10 +52,83 @@ function countNodes(node) {
   return 1 + (node.children || []).reduce((sum, c) => sum + countNodes(c), 0);
 }
 
-function renderPreviewTree(node, container, depth) {
+function countPages(node) {
+  return (node.type === 'page' ? 1 : 0) + (node.children || []).reduce((s, c) => s + countPages(c), 0);
+}
+
+/**
+ * Türkçe-uyumlu küçültme: RAG indeksinde (scripts/rag-index.mjs) kullanılan aynı ilke —
+ * İ/ı önce NFD'ye ayrılıp işaretler atılır, sonra küçültülür. Naif toLowerCase() Türkçe
+ * büyük İ'yi yanlış katlar (bkz. CLAUDE.md "Homee seçici tuzakları").
+ */
+function trNormalize(s) {
+  return String(s ?? '')
+    .replace(/İ/g, 'i').replace(/I/g, 'ı')
+    .normalize('NFD').replace(/\p{Mn}/gu, '')
+    .toLowerCase();
+}
+
+/** node ya da altındaki HERHANGİ bir düğüm arama metniyle eşleşiyor mu (boş arama = hepsi eşleşir). */
+function nodeMatches(node, needle) {
+  if (!needle) return true;
+  if (trNormalize(node.name).includes(needle)) return true;
+  return (node.children || []).some(c => nodeMatches(c, needle));
+}
+
+/** node ve tüm alt ağacına aynı seçim değerini basar (kaskad). */
+function setAll(node, value) {
+  node._checked = value;
+  (node.children || []).forEach(c => setAll(c, value));
+}
+
+/**
+ * Tri-state seçim ağacını tek geçişte tutarlı hâle getirir. `clickedNode` verilirse o
+ * düğüm ve tüm alt ağacına `clickedValue` kaskad edilir; her durumda üst düğümler
+ * çocuklarının durumuna göre true/false/'partial' olarak yeniden hesaplanır. Toplu
+ * "görünenleri seç/kaldır" gibi çoklu-değişiklik sonrası `clickedNode` olarak var
+ * olmayan bir değer (ör. null) vermek saf bir "aşağıdan yukarı" yeniden hesap yapar.
+ */
+function rollup(node, clickedNode, clickedValue) {
+  if (node === clickedNode) {
+    setAll(node, clickedValue);
+    return clickedValue;
+  }
+  if (!node.children || !node.children.length) {
+    return node._checked === true;
+  }
+  const states = node.children.map(c => rollup(c, clickedNode, clickedValue));
+  const allTrue = states.every(s => s === true);
+  const allFalse = states.every(s => s === false);
+  node._checked = allTrue ? true : (allFalse ? false : 'partial');
+  return node._checked;
+}
+
+function initSelection(node) {
+  node._checked = true;
+  (node.children || []).forEach(initSelection);
+}
+
+/** Seçili olmayan (false) düğümleri ve onların tüm alt ağacını budar; kalanları yeni bir ağaç olarak döner. */
+function pruneBySelection(node) {
+  if (node._checked === false) return null;
+  const children = (node.children || []).map(pruneBySelection).filter(Boolean);
+  return { ...node, children };
+}
+
+function renderPreviewTree(node, container, depth, needle, onToggle, forceShow) {
+  if (!forceShow && !nodeMatches(node, needle)) return;
   const row = document.createElement('div');
   row.className = 'sitemap-preview-row';
   row.style.paddingLeft = (depth * 16) + 'px';
+
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'sitemap-preview-check';
+  checkbox.checked = node._checked === true;
+  checkbox.indeterminate = node._checked === 'partial';
+  checkbox.onchange = () => onToggle(node, checkbox.checked);
+  row.appendChild(checkbox);
+
   const name = document.createElement('span');
   name.textContent = node.name;
   row.appendChild(name);
@@ -59,7 +137,50 @@ function renderPreviewTree(node, container, depth) {
   badge.textContent = node.type;
   row.appendChild(badge);
   container.appendChild(row);
-  (node.children || []).forEach(c => renderPreviewTree(c, container, depth + 1));
+  // Düğümün kendi ADI eşleşiyorsa altındaki her şey süzülmeden gösterilir — arama
+  // "Playwright Test Report"ı bulduğunda o sayfanın alt başlıkları da görünsün diye.
+  const selfMatch = !needle || trNormalize(node.name).includes(needle);
+  const childForce = forceShow || selfMatch;
+  (node.children || []).forEach(c => renderPreviewTree(c, container, depth + 1, needle, onToggle, childForce));
+}
+
+/** Bir sayfanın kaynak URL'sini host+path'e indirger — takma protokol/trailing-slash farkları eşleşmeyi kaçırmasın diye. */
+function normalizeForCompare(url) {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, '') || '/';
+    return (u.host + path).toLowerCase();
+  } catch { return null; }
+}
+
+/** Mevcut ağaçtaki her düğümün kaynak URL'sini (varsa) normalize edilmiş hâliyle indeksler. */
+function collectExistingUrlMap() {
+  const map = new Map();
+  (function walk(nodes) {
+    (nodes || []).forEach(n => {
+      (n.resourceLinks || []).forEach(rl => {
+        const norm = normalizeForCompare(rl.url);
+        if (norm && !map.has(norm)) map.set(norm, n);
+      });
+      walk(n.children);
+    });
+  })(state.tree);
+  return map;
+}
+
+/** Yeni taranan ağaçtaki PAGE düğümlerinden hangilerinin ağaçta zaten bir karşılığı var — URL eşleşmesiyle. */
+function findConflicts(prunedTree, existingMap) {
+  const conflicts = [];
+  (function walk(n) {
+    if (n.type === 'page') {
+      const srcLink = (n.resourceLinks || [])[0];
+      const norm = srcLink ? normalizeForCompare(srcLink.url) : null;
+      const existing = norm ? existingMap.get(norm) : null;
+      if (existing) conflicts.push({ incoming: n, existing });
+    }
+    (n.children || []).forEach(walk);
+  })(prunedTree);
+  return conflicts;
 }
 
 /**
@@ -425,26 +546,332 @@ export function openSitemapImportModal(opts) {
     body.appendChild(retryBtn);
   }
 
-  function renderResult(tree) {
+  /** Atlanan sayfa / sınır bilgisini özetler; hiçbiri yoksa null döner (satır hiç açılmaz). */
+  function buildSkipSummary(job) {
+    const skipped = job.skipped || [];
+    const templateCapped = job.templateCapped || 0;
+    const navErrors = skipped.filter(s => s.reason === 'nav_error').length;
+    const robotsBlocked = skipped.filter(s => s.reason === 'robots').length;
+    if (!navErrors && !robotsBlocked && !templateCapped) return null;
+
+    const wrap = document.createElement('div');
+    wrap.className = 'sitemap-skip-summary';
+    const parts = [];
+    if (navErrors) parts.push(`${navErrors} sayfa yüklenemediği için atlandı`);
+    if (robotsBlocked) parts.push(`${robotsBlocked} sayfa robots.txt tarafından engellendi`);
+    if (templateCapped) parts.push(`${templateCapped} benzer görünümlü link örnekleme sınırından atlandı`);
+    const line = document.createElement('div');
+    line.textContent = parts.join(' · ');
+    wrap.appendChild(line);
+
+    if (skipped.length) {
+      const details = document.createElement('details');
+      details.className = 'sitemap-skip-details';
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'Atlanan adresleri göster';
+      details.appendChild(summaryEl);
+      skipped.forEach(s => {
+        const row = document.createElement('div');
+        row.className = 'sitemap-skip-row';
+        row.textContent = (s.reason === 'robots' ? 'robots.txt: ' : 'yüklenemedi: ') + s.url;
+        details.appendChild(row);
+      });
+      wrap.appendChild(details);
+    }
+    return wrap;
+  }
+
+  /**
+   * "Daha Detaylı Tara" notunu ve önerilen derinlik/sayfa değerlerini hesaplar.
+   * Kör bir "her zaman +1/+15" yerine crawler'ın bıraktığı iz sürülür:
+   * kuyrukta sayfa sınırından bekleyen link mi vardı (sayfayı artırmak işe yarar),
+   * derinlik sınırına tam denk gelip linkleri hiç incelenmemiş sayfa mı vardı
+   * (derinliği artırmak işe yarar), yoksa site zaten sonuna kadar mı tarandı
+   * (ikisi de işe yaramaz, giriş/etkileşim önerilir).
+   */
+  function buildMoreDetailPlan(job, count) {
+    const prevDepth = lastParams.maxDepth;
+    const prevPages = lastParams.maxPages;
+    const queueRemaining = job.queueRemaining || 0;
+    const depthCapped = job.depthCapped || 0;
+    const atMaxDials = prevDepth >= 4 && prevPages >= 60;
+
+    let nextDepth = prevDepth;
+    let nextPages = prevPages;
+    let note;
+
+    if (atMaxDials) {
+      note = `Önceki tarama ${count} öğe buldu ve zaten en yüksek derinlik/sayfa sınırındaydı (derinlik 4, 60 sayfa). `
+        + 'Farklı sonuç istiyorsan giriş ya da etkileşim seçeneklerini dene.';
+    } else if (!queueRemaining && !depthCapped) {
+      note = `Önceki tarama ${count} öğe buldu ve bu adresten ulaşılabilecek her şeyi, sınıra hiç takılmadan buldu — `
+        + 'derinlik/sayfayı artırmak muhtemelen yeni bir şey getirmez. Farklı sonuç istiyorsan giriş yaparak ya da '
+        + 'etkileşimli taramayı açarak dene.';
+    } else if (queueRemaining && !depthCapped) {
+      nextPages = Math.min(60, prevPages + 15);
+      note = `Önceki tarama ${count} öğe buldu; sırada henüz taranmamış en az ${queueRemaining} sayfa vardı, sayfa `
+        + `sınırına takıldın. Derinlik yeterliydi, sadece en fazla sayfayı ${nextPages}'e çıkarıyorum.`;
+    } else if (!queueRemaining && depthCapped) {
+      nextDepth = Math.min(4, prevDepth + 1);
+      note = `Önceki tarama ${count} öğe buldu; ${depthCapped} sayfanın linkleri derinlik sınırı yüzünden hiç `
+        + `incelenmedi. Sayfa sınırına takılmadın, sadece derinliği ${nextDepth}'e çıkarıyorum.`;
+    } else {
+      nextDepth = Math.min(4, prevDepth + 1);
+      nextPages = Math.min(60, prevPages + 15);
+      note = `Önceki tarama ${count} öğe buldu (derinlik ${prevDepth}, en fazla ${prevPages} sayfa) — hem sayfa hem `
+        + `derinlik sınırına takıldın. Derinlik ${nextDepth}, en fazla ${nextPages} sayfa ile tekrar dene — istersen `
+        + 'kendin de değiştirebilirsin.';
+    }
+    return { nextDepth, nextPages, note };
+  }
+
+  function finalizeAdd(finalTree, summary) {
+    if (finalTree && countNodes(finalTree) > 1) {
+      state.tree.push(finalTree);
+    }
+    persist();
+    renderContent();
+    closeModal();
+    if (summary) uiToast(summary, { type: 'ok' });
+  }
+
+  /** Çakışma yoksa direkt ekler; varsa her biri için "Atla / İçeriğini Güncelle / Ayrı Ekle" soran ekrana geçer. */
+  function proceedToAdd(prunedTree) {
+    const existingMap = collectExistingUrlMap();
+
+    // Kökün KENDİSİ (taramanın başlangıç adresi) ağaçta zaten varsa: kökün doğrudan
+    // çıkardığı başlık/tekrar-bloğu çocukları gerçek bir alt SAYFA değil, o adresin
+    // kendi içeriğidir — her yeniden taramada aynen yeniden üretilip çoğalmasın diye
+    // burada elenir. Gerçek alt sayfalar (type: 'page') normal çakışma akışına girmeye devam eder.
+    const rootLink = (prunedTree.resourceLinks || [])[0];
+    const rootNorm = rootLink ? normalizeForCompare(rootLink.url) : null;
+    const rootConflict = rootNorm ? existingMap.get(rootNorm) : null;
+    const tree = rootConflict
+      ? { ...prunedTree, children: prunedTree.children.filter(c => c.type === 'page') }
+      : prunedTree;
+
+    const conflicts = findConflicts(tree, existingMap);
+    if (!conflicts.length) {
+      const pageCount = countPages(tree);
+      if (!pageCount && rootConflict) {
+        closeModal();
+        uiToast('Bu adresteki içerik ağaçta zaten vardı, yeni bir şey eklenmedi.', { type: 'info' });
+        return;
+      }
+      finalizeAdd(tree, `${pageCount} sayfa ağaca eklendi.`);
+      return;
+    }
+    renderConflicts(tree, conflicts);
+  }
+
+  function renderConflicts(prunedTree, conflicts) {
     setCinema(false);
     body.innerHTML = '';
+
+    const summary = document.createElement('div');
+    summary.className = 'sitemap-summary';
+    summary.textContent = `${conflicts.length} sayfa ağaçta zaten var (aynı adres). Her biri için ne yapalım?`;
+    body.appendChild(summary);
+
+    const OPTIONS = [
+      ['skip', 'Atla (ekleme)'],
+      ['update', 'İçeriğini Güncelle'],
+      ['add', 'Ayrı Ekle']
+    ];
+    const resolutions = new Map();
+
+    const bulkRow = document.createElement('div');
+    bulkRow.className = 'sitemap-conflict-bulk';
+    const bulkLabel = document.createElement('span');
+    bulkLabel.textContent = 'Hepsi için:';
+    bulkRow.appendChild(bulkLabel);
+    const bulkSelect = document.createElement('select');
+    bulkSelect.className = 'drawer-input';
+    OPTIONS.forEach(([v, l]) => {
+      const opt = document.createElement('option');
+      opt.value = v; opt.textContent = l;
+      bulkSelect.appendChild(opt);
+    });
+    bulkRow.appendChild(bulkSelect);
+    const bulkApplyBtn = document.createElement('button');
+    bulkApplyBtn.type = 'button';
+    bulkApplyBtn.className = 'btn';
+    bulkApplyBtn.textContent = 'Uygula';
+    bulkRow.appendChild(bulkApplyBtn);
+    body.appendChild(bulkRow);
+
+    const list = document.createElement('div');
+    list.className = 'sitemap-conflict-list';
+    body.appendChild(list);
+
+    const rowSelects = [];
+    conflicts.forEach(({ incoming, existing }) => {
+      resolutions.set(incoming, 'skip'); // güvenli varsayılan: mevcut (belki zaten doğrulanmış) düğüme dokunma
+      const row = document.createElement('div');
+      row.className = 'sitemap-conflict-row';
+      const label = document.createElement('div');
+      label.className = 'sitemap-conflict-label';
+      label.textContent = incoming.name;
+      const sub = document.createElement('div');
+      sub.className = 'sitemap-field-hint';
+      sub.textContent = 'Ağaçta zaten var: ' + (existing.name || existing.id);
+      label.appendChild(sub);
+      row.appendChild(label);
+      const select = document.createElement('select');
+      select.className = 'drawer-input';
+      OPTIONS.forEach(([v, l]) => {
+        const opt = document.createElement('option');
+        opt.value = v; opt.textContent = l;
+        select.appendChild(opt);
+      });
+      select.value = 'skip';
+      select.onchange = () => resolutions.set(incoming, select.value);
+      row.appendChild(select);
+      list.appendChild(row);
+      rowSelects.push(select);
+    });
+
+    bulkApplyBtn.onclick = () => {
+      const v = bulkSelect.value;
+      rowSelects.forEach(s => { s.value = v; });
+      conflicts.forEach(c => resolutions.set(c.incoming, v));
+    };
+
+    const actions = document.createElement('div');
+    actions.className = 'jira-prompt-actions';
+    const backBtn = document.createElement('button');
+    backBtn.type = 'button';
+    backBtn.className = 'btn';
+    backBtn.textContent = 'Vazgeç';
+    backBtn.onclick = closeModal;
+    actions.appendChild(backBtn);
+    const applyBtn = document.createElement('button');
+    applyBtn.type = 'button';
+    applyBtn.className = 'btn btn-primary';
+    applyBtn.textContent = 'Devam Et';
+    applyBtn.onclick = () => {
+      const skip = new Set();
+      let updatedCount = 0, addedCount = 0;
+      conflicts.forEach(({ incoming, existing }) => {
+        const action = resolutions.get(incoming);
+        if (action === 'skip') {
+          skip.add(incoming);
+        } else if (action === 'update') {
+          existing.children = incoming.children; // id'ler zaten assignIds ile basıldı
+          skip.add(incoming); // ayrıca yeni düğüm olarak eklenmesin
+          updatedCount++;
+        } else {
+          addedCount++;
+        }
+      });
+      function prune(node) {
+        if (skip.has(node)) return null;
+        const children = (node.children || []).map(prune).filter(Boolean);
+        return { ...node, children };
+      }
+      const finalTree = prune(prunedTree);
+      const notConflicting = countPages(prunedTree) - conflicts.length;
+      addedCount += notConflicting;
+      const parts = [];
+      if (addedCount) parts.push(`${addedCount} sayfa eklendi`);
+      if (updatedCount) parts.push(`${updatedCount} sayfanın içeriği güncellendi`);
+      const skipCount = Array.from(resolutions.values()).filter(v => v === 'skip').length;
+      if (skipCount) parts.push(`${skipCount} sayfa atlandı`);
+      finalizeAdd(finalTree, parts.join(' · ') || 'Değişiklik yapılmadı.');
+    };
+    actions.appendChild(applyBtn);
+    body.appendChild(actions);
+  }
+
+  function renderResult(job) {
+    setCinema(false);
+    body.innerHTML = '';
+    const tree = job.tree;
+    initSelection(tree);
+
     const count = countNodes(tree);
     const summary = document.createElement('div');
     summary.className = 'sitemap-summary';
-    summary.textContent = count + ' öğe bulundu. Ağaca yeni bir modül olarak eklensin mi?';
+    summary.textContent = count + ' öğe bulundu. Ağaca eklemek istediklerini seç.';
     body.appendChild(summary);
+
+    const skipInfo = buildSkipSummary(job);
+    if (skipInfo) body.appendChild(skipInfo);
+
+    const toolsRow = document.createElement('div');
+    toolsRow.className = 'sitemap-preview-tools';
+    const searchInput = document.createElement('input');
+    searchInput.type = 'search';
+    searchInput.className = 'drawer-input sitemap-preview-search';
+    searchInput.placeholder = 'Sayfa adında ara…';
+    toolsRow.appendChild(searchInput);
+    const selectAllBtn = document.createElement('button');
+    selectAllBtn.type = 'button';
+    selectAllBtn.className = 'btn';
+    selectAllBtn.textContent = 'Görünenleri Seç';
+    toolsRow.appendChild(selectAllBtn);
+    const deselectAllBtn = document.createElement('button');
+    deselectAllBtn.type = 'button';
+    deselectAllBtn.className = 'btn';
+    deselectAllBtn.textContent = 'Görünenleri Kaldır';
+    toolsRow.appendChild(deselectAllBtn);
+    body.appendChild(toolsRow);
 
     const preview = document.createElement('div');
     preview.className = 'sitemap-preview';
-    renderPreviewTree(tree, preview, 0);
     body.appendChild(preview);
 
-    const prevDepth = lastParams.maxDepth;
-    const prevPages = lastParams.maxPages;
-    const nextDepth = Math.min(4, prevDepth + 1);
-    const nextPages = Math.min(60, prevPages + 15);
-    const atMax = prevDepth >= 4 && prevPages >= 60;
+    const selectedCountEl = document.createElement('div');
+    selectedCountEl.className = 'sitemap-field-hint sitemap-selected-count';
+    body.appendChild(selectedCountEl);
 
+    const totalPages = countPages(tree);
+    let addBtn; // actions bölümünde atanır, repaint() içinde kullanılır
+
+    function countSelectedPages(node) {
+      let n = 0;
+      (function walk(x) {
+        if (x.type === 'page' && x._checked !== false) n++;
+        (x.children || []).forEach(walk);
+      })(node);
+      return n;
+    }
+
+    function repaint() {
+      preview.innerHTML = '';
+      const needle = trNormalize(searchInput.value.trim());
+      renderPreviewTree(tree, preview, 0, needle, onToggle);
+      if (!preview.children.length) {
+        const empty = document.createElement('div');
+        empty.className = 'sitemap-preview-empty';
+        empty.textContent = 'Eşleşme yok.';
+        preview.appendChild(empty);
+      }
+      const sel = countSelectedPages(tree);
+      selectedCountEl.textContent = totalPages ? `${sel} / ${totalPages} sayfa seçili` : '';
+      if (addBtn) addBtn.disabled = sel === 0;
+    }
+
+    function onToggle(node, value) {
+      rollup(tree, node, value);
+      repaint();
+    }
+
+    searchInput.addEventListener('input', repaint);
+    selectAllBtn.onclick = () => {
+      const needle = trNormalize(searchInput.value.trim());
+      (tree.children || []).forEach(top => { if (nodeMatches(top, needle)) setAll(top, true); });
+      rollup(tree, null, null);
+      repaint();
+    };
+    deselectAllBtn.onclick = () => {
+      const needle = trNormalize(searchInput.value.trim());
+      (tree.children || []).forEach(top => { if (nodeMatches(top, needle)) setAll(top, false); });
+      rollup(tree, null, null);
+      repaint();
+    };
+
+    const plan = buildMoreDetailPlan(job, count);
     const moreWrap = document.createElement('div');
     moreWrap.className = 'sitemap-more-detail';
     const moreQ = document.createElement('span');
@@ -458,14 +885,12 @@ export function openSitemapImportModal(opts) {
     moreLink.onclick = () => {
       renderForm({
         url: lastParams.url,
-        maxDepth: nextDepth,
-        maxPages: nextPages,
+        maxDepth: plan.nextDepth,
+        maxPages: plan.nextPages,
         requireLogin: lastParams.requireLogin,
         interactWithUI: lastParams.interactWithUI,
         ignoreRobots: lastParams.ignoreRobots,
-        note: atMax
-          ? `Önceki tarama ${count} öğe buldu ve zaten en yüksek derinlik/sayfa sınırındaydı (derinlik 4, 60 sayfa). Farklı sonuç istiyorsan giriş ya da etkileşim seçeneklerini dene.`
-          : `Önceki tarama ${count} öğe buldu (derinlik ${prevDepth}, en fazla ${prevPages} sayfa). Derinlik ${nextDepth}, en fazla ${nextPages} sayfa ile tekrar dene — istersen kendin de değiştirebilirsin.`
+        note: plan.note
       });
     };
     moreWrap.appendChild(moreLink);
@@ -479,19 +904,20 @@ export function openSitemapImportModal(opts) {
     cancelBtn.textContent = 'Vazgeç';
     cancelBtn.onclick = closeModal;
     actions.appendChild(cancelBtn);
-    const addBtn = document.createElement('button');
+    addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'btn btn-primary';
     addBtn.textContent = 'Ağaca Ekle';
     addBtn.onclick = () => {
-      assignIds(tree);
-      state.tree.push(tree);
-      persist();
-      renderContent();
-      closeModal();
+      const pruned = pruneBySelection(tree);
+      if (!pruned) return; // buton zaten disabled olmalı, ek güvenlik
+      assignIds(pruned);
+      proceedToAdd(pruned);
     };
     actions.appendChild(addBtn);
     body.appendChild(actions);
+
+    repaint();
   }
 
   function poll() {
@@ -512,7 +938,7 @@ export function openSitemapImportModal(opts) {
           renderProgress(job);
         } else if (job.status === 'done') {
           clearInterval(pollTimer); pollTimer = null;
-          renderResult(job.tree);
+          renderResult(job);
         } else if (job.status === 'error') {
           clearInterval(pollTimer); pollTimer = null;
           renderError(job.error || 'Tarama başarısız oldu.');

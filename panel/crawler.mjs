@@ -224,9 +224,13 @@ const REPEATED_BLOCKS_SCRIPT = () => {
 };
 
 // ---------------- ağaç düğümü üretimi ----------------
-const mkNode = (name, type, children = []) => ({
+const mkNode = (name, type, children = [], sourceUrl = null) => ({
   name, type, status: "⬜",
-  notes: [], jiraTasks: [], resourceLinks: [], statusHistory: [],
+  notes: [], jiraTasks: [],
+  resourceLinks: sourceUrl
+    ? [{ url: sourceUrl, label: "", type: "link", createdAt: new Date().toISOString() }]
+    : [],
+  statusHistory: [],
   lastVerifiedAt: null, staleReviewDays: 30, linkTos: [], open: true,
   children, testCases: [],
 });
@@ -365,6 +369,14 @@ export function startCrawlJob({ url, maxDepth = 2, maxPages = 15, requireLogin =
     currentUrl: url,
     error: null,
     tree: null,
+    /** Yüklenemeyen / robots tarafından engellenen sayfalar — {url, reason:'nav_error'|'robots'}. */
+    skipped: [],
+    /** Aynı görünümden (route şablonu) zaten örnek alındığı için hiç kuyruğa girmeyen link sayısı. */
+    templateCapped: 0,
+    /** Derinlik sınırına TAM denk gelip kendi linkleri hiç incelenmeyen sayfa sayısı. */
+    depthCapped: 0,
+    /** Sayfa sınırına takılınca kuyrukta bekleyip hiç ziyaret edilmeyen link sayısı. */
+    queueRemaining: 0,
     cancelled: false,
     needsLogin: Boolean(requireLogin),
     loginConfirmed: false,
@@ -494,13 +506,13 @@ async function crawl(job, { depth: maxDepth, pages: maxPages, requireLogin, inte
       const { norm, url, depth, parent } = queue.shift();
       if (visited.has(norm)) continue;
       job.currentUrl = url;
-      if (!allowed(url)) continue;
+      if (!allowed(url)) { job.skipped.push({ url, reason: "robots" }); continue; }
 
       try {
         await page.goto(url, { waitUntil: "networkidle", timeout: NAV_TIMEOUT_MS });
       } catch {
         try { await page.goto(url, { waitUntil: "load", timeout: NAV_TIMEOUT_MS }); }
-        catch { continue; }
+        catch { job.skipped.push({ url, reason: "nav_error" }); continue; }
       }
       // SPA'lar icerigi yuklemeden sonra render edebilir.
       await page.waitForTimeout(1200);
@@ -532,7 +544,7 @@ async function crawl(job, { depth: maxDepth, pages: maxPages, requireLogin, inte
         try { children = children.concat(await tryInteractions(page, headings)); } catch { /* statik icerik korunur */ }
       }
 
-      visited.set(norm, mkNode(name, "page", children));
+      visited.set(norm, mkNode(name, "page", children, page.url()));
       visitedUrls.set(norm, page.url());
       order.push([norm, parent]);
       job.visited = visited.size;
@@ -549,14 +561,17 @@ async function crawl(job, { depth: maxDepth, pages: maxPages, requireLogin, inte
           if (seen.has(n2)) continue;
           const tpl = routeTemplate(hp.pathname);
           const count = templateCounts.get(tpl) ?? 0;
-          if (count >= ROUTE_TEMPLATE_CAP) continue;   // bu sablondan zaten ornek alindi
+          if (count >= ROUTE_TEMPLATE_CAP) { job.templateCapped++; continue; }   // bu sablondan zaten ornek alindi
           templateCounts.set(tpl, count + 1);
           seen.add(n2);
           queue.push({ norm: n2, url: href, depth: depth + 1, parent: norm });
         }
+      } else {
+        job.depthCapped++;
       }
       await sleep(DELAY_BETWEEN_PAGES_MS);
     }
+    job.queueRemaining = queue.length;
   } finally {
     await browser.close().catch(() => {});
   }
