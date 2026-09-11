@@ -15,6 +15,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { resolveCreds, credLabel } from "./connectors/credentials.mjs";
+import { listSorters } from "./jira-sorters.mjs";
 import { PROJECT } from "./project.mjs";
 
 /*
@@ -134,32 +135,46 @@ export function textToAdf(text) {
   };
 }
 
-// ---------------------------------------------------------------- görünümler
+// ---------------------------------------------------------------- sorter
 const BASE_FIELDS = "summary,status,issuetype,assignee,updated,priority,parent";
 const FIELDS = JIRA.sprintFieldId ? `${BASE_FIELDS},${JIRA.sprintFieldId}` : BASE_FIELDS;
 
 /**
- * Görünümler profilden gelir (`jira.views`), çünkü hangi JQL'in işe yaradığı
- * projeye göre değişir. Profil tanımlamamışsa epic tabanlı iki genel görünüm
- * kurulur — panel Jira sekmesi profilsiz de açılabilsin diye.
+ * "Tümü" — TEK sabit sorter. 2026-09-11'e kadar profil kod içinde 4 statik
+ * görünüm (Test kolonu/Bloklu/Tüm epic/Bug'lar) tanımlıyordu; bunlar
+ * kaldırıldı (bkz. CLAUDE.md → "Jira: Sorter") — kodda projeye özgü statik
+ * bir sorter YOK. Bunun yerine bağlı Jira projesinden (epic'ten DEĞİL —
+ * epic'i olmayan bir profilde bile çalışsın diye) dinamik türetilen bu tek
+ * seçenek var; bunun dışındaki her sorter kullanıcının panelden eklediği bir
+ * kayıt (bkz. jira-sorters.mjs).
  */
-export const VIEWS =
-  typeof PROJECT.jira.views === "function"
-    ? PROJECT.jira.views(JIRA)
-    : (PROJECT.jira.views ?? {
-        test: {
-          label: "Test kolonu (bende bekleyen)",
-          jql: `parent = ${JIRA.epic} AND status = "Test" ORDER BY key`,
-        },
-        epic: {
-          label: "Tüm epic",
-          jql: `parent = ${JIRA.epic} ORDER BY status, key`,
-        },
-      });
+export const ALL_SORTER = {
+  id: "all",
+  label: "Tümü",
+  jql: `project = ${JIRA.project} ORDER BY status, key`,
+};
 
-/** Bir görünümü çeker; sayfalama nextPageToken ile (total alanı YOK). */
-export async function getCards(view = "test", limit = 100) {
-  const v = VIEWS[view] ?? VIEWS.test;
+function mapIssues(issues) {
+  return issues.map((i) => ({
+    key: i.key,
+    summary: i.fields.summary,
+    status: i.fields.status?.name ?? "",
+    type: i.fields.issuetype?.name ?? "",
+    assignee: i.fields.assignee?.displayName ?? "",
+    priority: i.fields.priority?.name ?? "",
+    updated: i.fields.updated ?? "",
+    sprint: (i.fields[JIRA.sprintFieldId] ?? []).map((s) => s?.name).filter(Boolean),
+    url: `${JIRA.host}/browse/${i.key}`,
+  }));
+}
+
+/** Bir sorter'ı çeker; sayfalama nextPageToken ile (total alanı YOK). */
+export async function getCards(view = "all", limit = 100) {
+  const v = view === "all" || !view
+    ? ALL_SORTER
+    : listSorters().find((s) => s.id === view);
+  if (!v) throw new Error(`Sorter bulunamadı: ${view}`);
+
   const issues = [];
   let token = null;
   do {
@@ -170,22 +185,22 @@ export async function getCards(view = "test", limit = 100) {
     token = page.isLast ? null : page.nextPageToken;
   } while (token && issues.length < limit);
 
-  return {
-    view,
-    label: v.label,
-    jql: v.jql,
-    cards: issues.map((i) => ({
-      key: i.key,
-      summary: i.fields.summary,
-      status: i.fields.status?.name ?? "",
-      type: i.fields.issuetype?.name ?? "",
-      assignee: i.fields.assignee?.displayName ?? "",
-      priority: i.fields.priority?.name ?? "",
-      updated: i.fields.updated ?? "",
-      sprint: (i.fields[JIRA.sprintFieldId] ?? []).map((s) => s?.name).filter(Boolean),
-      url: `${JIRA.host}/browse/${i.key}`,
-    })),
-  };
+  return { view, label: v.label, jql: v.jql, cards: mapIssues(issues) };
+}
+
+/**
+ * Bir sorter'ı KAYDETMEDEN ÖNCE dener — kullanıcının panelden yazdığı ham
+ * JQL'i doğrudan Jira'ya sorar. Kayıtlı bir sorter aramaz, `getCards`'tan
+ * ayrı tutulmasının sebebi bu: burada henüz diskte olmayan bir metin var.
+ * Küçük bir örnek (ilk 5) + toplam sayı döner; tam liste çekmez.
+ */
+export async function testJql(jql) {
+  const clean = String(jql ?? "").trim();
+  if (!clean) throw new Error("JQL boş olamaz");
+  const qs = new URLSearchParams({ jql: clean, maxResults: "20", fields: FIELDS });
+  const page = await api(`/rest/api/3/search/jql?${qs}`);
+  const cards = mapIssues(page.issues ?? []);
+  return { count: cards.length, sample: cards.slice(0, 5) };
 }
 
 /**

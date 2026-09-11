@@ -98,25 +98,11 @@ export const jira = {
    *
    * Kart açarken isim kalıbı ekibin biçimine uyar:
    * "TEPE - Redesign > <Alan> > <problem>"
+   *
+   * ⚠️ Sabit "views" listesi KALDIRILDI (2026-09-11) — bkz. CLAUDE.md → "Jira:
+   * Sorter". Panel artık tek sabit sorter'ı (Tümü) bağlı projeden kendisi
+   * türetiyor; profilde statik bir görünüm tanımına gerek/yer yok.
    */
-  views: (J) => ({
-    test: {
-      label: "Test kolonu (bende bekleyen)",
-      jql: `parent = ${J.epic} AND status = "Test" ORDER BY key`,
-    },
-    blocked: {
-      label: "Bloklu",
-      jql: `parent = ${J.epic} AND status IN ("Test Blocked", "Blocked", "Failed") ORDER BY key`,
-    },
-    epic: {
-      label: "Tüm redesign epic'i",
-      jql: `parent = ${J.epic} ORDER BY status, key`,
-    },
-    bugs: {
-      label: "Redesign bug'ları (son 30 gün)",
-      jql: `project = ${J.project} AND issuetype = Bug AND summary ~ "Redesign" AND updated >= -30d ORDER BY updated DESC`,
-    },
-  }),
 };
 
 /**

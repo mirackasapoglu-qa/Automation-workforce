@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { loadEnv } from "../env.mjs";
 import {
   JIRA,
-  VIEWS,
+  ALL_SORTER,
   getCards,
   getCard,
   postComment,
@@ -34,7 +34,9 @@ import {
   whoami,
   attachFile,
   assignableUsers,
+  testJql,
 } from "./jira.mjs";
+import { listSorters, saveSorter, deleteSorter } from "./jira-sorters.mjs";
 import { startProxy } from "./proxy.mjs";
 import { matchRoute, runsForCard, CARD_SPECS } from "./route-map.mjs";
 import { PROJECT, activeEnv, ordersAllowed, issueRe } from "./project.mjs";
@@ -1383,10 +1385,9 @@ const server = http.createServer(async (req, res) => {
           host: JIRA.host,
           project: JIRA.project,
           epic: JIRA.epic,
-          views: Object.entries(VIEWS).map(([id, v]) => ({
-            id,
-            label: v.label,
-          })),
+          // Sorter listesi ARTIK burada değil — bkz. GET /api/jira/sorters.
+          // Tek seferlik /api/meta anlık görüntüsü yerine her Jira sekmesi
+          // açılışında taze çekiliyor (yeni eklenen/silinen sorter'lar için).
         },
         project: {
           id: PROJECT.id,
@@ -1510,8 +1511,53 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/jira/whoami") return send(res, 200, await whoami());
 
     if (p === "/api/jira/cards") {
-      const view = url.searchParams.get("view") ?? "test";
+      const view = url.searchParams.get("view") ?? "all";
       return send(res, 200, await getCards(view));
+    }
+
+    /**
+     * Sorter'lar — bkz. CLAUDE.md → "Jira: Sorter". "Tümü" (`ALL_SORTER`)
+     * tek sabit seçenek; geri kalanı `panel-data/jira-sorters.json`'da
+     * kullanıcının kendi eklediği kayıtlar (bkz. jira-sorters.mjs).
+     */
+    if (p === "/api/jira/sorters" && req.method === "GET") {
+      return send(res, 200, { ok: true, all: ALL_SORTER, custom: listSorters() });
+    }
+    if (p === "/api/jira/sorters" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { id, label, jql } = await readBody(req);
+      try {
+        const record = saveSorter({ id, label, jql });
+        audit({ event: "jira-sorter-save", id: record.id, label: record.label });
+        return send(res, 200, { ok: true, sorter: record });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+    if (p === "/api/jira/sorters/delete" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { id } = await readBody(req);
+      try {
+        deleteSorter(id);
+        audit({ event: "jira-sorter-delete", id });
+        return send(res, 200, { ok: true });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
+    }
+    /**
+     * KAYDETMEDEN ÖNCE dene — kullanıcının panelde yazdığı ham JQL'i
+     * doğrudan Jira'ya sorar, diske hiçbir şey yazmaz (bkz. jira.mjs → testJql).
+     */
+    if (p === "/api/jira/sorters/test" && req.method === "POST") {
+      if (!requireAuth(req, res)) return;
+      const { jql } = await readBody(req);
+      try {
+        const result = await testJql(jql);
+        return send(res, 200, { ok: true, ...result });
+      } catch (e) {
+        return send(res, 400, { ok: false, error: e.message });
+      }
     }
 
     if (p.startsWith("/api/jira/card/")) {

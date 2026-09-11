@@ -54,20 +54,7 @@ export const jira = {
   projectFieldId: "customfield_10072",
   projectFieldValueId: "10136", // TEPEHOME
   sprintFieldId: "customfield_10020",
-  views: (J) => ({
-    acik: {
-      label: "Açık kartlar (bende bekleyen)",
-      jql: `project = ${J.project} AND statusCategory != Done ORDER BY created DESC`,
-    },
-    bana: {
-      label: "Bana atanmış",
-      jql: `project = ${J.project} AND assignee = currentUser() AND statusCategory != Done ORDER BY status, key`,
-    },
-    tumu: {
-      label: "Tümü",
-      jql: `project = ${J.project} ORDER BY created DESC`,
-    },
-  }),
+  // ⚠️ Sabit "views" listesi KALDIRILDI (2026-09-11) — bkz. CLAUDE.md → "Jira: Sorter".
 };
 
 /**

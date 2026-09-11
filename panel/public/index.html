@@ -1035,11 +1035,16 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
           <div id="bugOut"></div>
         </div>
       </details>
-      <div class="row">
-        <select id="jView" style="width:auto;min-width:240px"></select>
+      <div class="row" style="align-items:center">
+        <select id="jSorter" style="width:auto;min-width:240px"></select>
         <button style="width:auto" onclick="loadCards()">Yenile</button>
+        <button style="width:auto" onclick="toggleSorterForm()">+ Sorter ekle</button>
+        <button style="width:auto" id="sorterEditBtn" hidden onclick="editSelectedSorter()">Düzenle</button>
+        <button class="danger" style="width:auto" id="sorterDeleteBtn" hidden onclick="deleteSelectedSorter()">Sil</button>
         <span class="mono" id="jMeta"></span>
       </div>
+      <div id="sorterFormBox"></div>
+      <div id="sorterEmptyHint"></div>
       <div class="scroll"><table id="jTable"></table></div>
       <div id="jCard" hidden style="margin-top:16px;border-top:1px solid var(--line);padding-top:14px"></div>
     </div>
@@ -1428,7 +1433,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   }
   if (b.dataset.tab === 'results') loadResults();
   if (b.dataset.tab === 'verdict') loadVerdicts();
-  if (b.dataset.tab === 'jira') loadCards();
+  if (b.dataset.tab === 'jira') loadSorters().then(loadCards);
   if (b.dataset.tab === 'perf') loadPerfHistory();
   if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'perf') loadPerf();
@@ -1520,7 +1525,8 @@ async function load() {
   }
 
   if (m.jira?.available) {
-    $('#jView').innerHTML = m.jira.views.map(v => `<option value="${v.id}">${esc(v.label)}</option>`).join('');
+    // Sorter listesi burada DOLDURULMUYOR — bkz. loadSorters(), Jira sekmesi
+    // her açılışta taze çekiyor (yeni eklenen/silinen sorter'lar için).
     $('#jMeta').textContent = `${m.jira.project} / ${m.jira.epic}`;
   } else {
     $('#jMeta').textContent = 'Jira kimliği yok (~/.jira-credentials)';
@@ -2083,7 +2089,7 @@ es.addEventListener('diff-end', e => {
 const statusColor = (st) => /Failed|Blocked/i.test(st) ? 'no' : /Tamam|Release|Deploy/i.test(st) ? 'ok' : 'sk';
 
 async function loadCards() {
-  const view = $('#jView').value || 'test';
+  const view = $('#jSorter').value || 'all';
   $('#jTable').innerHTML = '<tr><td class="mono">yükleniyor...</td></tr>';
   try {
     const d = await (await fetch('/api/jira/cards?view=' + encodeURIComponent(view))).json();
@@ -2558,7 +2564,123 @@ async function doTransition(key) {
   if (r.ok) { openCard(key); loadCards(); }
 }
 
-$('#jView').onchange = loadCards;
+/**
+ * SORTER YONETIMI. "Tümü" (`SORTERS.all`) tek sabit seçenek, kodda değil
+ * `panel/jira.mjs → ALL_SORTER`'da tanımlı — burada asla düzenlenemez/silinemez.
+ * Geri kalanı `SORTERS.custom` — panel-data/jira-sorters.json'da duran,
+ * kullanıcının kendi ekleyip düzenleyip silebildiği kayıtlar.
+ */
+let SORTERS = { all: { id: 'all', label: 'Tümü' }, custom: [] };
+
+async function loadSorters() {
+  const d = await (await fetch('/api/jira/sorters')).json();
+  if (d.ok) SORTERS = { all: d.all, custom: d.custom || [] };
+  renderSorterSelect();
+}
+
+function renderSorterSelect() {
+  const sel = $('#jSorter');
+  const prev = sel.value;
+  sel.innerHTML = `<option value="${SORTERS.all.id}">${esc(SORTERS.all.label)}</option>` +
+    SORTERS.custom.map(s => `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join('');
+  sel.value = SORTERS.custom.some(s => s.id === prev) ? prev : SORTERS.all.id;
+  syncSorterButtons();
+  // Ozel sorter yoksa teskvik edici bir kutu — ilk kullanima surtunmesiz giris.
+  $('#sorterEmptyHint').innerHTML = SORTERS.custom.length ? '' : `
+    <div class="sg-hint" style="border:1px dashed var(--line);border-radius:8px;padding:14px;margin:8px 0;text-align:center">
+      Henüz kendi sorter'ını eklemedin. JQL biliyorsan kendi filtreni kurabilirsin.<br>
+      <button style="width:auto;margin-top:8px" onclick="toggleSorterForm()">+ Sorter ekle</button>
+    </div>`;
+}
+
+/** "Tümü" secilince duzenle/sil gizlenir — o sabit, kullanicinin kaydi degil. */
+function syncSorterButtons() {
+  const isCustom = $('#jSorter').value !== SORTERS.all.id;
+  $('#sorterEditBtn').hidden = !isCustom;
+  $('#sorterDeleteBtn').hidden = !isCustom;
+}
+
+/**
+ * Ekleme/duzenleme formu. `editing` bir sorter id'si verilirse mevcut
+ * degerlerle acilir. Ikinci kez cagrilirsa (form zaten aciksa) kapatir —
+ * "+ Sorter ekle"ye tekrar basmak butonu tuvalet gibi ac/kapa yapsin diye.
+ */
+function toggleSorterForm(editing) {
+  const box = $('#sorterFormBox');
+  if (box.innerHTML && !editing) { box.innerHTML = ''; return; }
+  const s = editing ? SORTERS.custom.find(x => x.id === editing) : null;
+  box.innerHTML = `
+    <div style="border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0;max-width:560px">
+      <div class="fld"><label for="sfLabel">İsim</label><input id="sfLabel" value="${s ? esc(s.label) : ''}"></div>
+      <div class="fld"><label for="sfJql">JQL</label><textarea id="sfJql" rows="3">${s ? esc(s.jql) : ''}</textarea></div>
+      <div class="row" style="align-items:center">
+        <button style="width:auto" onclick="testSorterJql()">Dene</button>
+        <button style="width:auto" id="sfSaveBtn" disabled onclick="saveSorterForm('${s ? s.id : ''}')">Kaydet</button>
+        <button style="width:auto" onclick="toggleSorterForm()">Vazgeç</button>
+        <span class="mono" id="sfState">önce "Dene" ile JQL'i doğrula</span>
+      </div>
+      <div id="sfTestOut"></div>
+    </div>`;
+  // JQL metni "Dene"den SONRA degisirse Kaydet tekrar kilitlenir — test edilen
+  // metinle kaydedilen metin farkli olmasin diye (bkz. CLAUDE.md).
+  $('#sfJql').addEventListener('input', () => {
+    $('#sfSaveBtn').disabled = true;
+    $('#sfTestOut').innerHTML = '';
+    $('#sfState').className = 'mono';
+    $('#sfState').textContent = 'JQL değişti — tekrar "Dene"';
+  });
+}
+
+async function testSorterJql() {
+  const jql = $('#sfJql').value.trim();
+  const st = $('#sfState');
+  if (!jql) { st.className = 'mono err'; st.textContent = 'JQL boş olamaz'; return; }
+  st.className = 'mono';
+  st.textContent = 'deneniyor…';
+  const d = await post('/api/jira/sorters/test', { jql });
+  if (!d.ok) {
+    st.className = 'mono err';
+    st.textContent = d.error || 'JQL çalıştırılamadı';
+    $('#sfSaveBtn').disabled = true;
+    return;
+  }
+  st.className = 'mono okc';
+  st.textContent = `${d.count} kart döndü`;
+  $('#sfTestOut').innerHTML = d.sample.length
+    ? d.sample.map(c => `<div class="mono">${esc(c.key)} — ${esc(c.summary || '')}</div>`).join('')
+    : '<div class="mono w">(sonuç yok — JQL çalıştı ama hiçbir kart eşleşmedi)</div>';
+  $('#sfSaveBtn').disabled = false;
+}
+
+async function saveSorterForm(id) {
+  const label = $('#sfLabel').value.trim();
+  const jql = $('#sfJql').value.trim();
+  const st = $('#sfState');
+  const d = await post('/api/jira/sorters', id ? { id, label, jql } : { label, jql });
+  if (!d.ok) { st.className = 'mono err'; st.textContent = d.error || 'kaydedilemedi'; return; }
+  toggleSorterForm();
+  await loadSorters();
+  $('#jSorter').value = d.sorter.id;
+  syncSorterButtons();
+  loadCards();
+}
+
+function editSelectedSorter() {
+  toggleSorterForm($('#jSorter').value);
+}
+
+async function deleteSelectedSorter() {
+  const id = $('#jSorter').value;
+  const s = SORTERS.custom.find(x => x.id === id);
+  if (!s) return;
+  if (!await uiConfirm(`"${s.label}" sorter'ı silinecek.`, { title: 'Sorter sil', ok: 'Sil' })) return;
+  const d = await post('/api/jira/sorters/delete', { id });
+  if (!d.ok) return uiToast(d.error || 'silinemedi', { type: 'err' });
+  await loadSorters();
+  loadCards();
+}
+
+$('#jSorter').onchange = () => { syncSorterButtons(); loadCards(); };
 
 loadSpecs().then(previewCustom);
 load();

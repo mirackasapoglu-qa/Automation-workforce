@@ -1552,9 +1552,12 @@ yazarken kimlik dosyasının host'unu kullanma, sessizce 0 sonuç alırsın (öl
 değilse yorum hiç yazılmaz (ölçüldü 2026-08-22: MAC-7248/7251 geçti, gerekçe kayboldu).
 `panel/jira.mjs → transition()` artık yorumu **ayrı** `postComment` çağrısıyla yazıyor.
 
-⚠️ **Panelin "Test kolonu" görünümü alt görevleri kaçırıyor.** `VIEWS.test` JQL'i
-`parent = <epic>` diyor; Test statüsündeki alt görevler epic'in değil hikâyelerin çocuğu
-oluyor (ör. MAC-7248/7251 → üst kart MAC-7074) ve panelde hiç görünmüyor.
+⚠️ **`parent = <epic>` JQL'i alt görevleri kaçırır.** Test statüsündeki alt
+görevler epic'in değil hikâyelerin çocuğu oluyor (ör. MAC-7248/7251 → üst kart
+MAC-7074) — `parent = <epic>` yazan bir sorter bunları hiç görmez. Bu artık
+panelin sabit bir görünümünün hatası değil (bkz. "Jira: Sorter" — sabit
+görünümler kaldırıldı) ama kendi özel sorter'ını `parent = <epic>` ile
+yazarsan aynı tuzağa düşersin; `project = <proje>` daha güvenli.
 
 
 
@@ -1607,6 +1610,59 @@ Smoke test gerekiyorsa başlığa `[GEÇERSİZ - OTOMASYON TEST KAYDI]` yaz, ata
 
 **Yazma kuralı:** `postComment`, `transition`, `createBug` uçları panelde **onay diyaloğu arkasında**;
 otomatik yazma yok. Bir koşum sonucunu Jira'ya yazmadan önce kullanıcıya göster.
+
+## Jira: Sorter (2026-09-11)
+
+Jira sekmesindeki "görünüm seçici" artık **Sorter** — isim değişikliği kozmetik
+değil, ne olduğunu daha doğru anlatıyor: farklı görsel temsiller arasında
+geçiş yapmıyor (Flowscope'taki Ağaç/Diyagram/Pano gibi), sabit bir kart
+kümesini FARKLI JQL sorgularıyla filtreleyip sıralıyor.
+
+**Eski hâli (2026-09-11'e kadar) tamamen kaldırıldı**: `panel/projects/<proje>.mjs`
+içinde `jira.views(J)` diye bir fonksiyon 4 statik görünüm (Test kolonu, Bloklu,
+Tüm redesign epic'i, Bug'lar) tanımlıyordu — değiştirmek için kodu düzenleyip
+paneli yeniden başlatmak gerekiyordu. Artık **kodda hiçbir statik sorter tanımı
+yok** (`homee.mjs` ve `mto.mjs`'den `views` bloğu tamamen silindi).
+
+**Yeni model, iki katman:**
+- **"Tümü"** (`panel/jira.mjs → ALL_SORTER`) — TEK sabit seçenek, silinemez/
+  düzenlenemez. JQL'i `project = <JIRA.project> ORDER BY status, key` —
+  epic'e DEĞİL, doğrudan bağlı Jira projesine bakıyor (bilinçli: bir epic'i
+  olmayan profilde bile çalışsın, bkz. `mto.mjs`'nin `epic: null` olması).
+- **Özel sorter'lar** (`panel/jira-sorters.mjs`, `panel-data/jira-sorters.json`)
+  — kullanıcının panelden eklediği `{id, label, jql, createdAt}` kayıtları.
+  **Tohumlama YOK**: dosya yoksa boş liste, profilden hiçbir şey kopyalanmaz.
+  Tam CRUD: ekle/düzenle/sil, hepsi panelden. Kimlik/e-posta alanı YOK —
+  panelin önünde henüz kullanıcı girişi olmadığı için (bkz. "Güvenlik modeli")
+  sorter'lar bu paneli kullanan herkes için ortak/paylaşılan bir liste;
+  bireysel giriş geldiğinde bu alan eklenecek, veri şekli o zaman genişleyecek
+  (bugünden veri taşıma sorunu çıkarmasın diye bilinçli tasarım).
+
+**Kaydetmeden önce "Dene"**: hem ekleme hem düzenlemede JQL'i kaydetmeden önce
+gerçekten Jira'ya sorup sonuç gösteren ayrı bir adım var (`POST
+/api/jira/sorters/test` → `jira.mjs → testJql()`, ilk 5 kartı örnek döner).
+"Kaydet" düğmesi ancak "Dene" başarılı olunca açılıyor; **JQL metni Dene'den
+SONRA değişirse Kaydet tekrar kilitleniyor** — test edilen metinle kaydedilen
+metnin aynı olduğunu garanti etmek için (arayüzde `#sfJql`'in `input`
+olayında).
+
+**Uçlar**: `GET /api/jira/sorters` (kimlik istemez, `{all, custom}` döner),
+`POST /api/jira/sorters` (`{id?, label, jql}` — id verilip mevcutsa günceller,
+yoksa yeni açar, token korumalı), `POST /api/jira/sorters/delete` (`{id}`),
+`POST /api/jira/sorters/test` (`{jql}` — diske hiçbir şey yazmaz). `/api/jira/cards`
+uç noktasının kendisi (`?view=`) DEĞİŞMEDİ — sadece artık `all` ya da bir özel
+sorter id'si kabul ediyor, `test/blocked/epic/bugs` gibi sabit id'ler yok.
+`/api/meta`'nın `jira` alanından `views` listesi de kaldırıldı — istemci
+sorter listesini artık sayfa yüklenirken bir kere değil, Jira sekmesi HER
+açılışında `/api/jira/sorters`'tan taze çekiyor (`loadSorters()`), yeni
+eklenen/silinen bir sorter panel yeniden başlatılmadan görünsün diye.
+
+**Boşken teşvik**: özel sorter listesi boşsa (ilk kurulumda hep böyle, tohumlama
+olmadığı için) kesik çizgili bir kutu + "+ Sorter ekle" — Dikkat görünümündeki
+`attention-scan-card` ile aynı görsel dil.
+
+⚠️ Eski `parent = <epic>` alışkanlığıyla özel bir sorter yazarsan yukarıdaki
+"alt görevleri kaçırır" tuzağına düşebilirsin — `project = <proje>` daha güvenli.
 
 ## Tam kod taraması notları (2026-08-29)
 
@@ -1999,8 +2055,8 @@ geri aldığını ölçer.
 ürününün ham ekran envanteri ve `origin` remote'u public. Üretilen belgeler
 (`feature-inventory`, `product-brief`) commit edilir.
 
-Panel Jira uçları: `/api/jira/cards?view=test|blocked|epic|bugs`, `/api/jira/card/<KEY>`,
-`POST /api/jira/comment|transition|bug`.
+Panel Jira uçları: `/api/jira/cards?view=all|<sorter-id>` (bkz. "Jira: Sorter"),
+`/api/jira/card/<KEY>`, `POST /api/jira/comment|transition|bug`.
 
 Agent dosyaları repo bilgisini prompt'a gömer — keşifle zaman harcamasınlar diye.
 Yeni bir konvansiyon eklersen ilgili agent'ı da güncelle.
