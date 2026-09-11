@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Homee QA — Ölçülmüş test altyapısı</title>
+<title>Case2AI — Ölçülmüş test altyapısı</title>
 <meta name="description" content="88 test case, 33 rotanın performans ölçümü, Jira kartları ve kotasız tasarım diff'i — tek ekranda, ölçülmüş kanıtla.">
 
 <!-- Favicon: logo mark, white. Exact data URI from the spec. -->
@@ -223,6 +223,15 @@ button { font-family: inherit; }
 
 .header-cta { justify-self: end; }
 
+/* Marka hero'da, URL kutusunun ustunde: header'daki kucuk logonun buyugu. */
+.hero-brand {
+  gap: 12px;
+  margin-bottom: 22px;
+  font-size: clamp(28px, 3.2vw, 44px);
+  letter-spacing: -0.035em;
+}
+.hero-brand .logo-mark { width: 1.15em; height: 1.15em; }
+
 /* ── Buttons: one liquid-glass language ─────────────────────────────────── */
 .btn {
   position: relative;
@@ -362,6 +371,90 @@ button { font-family: inherit; }
   color: var(--muted);
 }
 
+
+/* ── URL kutusu: "gir, basla" ────────────────────────────────────────────
+   Ghost hero dugmesiyle ayni cam; icinde duz input + solid "Tara". */
+.hero-url {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  max-width: 560px;
+  /* Kutu basligin ustunde, biraz havada: hero alta yaslandigi icin
+     yukari cikis alt bosluktan. Yuksekligi kisa ekranlarda daralir. */
+  margin: 0 0 clamp(80px, 36vh, 360px);
+  padding: 5px 5px 5px 16px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.5) 46%, rgba(150, 170, 200, 0.1));
+  border: 1px solid rgba(198, 198, 198, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease;
+}
+.hero-url:focus-within {
+  border-color: rgba(220, 230, 255, 0.85);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 0 24px rgba(170, 200, 255, 0.28);
+}
+.hero-url.is-invalid { border-color: rgba(255, 140, 140, 0.8); }
+.hero-url-input {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--hero-btn-h) - 10px);
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: #ffffff;
+  font-family: var(--ui);
+  font-size: var(--btn);
+  letter-spacing: -0.01em;
+}
+.hero-url-input::placeholder { color: transparent; }
+/* Parlayan yer tutucu: soldan saga kayan isik seridi, metnin icinde. */
+.hero-url-ghost {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-family: var(--ui);
+  font-size: var(--btn);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.45);
+  background: linear-gradient(100deg,
+    rgba(255, 255, 255, 0.58) 0%, rgba(255, 255, 255, 0.58) 38%,
+    #ffffff 50%,
+    rgba(255, 255, 255, 0.58) 62%, rgba(255, 255, 255, 0.58) 100%);
+  background-size: 260% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ghost-shine 3.2s ease-in-out infinite;
+  display: none;
+}
+.hero-url-input:placeholder-shown + .hero-url-ghost { display: block; }
+@keyframes ghost-shine {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -140% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-url-ghost { animation: none; background-position: 50% 0; }
+}
+.hero-url-go { height: calc(var(--hero-btn-h) - 10px); padding: 0 16px; border-radius: 5px; flex: none; }
+.hero-url-msg {
+  position: absolute;
+  left: 0; right: 0; top: 100%;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: #ffb4b4;
+  min-height: 1em;
+}
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
 
 .hero-actions {
   display: flex;
@@ -824,6 +917,10 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
   :root { --h1: 34px; --header-x: 16px; }
   .hero-actions { flex-direction: column; }
   .hero-actions .btn { width: 100%; }
+  .hero-url { padding-left: 12px; }
+  .hero-url-ghost { font-size: 13px; left: 12px; }
+  .hero-url-msg { position: static; margin-top: 4px; }
+  .hero-url { flex-wrap: wrap; }
 }
 </style>
 </head>
@@ -852,24 +949,40 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
 
 
   <header class="header">
-    <a class="logo appear appear--scale" href="#top" aria-label="Homee QA" style="--d: 0.08s">
-      <svg class="logo-mark" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-        <g transform="rotate(-30 12 12)">
-          <circle cx="7.3" cy="3.2" r="1.45"/>
-          <rect x="5.5" y="4.7" width="3.6" height="14.6" rx="1.8"/>
-          <rect x="14.9" y="4.7" width="3.6" height="14.6" rx="1.8"/>
-          <circle cx="16.7" cy="20.8" r="1.45"/>
-        </g>
-      </svg>
-      <span>Homee<span class="logo-suffix"> QA</span></span>
-    </a>
 
-    <a class="btn btn-solid header-cta appear appear--scale" data-hq="scope" href="/scope" style="--d: 0.34s">Denemeye başla</a>
 
   </header>
 
   <main class="hero" id="top">
     <div class="hero-copy">
+
+      <a class="logo hero-brand appear appear--scale" href="#top" aria-label="Case2AI" style="--d: 0.10s">
+        <svg class="logo-mark" width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <g transform="rotate(-30 12 12)">
+            <circle cx="7.3" cy="3.2" r="1.45"/>
+            <rect x="5.5" y="4.7" width="3.6" height="14.6" rx="1.8"/>
+            <rect x="14.9" y="4.7" width="3.6" height="14.6" rx="1.8"/>
+            <circle cx="16.7" cy="20.8" r="1.45"/>
+          </g>
+        </svg>
+        <span>Case<span class="logo-suffix">2AI</span></span>
+      </a>
+
+      <!-- URL'i gir, tarama HEMEN baslasin: Flowscope'un "URL'den Ice Aktar"
+           kutusuna `/scope#import&url=<adres>` ile gidilir; kutu dolu acilir ve
+           varsayilan ayarlarla taramayi kendisi baslatir (scope/js/shell.js →
+           sitemap-import.js). Adres yalnizca http/https; gerisi orada duz forma
+           duser. Sunucuda hedef ayrica SSRF/hiz kapisindan gecer (crawl-guard). -->
+      <form class="hero-url appear appear--btn" id="heroUrlForm" style="--d: 0.20s" autocomplete="off" novalidate>
+        <label class="sr-only" for="heroUrl">Taranacak adres</label>
+        <!-- Yer tutucu ayri bir ortu: `::placeholder` uzerinde gradyan/animasyon
+             tarayicilar arasi tutarsiz. Input bos oldugu surece (:placeholder-shown,
+             bunun icin placeholder tek bosluk) ortu gorunur, yazmaya baslayinca gider. -->
+        <input id="heroUrl" class="hero-url-input" type="url" inputmode="url" spellcheck="false" placeholder=" ">
+        <span class="hero-url-ghost" aria-hidden="true">URL’i gir, tarama hemen başlasın</span>
+        <button class="btn btn-solid hero-url-go" type="submit" aria-label="Taramayı başlat">Go</button>
+        <div class="hero-url-msg" id="heroUrlMsg" role="status" aria-live="polite"></div>
+      </form>
 
       <span class="badge appear appear--pop" style="--d: 0.22s">
         <svg class="badge-star" width="18" height="20" viewBox="0 0 24 24" fill="white" aria-hidden="true">
@@ -879,19 +992,12 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
       </span>
 
       <h1>
-        <span class="headline-line appear appear--mask" style="--d: 0.42s">Ölç, sonra <em>iddia et</em>.</span>
-        <span class="headline-line appear appear--mask" style="--d: 0.62s">Kanıt tek ekranda.</span>
+        <span class="headline-line appear appear--mask" style="--d: 0.42s">Detaylar tek akışta.</span>
       </h1>
 
 
-      <!-- Akis sirasi: landing → Flowscope (kapsam agaci) → Panele don.
-           Flowscope giris noktasi ONCE gelir; oradaki "Panele don" dugmesi
-           zinciri panele baglar (scope/js/shell.js). Panel linki ikincil. -->
-      <div class="hero-actions">
-        <a class="btn btn-solid btn-hero appear appear--btn" data-hq="scope" href="/scope" style="--d: 0.96s">Kapsam ağacını aç</a>
-        <a class="btn btn-ghost btn-hero appear appear--side" data-hq="panel" href="/" style="--d: 1.10s">Paneli aç</a>
-        <a class="btn btn-ghost btn-hero appear appear--side" data-hq="onboarding" href="/onboarding" style="--d: 1.24s">Başlangıç rehberi</a>
-      </div>
+      <!-- Hero'da dugme yok: giris noktasi yukaridaki URL kutusu. Kapsam/Panel/
+           Rehber baglantilari ust barda ve vitrin sonunda (showcase-end) duruyor. -->
 
     </div>
   </main>
@@ -1031,6 +1137,38 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
 <script>
 (function () {
   "use strict";
+
+  /* ── URL kutusu → Flowscope'ta taramayi baslat ───────────────────────── */
+  var urlForm = document.getElementById("heroUrlForm");
+  if (urlForm) {
+    var urlInput = document.getElementById("heroUrl");
+    var urlMsg = document.getElementById("heroUrlMsg");
+    var say = function (t) { urlMsg.textContent = t || ""; urlForm.classList.toggle("is-invalid", !!t); };
+    urlInput.addEventListener("input", function () { say(""); });
+    urlForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      var raw = (urlInput.value || "").trim();
+      if (!raw) { say("Bir adres yaz: https://siten.com"); urlInput.focus(); return; }
+      if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) raw = "https://" + raw; /* sema yoksa https varsay */
+      var u;
+      try { u = new URL(raw); } catch (_) { u = null; }
+      if (!u || (u.protocol !== "http:" && u.protocol !== "https:") || !u.hostname || u.hostname.indexOf(".") < 0) {
+        say("Geçerli bir web adresi değil. Örnek: https://siten.com");
+        urlInput.focus();
+        return;
+      }
+      /* Kapsam adresi bardan: `<a data-hq="scope">` ile AYNI tablo (HQ_NAV). */
+      var scopeBase = (window.HqNav && typeof HqNav.urlFor === "function") ? HqNav.urlFor("scope") : "";
+      if (!scopeBase) {
+        var a = document.querySelector('a[data-hq="scope"]');
+        scopeBase = a ? a.getAttribute("href") : "/scope";
+      }
+      scopeBase = scopeBase.replace(/[#?].*$/, "").replace(/\/+$/, "") || "/scope";
+      urlForm.querySelector(".hero-url-go").disabled = true;
+      say("");
+      location.href = scopeBase + "#import&url=" + encodeURIComponent(u.href);
+    });
+  }
 
   var appears = Array.prototype.slice.call(document.querySelectorAll(".appear"));
   var photo = document.querySelector(".hero-photo");

@@ -22,6 +22,14 @@ function assignIds(node) {
   return node;
 }
 
+/** Yalnızca http(s) ve mutlak adres; aksi hâlde boş. Hash'ten gelen değer güvenilmez girdi. */
+function safeHttpUrl(raw) {
+  try {
+    const u = new URL(String(raw ?? '').trim());
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : '';
+  } catch { return ''; }
+}
+
 function countNodes(node) {
   return 1 + (node.children || []).reduce((sum, c) => sum + countNodes(c), 0);
 }
@@ -41,7 +49,17 @@ function renderPreviewTree(node, container, depth) {
   (node.children || []).forEach(c => renderPreviewTree(c, container, depth + 1));
 }
 
-export function openSitemapImportModal() {
+/**
+ * @param {{url?: string, autoStart?: boolean}} [opts]
+ *   `url`       — kutuyu bu adresle dolu aç (landing'deki "URL'i gir, başla" kutusu).
+ *   `autoStart` — formu göstermeden varsayılanlarla (derinlik 2, 15 sayfa, girişsiz,
+ *                 etkileşimsiz, robots'a uyar) taramayı HEMEN başlat. Yalnızca http/https
+ *                 adres kabul edilir; başka her şey düz forma düşer.
+ */
+export function openSitemapImportModal(opts) {
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const startUrl = safeHttpUrl(o.url);
+  const autoStart = Boolean(startUrl) && o.autoStart !== false;
   closeModal();
   const overlay = document.createElement('div');
   overlay.className = 'sitemap-overlay';
@@ -83,6 +101,7 @@ export function openSitemapImportModal() {
     urlField.className = 'drawer-input sitemap-url-input';
     urlField.placeholder = 'https://example.com';
     urlField.type = 'url';
+    if (startUrl) urlField.value = startUrl;
     body.appendChild(urlField);
 
     const row = document.createElement('div');
@@ -222,6 +241,13 @@ export function openSitemapImportModal() {
     current.className = 'sitemap-progress-url';
     current.textContent = job.currentUrl || '';
     body.appendChild(current);
+    if (autoStart) {
+      const not = document.createElement('div');
+      not.className = 'sitemap-field-hint';
+      not.textContent = 'Varsayılan ayarlarla başlatıldı (derinlik 2, en fazla 15 sayfa, girişsiz). '
+        + 'Site giriş istiyorsa veya sonuç boş gelirse: İptal → "URL’den İçe Aktar" ile seçenekleri aç.';
+      body.appendChild(not);
+    }
 
     if (job.session || job.sessionSaved) {
       const oturum = document.createElement('div');
@@ -414,6 +440,11 @@ export function openSitemapImportModal() {
       .catch(() => renderError('Panel sunucusuna ulaşılamadı.'));
   }
 
-  renderForm();
+  if (autoStart) {
+    // Form atlanır; hata olursa renderError → "Tekrar Dene" dolu forma döner.
+    startCrawl(startUrl, 2, 15, false, false, false);
+  } else {
+    renderForm();
+  }
   state.root.appendChild(overlay);
 }

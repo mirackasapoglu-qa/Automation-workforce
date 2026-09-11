@@ -29,7 +29,7 @@ export default function Navbar() {
           {/* Adres bardan: sunucuda landing kokte DEGIL (panel orada), /home'da. */}
           <a data-hq="landing" href="/" className="flex items-center gap-2">
             <Globe size={24} className="text-white" />
-            <span className="text-white font-semibold text-lg">Homee QA</span>
+            <span className="text-white font-semibold text-lg">Case2AI</span>
           </a>
           <div className="hidden md:flex items-center gap-8 ml-8">
             {LINKS.map((l) => (

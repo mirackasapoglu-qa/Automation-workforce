@@ -47,7 +47,7 @@ function sharedNav(): PluginOption {
           tag: "script",
           // Kirilim kokU BURADAN geliyor: shared/nav cok projeli panelin
           // cekirdegi, icinde proje adi gecemez (bkz. npm run panel:check).
-          children: `HqNav.mount({ surface: ${JSON.stringify(surface)}, root: "Homee QA" });`,
+          children: `HqNav.mount({ surface: ${JSON.stringify(surface)}, root: "Case2AI" });`,
           injectTo: "body-prepend" as const,
         },
       ];

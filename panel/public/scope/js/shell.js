@@ -172,7 +172,7 @@ export function buildToolbar() {
    * panelindeki "Oturum aç" kurtarmasi buraya yonlendiriyor: oturum ancak
    * gorunur bir pencerede insan giris yaparak aciliyor, o akis burada.
    */
-  if (location.hash.includes('import')) openSitemapImportModal();
+  openImportFromHash();
   left.appendChild(sitemapBtn);
 
   const clearBtn = document.createElement('button');
@@ -349,4 +349,23 @@ export function init() {
   requestAnimationFrame(positionIndicator);
   window.addEventListener('resize', positionIndicator);
   renderContent();
+}
+
+/**
+ * `/scope#import` → içe aktarma kutusu boş açılır (eski davranış).
+ * `/scope#import&url=<enc>` → kutu o adresle dolu açılır ve tarama HEMEN başlar
+ *   (landing'deki "URL'i gir, başla" kutusu). `&auto=0` eklenirse başlatmaz, formu gösterir.
+ *
+ * Hash okunur okunmaz temizlenir: sayfa yenilendiğinde ya da geri/ileri ile
+ * dönüldüğünde ikinci bir tarama başlamasın. Adres güvenilmez girdidir;
+ * sitemap-import.js yalnızca http/https kabul eder, gerisi düz forma düşer.
+ */
+function openImportFromHash() {
+  const h = location.hash.replace(/^#/, '');
+  if (!/(^|&)import(&|$)/.test(h)) return;
+  const params = new URLSearchParams(h.split('&').filter(x => x !== 'import').join('&'));
+  const url = params.get('url') || '';
+  const auto = params.get('auto') !== '0';
+  history.replaceState(null, '', location.pathname + location.search);
+  openSitemapImportModal(url ? { url, autoStart: auto } : undefined);
 }

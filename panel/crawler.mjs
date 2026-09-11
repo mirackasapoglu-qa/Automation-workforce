@@ -52,6 +52,25 @@ const DESTRUCTIVE_KEYWORDS = [
 const jobs = new Map();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Eşzamanlı tarama tavanı. Her iş bir Chromium açıyor; landing'den tek tıkla
+ * başlatılabildiği için tavan olmadan sunucu belleği birkaç istekte biter.
+ * Bitmiş işler 1 saat sonra unutulur (sonuç ağacı bellekte duruyor).
+ */
+const MAX_RUNNING = Math.max(1, Number(process.env.CRAWL_MAX_CONCURRENT) || 2);
+const JOB_TTL_MS = 60 * 60_000;
+const ACTIVE = new Set(["running", "waiting_login"]);
+export const runningCount = () => [...jobs.values()].filter((j) => ACTIVE.has(j.status)).length;
+export const maxRunning = () => MAX_RUNNING;
+function pruneJobs() {
+  const now = Date.now();
+  for (const [id, j] of jobs) {
+    if (ACTIVE.has(j.status)) continue;
+    const t = Date.parse(j.finishedAt || j.startedAt || 0) || 0;
+    if (now - t > JOB_TTL_MS) jobs.delete(id);
+  }
+}
+
 // ---------------- URL yardımcıları ----------------
 function normalizeUrl(u) {
   const x = new URL(u);
@@ -364,6 +383,10 @@ export function startCrawlJob({ url, maxDepth = 2, maxPages = 15, requireLogin =
      */
     ignoringRobots: Boolean(ignoreRobots) && isOwnHost(url, projectBaseUrl),
   };
+  pruneJobs();
+  if (runningCount() >= MAX_RUNNING) {
+    return { error: `Şu an ${MAX_RUNNING} tarama sürüyor; biri bitince tekrar dene.`, code: "BUSY" };
+  }
   jobs.set(jobId, job);
   crawl(job, {
     depth, pages,
@@ -372,7 +395,8 @@ export function startCrawlJob({ url, maxDepth = 2, maxPages = 15, requireLogin =
     storageState: sessionStateFor(url, projectBaseUrl)?.storageState ?? null,
     ignoreRobots: Boolean(ignoreRobots) && isOwnHost(url, projectBaseUrl),
   })
-    .catch((e) => { job.status = "error"; job.error = `Beklenmeyen hata: ${e.message}`; });
+    .catch((e) => { job.status = "error"; job.error = `Beklenmeyen hata: ${e.message}`; })
+    .finally(() => { job.finishedAt = new Date().toISOString(); });
   return jobId;
 }
 

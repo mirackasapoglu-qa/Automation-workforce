@@ -62,6 +62,7 @@ import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunRes
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
 import * as crawler from "./crawler.mjs";
+import { validateTarget, createRateLimiter, clientKey } from "./crawl-guard.mjs";
 import * as sessions from "./sessions.mjs";
 import { runCommentDraft, verdictCommentDraft } from "./jira-report.mjs";
 import { capture as perfCapture, list as perfHistory, diffRoutes } from "./perf-history.mjs";
@@ -273,6 +274,19 @@ const PUBLIC_ORIGIN_ENV = (
   || ""
 ).replace(/\/+$/, "");
 
+/*
+ * Tarama iç adreslere gidebilir mi? Lokalde (panel yalnızca localhost'ta,
+ * dışa açık adres yok) evet: kişi kendi makinesindeki uygulamayı tarar.
+ * Sunucuda (PANEL_PUBLIC_URL / PANEL_ORIGIN verilmiş) hayır — SSRF kapısı.
+ * `CRAWL_ALLOW_PRIVATE=1|0` ile elle ezilir.
+ */
+const CRAWL_ALLOW_PRIVATE = process.env.CRAWL_ALLOW_PRIVATE !== undefined
+  ? process.env.CRAWL_ALLOW_PRIVATE === "1"
+  : !PUBLIC_ORIGIN_ENV;
+const crawlRate = createRateLimiter({
+  limit: Math.max(1, Number(process.env.CRAWL_RATE_PER_10M) || 6),
+  windowMs: 10 * 60_000,
+});
 function publicOriginFor(req) {
   if (PUBLIC_ORIGIN_ENV) return PUBLIC_ORIGIN_ENV;
   const first = (v) => String(v || "").split(",")[0].trim();
@@ -1263,8 +1277,23 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/crawl" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
       const body = await readBody(req);
-      const target = String(body.url ?? "").trim();
-      if (!target) return send(res, 400, { ok: false, error: "url gerekli." });
+      /*
+       * Tarama kapısı (crawl-guard.mjs). Landing'deki URL kutusu bu ucu tek
+       * tıkla tetikliyor; hedef SSRF/şema denetiminden, istemci hız
+       * sınırından, toplam iş eşzamanlılık tavanından geçmeden tarayıcı açılmaz.
+       */
+      const hiz = crawlRate.take(clientKey(req));
+      if (!hiz.ok) {
+        res.setHeader("retry-after", String(hiz.retryAfterSec));
+        audit({ event: "crawl-ratelimit", client: clientKey(req) });
+        return send(res, 429, { ok: false, error: `Çok sık tarama isteği. ${hiz.retryAfterSec} sn sonra tekrar dene.` });
+      }
+      const hedef = await validateTarget(body.url, { projectBaseUrl: BASE_URL, allowPrivate: CRAWL_ALLOW_PRIVATE });
+      if (!hedef.ok) {
+        audit({ event: "crawl-reject", url: String(body.url ?? "").slice(0, 200), reason: hedef.error });
+        return send(res, 400, { ok: false, error: hedef.error });
+      }
+      const target = hedef.url;
       const jobId = crawler.startCrawlJob({
         url: target,
         maxDepth: body.maxDepth,
@@ -1275,6 +1304,7 @@ const server = http.createServer(async (req, res) => {
         // Kapi oturumu YALNIZCA projenin kendi host'una eklenir (crawler.mjs).
         projectBaseUrl: BASE_URL,
       });
+      if (typeof jobId !== "string") return send(res, 429, { ok: false, error: jobId.error, code: jobId.code });
       audit({ event: "crawl-start", url: target, jobId, interact: Boolean(body.interactWithUI) });
       broadcast("log", { stream: "out", line: `[tarama] basladi: ${target}` });
       return send(res, 200, { ok: true, jobId });

@@ -525,6 +525,13 @@
     registerCommands: function (fn) {
       if (typeof fn === "function") providers.push(fn);
     },
+
+    /**
+     * Bir yuzeyin tam adresi ("" = o yuzey bu kurulumda yok). Landing'deki
+     * "URL'i gir, tarama baslasin" kutusu Kapsam adresini buradan alir;
+     * `<a data-hq>` cozumuyle AYNI tabloyu kullanir, iki ayri tahmin olmaz.
+     */
+    urlFor: function (id) { return urlFor(id); },
   };
 
   window.HqNav = HqNav;

@@ -48,7 +48,7 @@ export function LargeNameFooter({ className }: { className?: string }) {
           <div className="max-w-sm">
             <div className="flex items-center gap-2">
               <Globe size={20} className="text-white/70" />
-              <span className="text-lg font-semibold text-white">Homee QA</span>
+              <span className="text-lg font-semibold text-white">Case2AI</span>
             </div>
             <p className="mt-4 text-sm leading-relaxed text-white/45">
               88 test case, 33 rotanın performans ölçümü, Jira kartları ve kotasız tasarım
@@ -87,7 +87,7 @@ export function LargeNameFooter({ className }: { className?: string }) {
           className="mt-16 select-none bg-gradient-to-b from-white/[0.14] to-white/[0.02] bg-clip-text text-transparent"
         >
           <p className="serif text-center text-[19vw] leading-[0.8] tracking-tight md:text-[15vw]">
-            Homee QA
+            Case2AI
           </p>
         </div>
 
