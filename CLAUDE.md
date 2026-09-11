@@ -1759,16 +1759,24 @@ değilse ❌). Veri modelleri **BİLEREK birleştirilmedi** (Panel'in Sorter'ı 
   döner ve sorter dropdown'da hiç görünmez — boş `key in ()` geçersiz JQL
   olurdu. "Tümü" gibi bu da sabit: düzenlenemez/silinemez, `syncSorterButtons`
   ikisini de "custom değil" sayıyor.
+- **Üçüncü sabit sorter — "Flowscope'a Bağlı Değil"** (2026-09-12,
+  `panel/jira.mjs → flowscopeUnlinkedSorter()`). `flowscopeSorter()`'ın
+  simetriği: `project = <proje> AND key NOT IN (...)` diyerek hiçbir sayfaya/
+  düğüme bağlanmamış kartları (QA modelimizin dışında kalan iş kalemleri)
+  gösterir. Bağlı kart hiç yoksa (`keys.length === 0`) bu sorgu "Tümü" ile
+  birebir aynı sonucu verirdi — anlamsız bir kopya olmasın diye o durumda
+  `flowscopeSorter()` İLE TUTARLI olarak `null` döner, ikisi birlikte kaybolur.
 
 Test disiplini: syntax kontrolü + gerçek `PANEL_PROJECT=homee` ile doğrudan
-`flowscopeSorter()` çağrılıp gerçek ağaçtaki 15 benzersiz Task ID'nin doğru
-JQL'e girdiği doğrulandı, canlı panelde sahte kart yanıtıyla (gerçek Jira
-kimliği bu ortamda yok) kart detayındaki Flowscope linklerinin doğru render
-olduğu VE tıklanınca gerçekten `/scope/#node=<id>`'ye gidip doğru düğümün
-drawer'ını açtığı, Sorter dropdown'ında "Flowscope'a Bağlı"nın doğru sırada
-göründüğü ve seçilince Düzenle/Sil'in gizli kaldığı, kimliksiz ortamda
-`?view=flowscope`'un çökmeden gerçek hata döndürdüğü — sıfır konsol
-hatasıyla doğrulandı.
+`flowscopeSorter()`/`flowscopeUnlinkedSorter()` çağrılıp gerçek ağaçtaki 15
+benzersiz Task ID'nin doğru JQL'e (hem `IN` hem `NOT IN` yönünde) girdiği
+doğrulandı, canlı panelde sahte kart yanıtıyla (gerçek Jira kimliği bu
+ortamda yok) kart detayındaki Flowscope linklerinin doğru render olduğu VE
+tıklanınca gerçekten `/scope/#node=<id>`'ye gidip doğru düğümün drawer'ını
+açtığı, Sorter dropdown'ında üç sabit seçeneğin de doğru sırada göründüğü ve
+her biri seçilince Düzenle/Sil'in gizli kaldığı, kimliksiz ortamda
+`?view=flowscope` ve `?view=flowscope-unlinked`'in çökmeden gerçek hata
+döndürdüğü — sıfır konsol hatasıyla doğrulandı.
 
 ## Tam kod taraması notları (2026-08-29)
 

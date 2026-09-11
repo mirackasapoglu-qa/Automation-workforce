@@ -173,6 +173,25 @@ export function flowscopeSorter() {
   };
 }
 
+/**
+ * "Flowscope'a Bağlı Değil" — `flowscopeSorter()`'ın simetriği: hiçbir sayfaya/
+ * düğüme bağlanmamış kartları gösterir (QA modelimizin dışında kalan iş
+ * kalemleri, bkz. CLAUDE.md → "Panel ↔ Flowscope"). Bağlı kart hiç yoksa
+ * (`keys.length === 0`) bu sorgu "Tümü" ile birebir aynı sonucu verirdi —
+ * anlamsız bir kopya olmasın diye o durumda da `null` döner (flowscopeSorter
+ * ile TUTARLI: ikisi de "hiç bağlı kart yok" durumunda birlikte kaybolur).
+ */
+export function flowscopeUnlinkedSorter() {
+  const { tree } = readTree();
+  const keys = collectJiraTaskIds(tree);
+  if (!keys.length) return null;
+  return {
+    id: "flowscope-unlinked",
+    label: "Flowscope'a Bağlı Değil",
+    jql: `project = ${JIRA.project} AND key NOT IN (${keys.map((k) => `"${k.replace(/"/g, "")}"`).join(", ")}) ORDER BY status, key`,
+  };
+}
+
 function mapIssues(issues) {
   return issues.map((i) => ({
     key: i.key,
@@ -192,6 +211,7 @@ export async function getCards(view = "all", limit = 100) {
   let v;
   if (view === "all" || !view) v = ALL_SORTER;
   else if (view === "flowscope") v = flowscopeSorter();
+  else if (view === "flowscope-unlinked") v = flowscopeUnlinkedSorter();
   else v = listSorters().find((s) => s.id === view);
   if (!v) throw new Error(`Sorter bulunamadı: ${view}`);
 

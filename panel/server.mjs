@@ -27,6 +27,7 @@ import {
   JIRA,
   ALL_SORTER,
   flowscopeSorter,
+  flowscopeUnlinkedSorter,
   getCards,
   getCard,
   postComment,
@@ -1522,7 +1523,13 @@ const server = http.createServer(async (req, res) => {
      * kullanıcının kendi eklediği kayıtlar (bkz. jira-sorters.mjs).
      */
     if (p === "/api/jira/sorters" && req.method === "GET") {
-      return send(res, 200, { ok: true, all: ALL_SORTER, flowscope: flowscopeSorter(), custom: listSorters() });
+      return send(res, 200, {
+        ok: true,
+        all: ALL_SORTER,
+        flowscope: flowscopeSorter(),
+        flowscopeUnlinked: flowscopeUnlinkedSorter(),
+        custom: listSorters(),
+      });
     }
     if (p === "/api/jira/sorters" && req.method === "POST") {
       if (!requireAuth(req, res)) return;

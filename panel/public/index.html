@@ -2616,18 +2616,28 @@ async function doTransition(key) {
 }
 
 /**
- * SORTER YONETIMI. "Tümü" (`SORTERS.all`) ve "Flowscope'a Bağlı"
- * (`SORTERS.flowscope`, kapsam ağacına bağlı kart yoksa `null`) İKİ sabit
- * seçenek — kodda değil `panel/jira.mjs`de tanımlı, burada asla düzenlenemez/
+ * SORTER YONETIMI. "Tümü" (`SORTERS.all`), "Flowscope'a Bağlı" ve
+ * "Flowscope'a Bağlı Değil" (`SORTERS.flowscope` / `.flowscopeUnlinked`,
+ * kapsam ağacına bağlı kart yoksa ikisi de `null`) ÜÇ sabit seçenek —
+ * kodda değil `panel/jira.mjs`de tanımlı, burada asla düzenlenemez/
  * silinemez. Geri kalanı `SORTERS.custom` — panel-data/jira-sorters.json'da
  * duran, kullanıcının kendi ekleyip düzenleyip silebildiği kayıtlar.
  */
-let SORTERS = { all: { id: 'all', label: 'Tümü' }, flowscope: null, custom: [] };
+let SORTERS = { all: { id: 'all', label: 'Tümü' }, flowscope: null, flowscopeUnlinked: null, custom: [] };
 
 async function loadSorters() {
   const d = await (await fetch('/api/jira/sorters')).json();
-  if (d.ok) SORTERS = { all: d.all, flowscope: d.flowscope || null, custom: d.custom || [] };
+  if (d.ok) SORTERS = {
+    all: d.all,
+    flowscope: d.flowscope || null,
+    flowscopeUnlinked: d.flowscopeUnlinked || null,
+    custom: d.custom || [],
+  };
   renderSorterSelect();
+}
+
+function fixedSorterIds() {
+  return [SORTERS.all.id, SORTERS.flowscope?.id, SORTERS.flowscopeUnlinked?.id].filter(Boolean);
 }
 
 function renderSorterSelect() {
@@ -2635,8 +2645,9 @@ function renderSorterSelect() {
   const prev = sel.value;
   sel.innerHTML = `<option value="${SORTERS.all.id}">${esc(SORTERS.all.label)}</option>` +
     (SORTERS.flowscope ? `<option value="${SORTERS.flowscope.id}">${esc(SORTERS.flowscope.label)}</option>` : '') +
+    (SORTERS.flowscopeUnlinked ? `<option value="${SORTERS.flowscopeUnlinked.id}">${esc(SORTERS.flowscopeUnlinked.label)}</option>` : '') +
     SORTERS.custom.map(s => `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join('');
-  const fixedIds = [SORTERS.all.id, SORTERS.flowscope?.id].filter(Boolean);
+  const fixedIds = fixedSorterIds();
   sel.value = SORTERS.custom.some(s => s.id === prev) || fixedIds.includes(prev) ? prev : SORTERS.all.id;
   syncSorterButtons();
   // Ozel sorter yoksa teskvik edici bir kutu — ilk kullanima surtunmesiz giris.
@@ -2647,11 +2658,10 @@ function renderSorterSelect() {
     </div>`;
 }
 
-/** Sabit sorter'lardan (Tümü, Flowscope'a Bağlı) biri secilince duzenle/sil
- * gizlenir — ikisi de kodda hesaplanıyor, kullanıcının kaydı değil. */
+/** Sabit sorter'lardan biri secilince duzenle/sil gizlenir — hepsi kodda
+ * hesaplanıyor, kullanıcının kaydı değil. */
 function syncSorterButtons() {
-  const fixedIds = [SORTERS.all.id, SORTERS.flowscope?.id].filter(Boolean);
-  const isCustom = !fixedIds.includes($('#jSorter').value);
+  const isCustom = !fixedSorterIds().includes($('#jSorter').value);
   $('#sorterEditBtn').hidden = !isCustom;
   $('#sorterDeleteBtn').hidden = !isCustom;
 }
