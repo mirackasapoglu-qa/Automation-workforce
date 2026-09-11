@@ -767,6 +767,153 @@ html, body { background: var(--bg); margin: 0; }
 }
 .sitemap-error { font-size: 12.5px; color: var(--fail); margin-bottom: 14px; line-height: 1.5; }
 
+/* ── Sinema modu: tarama sürerken tam ekran bulanık video + büyük cam pop-up ──
+   sitemap-import.js::setCinema. Video yüklenmezse koyu degrade zemin kalır. */
+.sitemap-modal {
+  transition: width .55s cubic-bezier(.2, .8, .2, 1), min-height .55s cubic-bezier(.2, .8, .2, 1),
+              background-color .4s ease, border-color .4s ease;
+}
+/* Tam ekran arka plan: video + renk lekeleri overlay'e takılır (setCinema), modal cam panel olur. */
+.sitemap-overlay { transition: background-color .4s ease; }
+.sitemap-overlay--cinema {
+  background: #000 radial-gradient(120% 80% at 50% 45%, rgba(120, 130, 160, .35), rgba(0, 0, 0, 0) 60%);
+  overflow: hidden;
+}
+.sitemap-overlay--cinema::after {
+  /* Yazı okunurluğu için videonun üstünde hafif karartma. */
+  content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background: radial-gradient(90% 70% at 50% 50%, rgba(0, 0, 0, .12), rgba(0, 0, 0, .5) 100%);
+}
+.sitemap-modal--cinema {
+  position: relative; z-index: 1;
+  width: min(940px, 100%);
+  min-height: min(580px, 86vh);
+  max-height: 92vh;
+  color: #fff;
+  background: rgba(8, 10, 18, .22);
+  border-color: rgba(255, 255, 255, .16);
+  box-shadow: 0 40px 120px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .08);
+}
+.sitemap-cinema-video {
+  /* Kenarlarda blur sızıntısı görünmesin diye %4 taşırılır. */
+  position: absolute; inset: -4%; width: 108%; height: 108%; object-fit: cover; z-index: 0;
+  filter: blur(14px) saturate(1.15) brightness(.95);
+  opacity: 0; animation: cinema-in 1.4s ease .1s forwards; pointer-events: none;
+}
+@keyframes cinema-in { to { opacity: 1; } }
+
+/* Yükleyici küre (setCinema). Arka plan videosu bulanık ve tam ekran; orb modalın
+   üst-orta bölgesinde durur. İki zıt yönde dönen kalın ışık
+   halkası + nabız çekirdek; parlak zemine karşı görünsün diye güçlü hale. */
+.sitemap-cinema-loader {
+  position: absolute; left: 50%; top: 40%; width: 128px; height: 128px; z-index: 1;
+  transform: translate(-50%, -50%); pointer-events: none;
+  filter: drop-shadow(0 0 14px rgba(255, 255, 255, .75)) drop-shadow(0 0 34px rgba(120, 180, 255, .6));
+}
+.sitemap-cinema-loader .ring {
+  position: absolute; inset: 0; border-radius: 50%;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 7px), #000 calc(100% - 6px));
+}
+.sitemap-cinema-loader .ring-a {
+  background: conic-gradient(from 0deg, transparent 0 30%, rgba(255,255,255,.25) 45%, rgba(190,220,255,.9) 70%, #fff 88%, transparent 100%);
+  animation: cinema-spin 1s linear infinite;
+}
+.sitemap-cinema-loader .ring-b {
+  inset: 16px;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  background: conic-gradient(from 180deg, transparent 0 45%, rgba(255,170,90,.6) 65%, #ffd9b3 90%, transparent 100%);
+  animation: cinema-spin 1.6s linear infinite reverse;
+}
+.sitemap-cinema-loader .core {
+  position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; border-radius: 50%;
+  transform: translate(-50%, -50%); background: #fff;
+  box-shadow: 0 0 14px 5px rgba(255,255,255,.9), 0 0 44px 18px rgba(160, 200, 255, .5);
+  animation: cinema-pulse 1.4s ease-in-out infinite;
+}
+
+/* Renk dalgası katmanı: bulanık renk lekeleri videonun üstünde ağır ağır süzülür. */
+.sitemap-cinema-glow { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; mix-blend-mode: screen; opacity: .75; }
+.sitemap-cinema-glow .blob {
+  position: absolute; width: 55%; aspect-ratio: 1; border-radius: 50%; filter: blur(60px);
+  will-change: transform, opacity;
+}
+.sitemap-cinema-glow .blob-a { left: -10%; top: -20%; background: radial-gradient(circle, rgba(90, 150, 255, .75), rgba(90, 150, 255, 0) 70%); animation: cinema-drift-a 9s ease-in-out infinite alternate; }
+.sitemap-cinema-glow .blob-b { right: -15%; top: 10%; background: radial-gradient(circle, rgba(255, 140, 60, .7), rgba(255, 140, 60, 0) 70%); animation: cinema-drift-b 11s ease-in-out infinite alternate; }
+.sitemap-cinema-glow .blob-c { left: 25%; bottom: -35%; width: 70%; background: radial-gradient(circle, rgba(170, 110, 255, .55), rgba(170, 110, 255, 0) 70%); animation: cinema-drift-c 13s ease-in-out infinite alternate; }
+@keyframes cinema-drift-a { from { transform: translate(0, 0) scale(1); opacity: .6; } to { transform: translate(35%, 30%) scale(1.25); opacity: 1; } }
+@keyframes cinema-drift-b { from { transform: translate(0, 0) scale(1.1); opacity: .9; } to { transform: translate(-40%, 25%) scale(.9); opacity: .5; } }
+@keyframes cinema-drift-c { from { transform: translate(-20%, 0) scale(1); opacity: .5; } to { transform: translate(25%, -25%) scale(1.2); opacity: .9; } }
+@keyframes cinema-spin { to { transform: rotate(360deg); } }
+@keyframes cinema-pulse { 0%, 100% { opacity: .55; transform: translate(-50%, -50%) scale(.85); } 50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); } }
+@keyframes cinema-dot { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+.sitemap-modal--cinema .sitemap-spinner .dot { animation: cinema-dot 1.4s ease-in-out infinite; }
+.sitemap-modal--cinema .sitemap-modal-header,
+.sitemap-modal--cinema .sitemap-modal-body { position: relative; z-index: 1; }
+.sitemap-modal--cinema .sitemap-modal-header {
+  border-bottom: 0;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .45), rgba(0, 0, 0, 0));
+}
+.sitemap-modal--cinema .sitemap-modal-title { color: #fff; font-weight: 500; letter-spacing: -.01em; }
+.sitemap-modal--cinema .drawer-close { color: rgba(255, 255, 255, .8); }
+.sitemap-modal--cinema .drawer-close:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+.sitemap-modal--cinema .sitemap-modal-body {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end;
+  padding: 28px 36px 34px; text-align: center;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0) 30%, rgba(0, 0, 0, .55) 100%);
+}
+.sitemap-modal--cinema .sitemap-spinner {
+  margin: 0 0 16px; gap: 8px; align-items: center; justify-content: center;
+  font-size: 12.5px; color: rgba(255, 255, 255, .85); padding: 7px 12px 7px 10px; border-radius: 999px;
+}
+.sitemap-modal--cinema .sitemap-spinner .dot {
+  width: 7px; height: 7px; border-radius: 50%; background: #fff; box-shadow: 0 0 10px 2px rgba(255,255,255,.7);
+}
+.sitemap-modal--cinema .sitemap-progress-text {
+  text-align: center; font-size: clamp(26px, 3.4vw, 40px); font-weight: 500; letter-spacing: -.03em;
+  line-height: 1.1; color: #fff; margin-bottom: 10px;
+}
+.sitemap-modal--cinema .sitemap-progress-url {
+  text-align: center; font-size: 12.5px; color: rgba(255, 255, 255, .6); max-width: 100%; margin-bottom: 14px;
+}
+.sitemap-modal--cinema .sitemap-field-hint { color: rgba(255, 255, 255, .55); font-size: 12px; max-width: 520px; margin-bottom: 20px; text-align: center; }
+.sitemap-modal--cinema .sitemap-login-msg { color: rgba(255, 255, 255, .9); font-size: 13.5px; max-width: 560px; }
+.sitemap-modal--cinema .sitemap-login-msg strong { color: #fff; }
+.sitemap-modal--cinema .btn {
+  color: #fff; border-radius: 999px; padding: 10px 20px; font-weight: 500;
+}
+.sitemap-modal--cinema .btn:hover { background: rgba(255, 255, 255, .06); }
+.sitemap-modal--cinema .btn-primary { background: #fff; color: #000; border-color: #fff; }
+.sitemap-modal--cinema .btn-primary:hover { background: rgba(255, 255, 255, .9); }
+.sitemap-modal--cinema .sitemap-start-btn { width: auto; }
+
+/* Cam: yarı saydam zemin, hafif bulanıklık, mask ile üst/alt kenarda parlayan degrade çerçeve. */
+.sitemap-modal--cinema .sitemap-spinner,
+.sitemap-modal--cinema .btn:not(.btn-primary) {
+  position: relative; overflow: hidden; isolation: isolate;
+  background: rgba(255, 255, 255, .01); background-blend-mode: luminosity;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  border: none; box-shadow: inset 0 1px 1px rgba(255, 255, 255, .1);
+}
+.sitemap-modal--cinema .sitemap-spinner::before,
+.sitemap-modal--cinema .btn:not(.btn-primary)::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1.4px; pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .45) 0%, rgba(255, 255, 255, .15) 20%,
+    rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0) 60%, rgba(255, 255, 255, .15) 80%, rgba(255, 255, 255, .45) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sitemap-modal { transition: none; }
+  .sitemap-cinema-video { animation: none; opacity: 1; }
+  .sitemap-cinema-loader .ring, .sitemap-cinema-loader .core, .sitemap-modal--cinema .sitemap-spinner .dot, .sitemap-cinema-glow .blob { animation: none; }
+}
+@media (max-width: 640px) {
+  .sitemap-modal--cinema { min-height: min(520px, 80vh); }
+  .sitemap-modal--cinema .sitemap-modal-body { padding: 20px 20px 24px; }
+}
+
 .sitemap-summary { font-size: 13px; color: var(--text); margin-bottom: 12px; }
 .sitemap-preview {
   border: 1px solid var(--border); border-radius: 10px; padding: 10px 4px; max-height: 260px; overflow-y: auto;

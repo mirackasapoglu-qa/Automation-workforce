@@ -9,6 +9,15 @@ let pollTimer = null;
 let currentJobId = null;
 let loginContinueRequested = false;
 
+/**
+ * "Sinema" modu: tarama sürerken pop-up büyür, tüm ekranın arkasında bulanık,
+ * döngülü bir video oynar; modal ve içerik cam (liquid-glass) katmanlarda durur. Yalnızca bekleme
+ * ekranlarında; form ve sonuç ekranı normal boyuta döner. Video dışarıdan
+ * gelir; yüklenemezse modalın kendi koyu degrade zemini kalır, akış bozulmaz.
+ */
+const BG_VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260511_230229_7c9bc431-46cf-489a-948d-e8144d8eb5d4.mp4';
+const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
 function closeModal() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   currentJobId = null;
@@ -69,6 +78,54 @@ export function openSitemapImportModal(opts) {
   modal.className = 'sitemap-modal';
   overlay.appendChild(modal);
 
+  function setCinema(on) {
+    modal.classList.toggle('sitemap-modal--cinema', on);
+    overlay.classList.toggle('sitemap-overlay--cinema', on);
+    let video = overlay.querySelector('.sitemap-cinema-video');
+    let loader = modal.querySelector('.sitemap-cinema-loader');
+    if (on && !video && !REDUCED_MOTION) {
+      video = document.createElement('video');
+      video.className = 'sitemap-cinema-video';
+      // Öznitelikler src'den ÖNCE: tarayıcı sessiz-otomatik oynatma kararını yüklemeye başlarken verir.
+      video.muted = true; video.defaultMuted = true; video.loop = true; video.autoplay = true; video.playsInline = true;
+      video.setAttribute('muted', ''); video.setAttribute('autoplay', ''); video.setAttribute('loop', ''); video.setAttribute('playsinline', '');
+      video.preload = 'auto';
+      video.src = BG_VIDEO;
+      video.addEventListener('error', () => video.remove()); // zemin degrade kalır
+      // Durdurulursa (sekme arka plana düştü, enerji tasarrufu) geri dönüşte tekrar oynat.
+      const oynat = () => video.play().catch(() => { /* engellenirse sessizce degrade */ });
+      video.addEventListener('loadeddata', oynat);
+      video.addEventListener('pause', () => { if (video.isConnected && modal.classList.contains('sitemap-modal--cinema')) oynat(); });
+      overlay.insertBefore(video, overlay.firstChild); // tam ekran, modalın arkasında
+      oynat();
+    } else if (!on && video) {
+      video.pause();
+      video.remove();
+    }
+    // Renk dalgası: videonun üstünde süzülen iki bulanık renk lekesi (screen karışımı).
+    // Klipte küre neredeyse sabit; hareket hissini bu katman veriyor.
+    let glow = overlay.querySelector('.sitemap-cinema-glow');
+    if (on && !glow && !REDUCED_MOTION) {
+      glow = document.createElement('div');
+      glow.className = 'sitemap-cinema-glow';
+      glow.setAttribute('aria-hidden', 'true');
+      glow.innerHTML = '<span class="blob blob-a"></span><span class="blob blob-b"></span><span class="blob blob-c"></span>';
+      overlay.insertBefore(glow, modal);
+    } else if (!on && glow) {
+      glow.remove();
+    }
+    // Kürenin ortasındaki yükleyici: dönen ışık halkası + nabız halesi.
+    if (on && !loader) {
+      loader = document.createElement('div');
+      loader.className = 'sitemap-cinema-loader';
+      loader.setAttribute('aria-hidden', 'true');
+      loader.innerHTML = '<span class="ring ring-a"></span><span class="ring ring-b"></span><span class="core"></span>';
+      modal.insertBefore(loader, body);
+    } else if (!on && loader) {
+      loader.remove();
+    }
+  }
+
   const header = document.createElement('div');
   header.className = 'sitemap-modal-header';
   const title = document.createElement('div');
@@ -88,6 +145,7 @@ export function openSitemapImportModal(opts) {
   modal.appendChild(body);
 
   function renderForm() {
+    setCinema(false);
     body.innerHTML = '';
     loginContinueRequested = false;
 
@@ -228,10 +286,11 @@ export function openSitemapImportModal(opts) {
   }
 
   function renderProgress(job) {
+    setCinema(true);
     body.innerHTML = '';
     const spin = document.createElement('div');
     spin.className = 'sitemap-spinner';
-    spin.innerHTML = ICON.refresh;
+    spin.innerHTML = '<i class="dot"></i><span>Taranıyor</span>';
     body.appendChild(spin);
     const status = document.createElement('div');
     status.className = 'sitemap-progress-text';
@@ -276,6 +335,7 @@ export function openSitemapImportModal(opts) {
   }
 
   function renderWaitingLogin() {
+    setCinema(true);
     body.innerHTML = '';
     const msg = document.createElement('div');
     msg.className = 'sitemap-login-msg';
@@ -335,6 +395,7 @@ export function openSitemapImportModal(opts) {
   }
 
   function renderError(message) {
+    setCinema(false);
     body.innerHTML = '';
     const err = document.createElement('div');
     err.className = 'sitemap-error';
@@ -349,6 +410,7 @@ export function openSitemapImportModal(opts) {
   }
 
   function renderResult(tree) {
+    setCinema(false);
     body.innerHTML = '';
     const count = countNodes(tree);
     const summary = document.createElement('div');
@@ -415,12 +477,21 @@ export function openSitemapImportModal(opts) {
   }
 
   function startCrawl(url, maxDepth, maxPages, requireLogin, interactWithUI, ignoreRobots) {
+    setCinema(true);
     body.innerHTML = '';
     loginContinueRequested = false;
     const spin = document.createElement('div');
     spin.className = 'sitemap-spinner';
-    spin.innerHTML = ICON.refresh;
+    spin.innerHTML = '<i class="dot"></i><span>Tarayıcı açılıyor…</span>';
     body.appendChild(spin);
+    const hedef = document.createElement('div');
+    hedef.className = 'sitemap-progress-text';
+    hedef.textContent = 'Tarama başlıyor';
+    body.appendChild(hedef);
+    const adres = document.createElement('div');
+    adres.className = 'sitemap-progress-url';
+    adres.textContent = url;
+    body.appendChild(adres);
 
     fetch('/api/crawl', {
       method: 'POST',
