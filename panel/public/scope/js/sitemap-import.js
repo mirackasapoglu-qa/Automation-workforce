@@ -8,6 +8,9 @@ import { renderContent } from './shell.js';
 let pollTimer = null;
 let currentJobId = null;
 let loginContinueRequested = false;
+/** Son başlatılan taramanın parametreleri — sonuç ekranındaki "Daha Detaylı Tara"
+ *  linki forma dönerken bunları temel alıp derinlik/sayfayı bir üst kademeye taşır. */
+let lastParams = null;
 
 /**
  * "Sinema" modu: tarama sürerken pop-up büyür, tüm ekranın arkasında bulanık,
@@ -21,6 +24,7 @@ const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-
 function closeModal() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   currentJobId = null;
+  lastParams = null;
   const overlay = state.root.querySelector('.sitemap-overlay');
   if (overlay) overlay.remove();
 }
@@ -144,7 +148,8 @@ export function openSitemapImportModal(opts) {
   body.className = 'sitemap-modal-body';
   modal.appendChild(body);
 
-  function renderForm() {
+  function renderForm(prefill) {
+    const p = prefill || {};
     setCinema(false);
     body.innerHTML = '';
     loginContinueRequested = false;
@@ -155,11 +160,19 @@ export function openSitemapImportModal(opts) {
       + 'her sayfadaki başlık yapısından (h1/h2/h3) otomatik bir modül/sayfa/bölüm ağacı çıkarılır.';
     body.appendChild(hint);
 
+    if (p.note) {
+      const prefillNote = document.createElement('div');
+      prefillNote.className = 'sitemap-prefill-note';
+      prefillNote.textContent = p.note;
+      body.appendChild(prefillNote);
+    }
+
     const urlField = document.createElement('input');
     urlField.className = 'drawer-input sitemap-url-input';
     urlField.placeholder = 'https://example.com';
     urlField.type = 'url';
-    if (startUrl) urlField.value = startUrl;
+    const urlValue = p.url || startUrl;
+    if (urlValue) urlField.value = urlValue;
     body.appendChild(urlField);
 
     const row = document.createElement('div');
@@ -171,7 +184,7 @@ export function openSitemapImportModal(opts) {
     depthLabel.textContent = 'Derinlik';
     depthWrap.appendChild(depthLabel);
     const depthInput = document.createElement('input');
-    depthInput.type = 'number'; depthInput.min = '0'; depthInput.max = '4'; depthInput.value = '2';
+    depthInput.type = 'number'; depthInput.min = '0'; depthInput.max = '4'; depthInput.value = String(p.maxDepth ?? 2);
     depthWrap.appendChild(depthInput);
     const depthHint = document.createElement('span');
     depthHint.className = 'sitemap-field-hint';
@@ -185,7 +198,7 @@ export function openSitemapImportModal(opts) {
     pagesLabel.textContent = 'Maks. sayfa';
     pagesWrap.appendChild(pagesLabel);
     const pagesInput = document.createElement('input');
-    pagesInput.type = 'number'; pagesInput.min = '1'; pagesInput.max = '60'; pagesInput.value = '15';
+    pagesInput.type = 'number'; pagesInput.min = '1'; pagesInput.max = '60'; pagesInput.value = String(p.maxPages ?? 15);
     pagesWrap.appendChild(pagesInput);
     const pagesHint = document.createElement('span');
     pagesHint.className = 'sitemap-field-hint';
@@ -199,6 +212,7 @@ export function openSitemapImportModal(opts) {
     loginWrap.className = 'sitemap-checkbox-row';
     const loginCheckbox = document.createElement('input');
     loginCheckbox.type = 'checkbox';
+    loginCheckbox.checked = !!p.requireLogin;
     loginWrap.appendChild(loginCheckbox);
     const loginText = document.createElement('span');
     loginText.textContent = 'Bu site için giriş yapmam gerekiyor (e-posta/şifre veya e-posta/kod)';
@@ -214,6 +228,7 @@ export function openSitemapImportModal(opts) {
     interactWrap.className = 'sitemap-checkbox-row';
     const interactCheckbox = document.createElement('input');
     interactCheckbox.type = 'checkbox';
+    interactCheckbox.checked = !!p.interactWithUI;
     interactWrap.appendChild(interactCheckbox);
     const interactText = document.createElement('span');
     interactText.textContent = 'Etkileşimli öğeleri de dene (buton/sekme/panel aç) — riskli, dikkatli kullan';
@@ -258,6 +273,7 @@ export function openSitemapImportModal(opts) {
     robotsWrap.className = 'sitemap-checkbox-row';
     const robotsCheckbox = document.createElement('input');
     robotsCheckbox.type = 'checkbox';
+    robotsCheckbox.checked = !!p.ignoreRobots;
     robotsWrap.appendChild(robotsCheckbox);
     const robotsText = document.createElement('span');
     robotsText.textContent = 'robots.txt kurallarını yoksay — yalnızca kendi projenin ortamında';
@@ -405,7 +421,7 @@ export function openSitemapImportModal(opts) {
     retryBtn.type = 'button';
     retryBtn.className = 'btn btn-primary';
     retryBtn.textContent = 'Tekrar Dene';
-    retryBtn.onclick = renderForm;
+    retryBtn.onclick = () => renderForm();
     body.appendChild(retryBtn);
   }
 
@@ -422,6 +438,38 @@ export function openSitemapImportModal(opts) {
     preview.className = 'sitemap-preview';
     renderPreviewTree(tree, preview, 0);
     body.appendChild(preview);
+
+    const prevDepth = lastParams.maxDepth;
+    const prevPages = lastParams.maxPages;
+    const nextDepth = Math.min(4, prevDepth + 1);
+    const nextPages = Math.min(60, prevPages + 15);
+    const atMax = prevDepth >= 4 && prevPages >= 60;
+
+    const moreWrap = document.createElement('div');
+    moreWrap.className = 'sitemap-more-detail';
+    const moreQ = document.createElement('span');
+    moreQ.className = 'sitemap-more-detail-q';
+    moreQ.textContent = 'Bu sonucu beğenmedin mi?';
+    moreWrap.appendChild(moreQ);
+    const moreLink = document.createElement('button');
+    moreLink.type = 'button';
+    moreLink.className = 'sitemap-more-detail-link';
+    moreLink.textContent = 'Daha Detaylı Tara →';
+    moreLink.onclick = () => {
+      renderForm({
+        url: lastParams.url,
+        maxDepth: nextDepth,
+        maxPages: nextPages,
+        requireLogin: lastParams.requireLogin,
+        interactWithUI: lastParams.interactWithUI,
+        ignoreRobots: lastParams.ignoreRobots,
+        note: atMax
+          ? `Önceki tarama ${count} öğe buldu ve zaten en yüksek derinlik/sayfa sınırındaydı (derinlik 4, 60 sayfa). Farklı sonuç istiyorsan giriş ya da etkileşim seçeneklerini dene.`
+          : `Önceki tarama ${count} öğe buldu (derinlik ${prevDepth}, en fazla ${prevPages} sayfa). Derinlik ${nextDepth}, en fazla ${nextPages} sayfa ile tekrar dene — istersen kendin de değiştirebilirsin.`
+      });
+    };
+    moreWrap.appendChild(moreLink);
+    body.appendChild(moreWrap);
 
     const actions = document.createElement('div');
     actions.className = 'jira-prompt-actions';
@@ -477,6 +525,14 @@ export function openSitemapImportModal(opts) {
   }
 
   function startCrawl(url, maxDepth, maxPages, requireLogin, interactWithUI, ignoreRobots) {
+    lastParams = {
+      url,
+      maxDepth: Number(maxDepth),
+      maxPages: Number(maxPages),
+      requireLogin: !!requireLogin,
+      interactWithUI: !!interactWithUI,
+      ignoreRobots: !!ignoreRobots
+    };
     setCinema(true);
     body.innerHTML = '';
     loginContinueRequested = false;

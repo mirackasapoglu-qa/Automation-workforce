@@ -925,6 +925,21 @@ html, body { background: var(--bg); margin: 0; }
   background: var(--surface-raised); border-radius: 999px; padding: 1px 7px; flex-shrink: 0; margin-left: auto;
 }
 
+/* Sonuç ekranında "beğenmedim, daha detaylı tara" bağlantısı */
+.sitemap-more-detail { margin-bottom: 14px; font-size: 12px; }
+.sitemap-more-detail-q { color: var(--text-faint); margin-right: 6px; }
+.sitemap-more-detail-link {
+  background: none; border: none; padding: 0; margin: 0; font-family: inherit;
+  color: var(--accent); font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.sitemap-more-detail-link:hover { text-decoration: underline; }
+
+/* Formun "daha detaylı tara" akışıyla önceden dolduğunu açıklayan not */
+.sitemap-prefill-note {
+  font-size: 11.5px; color: var(--accent); background: var(--accent-dim);
+  border: 1px solid rgba(63, 208, 255, .25); border-radius: 8px; padding: 8px 10px; margin: 8px 0 4px;
+}
+
 /* AI Yardımı modal (Claude Code'a kopyalanacak istem) */
 .ai-assist-overlay {
   position: fixed; inset: 0; background: rgba(3, 5, 10, .6); z-index: 400;
