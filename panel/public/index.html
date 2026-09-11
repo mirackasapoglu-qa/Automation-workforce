@@ -720,6 +720,11 @@
     border:1px solid var(--line);background:var(--card2);font:600 12px var(--mono);color:var(--mut)}
   .cf-body{flex:1;min-width:0}
   .cf-title{font:600 11px var(--mono);letter-spacing:.12em;color:var(--mut);margin-bottom:8px}
+  /* YAZ adimindaki "Yorum" / "Statu Degistir" alt-bloklari — bagimsiz iki eylem
+     ayni satirda karismasin diye ayrildi (bkz. CLAUDE.md). */
+  .cf-substep + .cf-substep{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .cf-subtitle{font:600 10.5px var(--mono);letter-spacing:.1em;color:var(--mut);margin-bottom:6px;text-transform:uppercase}
+  .cf-avail{margin:0 0 8px;font-size:11px;color:var(--mut)}
   .cf-sec{margin:8px 0 0;align-items:center}
   .cf-sec .mono{color:var(--mut);font-size:11px}
   .cf-fail{margin-top:6px;font:12px var(--mono);color:var(--no)}
@@ -2118,12 +2123,37 @@ async function loadCards() {
  * gostersin. Ikincil olan her sey (esleme, istem uret, yorum onizleme, kartin
  * metni) ADIMIN ICINDE ve KAPALI baslar.
  */
+const VERDICT_STATUS_LABEL = { pass: 'Geçti', fail: 'Hata var', blocked: 'Test edilemedi', 'known-issue': 'Bilinen hata' };
+
+/**
+ * "Taslak Oluştur"a basmadan ÖNCE neyin dahil olacağını gösteren satır —
+ * otomatik birleştirme hâlâ değişmedi (kaynak seçici YOK), sadece sonucu
+ * görmeden önce ne bulunduğunu görebiliyorsun.
+ */
+function draftAvailLine(c) {
+  const kosum = c.lastRun
+    ? `✓ Koşum (${c.lastRun.passed}/${c.lastRun.total} geçti · ${esc((c.lastRun.startedAt || '').slice(0, 10))})`
+    : '— Koşum kaydı yok';
+  const karar = c.linkedVerdict
+    ? `✓ Karar (${esc(VERDICT_STATUS_LABEL[c.linkedVerdict.status] || c.linkedVerdict.status)})`
+    : '— Karar kaydı yok';
+  return `Taslağa girecek: ${kosum} · ${karar}`;
+}
+
 async function openCard(key) {
   const box = $('#jCard');
   box.hidden = false;
   box.innerHTML = '<p class="mono">yükleniyor...</p>';
   const c = await (await fetch('/api/jira/card/' + key)).json();
   if (c.error) { box.innerHTML = `<p class="mono err">${esc(c.error)}</p>`; return; }
+  // Bu karta bagli verdict — YAZ adimindaki "neler mevcut" satiri VE taslak
+  // olusturma ikisi de bunu kullaniyor, tek seferde bulunup CARD'a asiliyor
+  // (eskiden commentStep VE fillFromVerdict ayni /api/verdicts listesini ayri
+  // ayri cekip filtreliyordu). "card" alanina gore aranir — bir verdict'in
+  // KENDI anahtari (Verdict sekmesinden acilmis, farkli bir isimle kaydedilmis
+  // olabilir) card anahtariyla ayni OLMAK ZORUNDA degildir.
+  const verdicts = await (await fetch('/api/verdicts')).json();
+  c.linkedVerdict = verdicts.find(v => (v.card || '').toUpperCase() === c.key.toUpperCase()) ?? null;
   CARD = c;
 
   const lr = c.lastRun;
@@ -2210,22 +2240,39 @@ async function openCard(key) {
       <div class="cf-num">3</div>
       <div class="cf-body">
         <div class="cf-title">YAZ</div>
-        <div class="row" style="align-items:center">
-          <button style="width:auto" onclick="commentStep('${c.key}')" id="cfSend">Yorumu hazırla</button>
-          <select id="jTrans" style="width:auto;min-width:180px"
-                  onchange="$('#jTransBtn').disabled = !this.value">
-            <option value="">statü değişmesin</option>
-            ${c.transitions.map(t => `<option value="${t.id}">${esc(t.name)} → ${esc(t.to)}</option>`).join('')}
-          </select>
-          <!-- Statu degisimi geri alinamaz; secim yapilmadikca dugme KAPALI.
-               Onceki halinde bos secimle tiklamak sunucuya bos id gonderiyordu. -->
-          <button class="danger" id="jTransBtn" disabled style="width:auto"
-                  onclick="doTransition('${c.key}')">Statüyü uygula</button>
-          <span class="mono" id="jDraftState"></span>
+
+        <div class="cf-substep">
+          <div class="cf-subtitle">Yorum</div>
+          <p class="mono cf-avail">${draftAvailLine(c)}</p>
+          <textarea id="jComment" rows="7" placeholder="Serbestçe yaz, ya da 'Taslak Oluştur'a bas"></textarea>
+          <div class="row cf-sec" style="align-items:center">
+            <button style="width:auto" onclick="buildDraft('${c.key}')">Taslak Oluştur</button>
+            <!-- Gonder, textarea BOS oldugu surece kapali — metin nereden gelirse
+                 gelsin (elle yazma, taslak, Verdict sekmesinden gelme) tek merkezden
+                 (syncSendBtn) senkronlanir. -->
+            <button style="width:auto" id="cfSend" disabled onclick="sendComment('${c.key}')">Gönder</button>
+            <span class="mono" id="jDraftState"></span>
+          </div>
         </div>
-        <textarea id="jComment" rows="7" hidden placeholder="Yorum metni"></textarea>
+
+        <div class="cf-substep">
+          <div class="cf-subtitle">Statü Değiştir</div>
+          <div class="row" style="align-items:center">
+            <select id="jTrans" style="width:auto;min-width:180px"
+                    onchange="$('#jTransBtn').disabled = !this.value">
+              <option value="">statü değişmesin</option>
+              ${c.transitions.map(t => `<option value="${t.id}">${esc(t.name)} → ${esc(t.to)}</option>`).join('')}
+            </select>
+            <!-- Statu degisimi geri alinamaz; secim yapilmadikca dugme KAPALI.
+                 Onceki halinde bos secimle tiklamak sunucuya bos id gonderiyordu. -->
+            <button class="danger" id="jTransBtn" disabled style="width:auto"
+                    onclick="doTransition('${c.key}')">Statüyü uygula</button>
+          </div>
+        </div>
       </div>
     </div>`;
+  $('#jComment').oninput = syncSendBtn;
+  syncSendBtn();
   decorateTips(box);
   box.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
@@ -2320,63 +2367,64 @@ async function saveCardVerdict(key) {
   st.textContent = d.key
     ? `kaydedildi: ${d.status} · ${(d.updatedAt || '').slice(11, 16)} · Jira'ya gitmedi`
     : (d.error || 'kaydedilemedi');
+  // YAZ adimindaki "taslaga girecek" satiri "Karar kaydi yok" diyordu —
+  // az once kaydettigimiz karari hemen yansitsin diye CARD.linkedVerdict'i
+  // guncelleyip satiri yeniden ciziyoruz (kartin tamamini yeniden acmadan).
+  if (d.key) {
+    CARD.linkedVerdict = d;
+    const avail = document.querySelector('.cf-avail');
+    if (avail) avail.textContent = draftAvailLine(CARD);
+  }
+}
+
+/** Textarea'nin degerini HEM yazar HEM Gonder dugmesinin durumunu senkronlar —
+ * programatik atama (`.value = `) `input` olayini tetiklemez, bu yuzden metni
+ * elle degil kod ile dolduran her yer (taslak, Verdict'ten gelme) bunu cagirmali. */
+function setCommentText(text) {
+  $('#jComment').value = text;
+  syncSendBtn();
+}
+function syncSendBtn() {
+  $('#cfSend').disabled = !$('#jComment').value.trim();
 }
 
 /**
- * ③ YAZ — iki tikli gonderim. Ilk tik metni HAZIRLAR ve gosterir (kosum ozeti
- * + varsa kayitli karar), ikinci tik gonderir. Yorum geri alinamaz bir iz;
- * "gonder" dedigi anda gitmesi, yanlis kosumun ozetini karta cakma riski.
+ * "Taslak Oluştur" — koşum özeti + varsa kayıtlı karar otomatik birleşir
+ * (kaynak seçici YOK, `draftAvailLine` bu ikisinin neyi bulduğunu ÖNCEDEN
+ * gösteriyor zaten). Textarea'da elle yazılmış bir şey varsa üzerine yazmadan
+ * önce sorar — "Taslak Oluştur"a yanlışlıkla basıp yazdığın metni kaybetme.
  */
-async function commentStep(key) {
+async function buildDraft(key) {
   const ta = $('#jComment');
-  const btn = $('#cfSend');
   const st = $('#jDraftState');
-  if (ta.hidden || !ta.value.trim()) {
-    st.className = 'mono';
-    st.textContent = 'hazırlanıyor…';
-    const parcalar = [];
-    const run = await (await fetch('/api/jira/comment-draft?key=' + encodeURIComponent(key))).json();
-    if (run.ok) parcalar.push(run.text);
-    const vs = await (await fetch('/api/verdicts')).json();
-    const bagli = vs.filter(v => (v.card || '').toUpperCase() === key.toUpperCase());
-    if (bagli.length) {
-      const vd = await (await fetch('/api/jira/verdict-draft?verdict=' + encodeURIComponent(bagli[0].key))).json();
-      if (vd.ok) parcalar.push(vd.text);
-    }
-    if (!parcalar.length) {
-      st.className = 'mono err';
-      st.textContent = run.error || 'yazacak bir şey yok — koş ya da karar kaydet';
-      return;
-    }
-    ta.value = parcalar.join('\n\n———\n\n');
-    ta.hidden = false;
-    btn.textContent = 'Jira\'ya gönder';
-    st.className = 'mono';
-    st.textContent = 'metni düzenleyebilirsin · gönder demedikçe Jira\'ya gitmez';
+  if (ta.value.trim() && !await uiConfirm(
+    'Yorum kutusunda zaten metin var, taslak bunun üzerine yazacak.',
+    { title: 'Taslak oluştur', ok: 'Üzerine yaz' })) return;
+  st.className = 'mono';
+  st.textContent = 'hazırlanıyor…';
+  const parcalar = [];
+  const run = await (await fetch('/api/jira/comment-draft?key=' + encodeURIComponent(key))).json();
+  if (run.ok) parcalar.push(run.text);
+  if (CARD?.linkedVerdict) {
+    const vd = await (await fetch('/api/jira/verdict-draft?verdict=' + encodeURIComponent(CARD.linkedVerdict.key))).json();
+    if (vd.ok) parcalar.push(vd.text);
+  }
+  if (!parcalar.length) {
+    st.className = 'mono err';
+    st.textContent = run.error || 'Koşum ya da karar kaydı yok — serbestçe yazabilirsin';
     return;
   }
-  sendComment(key);
+  setCommentText(parcalar.join('\n\n———\n\n'));
+  st.className = 'mono';
+  st.textContent = 'taslak dolduruldu · düzenleyebilirsin · gönder demedikçe Jira\'ya gitmez';
 }
 
 /**
- * KART TARAFI YARDIMCILARI
- *
- * Uc islev de TASLAK uretir, Jira'ya yazmaz: metin `#jComment`e dolar,
- * gonderme yine tek yerden (`sendComment`) ve onayla oluyor. Sebep basit —
- * yorum kalici bir iz; yanlis kosumun ozetini otomatik yazmak geri alinamaz.
+ * VERDICT SEKMESİNDEN GELME. Bu, `buildDraft`tan BİLEREK ayrı: oradan
+ * "kart → " ile gelen kişi genel koşum özetiyle SEYRELTİLMEMİŞ, doğrudan O
+ * verdict'in metnini görmek istiyor. Taslak üretir, Jira'ya yazmaz — gönderme
+ * yine tek yerden (`sendComment`) ve onayla oluyor.
  */
-async function fillFromRun(key) {
-  const st = $('#jDraftState');
-  st.textContent = 'kosum sonucu okunuyor…';
-  try {
-    const d = await (await fetch('/api/jira/comment-draft?key=' + encodeURIComponent(key))).json();
-    if (!d.ok) { st.className = 'mono err'; st.textContent = d.error || 'taslak uretilemedi'; return; }
-    $('#jComment').value = d.text;
-    st.className = 'mono';
-    st.textContent = d.specs?.length ? `spec: ${d.specs.join(', ')}` : 'esleme yok — tum kosum';
-  } catch (e) { st.className = 'mono err'; st.textContent = e.message; }
-}
-
 async function fillFromVerdict(key) {
   const st = $('#jDraftState');
   st.textContent = 'verdict araniyor…';
@@ -2391,7 +2439,7 @@ async function fillFromVerdict(key) {
     // Birden fazlaysa EN GUNCEL kayit: verdict listesi updatedAt'e gore sirali geliyor.
     const d = await (await fetch('/api/jira/verdict-draft?verdict=' + encodeURIComponent(bagli[0].key))).json();
     if (!d.ok) { st.className = 'mono err'; st.textContent = d.error; return; }
-    $('#jComment').value = d.text;
+    setCommentText(d.text);
     st.className = 'mono';
     st.textContent = `verdict: ${bagli[0].key} (${bagli[0].status})`
       + (bagli.length > 1 ? ` · ${bagli.length - 1} eski kayit daha var` : '');

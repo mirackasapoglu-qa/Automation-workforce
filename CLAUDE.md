@@ -860,8 +860,11 @@ eşleme adım ①'in içinde, yorum alanı hazırlanana kadar gizli.
   görünebiliyordu. `failedTitles` yalnızca o koşum EN SON koşumsa doldurulur
   (`results.json` tek dosya, her koşumda üzerine yazılıyor).
 - ② karar → yerel verdict kaydı (`key = kart anahtarı`), Jira'ya gitmez.
-- ③ **iki tıklı gönderim**: ilk tık metni hazırlar (koşum özeti + varsa karar) ve
-  gösterir, ikinci tık gönderir. Statü düğmesi seçim yapılmadıkça **disabled**.
+- ③ ⚠️ 2026-09-11'de redesign edildi (bkz. "Jira kart akışı: YAZ adımı
+  redesign") — artık "iki tıklı" tek buton değil, hep görünen İKİ AYRI buton
+  ("Taslak Oluştur" / "Gönder"), yorum kutusu baştan açık (serbest yazılabilir),
+  Gönder yalnızca kutu doluyken aktif. Statü düğmesi hâlâ seçim yapılmadıkça
+  **disabled**, artık kendi ayrı bloğunda.
 
 Kart detayı (`/api/jira/card/<KEY>`) dört şeyi tek ekrana getiriyor: kartın metni,
 **kartı doğrulayan koşumlar** (tek tıkla tetiklenir), yorumlar, statü geçişleri.
@@ -1663,6 +1666,73 @@ olmadığı için) kesik çizgili bir kutu + "+ Sorter ekle" — Dikkat görün�
 
 ⚠️ Eski `parent = <epic>` alışkanlığıyla özel bir sorter yazarsan yukarıdaki
 "alt görevleri kaçırır" tuzağına düşebilirsin — `project = <proje>` daha güvenli.
+
+## Jira kart akışı: YAZ adımı redesign (2026-09-11)
+
+Kart detayının 3. adımı (YAZ) hem UI hem kullanım olarak yeniden ele alındı.
+
+**Tek buton, iki iş → iki ayrı buton.** Eskiden "Yorumu hazırla" butonu
+tıklanınca AYNI eleman "Jira'ya gönder"e dönüşüyordu — güvenli (taslak
+oluştur) eylemle geri dönüşü olmayan (Jira'ya yolla) eylem sadece metin
+farkıyla ayırt ediliyordu. Artık Sorter'daki "Dene → Kaydet" deseniyle
+tutarlı: **"Taslak Oluştur"** (her zaman aktif) + **"Gönder"** (textarea
+boşken kapalı) hep birlikte görünen iki ayrı buton.
+
+**Yorum kutusu artık başından görünür.** `<textarea id="jComment">`'daki
+`hidden` kaldırıldı — koşum ya da karar kaydı olmasa bile istediğin an
+tıklayıp serbestçe yazabilirsin; "Taslak Oluştur" artık zorunlu bir kapı
+değil, isteğe bağlı bir kısayol.
+
+**"Gönder" TEK bir mekanizmadan yönetiliyor**: `syncSendBtn()` textarea'nın
+`.value.trim()`ine bakıp butonun `disabled`ını ayarlıyor, textarea'nın
+`input` olayına bağlı. Metni nereden geldiği (elle yazma, `buildDraft`,
+`fillFromVerdict`) fark etmiyor — programatik olarak metin yazan HER yer
+(`.value = `) `setCommentText()` üzerinden geçip `syncSendBtn()`'i de
+tetikliyor. Bu TEK mekanizma üç ayrı sorunu birden çözdü:
+- Serbest yazma artık mümkün (yukarıdaki madde).
+- **Gerçek bir hata düzeldi**: Verdict sekmesinden "kart →" ile gelince
+  (`verdictToCard` → `fillFromVerdict`) taslak metni textarea'ya yazılıyordu
+  ama `hidden` kalkmadığı VE buton `disabled` senkronlanmadığı için görünmüyordu
+  — kullanıcı Verdict'ten getirdiği metni hiç göremiyordu. Artık `hidden` zaten
+  yok, `setCommentText` `syncSendBtn`'i çağırdığı için Gönder de doğru açılıyor.
+- Tutarlılık: tek kod yolu, üç ayrı özel-durum yaması değil.
+
+**Taslak kaynağı önceden görünüyor.** Kaynak SEÇİCİSİ yok (otomatik
+birleştirme aynen sürüyor) ama "Taslak Oluştur"a basmadan ÖNCE `draftAvailLine()`
+şunu gösteriyor: *"Taslağa girecek: ✓ Koşum (7/7 geçti · 2026-09-05) ·
+✓ Karar (Geçti)"* — hangisi yoksa "— Koşum kaydı yok" / "— Karar kaydı yok".
+Bu veri `openCard()` içinde kart açılırken bir kere hesaplanıp `c.linkedVerdict`
+olarak saklanıyor (`/api/verdicts`'i `.card` alanına göre süzerek — bir
+verdict'in KENDİ anahtarı card anahtarıyla aynı olmak ZORUNDA değil, bu yüzden
+`readVerdict(cardKey)` gibi doğrudan bir arama YETMEZ). **KARAR kaydedilince
+bu satır kartı yeniden açmadan CANLI güncelleniyor** (`saveCardVerdict` →
+`CARD.linkedVerdict` günceller → `.cf-avail` metnini yeniden yazar).
+
+**"Taslak Oluştur" üzerine yazmadan önce sorar.** Textarea'da zaten metin
+varsa (elle yazılmış olabilir) `uiConfirm` ile onay ister — taslak butonuna
+yanlışlıkla basıp yazdığın şeyi kaybetmeyesin diye.
+
+**Statü Değiştir artık ayrı bir blok.** Eskiden Yorum'la aynı satırda duran
+statü seçici + "Statüyü uygula" düğmesi artık kendi alt-başlığıyla (`.cf-subtitle`)
+görsel olarak ayrılmış bağımsız bir bölüm — mekaniği değişmedi (seç → onayla
+→ uygula), sadece Yorum'la karışmıyor.
+
+**Ölü kod temizlendi**: `fillFromRun(key)` — `buildDraft`'ın yaptığı
+birleştirmenin SADECE koşum kısmını yapan, hiçbir yerden çağrılmayan bir
+fonksiyondu (muhtemelen eski bir tasarımda üç ayrı "Koşumdan doldur / Karardan
+doldur / İkisini birleştir" butonu olacaktı, sadeleşirken sadece ikisi kaldı).
+Tamamen kaldırıldı. `fillFromVerdict(key)` KALDI — Verdict sekmesinden gelen
+"o tek verdict'in metni, koşumla seyreltilmeden" ihtiyacı gerçek ve farklı bir
+senaryo, `buildDraft` onun yerini tutmuyor.
+
+Test disiplini: syntax kontrolü, canlı panelde sahte bir kart yanıtı enjekte
+edilerek tam akış (serbest yazma → Gönder açılıyor, "Taslak Oluştur" dolu
+textarea'da onay istiyor, KARAR kaydedince "Taslağa girecek" satırının canlı
+güncellendiği, `fillFromVerdict`'in artık görünür VE Gönder'i açtığı,
+`buildDraft`'ın koşum+karar'ı `———` ile birleştirdiği, Statü Değiştir'in ayrı
+blok olarak göründüğü) — sıfır konsol hatasıyla doğrulandı. Test sırasında
+diske yazılan sahte verdict kaydı (`panel-data/verdicts/TEST-1.json`) silinip
+temizlendi.
 
 ## Tam kod taraması notları (2026-08-29)
 
