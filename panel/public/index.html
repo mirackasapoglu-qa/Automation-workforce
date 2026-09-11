@@ -2179,6 +2179,9 @@ async function openCard(key) {
       <p class="mono" style="margin:4px 0 0">${esc(c.status)} · ${esc(c.type)} · ${esc(c.assignee || 'atanmamış')}
         ${(c.sprint || []).length ? '· ' + esc(c.sprint.join(', ')) : ''}
         · <a href="${c.url}" target="_blank">Jira'da aç</a></p>
+      ${(c.scopeNodes || []).length ? `<p class="mono" style="margin:4px 0 0;color:var(--mut)">Flowscope: ${
+        c.scopeNodes.map(n => `<a href="/scope/#node=${esc(n.id)}" target="_blank" rel="noreferrer noopener">${esc(n.path)}</a>`).join(' · ')
+      }</p>` : ''}
       <details class="cf-ctx">
         <summary>kartın metni${(c.comments || []).length ? ` · ${c.comments.length} yorum` : ' · yorum yok'}</summary>
         <pre>${esc(metin || '(kartta metin yok)')}</pre>
@@ -2613,16 +2616,17 @@ async function doTransition(key) {
 }
 
 /**
- * SORTER YONETIMI. "Tümü" (`SORTERS.all`) tek sabit seçenek, kodda değil
- * `panel/jira.mjs → ALL_SORTER`'da tanımlı — burada asla düzenlenemez/silinemez.
- * Geri kalanı `SORTERS.custom` — panel-data/jira-sorters.json'da duran,
- * kullanıcının kendi ekleyip düzenleyip silebildiği kayıtlar.
+ * SORTER YONETIMI. "Tümü" (`SORTERS.all`) ve "Flowscope'a Bağlı"
+ * (`SORTERS.flowscope`, kapsam ağacına bağlı kart yoksa `null`) İKİ sabit
+ * seçenek — kodda değil `panel/jira.mjs`de tanımlı, burada asla düzenlenemez/
+ * silinemez. Geri kalanı `SORTERS.custom` — panel-data/jira-sorters.json'da
+ * duran, kullanıcının kendi ekleyip düzenleyip silebildiği kayıtlar.
  */
-let SORTERS = { all: { id: 'all', label: 'Tümü' }, custom: [] };
+let SORTERS = { all: { id: 'all', label: 'Tümü' }, flowscope: null, custom: [] };
 
 async function loadSorters() {
   const d = await (await fetch('/api/jira/sorters')).json();
-  if (d.ok) SORTERS = { all: d.all, custom: d.custom || [] };
+  if (d.ok) SORTERS = { all: d.all, flowscope: d.flowscope || null, custom: d.custom || [] };
   renderSorterSelect();
 }
 
@@ -2630,8 +2634,10 @@ function renderSorterSelect() {
   const sel = $('#jSorter');
   const prev = sel.value;
   sel.innerHTML = `<option value="${SORTERS.all.id}">${esc(SORTERS.all.label)}</option>` +
+    (SORTERS.flowscope ? `<option value="${SORTERS.flowscope.id}">${esc(SORTERS.flowscope.label)}</option>` : '') +
     SORTERS.custom.map(s => `<option value="${esc(s.id)}">${esc(s.label)}</option>`).join('');
-  sel.value = SORTERS.custom.some(s => s.id === prev) ? prev : SORTERS.all.id;
+  const fixedIds = [SORTERS.all.id, SORTERS.flowscope?.id].filter(Boolean);
+  sel.value = SORTERS.custom.some(s => s.id === prev) || fixedIds.includes(prev) ? prev : SORTERS.all.id;
   syncSorterButtons();
   // Ozel sorter yoksa teskvik edici bir kutu — ilk kullanima surtunmesiz giris.
   $('#sorterEmptyHint').innerHTML = SORTERS.custom.length ? '' : `
@@ -2641,9 +2647,11 @@ function renderSorterSelect() {
     </div>`;
 }
 
-/** "Tümü" secilince duzenle/sil gizlenir — o sabit, kullanicinin kaydi degil. */
+/** Sabit sorter'lardan (Tümü, Flowscope'a Bağlı) biri secilince duzenle/sil
+ * gizlenir — ikisi de kodda hesaplanıyor, kullanıcının kaydı değil. */
 function syncSorterButtons() {
-  const isCustom = $('#jSorter').value !== SORTERS.all.id;
+  const fixedIds = [SORTERS.all.id, SORTERS.flowscope?.id].filter(Boolean);
+  const isCustom = !fixedIds.includes($('#jSorter').value);
   $('#sorterEditBtn').hidden = !isCustom;
   $('#sorterDeleteBtn').hidden = !isCustom;
 }

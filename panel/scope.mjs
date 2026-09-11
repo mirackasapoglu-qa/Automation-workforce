@@ -453,3 +453,25 @@ export function sweepResourceDrift(lastModifiedByKey, links, sourceLabel) {
   if (flagged.length) writeTree(tree);
   return { flagged };
 }
+
+/**
+ * Bir Jira Task ID'sinin bağlı olduğu TÜM yaprak düğümleri (yolu dahil) bulur
+ * — Panel'in Jira kart detayında "bu kart Flowscope'ta X sayfasına bağlı"
+ * çapraz-gezinme ipucu için (bkz. CLAUDE.md → "Panel ↔ Flowscope"). Bir kart
+ * `attachJiraTask` ile birden çok düğüme bağlanabildiği için (bir kart birden
+ * çok sayfayı etkiliyorsa) TEK bir eşleşmeyle durmaz, hepsini döner.
+ */
+export function findNodesByJiraTask(tree, taskId) {
+  const target = String(taskId ?? "").toUpperCase();
+  const out = [];
+  (function walk(nodes, ancestors) {
+    for (const n of nodes ?? []) {
+      const path = ancestors.concat(n.name);
+      if ((n.jiraTasks ?? []).some((t) => (t.taskId ?? "").toUpperCase() === target)) {
+        out.push({ id: n.id, name: n.name, path: path.join(" › ") });
+      }
+      walk(n.children, path);
+    }
+  })(tree, []);
+  return out;
+}

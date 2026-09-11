@@ -1734,6 +1734,42 @@ blok olarak göründüğü) — sıfır konsol hatasıyla doğrulandı. Test sı
 diske yazılan sahte verdict kaydı (`panel-data/verdicts/TEST-1.json`) silinip
 temizlendi.
 
+## Panel ↔ Flowscope: hafif çapraz-gezinme (2026-09-12)
+
+Panel'in Jira sekmesi ve Flowscope'un Jira entegrasyonu **iki farklı soruya**
+cevap veriyor — Panel "hangi kartlara bakmalıyım" (Sorter/JQL, sayfaya bağlı
+değil), Flowscope "bu sayfa sağlıklı mı" (düğüme bağlı `jiraTasks[]`, done
+değilse ❌). Veri modelleri **BİLEREK birleştirilmedi** (Panel'in Sorter'ı az
+önce epic'e bağlılıktan kurtarıldı, tekrar sayfaya bağlamak bunu geri getirirdi)
+— sadece iki yönlü, hafif bir gezinme köprüsü eklendi:
+
+- **Kart detayında Flowscope linki**: `/api/jira/card/<KEY>` artık `scopeNodes`
+  alanı da döndürüyor (`panel/scope.mjs → findNodesByJiraTask`, ağaçta bu
+  Task ID'ye sahip TÜM yaprak düğümleri — bir kart `attachJiraTask` ile birden
+  çok sayfaya bağlanabildiği için tek eşleşmeyle durmaz). Kart başlığının
+  altında varsa "Flowscope: Homee › 01 Anasayfa · Homee › 06 Sepet" satırı
+  çıkıyor, her biri `/scope/#node=<id>` linki (yeni sekmede — Flowscope'un
+  zaten desteklediği "paylaşılabilir link" mekanizması, `app.js` sayfa
+  açılışında `location.hash`ı okuyup ilgili düğümün drawer'ını otomatik açıyor).
+- **Sorter listesine ikinci sabit seçenek**: **"Flowscope'a Bağlı"**
+  (`panel/jira.mjs → flowscopeSorter()`). "Tümü"nün aksine JQL'i HER ÇAĞRIDA
+  yeniden hesaplanıyor (`key in (...)`, `collectJiraTaskIds(tree)` — Flowscope
+  için zaten var olan bir fonksiyon, sıfırdan yazılmadı) çünkü bağlı Task
+  ID'ler çalışma zamanında değişiyor. Ağaçta hiç bağlı kart yoksa `null`
+  döner ve sorter dropdown'da hiç görünmez — boş `key in ()` geçersiz JQL
+  olurdu. "Tümü" gibi bu da sabit: düzenlenemez/silinemez, `syncSorterButtons`
+  ikisini de "custom değil" sayıyor.
+
+Test disiplini: syntax kontrolü + gerçek `PANEL_PROJECT=homee` ile doğrudan
+`flowscopeSorter()` çağrılıp gerçek ağaçtaki 15 benzersiz Task ID'nin doğru
+JQL'e girdiği doğrulandı, canlı panelde sahte kart yanıtıyla (gerçek Jira
+kimliği bu ortamda yok) kart detayındaki Flowscope linklerinin doğru render
+olduğu VE tıklanınca gerçekten `/scope/#node=<id>`'ye gidip doğru düğümün
+drawer'ını açtığı, Sorter dropdown'ında "Flowscope'a Bağlı"nın doğru sırada
+göründüğü ve seçilince Düzenle/Sil'in gizli kaldığı, kimliksiz ortamda
+`?view=flowscope`'un çökmeden gerçek hata döndürdüğü — sıfır konsol
+hatasıyla doğrulandı.
+
 ## Tam kod taraması notları (2026-08-29)
 
 Proje uçtan uca dosya dosya tarandı (repo kökü, `panel/`, `panel/public/`,

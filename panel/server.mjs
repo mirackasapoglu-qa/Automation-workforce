@@ -26,6 +26,7 @@ import { loadEnv } from "../env.mjs";
 import {
   JIRA,
   ALL_SORTER,
+  flowscopeSorter,
   getCards,
   getCard,
   postComment,
@@ -60,7 +61,7 @@ const ordersEnv = () =>
 import { figmaForRoute } from "./figma-map.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker } from "./connectors/index.mjs";
-import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift } from "./scope.mjs";
+import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
 import * as crawler from "./crawler.mjs";
@@ -1521,7 +1522,7 @@ const server = http.createServer(async (req, res) => {
      * kullanıcının kendi eklediği kayıtlar (bkz. jira-sorters.mjs).
      */
     if (p === "/api/jira/sorters" && req.method === "GET") {
-      return send(res, 200, { ok: true, all: ALL_SORTER, custom: listSorters() });
+      return send(res, 200, { ok: true, all: ALL_SORTER, flowscope: flowscopeSorter(), custom: listSorters() });
     }
     if (p === "/api/jira/sorters" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
@@ -1570,6 +1571,10 @@ const server = http.createServer(async (req, res) => {
       }));
       // Esleme nereden geliyor (profil mi panel mi) — arayuz bunu gosteriyor.
       card.mapping = mappingFor(key);
+      // Bu karta bagli Flowscope dugumleri (varsa) — çapraz-gezinme ipucu,
+      // bkz. CLAUDE.md → "Panel ↔ Flowscope". Iki sistem AYRI kalıyor, bu
+      // sadece bir link; veri modelleri birlestirilmedi.
+      card.scopeNodes = findNodesByJiraTask(readTree().tree, key);
       /*
        * SON KOSUM OZETI. Arayuzdeki 3 adimli akisin 1. adimi tek satirda
        * "7/7 gecti · 120 sn · 11:06" diyor; bu sayilari istemcide iki ayri

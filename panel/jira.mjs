@@ -17,6 +17,7 @@ import path from "node:path";
 import { resolveCreds, credLabel } from "./connectors/credentials.mjs";
 import { listSorters } from "./jira-sorters.mjs";
 import { PROJECT } from "./project.mjs";
+import { readTree, collectJiraTaskIds } from "./scope.mjs";
 
 /*
  * ⚠️ Bu dosya eskiden kimliği YALNIZCA ~/.jira-credentials'tan okuyordu
@@ -154,6 +155,24 @@ export const ALL_SORTER = {
   jql: `project = ${JIRA.project} ORDER BY status, key`,
 };
 
+/**
+ * "Flowscope'a Bağlı" — ikinci sabit sorter, ama "Tümü"nün aksine JQL'i HER
+ * ÇAĞRIDA yeniden hesaplanıyor: kapsam ağacındaki düğümlere bağlı Task ID'ler
+ * çalışma zamanında değişiyor (bkz. CLAUDE.md → "Panel ↔ Flowscope"). Ağaçta
+ * hiç bağlı kart yoksa `null` döner — boş `key in ()` geçersiz JQL olurdu,
+ * bu durumda sorter listede hiç görünmez (çağıran taraf `null`ı filtreler).
+ */
+export function flowscopeSorter() {
+  const { tree } = readTree();
+  const keys = collectJiraTaskIds(tree);
+  if (!keys.length) return null;
+  return {
+    id: "flowscope",
+    label: "Flowscope'a Bağlı",
+    jql: `key in (${keys.map((k) => `"${k.replace(/"/g, "")}"`).join(", ")}) ORDER BY status, key`,
+  };
+}
+
 function mapIssues(issues) {
   return issues.map((i) => ({
     key: i.key,
@@ -170,9 +189,10 @@ function mapIssues(issues) {
 
 /** Bir sorter'ı çeker; sayfalama nextPageToken ile (total alanı YOK). */
 export async function getCards(view = "all", limit = 100) {
-  const v = view === "all" || !view
-    ? ALL_SORTER
-    : listSorters().find((s) => s.id === view);
+  let v;
+  if (view === "all" || !view) v = ALL_SORTER;
+  else if (view === "flowscope") v = flowscopeSorter();
+  else v = listSorters().find((s) => s.id === view);
   if (!v) throw new Error(`Sorter bulunamadı: ${view}`);
 
   const issues = [];
