@@ -69,14 +69,29 @@ Her sayfada topladıkların:
 1. Mevcut ağacı OKU: `curl -s localhost:4646/api/scope/tree` (ya da
    `node scripts/scope-snapshot.mjs` → `docs/scope-tree.json`).
 2. **Var olanı tekrar ekleme.** Aynı yol (`Homee › 03 Kategori/liste`) altında
-   aynı adlı düğüm varsa atla; eklediğin şeyin neden yeni olduğunu bil.
+   aynı adlı düğüm VEYA aynı URL'e (`resourceLinks`, aşağıya bak) sahip bir
+   düğüm varsa atla. İsim eşleşmesi TEK BAŞINA yeterli değil: panelin
+   `/api/crawl` motoru aynı sayfaya SENİN vereceğinden farklı bir isim vermiş
+   olabilir (o, `<title>`/`h1` metnini kullanır; sen kendi yargınla adlandırırsın)
+   — bu durumda isim karşılaştırması aynı sayfayı ikinci kez ekletir, URL
+   karşılaştırması etmez. Eklediğin şeyin neden yeni olduğunu bil.
 3. Düğüm şeması (`panel/scope.mjs` ile aynı olmalı, alan eksik bırakma):
    `{ id, name, type: "module|page|section|function|step", status: "⬜",
    notes: [], jiraTasks: [], resourceLinks: [], statusHistory: [],
    lastVerifiedAt: null, staleReviewDays: 30, linkTos: [], open: false,
    children: [], testCases: [] }`
+   **`type: "page"` olan düğümde `resourceLinks` boş KALMAZ** — az önce gezdiğin
+   gerçek adresi ekle: `[{ url: "<gezilen URL>", label: "", type: "link",
+   createdAt: "<ISO tarih>" }]`. Section/function/step kendi URL'i olmayan,
+   bir sayfanın İÇİ olduğu için boş kalır. Bu, panelin `/api/crawl` motorunun
+   zaten yaptığı şey; eklemezsen (a) yukarıdaki URL-bazlı çakışma kontrolün
+   çalışmaz, (b) sayfa Kaynaklar panelinde adressiz kalır, (c) RAG bağlamında
+   (`panel/rag/index.mjs → chunkScopeTree`) bu düğüm URL'siz görünür.
 4. **id çakıştırma**: mevcut ağaçtaki en büyük `nN` numarasını bul, oradan
-   devam et. Test case/koşum id'leri (`tc`, `tcr`) sana ait değil, dokunma.
+   devam et. Eklediğin her `resourceLinks` girdisine de aynı mantıkla bir id
+   ver (`res` + sayı, örn. `res7`) — mevcut ağaçtaki en büyük `resN`'i bul,
+   oradan devam et; panelin kendi `newResourceLinkId()`'i de aynı önekle
+   üretiyor. Test case/koşum id'leri (`tc`, `tcr`) sana ait değil, dokunma.
 5. Yazma: tüm ağacı `PUT /api/scope/tree` ile gönder
    (`x-panel-token: $(cat panel-data/.panel-token)`), gövde `{ "tree": [...] }`.
    **Önce yedek al**: `cp panel-data/scope/tree.json /tmp/tree-yedek.json`
