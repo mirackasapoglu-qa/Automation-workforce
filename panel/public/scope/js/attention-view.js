@@ -21,6 +21,7 @@ import { openDrawer } from './drawer.js';
 import { runJiraSweep } from './jira.js';
 import { runDesignDriftSweep } from './design-drift.js';
 import { runConfluenceDriftSweep } from './confluence-drift.js';
+import { fetchConnectorStatus } from './connector-status.js';
 
 const CATEGORIES = [
   { key: 'all', label: 'Hepsi' },
@@ -294,6 +295,55 @@ function buildDriftSection({ cacheKey, icon, label, runSweep, texts, rerender })
   return section;
 }
 
+let connectorsLoading = false;
+
+/**
+ * Flowscope'un daha önce hiç göstermediği bir şey: bağlı olduğu üç yeteneğin
+ * (tracker/design/docs) o anki durumu, tek satırda. Jira/Tasarım/Doküman
+ * sweep'lerinin aksine bu ucuz+önbellekli bir okuma (bkz. connector-status.js),
+ * bu yüzden "Tara" düğmesi beklemez — sekme açılır açılmaz kendiliğinden gelir.
+ * Önceden bunu görmek için panele geçmek gerekiyordu.
+ */
+function buildConnectorStatusRow(rerender) {
+  const wrap = document.createElement('div');
+  wrap.className = 'attention-connector-row';
+
+  const cache = state.attentionConnectors;
+  if (!cache) {
+    wrap.classList.add('attention-connector-loading');
+    wrap.textContent = connectorsLoading ? 'Bağlantı durumu yükleniyor…' : 'Bağlantı durumu alınamadı.';
+    if (!connectorsLoading) {
+      connectorsLoading = true;
+      wrap.textContent = 'Bağlantı durumu yükleniyor…';
+      fetchConnectorStatus().then(list => {
+        connectorsLoading = false;
+        state.attentionConnectors = list && list.length ? list : null;
+        rerender();
+      });
+    }
+    return wrap;
+  }
+
+  cache.forEach(c => {
+    const pill = document.createElement('span');
+    const cls = c.state === 'ok' ? 'status-ok' : (c.state === 'warn' || c.state === 'blocked') ? 'status-warn' : 'status-todo';
+    pill.className = 'chip chip-status chip-status-auto ' + cls;
+    pill.title = c.detail || '';
+    pill.textContent = `${c.label} ${c.state === 'ok' ? '✓' : '⏻'}`;
+    wrap.appendChild(pill);
+  });
+
+  const refreshBtn = document.createElement('button');
+  refreshBtn.type = 'button';
+  refreshBtn.className = 'icon-btn';
+  refreshBtn.title = 'Bağlantı durumunu yenile';
+  refreshBtn.innerHTML = ICON.refresh;
+  refreshBtn.onclick = () => { state.attentionConnectors = null; rerender(); };
+  wrap.appendChild(refreshBtn);
+
+  return wrap;
+}
+
 /** Sekmedeki (Ağaç/Diyagram/Pano/Dikkat) sayı rozeti — taranmış her şeyin toplamı. */
 export function attentionBadgeCount() {
   const tc = collectAttentionTestCases(state.tree).length;
@@ -339,6 +389,7 @@ export function renderAttentionView(rerender) {
   };
   toolbar.appendChild(scanAllBtn);
   wrap.appendChild(toolbar);
+  wrap.appendChild(buildConnectorStatusRow(rerender));
 
   const cat = state.attentionCategory;
   if (cat === 'all' || cat === 'testcase') wrap.appendChild(buildTestCaseSection());

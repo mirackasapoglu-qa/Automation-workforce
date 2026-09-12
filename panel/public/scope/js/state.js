@@ -42,6 +42,11 @@ export const state = {
   // butonuna basınca gerçek istek gider. null = bu oturumda hiç taranmadı.
   attentionCategory: 'all', // 'all' | 'testcase' | 'jira' | 'design' | 'confluence'
   attentionCache: { jira: null, design: null, confluence: null },
+  // Bağlantı durumu (bkz. connector-status.js): jira/design/confluence'ın aksine
+  // ucuz+önbellekli bir okuma (/api/preflight), bu yüzden "Tara" beklemeden
+  // otomatik yüklenir. null = henüz alınmadı ya da alınamadı, [] farklı değil
+  // (attention-view.js ikisini de "tekrar dene" ile aynı ele alır).
+  attentionConnectors: null,
 
   searchQuery: '',
   activeFacets: new Set(),

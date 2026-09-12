@@ -1043,6 +1043,10 @@ html, body { background: var(--bg); margin: 0; }
   display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-faint); margin-bottom: 10px;
 }
 
+/* Bağlantı durumu satırı — bkz. connector-status.js. Pill'ler .chip-status'u aynen kullanır. */
+.attention-connector-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 12px; }
+.attention-connector-loading { font-size: 11.5px; color: var(--text-faint); margin-bottom: 12px; }
+
 /* Drawer: alt öğeler özeti (durum dağılımı, hata sayıları, log listesi) */
 .subtree-stat-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
 .subtree-stat-tile {
