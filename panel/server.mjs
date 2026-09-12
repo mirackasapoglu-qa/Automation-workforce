@@ -1394,8 +1394,9 @@ const server = http.createServer(async (req, res) => {
     }
 
     /* Ortak tasarim katmani — panel ve kapsam ekrani ayni dosyayi okur. */
-    if (p === "/theme.css") {
-      const css = fs.readFileSync(path.join(__dirname, "public", "theme.css"));
+    /* connectors.css de buradan: Baglantilar panelinin bicimi, panel + kapsam ekrani ortak. */
+    if (p === "/theme.css" || p === "/connectors.css") {
+      const css = fs.readFileSync(path.join(__dirname, "public", p.slice(1)));
       res.writeHead(200, { "content-type": "text/css; charset=utf-8", "cache-control": "no-store" });
       return res.end(css);
     }

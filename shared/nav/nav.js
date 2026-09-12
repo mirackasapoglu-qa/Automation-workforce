@@ -53,7 +53,9 @@
       // Komut kutusu KAPALI: Flowscope'un kendi "Ara..." kutusu var (toolbar),
       // ustune ikinci bir arama alani koymak iki farkli kapsami ayni gorunumle
       // yan yana getirirdi. Aramasi bir gun bara tasinirsa burasi `cmd: true`.
-      on: {},
+      // `connectors`: Baglantilar dugmesi burada da (2026-09-12 istegi) — ayni
+      // origin, ayni /api/preflight; icerigi /js/connectors.js doldurur.
+      on: { connectors: true },
     },
     landing: {
       label: "Home",
@@ -383,11 +385,16 @@
         + '<span class="pill" id="orderPill" role="status" aria-atomic="true" hidden></span>';
     }
 
-    if (on.status) {
+    // Baglantilar dugmesi: `status` acik yuzeylerde (panel) ve `connectors`
+    // isteyenlerde (kapsam). Icerigi /js/connectors.js doldurur; o dosya
+    // yuklenmemisse dugme bos kalir ama hicbir seyi kirmaz.
+    if (on.status || on.connectors) {
       html += '<span id="cxWrap"><button id="cxBtn" type="button" onclick="pfPanelToggle()"'
         + ' title="Bağlantılar — kimlik, kota ve çözüm adımları">'
-        + '<span class="cx-badge"></span>connectors</button><div id="cxPanel" hidden></div></span>'
-        + '<button id="gatePill" class="unknown" type="button" onclick="refreshGate()"'
+        + '<span class="cx-badge"></span>connectors</button><div id="cxPanel" hidden></div></span>';
+    }
+    if (on.status) {
+      html += '<button id="gatePill" class="unknown" type="button" onclick="refreshGate()"'
         + ' title="Tiklayinca kapi oturumunu yeniler">kapi: —</button>'
         + '<span class="pill" id="envPill" role="status" aria-atomic="true" title="Aktif ortam">—</span>';
     }
