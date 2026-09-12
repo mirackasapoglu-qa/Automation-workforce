@@ -19,15 +19,43 @@ let lastParams = null;
  * ekranlarında; form ve sonuç ekranı normal boyuta döner. Video dışarıdan
  * gelir; yüklenemezse modalın kendi koyu degrade zemini kalır, akış bozulmaz.
  */
-const BG_VIDEO = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260511_230229_7c9bc431-46cf-489a-948d-e8144d8eb5d4.mp4';
+// Ana kaynak: Mux HLS akışı (uyarlanabilir bit hızı, hızlı ilk kare). Safari HLS'i yerel oynatır;
+// Chrome/Firefox için hls.js ihtiyaç anında CDN'den yüklenir. Akış ya da hls.js gelmezse
+// eski MP4'e düşülür; o da gelmezse modalın koyu degrade zemini kalır.
+const BG_VIDEO_HLS = 'https://stream.mux.com/8wrHPCX2dC3msyYU9ObwqNdm00u3ViXvOSHUMRYSEe5Q.m3u8';
+const BG_VIDEO_MP4 = 'https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260511_230229_7c9bc431-46cf-489a-948d-e8144d8eb5d4.mp4';
+const HLS_JS_SRC = 'https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.6.15/hls.min.js';
 const REDUCED_MOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+let hlsJsPromise = null;
+/** hls.js'i bir kez, sinema modu ilk açıldığında yükler (sayfa açılışını şişirmez). */
+function loadHlsJs() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (!hlsJsPromise) {
+    hlsJsPromise = new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = HLS_JS_SRC; s.async = true;
+      s.onload = () => (window.Hls ? resolve(window.Hls) : reject(new Error('hls.js global yok')));
+      s.onerror = () => reject(new Error('hls.js yüklenemedi'));
+      document.head.appendChild(s);
+    }).catch((e) => { hlsJsPromise = null; throw e; });
+  }
+  return hlsJsPromise;
+}
 
 function closeModal() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   currentJobId = null;
   lastParams = null;
   const overlay = state.root.querySelector('.sitemap-overlay');
-  if (overlay) overlay.remove();
+  if (!overlay) return;
+  // Sinema videosu DOM'dan kopsa da hls.js segment indirmeyi sürdürür — önce yık.
+  const video = overlay.querySelector('.sitemap-cinema-video');
+  if (video) {
+    video.pause();
+    if (video._hls) { try { video._hls.destroy(); } catch { /* yoksay */ } video._hls = null; }
+  }
+  overlay.remove();
 }
 
 /** Ağaca eklenmeden önce her düğüme gerçek id, her kaynak linkine de id basar;
@@ -215,16 +243,47 @@ export function openSitemapImportModal(opts) {
       video.muted = true; video.defaultMuted = true; video.loop = true; video.autoplay = true; video.playsInline = true;
       video.setAttribute('muted', ''); video.setAttribute('autoplay', ''); video.setAttribute('loop', ''); video.setAttribute('playsinline', '');
       video.preload = 'auto';
-      video.src = BG_VIDEO;
-      video.addEventListener('error', () => video.remove()); // zemin degrade kalır
       // Durdurulursa (sekme arka plana düştü, enerji tasarrufu) geri dönüşte tekrar oynat.
       const oynat = () => video.play().catch(() => { /* engellenirse sessizce degrade */ });
       video.addEventListener('loadeddata', oynat);
       video.addEventListener('pause', () => { if (video.isConnected && modal.classList.contains('sitemap-modal--cinema')) oynat(); });
+      // Yedek MP4: HLS (akış, hls.js ya da MSE) herhangi bir noktada çökerse tek sefer buraya düşülür.
+      let mp4Denendi = false;
+      const mp4eDus = () => {
+        if (mp4Denendi || !video.isConnected) return;
+        mp4Denendi = true;
+        if (video._hls) { try { video._hls.destroy(); } catch { /* yoksay */ } video._hls = null; }
+        video.removeAttribute('src'); video.load();
+        video.src = BG_VIDEO_MP4;
+        oynat();
+      };
+      video.addEventListener('error', () => { if (mp4Denendi) video.remove(); else mp4eDus(); }); // MP4 de yoksa zemin degrade kalır
       overlay.insertBefore(video, overlay.firstChild); // tam ekran, modalın arkasında
-      oynat();
+      // Yerel HLS yalnızca MSE olmayan tarayıcıda (iOS Safari). Masaüstü Chrome canPlayType'a
+      // "maybe" der ama akışı oynatamaz; o yüzden MSE varsa daima hls.js önce.
+      const yerelHls = () => {
+        if (!video.canPlayType('application/vnd.apple.mpegurl')) return mp4eDus();
+        video.src = BG_VIDEO_HLS;
+        oynat();
+      };
+      const mseVar = 'MediaSource' in window || 'ManagedMediaSource' in window;
+      if (!mseVar) {
+        yerelHls();
+      } else {
+        loadHlsJs().then((Hls) => {
+          if (!video.isConnected || video._hls || mp4Denendi) return; // bu arada sinema kapandı / yedeğe geçildi
+          if (!Hls.isSupported()) return yerelHls();
+          const hls = new Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 30, capLevelToPlayerSize: true });
+          video._hls = hls;
+          hls.on(Hls.Events.ERROR, (_evt, data) => { if (data && data.fatal) mp4eDus(); });
+          hls.on(Hls.Events.MANIFEST_PARSED, oynat);
+          hls.loadSource(BG_VIDEO_HLS);
+          hls.attachMedia(video);
+        }).catch(yerelHls); // hls.js (CDN) gelmezse yerel HLS, o da yoksa MP4
+      }
     } else if (!on && video) {
       video.pause();
+      if (video._hls) { try { video._hls.destroy(); } catch { /* yoksay */ } video._hls = null; }
       video.remove();
     }
     // Renk dalgası: videonun üstünde süzülen iki bulanık renk lekesi (screen karışımı).
