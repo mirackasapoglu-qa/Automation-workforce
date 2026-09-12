@@ -62,6 +62,7 @@ const ordersEnv = () =>
 import { figmaForRoute } from "./figma-map.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker } from "./connectors/index.mjs";
+import { isCut } from "./connectors/cuts.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
@@ -426,6 +427,26 @@ function serveSiteFile(res, rel, req) {
   const html = fs.readFileSync(file, "utf8");
   const tablo = `<script>window.HQ_NAV = ${JSON.stringify(navConfigFor(req))};</script>`;
   return res.end(html.replace('<script src="/nav.js">', tablo + '<script src="/nav.js">'));
+}
+
+/**
+ * Jira'ya gerçekten ağ isteği atan uçların ortak kapısı. Şalterle "koparılmış"
+ * bir bağlantının panelin Jira sekmesinde görünmez şekilde çalışmaya devam
+ * etmesini önler — eskiden bu uçlar `isCut` hiç sormuyordu, şalter kullanıcıya
+ * yanlış bir "kapalı" izlenimi veriyordu (bkz. CLAUDE.md). Yalnızca canlı Jira
+ * çağrısı yapan uçlarda kullan; taslak/config uçları (comment-draft, sorters
+ * CRUD, map) yerelde çalışır, buna ihtiyaç duymaz.
+ */
+function requireJira(res) {
+  if (isCut("jira")) {
+    send(res, 409, {
+      ok: false,
+      code: "CONNECTOR_CUT",
+      error: "Jira bağlantısı koparılmış — Bağlantılar sekmesinden geri bağlayın.",
+    });
+    return false;
+  }
+  return true;
 }
 
 function requireAuth(req, res) {
@@ -1510,9 +1531,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     // ---------------- Jira: OKUMA ----------------
-    if (p === "/api/jira/whoami") return send(res, 200, await whoami());
+    if (p === "/api/jira/whoami") {
+      if (!requireJira(res)) return;
+      return send(res, 200, await whoami());
+    }
 
     if (p === "/api/jira/cards") {
+      if (!requireJira(res)) return;
       const view = url.searchParams.get("view") ?? "all";
       return send(res, 200, await getCards(view));
     }
@@ -1559,6 +1584,7 @@ const server = http.createServer(async (req, res) => {
      */
     if (p === "/api/jira/sorters/test" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
+      if (!requireJira(res)) return;
       const { jql } = await readBody(req);
       try {
         const result = await testJql(jql);
@@ -1569,6 +1595,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p.startsWith("/api/jira/card/")) {
+      if (!requireJira(res)) return;
       const key = p.split("/").pop();
       const card = await getCard(key);
       // Karti dogrulayan whitelist kosumlari — panelden tek tikla tetiklenir
@@ -1924,6 +1951,7 @@ const server = http.createServer(async (req, res) => {
 
     if (p === "/api/jira/comment" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
+      if (!requireJira(res)) return;
       const { key, text } = await readBody(req);
       if (!key || !text)
         return send(res, 400, { error: "key ve text zorunlu" });
@@ -1938,6 +1966,7 @@ const server = http.createServer(async (req, res) => {
 
     if (p === "/api/jira/transition" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
+      if (!requireJira(res)) return;
       const { key, transitionId, comment } = await readBody(req);
       if (!key || !transitionId)
         return send(res, 400, { error: "key ve transitionId zorunlu" });
@@ -2382,6 +2411,7 @@ ${testBlock}
     }
 
     if (p === "/api/jira/assignable") {
+      if (!requireJira(res)) return;
       try {
         return send(res, 200, {
           users: await assignableUsers(),
@@ -2433,6 +2463,7 @@ ${testBlock}
      */
     if (p === "/api/jira/bug" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
+      if (!requireJira(res)) return;
       const {
         summary,
         description,
