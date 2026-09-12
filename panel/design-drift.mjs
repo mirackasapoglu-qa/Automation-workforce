@@ -14,12 +14,19 @@
  * tam ağaç çekmek ister (pahalı, 429 riski); dosya seviyesi TEK ucuz istekle
  * "bir şeye bak" sinyali veriyor, `figma-render.mjs`'in şığ sorgusuyla aynı
  * kovada (`/v1/files`).
+ *
+ * ⚠️ KİMLİK: `figma-render.mjs`'teki AYNI `resolveCreds` yolunu kullanır
+ * (ortam > panel kaydı > ~/.figma-credentials, şalter dahil). Bu dosya
+ * eskiden yalnızca `~/.figma-credentials`'ı DOĞRUDAN okuyordu — panelin
+ * "Bağlan…" kutusuyla girilen bir token'ı (panel-data/credentials/figma.json)
+ * hiç görmüyordu, yalnızca sunucu diskine elle bırakılmış bir dosyayla
+ * çalışıyordu. `figma-render.mjs` bu hatayı 2026-09-08'de düzeltmişti
+ * (bkz. o dosyadaki gerekçe), bu kardeş dosya kaçmıştı.
  */
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { noteResponse } from "./figma-quota.mjs";
-import { isCut } from "./connectors/cuts.mjs";
+import { resolveCreds } from "./connectors/credentials.mjs";
 
 const CACHE_DIR = path.join(process.cwd(), "panel-data", "figma-cache");
 /**
@@ -36,10 +43,8 @@ function lastModCachePath(fileKey) {
 }
 
 function token() {
-  if (isCut("figma")) return null;
-  const f = path.join(os.homedir(), ".figma-credentials");
-  if (!fs.existsSync(f)) return null;
-  return fs.readFileSync(f, "utf8").match(/FIGMA_TOKEN\s*=\s*(\S+)/)?.[1] ?? null;
+  const r = resolveCreds(".figma-credentials", ["FIGMA_TOKEN"]);
+  return r.ok ? r.values.FIGMA_TOKEN : null;
 }
 
 /** Figma URL'inden dosya anahtarını çıkarır — hem eski (`/file/`) hem yeni (`/design/`) biçim. */
