@@ -67,9 +67,16 @@ export async function check() {
 /** "tracker" yeteneği — Linear ile aynı imza; çağıran hangisi olduğunu bilmez. */
 export const tracker = {
   keyPattern: /^[A-Z][A-Z0-9]+-\d+$/,
+  /** Jira'nın kendi metin sorgu dili (JQL) var — özel sorter'da "raw" moduna izin verilir. */
+  supportsRawQuery: true,
   async whoami() { return (await import("../jira.mjs")).whoami(); },
   async statusByKeys(keys) { return (await import("../jira.mjs")).statusByKeys(keys); },
-  async listIssues(view, limit) { return (await import("../jira.mjs")).getCards(view, limit); },
+  /** Sabit üç sorter (Tümü / Flowscope'a Bağlı / Bağlı Değil) — Sorter dropdown'ının değişmeyen kısmı. */
+  async systemSorters() {
+    const { ALL_SORTER, flowscopeSorter, flowscopeUnlinkedSorter } = await import("../jira.mjs");
+    return [ALL_SORTER, flowscopeSorter(), flowscopeUnlinkedSorter()].filter(Boolean);
+  },
+  async query(view, limit) { return (await import("../jira.mjs")).getCards(view, limit); },
   async getIssue(k) { return (await import("../jira.mjs")).getCard(k); },
   async comment(k, text) { return (await import("../jira.mjs")).postComment(k, text); },
   async createIssue(input) { return (await import("../jira.mjs")).createBug(input); },

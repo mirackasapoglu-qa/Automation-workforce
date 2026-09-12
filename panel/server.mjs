@@ -25,10 +25,6 @@ import { fileURLToPath } from "node:url";
 import { loadEnv } from "../env.mjs";
 import {
   JIRA,
-  ALL_SORTER,
-  flowscopeSorter,
-  flowscopeUnlinkedSorter,
-  getCards,
   getCard,
   postComment,
   transition,
@@ -36,7 +32,6 @@ import {
   whoami,
   attachFile,
   assignableUsers,
-  testJql,
 } from "./jira.mjs";
 import { listSorters, saveSorter, deleteSorter } from "./jira-sorters.mjs";
 import { startProxy } from "./proxy.mjs";
@@ -61,7 +56,7 @@ const ordersEnv = () =>
     : { [PROJECT.env.ordersVar]: ordersOverride ? "1" : "0" };
 import { figmaForRoute } from "./figma-map.mjs";
 import { preflight } from "./preflight.mjs";
-import { tracker } from "./connectors/index.mjs";
+import { tracker, capability } from "./connectors/index.mjs";
 import { isCut } from "./connectors/cuts.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
@@ -443,6 +438,25 @@ function requireJira(res) {
       ok: false,
       code: "CONNECTOR_CUT",
       error: "Jira bağlantısı koparılmış — Bağlantılar sekmesinden geri bağlayın.",
+    });
+    return false;
+  }
+  return true;
+}
+
+/**
+ * "tracker" yeteneğini karşılayan sağlayıcı (bugün: Jira ya da Linear) tanımlı
+ * ve koparılmamış mı — kart listesi/Sorter gibi sağlayıcıdan bağımsız uçların
+ * kapısı. `requireJira`'dan FARKLI: o hep Jira'yı sorar (kart açma/yorum/statü
+ * gibi bu ilk turda hâlâ Jira'ya özel kalan uçlarda), bu ise `connectors.tracker`
+ * hangi sağlayıcıyı gösteriyorsa onu sorar.
+ */
+function requireTracker(res) {
+  if (!capability("tracker")) {
+    send(res, 409, {
+      ok: false,
+      code: "CONNECTOR_CUT",
+      error: "Görev takip aracı bağlı değil (tanımsız ya da koparılmış) — Bağlantılar sekmesinden kontrol edin.",
     });
     return false;
   }
@@ -1536,32 +1550,49 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, await whoami());
     }
 
+    /**
+     * Kart listesi — artık Jira'ya sabit değil, `connectors.tracker` hangi
+     * sağlayıcıyı gösteriyorsa onun `query()`'sinden geçer (bkz. CLAUDE.md →
+     * "Provider yapısı: Sorter'ı tracker-agnostic yapmak"). Yorum/statü/kart
+     * açma bu turda hâlâ Jira'ya özel (`requireJira` ile aşağıda).
+     */
     if (p === "/api/jira/cards") {
-      if (!requireJira(res)) return;
+      if (!requireTracker(res)) return;
       const view = url.searchParams.get("view") ?? "all";
-      return send(res, 200, await getCards(view));
+      return send(res, 200, await capability("tracker").tracker.query(view));
     }
 
     /**
-     * Sorter'lar — bkz. CLAUDE.md → "Jira: Sorter". "Tümü" (`ALL_SORTER`)
-     * tek sabit seçenek; geri kalanı `panel-data/jira-sorters.json`'da
-     * kullanıcının kendi eklediği kayıtlar (bkz. jira-sorters.mjs).
+     * Sorter'lar — bkz. CLAUDE.md → "Jira: Sorter". Üç sabit seçenek (Tümü/
+     * Flowscope'a Bağlı/Bağlı Değil) artık aktif tracker'ın KENDİ
+     * `systemSorters()`'ından geliyor; özel sorter'lar (`panel-data/
+     * jira-sorters.json`) yalnızca EKLENDİKLERİ sağlayıcı aktifken listeye
+     * girer (`provider` alanı, bkz. jira-sorters.mjs). Eski kayıtlarda bu
+     * alan yok — hepsi zamanında yalnızca Jira'yı bildiği için "jira" varsayılır.
      */
     if (p === "/api/jira/sorters" && req.method === "GET") {
+      const t = capability("tracker");
+      if (!t) return send(res, 200, { ok: true, provider: null, supportsRawQuery: false, all: null, flowscope: null, flowscopeUnlinked: null, custom: [] });
+      const sys = await t.tracker.systemSorters();
       return send(res, 200, {
         ok: true,
-        all: ALL_SORTER,
-        flowscope: flowscopeSorter(),
-        flowscopeUnlinked: flowscopeUnlinkedSorter(),
-        custom: listSorters(),
+        provider: t.key,
+        providerLabel: t.label,
+        supportsRawQuery: Boolean(t.tracker.supportsRawQuery),
+        all: sys.find((s) => s.id === "all") ?? null,
+        flowscope: sys.find((s) => s.id === "flowscope") ?? null,
+        flowscopeUnlinked: sys.find((s) => s.id === "flowscope-unlinked") ?? null,
+        custom: listSorters().filter((s) => (s.provider ?? "jira") === t.key),
       });
     }
     if (p === "/api/jira/sorters" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      const { id, label, jql } = await readBody(req);
+      if (!requireTracker(res)) return;
+      const { id, label, mode, jql, filter } = await readBody(req);
+      const provider = capability("tracker").key;
       try {
-        const record = saveSorter({ id, label, jql });
-        audit({ event: "jira-sorter-save", id: record.id, label: record.label });
+        const record = saveSorter({ id, label, provider, mode, jql, filter });
+        audit({ event: "jira-sorter-save", id: record.id, label: record.label, provider });
         return send(res, 200, { ok: true, sorter: record });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
@@ -1579,16 +1610,21 @@ const server = http.createServer(async (req, res) => {
       }
     }
     /**
-     * KAYDETMEDEN ÖNCE dene — kullanıcının panelde yazdığı ham JQL'i
-     * doğrudan Jira'ya sorar, diske hiçbir şey yazmaz (bkz. jira.mjs → testJql).
+     * KAYDETMEDEN ÖNCE dene — henüz diske yazılmamış bir taslağı (raw JQL ya
+     * da yapılandırılmış filtre) aktif tracker'ın KENDİ `query()`'siyle gerçek
+     * sorguya çevirir. Sonucun ilk 5 kaydı örnek olarak döner, tam liste çekmez.
      */
     if (p === "/api/jira/sorters/test" && req.method === "POST") {
       if (!requireAuth(req, res)) return;
-      if (!requireJira(res)) return;
-      const { jql } = await readBody(req);
+      if (!requireTracker(res)) return;
+      const { mode, jql, filter } = await readBody(req);
+      const useMode = mode === "filter" ? "filter" : "raw";
+      if (useMode === "raw" && !String(jql ?? "").trim()) return send(res, 400, { ok: false, error: "Sorgu boş olamaz" });
       try {
-        const result = await testJql(jql);
-        return send(res, 200, { ok: true, ...result });
+        const t = capability("tracker").tracker;
+        const draft = useMode === "raw" ? { label: "Deneme", mode: "raw", jql } : { label: "Deneme", mode: "filter", filter };
+        const result = await t.query(draft, 5);
+        return send(res, 200, { ok: true, count: result.cards.length, sample: result.cards.slice(0, 5) });
       } catch (e) {
         return send(res, 400, { ok: false, error: e.message });
       }

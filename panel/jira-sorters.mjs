@@ -51,26 +51,45 @@ function nextId(list) {
 /**
  * Ekle ya da güncelle. `id` verilmişse VE mevcutsa günceller, verilmemişse
  * (ya da bulunamazsa değil — o zaman hata) yeni kayıt açar. Kaydetmeden önce
- * JQL'in gerçekten çalıştığı `testJql()` ile (bkz. jira.mjs) ayrı doğrulanmış
- * olmalı — bu fonksiyon JQL'i BİLEREK bir daha Jira'ya sormuyor, sadece
- * yazıyor; çağıran taraf (server.mjs) sırayı garanti eder.
+ * sorgunun gerçekten çalıştığı ayrı doğrulanmış olmalı (JQL'de `testJql()`,
+ * bkz. jira.mjs) — bu fonksiyon sorguyu BİR DAHA sormuyor, sadece yazıyor;
+ * sırayı garanti etmek çağıran tarafın (server.mjs) işi.
+ *
+ * İKİ MOD: `mode:"raw"` (JQL gibi sağlayıcının kendi metin dilinde, bugün
+ * yalnız Jira'da var) ve `mode:"filter"` (durum kategorisi/atanan/anahtar
+ * listesi gibi genel alanlardan kurulu, HER sağlayıcının kendi diline
+ * çevirebildiği ortak şekil — bkz. jira.mjs → filterToJql,
+ * providers/linear.mjs → filterToLinearFilter). `provider` hangi sağlayıcı
+ * için yazıldığını işaretler; yalnızca o sağlayıcı aktifken listede görünür
+ * (bkz. server.mjs → sorters route'u). Eski kayıtlarda (2026-09-11'den önce)
+ * `provider`/`mode` hiç yoktu — ikisi de eksikse "jira" + "raw" varsayılır,
+ * hepsi zaten o zaman yalnızca Jira'yı biliyordu.
  */
-export function saveSorter({ id, label, jql }) {
+export function saveSorter({ id, label, provider, mode, jql, filter }) {
   const cleanLabel = String(label ?? "").trim();
-  const cleanJql = String(jql ?? "").trim();
   if (!cleanLabel) throw new Error("İsim boş olamaz");
-  if (!cleanJql) throw new Error("JQL boş olamaz");
+  const useProvider = String(provider || "jira");
+  const useMode = mode === "filter" ? "filter" : "raw";
+
+  let payload;
+  if (useMode === "raw") {
+    const cleanJql = String(jql ?? "").trim();
+    if (!cleanJql) throw new Error("JQL boş olamaz");
+    payload = { provider: useProvider, mode: "raw", jql: cleanJql };
+  } else {
+    if (!filter || typeof filter !== "object" || Array.isArray(filter)) throw new Error("filtre boş olamaz");
+    payload = { provider: useProvider, mode: "filter", filter };
+  }
 
   const list = read();
   if (id) {
     const found = list.find((s) => s.id === id);
     if (!found) throw new Error(`Sorter bulunamadı: ${id}`);
-    found.label = cleanLabel;
-    found.jql = cleanJql;
+    Object.assign(found, { label: cleanLabel, ...payload });
     write(list);
     return found;
   }
-  const record = { id: nextId(list), label: cleanLabel, jql: cleanJql, createdAt: new Date().toISOString() };
+  const record = { id: nextId(list), label: cleanLabel, ...payload, createdAt: new Date().toISOString() };
   list.push(record);
   write(list);
   return record;

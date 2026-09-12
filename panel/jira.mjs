@@ -149,14 +149,10 @@ const FIELDS = JIRA.sprintFieldId ? `${BASE_FIELDS},${JIRA.sprintFieldId}` : BAS
  * seçenek var; bunun dışındaki her sorter kullanıcının panelden eklediği bir
  * kayıt (bkz. jira-sorters.mjs).
  */
-export const ALL_SORTER = {
-  id: "all",
-  label: "Tümü",
-  jql: `project = ${JIRA.project} ORDER BY status, key`,
-};
+export const ALL_SORTER = { id: "all", label: "Tümü", mode: "filter", filter: {} };
 
 /**
- * "Flowscope'a Bağlı" — ikinci sabit sorter, ama "Tümü"nün aksine JQL'i HER
+ * "Flowscope'a Bağlı" — ikinci sabit sorter, ama "Tümü"nün aksine filtresi HER
  * ÇAĞRIDA yeniden hesaplanıyor: kapsam ağacındaki düğümlere bağlı Task ID'ler
  * çalışma zamanında değişiyor (bkz. CLAUDE.md → "Panel ↔ Flowscope"). Ağaçta
  * hiç bağlı kart yoksa `null` döner — boş `key in ()` geçersiz JQL olurdu,
@@ -166,11 +162,7 @@ export function flowscopeSorter() {
   const { tree } = readTree();
   const keys = collectJiraTaskIds(tree);
   if (!keys.length) return null;
-  return {
-    id: "flowscope",
-    label: "Flowscope'a Bağlı",
-    jql: `key in (${keys.map((k) => `"${k.replace(/"/g, "")}"`).join(", ")}) ORDER BY status, key`,
-  };
+  return { id: "flowscope", label: "Flowscope'a Bağlı", mode: "filter", filter: { keys: { in: keys } } };
 }
 
 /**
@@ -185,11 +177,45 @@ export function flowscopeUnlinkedSorter() {
   const { tree } = readTree();
   const keys = collectJiraTaskIds(tree);
   if (!keys.length) return null;
-  return {
-    id: "flowscope-unlinked",
-    label: "Flowscope'a Bağlı Değil",
-    jql: `project = ${JIRA.project} AND key NOT IN (${keys.map((k) => `"${k.replace(/"/g, "")}"`).join(", ")}) ORDER BY status, key`,
-  };
+  return { id: "flowscope-unlinked", label: "Flowscope'a Bağlı Değil", mode: "filter", filter: { keys: { notIn: keys } } };
+}
+
+/**
+ * Genel (sağlayıcıdan bağımsız) filtreyi JQL'e çevirir — bkz. CLAUDE.md →
+ * "Provider yapısı: Sorter'ı tracker-agnostic yapmak". `ALL_SORTER`,
+ * `flowscopeSorter`, `flowscopeUnlinkedSorter` VE panelden eklenen "filter"
+ * modlu özel sorter'lar hepsi bu tek fonksiyondan geçer; eski "raw JQL"
+ * modundaki sorter'lar (kullanıcının elle yazdığı JQL) buna hiç uğramaz.
+ *
+ * ⚠️ Bu çeviri gerçek bir Jira örneğine karşı DENENMEDİ (bu ortamda kimlik
+ * yok) — `statusCategory in (...)` JQL sözdizimi Atlassian'ın dokümante
+ * ettiği, iyi bilinen bir kalıp ama canlı doğrulama panele kimlik girilene
+ * kadar eksik kalıyor. Şüphe doğarsa `testJql()` ile elle doğrula.
+ */
+export function filterToJql(filter = {}) {
+  const clauses = [`project = ${JIRA.project}`];
+  const q = (s) => `"${String(s).replace(/"/g, "")}"`;
+  if (filter.keys?.in?.length) clauses.push(`key in (${filter.keys.in.map(q).join(", ")})`);
+  if (filter.keys?.notIn?.length) clauses.push(`key not in (${filter.keys.notIn.map(q).join(", ")})`);
+  if (filter.statusCategory?.length) {
+    const CAT = { todo: "To Do", inprogress: "In Progress", done: "Done" };
+    clauses.push(`statusCategory in (${filter.statusCategory.map((c) => q(CAT[c] ?? c)).join(", ")})`);
+  }
+  if (filter.assignee) clauses.push(`assignee = ${q(filter.assignee)}`);
+  return clauses.join(" AND ") + " ORDER BY status, key";
+}
+
+/** Bir sorter kaydının JQL'i — "filter" modundaysa türetir, "raw"/eski kayıtlarda olduğu gibi kullanır. */
+function jqlFor(sorter) {
+  return sorter.mode === "filter" ? filterToJql(sorter.filter ?? {}) : sorter.jql;
+}
+
+/** "all" / "flowscope" / "flowscope-unlinked" sabitleri ya da panelden eklenen özel bir sorter. */
+export function resolveSorter(view) {
+  if (view === "all" || !view) return ALL_SORTER;
+  if (view === "flowscope") return flowscopeSorter();
+  if (view === "flowscope-unlinked") return flowscopeUnlinkedSorter();
+  return listSorters().find((s) => s.id === view) ?? null;
 }
 
 function mapIssues(issues) {
@@ -206,26 +232,28 @@ function mapIssues(issues) {
   }));
 }
 
-/** Bir sorter'ı çeker; sayfalama nextPageToken ile (total alanı YOK). */
+/**
+ * Bir sorter'ı çeker; sayfalama nextPageToken ile (total alanı YOK).
+ * `view` ya kayıtlı bir sorter id'si (string) ya da HENÜZ KAYDEDİLMEMİŞ bir
+ * sorter nesnesi (`{label, mode, jql|filter}`) olabilir — "Dene" adımı ikinci
+ * yolu kullanır, diskte olmayan bir taslağı gerçek bir kayıtmış gibi test eder.
+ */
 export async function getCards(view = "all", limit = 100) {
-  let v;
-  if (view === "all" || !view) v = ALL_SORTER;
-  else if (view === "flowscope") v = flowscopeSorter();
-  else if (view === "flowscope-unlinked") v = flowscopeUnlinkedSorter();
-  else v = listSorters().find((s) => s.id === view);
+  const v = typeof view === "object" && view ? view : resolveSorter(view);
   if (!v) throw new Error(`Sorter bulunamadı: ${view}`);
+  const jql = jqlFor(v);
 
   const issues = [];
   let token = null;
   do {
-    const qs = new URLSearchParams({ jql: v.jql, maxResults: "50", fields: FIELDS });
+    const qs = new URLSearchParams({ jql, maxResults: "50", fields: FIELDS });
     if (token) qs.set("nextPageToken", token);
     const page = await api(`/rest/api/3/search/jql?${qs}`);
     issues.push(...(page.issues ?? []));
     token = page.isLast ? null : page.nextPageToken;
   } while (token && issues.length < limit);
 
-  return { view, label: v.label, jql: v.jql, cards: mapIssues(issues) };
+  return { view: v.id ?? "test", label: v.label, jql, cards: mapIssues(issues) };
 }
 
 /**

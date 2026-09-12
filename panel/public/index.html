@@ -1041,6 +1041,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
         </div>
       </details>
       <div class="row" style="align-items:center">
+        <span class="mono" id="jTrackerLabel"></span>
         <select id="jSorter" style="width:auto;min-width:240px"></select>
         <button style="width:auto" onclick="loadCards()">Yenile</button>
         <button style="width:auto" onclick="toggleSorterForm()">+ Sorter ekle</button>
@@ -2099,7 +2100,9 @@ async function loadCards() {
   try {
     const d = await (await fetch('/api/jira/cards?view=' + encodeURIComponent(view))).json();
     if (d.error) { $('#jTable').innerHTML = `<tr><td class="mono err">${esc(d.error)}</td></tr>`; return; }
-    $('#jMeta').textContent = `${d.cards.length} kart · ${d.jql}`;
+    // d.jql yalnizca JQL destekleyen saglayicida (Jira) var — Linear gibi
+    // yapilandirilmis-filtre-only saglayicida bu alan hic gelmez.
+    $('#jMeta').textContent = `${d.cards.length} kart` + (d.jql ? ` · ${d.jql}` : '');
     $('#tcJira').textContent = d.cards.length;
     renderJiraStrip(d.cards);
     $('#jTable').innerHTML = '<tr><th>Kart</th><th>Özet</th><th>Statü</th><th>Atanan</th><th>Sprint</th></tr>' +
@@ -2623,8 +2626,15 @@ async function doTransition(key) {
  * silinemez. Geri kalanı `SORTERS.custom` — panel-data/jira-sorters.json'da
  * duran, kullanıcının kendi ekleyip düzenleyip silebildiği kayıtlar.
  */
-let SORTERS = { all: { id: 'all', label: 'Tümü' }, flowscope: null, flowscopeUnlinked: null, custom: [] };
+let SORTERS = { all: { id: 'all', label: 'Tümü' }, flowscope: null, flowscopeUnlinked: null, custom: [], provider: null, providerLabel: null, supportsRawQuery: true };
 
+/**
+ * Sorter listesi artık HANGİ tracker aktifse ondan geliyor (bkz. CLAUDE.md →
+ * "Provider yapısı: Sorter'ı tracker-agnostic yapmak") — bu yüzden `provider`/
+ * `supportsRawQuery` de saklanıyor: JQL kutusu mu yoksa yapılandırılmış filtre
+ * formu mu göstereceğimizi belirliyor. `all` boyanabilir: hiçbir sağlayıcı
+ * "tracker" yeteneğini karşılamıyorsa (tanımsız ya da koparılmış) `null` gelir.
+ */
 async function loadSorters() {
   const d = await (await fetch('/api/jira/sorters')).json();
   if (d.ok) SORTERS = {
@@ -2632,16 +2642,27 @@ async function loadSorters() {
     flowscope: d.flowscope || null,
     flowscopeUnlinked: d.flowscopeUnlinked || null,
     custom: d.custom || [],
+    provider: d.provider || null,
+    providerLabel: d.providerLabel || null,
+    supportsRawQuery: Boolean(d.supportsRawQuery),
   };
   renderSorterSelect();
 }
 
 function fixedSorterIds() {
-  return [SORTERS.all.id, SORTERS.flowscope?.id, SORTERS.flowscopeUnlinked?.id].filter(Boolean);
+  return [SORTERS.all?.id, SORTERS.flowscope?.id, SORTERS.flowscopeUnlinked?.id].filter(Boolean);
 }
 
 function renderSorterSelect() {
   const sel = $('#jSorter');
+  $('#jTrackerLabel').textContent = SORTERS.providerLabel ? `Tracker: ${SORTERS.providerLabel}` : '';
+  if (!SORTERS.all) {
+    sel.innerHTML = '';
+    $('#sorterEmptyHint').innerHTML = `<div class="sg-hint" style="border:1px dashed var(--line);border-radius:8px;padding:14px;margin:8px 0;text-align:center">
+      Görev takip aracı bağlı değil (tanımsız ya da koparılmış) — Bağlantılar sekmesinden kontrol et.</div>`;
+    $('#sorterEditBtn').hidden = true; $('#sorterDeleteBtn').hidden = true;
+    return;
+  }
   const prev = sel.value;
   sel.innerHTML = `<option value="${SORTERS.all.id}">${esc(SORTERS.all.label)}</option>` +
     (SORTERS.flowscope ? `<option value="${SORTERS.flowscope.id}">${esc(SORTERS.flowscope.label)}</option>` : '') +
@@ -2651,9 +2672,12 @@ function renderSorterSelect() {
   sel.value = SORTERS.custom.some(s => s.id === prev) || fixedIds.includes(prev) ? prev : SORTERS.all.id;
   syncSorterButtons();
   // Ozel sorter yoksa teskvik edici bir kutu — ilk kullanima surtunmesiz giris.
+  const ekleMetni = SORTERS.supportsRawQuery
+    ? `JQL biliyorsan kendi filtreni kurabilirsin.`
+    : `${esc(SORTERS.providerLabel || 'Bu araç')} için durum/atanan kişiye göre kendi filtreni kurabilirsin.`;
   $('#sorterEmptyHint').innerHTML = SORTERS.custom.length ? '' : `
     <div class="sg-hint" style="border:1px dashed var(--line);border-radius:8px;padding:14px;margin:8px 0;text-align:center">
-      Henüz kendi sorter'ını eklemedin. JQL biliyorsan kendi filtreni kurabilirsin.<br>
+      Henüz kendi sorter'ını eklemedin. ${ekleMetni}<br>
       <button style="width:auto;margin-top:8px" onclick="toggleSorterForm()">+ Sorter ekle</button>
     </div>`;
 }
@@ -2671,42 +2695,87 @@ function syncSorterButtons() {
  * degerlerle acilir. Ikinci kez cagrilirsa (form zaten aciksa) kapatir —
  * "+ Sorter ekle"ye tekrar basmak butonu tuvalet gibi ac/kapa yapsin diye.
  */
+/**
+ * Ekleme/duzenleme formu. `editing` bir sorter id'si verilirse mevcut
+ * degerlerle acilir. Ikinci kez cagrilirsa (form zaten aciksa) kapatir —
+ * "+ Sorter ekle"ye tekrar basmak butonu tuvalet gibi ac/kapa yapsin diye.
+ *
+ * Alanlar aktif tracker'a göre değişir (`SORTERS.supportsRawQuery`): Jira
+ * gibi kendi metin sorgu dili (JQL) olan sağlayıcıda eski JQL kutusu aynen
+ * duruyor; Linear gibi olmayan bir sağlayıcıda durum kategorisi + atanan
+ * kişiden kurulu ortak bir filtre formu çıkıyor (bkz. CLAUDE.md → "Provider
+ * yapısı: Sorter'ı tracker-agnostic yapmak", panel/jira.mjs → filterToJql).
+ */
 function toggleSorterForm(editing) {
   const box = $('#sorterFormBox');
   if (box.innerHTML && !editing) { box.innerHTML = ''; return; }
   const s = editing ? SORTERS.custom.find(x => x.id === editing) : null;
+  const raw = SORTERS.supportsRawQuery;
+  const f = (s && s.mode === 'filter') ? (s.filter || {}) : {};
+  const cats = new Set(f.statusCategory || []);
+
+  const queryField = raw
+    ? `<div class="fld"><label for="sfJql">JQL</label><textarea id="sfJql" rows="3">${s && s.mode !== 'filter' ? esc(s.jql || '') : ''}</textarea></div>`
+    : `<div class="fld"><label>Durum</label><div class="cf-radios" style="margin-bottom:2px">
+        <label><input type="checkbox" id="sfCatTodo" ${cats.has('todo') ? 'checked' : ''}> Yapılacak</label>
+        <label><input type="checkbox" id="sfCatProgress" ${cats.has('inprogress') ? 'checked' : ''}> Devam Ediyor</label>
+        <label><input type="checkbox" id="sfCatDone" ${cats.has('done') ? 'checked' : ''}> Tamamlandı</label>
+      </div><span class="mono w">(hiçbiri işaretli değilse tüm durumlar dahil)</span></div>
+      <div class="fld"><label for="sfAssignee">Atanan kişi (e-posta)</label><input id="sfAssignee" value="${esc(f.assignee || '')}"></div>`;
+
   box.innerHTML = `
     <div style="border:1px solid var(--line);border-radius:8px;padding:12px;margin:8px 0;max-width:560px">
       <div class="fld"><label for="sfLabel">İsim</label><input id="sfLabel" value="${s ? esc(s.label) : ''}"></div>
-      <div class="fld"><label for="sfJql">JQL</label><textarea id="sfJql" rows="3">${s ? esc(s.jql) : ''}</textarea></div>
+      ${queryField}
       <div class="row" style="align-items:center">
-        <button style="width:auto" onclick="testSorterJql()">Dene</button>
+        <button style="width:auto" onclick="testSorterDraft()">Dene</button>
         <button style="width:auto" id="sfSaveBtn" disabled onclick="saveSorterForm('${s ? s.id : ''}')">Kaydet</button>
         <button style="width:auto" onclick="toggleSorterForm()">Vazgeç</button>
-        <span class="mono" id="sfState">önce "Dene" ile JQL'i doğrula</span>
+        <span class="mono" id="sfState">önce "Dene" ile doğrula</span>
       </div>
       <div id="sfTestOut"></div>
     </div>`;
-  // JQL metni "Dene"den SONRA degisirse Kaydet tekrar kilitlenir — test edilen
-  // metinle kaydedilen metin farkli olmasin diye (bkz. CLAUDE.md).
-  $('#sfJql').addEventListener('input', () => {
+
+  // Form "Dene"den SONRA degisirse Kaydet tekrar kilitlenir — test edilen
+  // sorguyla kaydedilen sorgu farkli olmasin diye (bkz. CLAUDE.md).
+  const invalidate = () => {
     $('#sfSaveBtn').disabled = true;
     $('#sfTestOut').innerHTML = '';
     $('#sfState').className = 'mono';
-    $('#sfState').textContent = 'JQL değişti — tekrar "Dene"';
-  });
+    $('#sfState').textContent = 'değişti — tekrar "Dene"';
+  };
+  if (raw) {
+    $('#sfJql').addEventListener('input', invalidate);
+  } else {
+    ['sfCatTodo', 'sfCatProgress', 'sfCatDone'].forEach(id => $('#' + id).addEventListener('change', invalidate));
+    $('#sfAssignee').addEventListener('input', invalidate);
+  }
 }
 
-async function testSorterJql() {
-  const jql = $('#sfJql').value.trim();
+/** Formdaki alanlardan, sunucuya gönderilecek taslak sorter gövdesini kurar. */
+function draftFromSorterForm() {
+  if (SORTERS.supportsRawQuery) return { mode: 'raw', jql: $('#sfJql').value.trim() };
+  const statusCategory = [];
+  if ($('#sfCatTodo').checked) statusCategory.push('todo');
+  if ($('#sfCatProgress').checked) statusCategory.push('inprogress');
+  if ($('#sfCatDone').checked) statusCategory.push('done');
+  const assignee = $('#sfAssignee').value.trim();
+  const filter = {};
+  if (statusCategory.length) filter.statusCategory = statusCategory;
+  if (assignee) filter.assignee = assignee;
+  return { mode: 'filter', filter };
+}
+
+async function testSorterDraft() {
+  const draft = draftFromSorterForm();
   const st = $('#sfState');
-  if (!jql) { st.className = 'mono err'; st.textContent = 'JQL boş olamaz'; return; }
+  if (draft.mode === 'raw' && !draft.jql) { st.className = 'mono err'; st.textContent = 'Sorgu boş olamaz'; return; }
   st.className = 'mono';
   st.textContent = 'deneniyor…';
-  const d = await post('/api/jira/sorters/test', { jql });
+  const d = await post('/api/jira/sorters/test', draft);
   if (!d.ok) {
     st.className = 'mono err';
-    st.textContent = d.error || 'JQL çalıştırılamadı';
+    st.textContent = d.error || 'sorgu çalıştırılamadı';
     $('#sfSaveBtn').disabled = true;
     return;
   }
@@ -2714,15 +2783,15 @@ async function testSorterJql() {
   st.textContent = `${d.count} kart döndü`;
   $('#sfTestOut').innerHTML = d.sample.length
     ? d.sample.map(c => `<div class="mono">${esc(c.key)} — ${esc(c.summary || '')}</div>`).join('')
-    : '<div class="mono w">(sonuç yok — JQL çalıştı ama hiçbir kart eşleşmedi)</div>';
+    : '<div class="mono w">(sonuç yok — sorgu çalıştı ama hiçbir kart eşleşmedi)</div>';
   $('#sfSaveBtn').disabled = false;
 }
 
 async function saveSorterForm(id) {
   const label = $('#sfLabel').value.trim();
-  const jql = $('#sfJql').value.trim();
+  const draft = draftFromSorterForm();
   const st = $('#sfState');
-  const d = await post('/api/jira/sorters', id ? { id, label, jql } : { label, jql });
+  const d = await post('/api/jira/sorters', id ? { id, label, ...draft } : { label, ...draft });
   if (!d.ok) { st.className = 'mono err'; st.textContent = d.error || 'kaydedilemedi'; return; }
   toggleSorterForm();
   await loadSorters();
