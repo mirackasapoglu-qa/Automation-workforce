@@ -134,6 +134,15 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* Kapsam (Flowscope) gostergeleri — rota butonu, satir rozeti, dugum baglantisi.
+     Renk tokenlari panelin kendi durum renkleri: yeni renk icat edilmedi. */
+  .sc-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--line);
+    margin-right:6px;vertical-align:middle}
+  .sc-dot.ok{background:var(--ok)} .sc-dot.no{background:var(--no)} .sc-dot.sk{background:var(--sk)}
+  .sc-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--mut);
+    border:1px solid var(--line);border-radius:5px;padding:1px 6px;margin-left:6px;text-decoration:none}
+  .sc-tag:hover{color:var(--fg);border-color:var(--acc)}
+  .sc-none{font-size:11px;color:var(--mut);margin-left:6px;opacity:.75}
   .mono{font-family:var(--mono);font-size:11.5px;color:var(--mut)}
   code{font-family:var(--mono);font-size:11.5px;background:var(--card2);border:1px solid var(--line);
        border-radius:var(--r-xs);padding:1px 5px}
@@ -733,6 +742,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 <script src="/js/connectors.js"></script>
 <script src="/js/run-client.js"></script>
 <script src="/js/ai-client.js"></script>
+<script src="/js/scope-client.js"></script>
 
 
 <main>
@@ -766,6 +776,10 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <div class="ov-grid">
         <div class="ov-main">
           <div class="ov-kpis" id="ovKpis"></div>
+          <!-- Kapsam (Flowscope) serididi: sayilar agactan gelir, panel profilinden DEGIL.
+               Kapsam okunamazsa serit hic basilmaz (hidden) — "0 dugum" demek yanlis olurdu. -->
+          <div class="ov-sec"><span class="ov-sec-t">Kapsam (Flowscope)</span><span class="ov-sec-m" id="ovScopeMeta"></span></div>
+          <div id="ovScope" class="strip" hidden></div>
           <div class="ov-sec">
             <span class="ov-sec-t">Kosum gecmisi</span>
             <span class="ov-sec-m" id="ovHistMeta">filtre: tumu · son 7 gun</span>
@@ -787,6 +801,9 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
     <div id="tab-runs" hidden>
     <h2>Kosumlar</h2>
+    <!-- Kapsam agacindaki `runRef`lerden turetilen kosumlar (Flowscope → panel).
+         Whitelist guvenligi degismedi: burada uretilen id de panel/runs.json'dan gecer. -->
+    <div id="scopeRuns"></div>
     <label id="hlWrap" title="Headed kosum TEST BASINA bir tarayici penceresi acar. Bu anahtar --headed'i kaldirir.">
       <input type="checkbox" id="hlChk" onchange="toggleHeadless()">
       <span id="hlLabel">headless kos (pencere acilmaz)</span>
@@ -1357,6 +1374,10 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'perf') loadPerf();
   if (b.dataset.tab === 'overview') renderOverview();
+  if (b.dataset.tab === 'runs') renderScopeRuns();
+  /* Kapsam ozeti 30 sn'den eskiyse tazele — SSE zaten aninda haber veriyor,
+     bu yalnizca uzun acik kalmis bir sekmenin bayat kalmamasi icin. */
+  scopeRefresh({ maxAgeMs: 30000, quiet: true });
   // Kirilim ust seritte sekmeyi yansitir: "<proje> / <sekme>".
   // ⚠️ Sayac rozetinin (.tc) metni basliga karismamali: regex ile SAYI kirpmak
   // yetmiyordu, sayac henuz dolmamissa "–" yaziyor ve "Performans–" cikiyordu.
@@ -1434,10 +1455,7 @@ async function load() {
   if (m.proxyUrl) {
     PROXY = m.proxyUrl;
     $('#proxyInfo').textContent = m.proxyUrl + ' → ' + m.baseURL;
-    // Hizli gidis butonlari proje profilinden (panel/projects/<proje>.mjs).
-    const shortcuts = m.project?.quickRoutes?.length ? m.project.quickRoutes : [['Anasayfa','/']];
-    $('#siteShortcuts').innerHTML = shortcuts.map(([l,p]) =>
-      `<button style="width:auto" onclick="goSite('${p}')">${esc(l)}</button>`).join('');
+    renderSiteShortcuts();
     if (!$('#siteFrame').src) goSite('/');
   } else {
     $('#siteNow').textContent = 'Proxy kapali (BASE_URL tanimsiz)';
@@ -1505,6 +1523,30 @@ es.addEventListener('run-start', e => {
   $('#ovSpin')?.classList.add('on');
   renderOverviewHistory();
 });
+/*
+ * FLOWSCOPE → PANEL CANLI BAGI. Agac hangi yoldan degisirse degissin (drawer'da
+ * bir dugum duzenlendi, siteyi tarayip dugum eklendi, Jira karti baglandi,
+ * kosum sonucu yazildi, test case uretildi) sunucu tek bir olay yayiyor;
+ * panel taze okuyup ETKILENEN BOLUMLERI yeniden ciziyor. Sayfa yenilemek yok.
+ *
+ * ⚠️ Olay veri TASIMIYOR (bkz. server.mjs → onTreeChange): alan taraf sunucudan
+ * taze okur. Olayla veri tasinsaydi iki surum arasindaki sema farki sessiz
+ * yanlis gosterime donusurdu.
+ */
+es.addEventListener('scope-changed', () => { scopeRefresh(); });
+
+/*
+ * Kosum sonucu spec'e bagli kapsam dugumlerine yazildiginda (cift yon) —
+ * `scope-changed` zaten tazeliyor, bu olay yalnizca kullaniciya SOYLUYOR:
+ * panelden baslatilan bir kosumun agaci da guncelledigi gorunur olsun.
+ */
+es.addEventListener('scope-run-auto', e => {
+  const d = JSON.parse(e.data);
+  if (!d.written) return;
+  uiToast(`${d.nodes.length} kapsam dugumune kosum sonucu yazildi: ${d.nodes.map(n => n.name || n.nodeId).join(', ')}`,
+    { type: 'ok', title: 'Kapsam guncellendi', ms: 8000 });
+});
+
 es.addEventListener('run-queued', e => {
   const d = JSON.parse(e.data);
   const n = d.pending?.length ?? 0;
@@ -1652,6 +1694,7 @@ function renderCases() {
         <span class="fname">${esc(sp.file)}</span>
         <b>${esc(sp.describe)}</b>
         <span class="cnt">${sp.list.length} case${sp.member ? ' · uye' : ''}${(sp.cards||[]).length ? ' · ' + sp.cards.join(', ') : ''}</span>
+        ${scopeCellForSpec(sp.file)}
         ${badge}
       </summary>
       <div class="body">
@@ -1771,6 +1814,168 @@ function goSite(path) {
   const p = path ?? ($('#siteUrl').value.trim() || '/');
   $('#siteUrl').value = p;
   $('#siteFrame').src = PROXY + (p.startsWith('/') ? p : '/' + p);
+}
+
+// ---------------- kapsam (Flowscope) bolumleri ----------------
+/**
+ * Bir spec dosyasinin kapsam agacindaki karsiligi (Sonuclar sekmesi basligi).
+ *
+ * Bag YALNIZCA acik `runRef.specs` eslemesiyle kurulur — URL/isim benzerliginden
+ * tahmin edilmez (bkz. scope-bridge.mjs → nodesForSpec'teki ayni gerekce).
+ * Bagli dugum yoksa bunu SOYLUYORUZ: "bu spec kapsamda hicbir sayfaya bagli
+ * degil" gercek bir kapsam bosluguydu ve hicbir yerde gorunmuyordu.
+ */
+function scopeCellForSpec(file) {
+  if (!window.SCOPE) return '';
+  const dugumler = scopeNodesForSpec(file);
+  if (!dugumler.length) return '<span class="sc-none">kapsamda bagli degil</span>';
+  return dugumler.slice(0, 2).map(n =>
+    `<a class="sc-tag" href="${scopeNodeUrl(n.nodeId)}" onclick="event.stopPropagation()" title="Kapsam dugumu: ${esc(n.name)}">
+      <span class="sc-dot ${scopeStatusCls(n.status)}"></span>${esc(n.name.slice(0, 20))}</a>`).join('')
+    + (dugumler.length > 2 ? `<span class="sc-none">+${dugumler.length - 2}</span>` : '');
+}
+
+/**
+ * Bir Jira kartinin kapsam agacindaki karsiligi (liste hucresi).
+ * SCOPE hic okunmadiysa BOS birakilir — "kapsamda yok" demek yaniltici olurdu,
+ * fark "bilmiyoruz" ile "bagli degil" arasinda.
+ */
+function scopeCellForCard(key) {
+  if (!window.SCOPE) return '<span class="sc-none">…</span>';
+  const dugumler = scopeNodesForCard(key);
+  if (!dugumler.length) return '<span class="sc-none">kapsamda yok</span>';
+  return dugumler.slice(0, 3).map(n =>
+    `<a class="sc-tag" href="${scopeNodeUrl(n.nodeId)}" title="${esc(n.name)}">
+      <span class="sc-dot ${scopeStatusCls(n.status)}"></span>${esc(n.name.slice(0, 22))}</a>`).join('')
+    + (dugumler.length > 3 ? `<span class="sc-none">+${dugumler.length - 3}</span>` : '');
+}
+
+/**
+ * GENEL BAKIS'taki kapsam seridi. Uc ayri soruyu ayri ayri cevapliyor —
+ * tek bir "kapsam %" sayisina indirgemek, panelin butun degerini tasiyan
+ * farki siliyordu:
+ *   kapsanan  = yaprak dugumun en az bir test case'i VAR
+ *   kosulmus  = o case'lerden en az biri gercekten KOSTU
+ *   gecti     = son kosumu ✅ olan case sayisi
+ * "Kapsam var" ile "dogrulandi" ayni sey degil.
+ */
+function renderScopeKpis() {
+  const el = $('#ovScope'), meta = $('#ovScopeMeta');
+  if (!el) return;
+  const s = window.SCOPE;
+  if (!s) { el.hidden = true; if (meta) meta.textContent = ''; return; }
+  const su = s.summary;
+  el.hidden = false;
+  if (meta) {
+    meta.innerHTML = `${su.nodes.total} dugum · rota kaynagi: ${s.routeSource === 'scope' ? 'kapsam agaci' : 'profil (yedek)'}`
+      + ` · <a class="sc-tag" href="/scope/">Flowscope</a>`;
+  }
+  const hucre = (k, v, c, ip) => `<span class="cell" title="${esc(ip || '')}"><span class="k">${k}</span><span class="v ${c || ''}">${v}</span></span>`;
+  el.innerHTML = [
+    hucre('DUGUM', su.nodes.total, '', 'Kapsam agacindaki toplam dugum'),
+    hucre('KAPSANAN', `${su.coverage.withCase}<span class="mut">/${su.coverage.leaves}</span>`,
+      su.coverage.pct >= 80 ? 'ok' : su.coverage.pct ? 'sk' : 'no',
+      'En az bir test case tasiyan yaprak dugum'),
+    hucre('CASE', su.cases.total, '', `${su.cases.automated} otomatik · ${su.cases.draft} taslak`),
+    hucre('KOSULMUS', su.cases.run, su.cases.run ? '' : 'mut', 'En az bir kosum kaydi olan case'),
+    hucre('GECTI', su.cases.byLastStatus['\u2705'] || 0, 'ok', 'Son kosumu gecen case'),
+    hucre('DUSEN', su.cases.byLastStatus['\u274c'] || 0, (su.cases.byLastStatus['\u274c'] ? 'no' : 'mut'), 'Son kosumu dusen case'),
+    hucre('JIRA BAGI', su.jira.links, '', `${su.jira.keys} kart kapsam dugumlerine bagli`),
+  ].join('');
+}
+
+/**
+ * KOSUMLAR sekmesindeki "Kapsam" grubu: agacta `runRef` ile baglanmis
+ * kosumlar, hangi dugumden geldigi yazili.
+ *
+ * ⚠️ Whitelist guvenligi DELINMEDI: sunucu `known:false` derse (runs.json'da
+ * karsiligi yok) dugme tiklanamaz ve sebebi yazar. Panelin kosum guvenligi
+ * whitelist'e dayaniyor, kapsam agaci onu genisletemez.
+ */
+function renderScopeRuns() {
+  const el = $('#scopeRuns');
+  if (!el) return;
+  const liste = window.SCOPE?.runs ?? [];
+  if (!liste.length) { el.innerHTML = ''; return; }
+  el.innerHTML = `<details class="rungrp" open><summary>Kapsam agacindan<span class="cnt">${liste.length}</span></summary>
+    <div class="body">${liste.map(r => {
+      const ad = r.runId || r.specs.join(', ');
+      const dugumler = r.nodes.map(n => n.name || n.nodeId).join(', ');
+      if (!r.known) {
+        return `<button disabled title="panel/runs.json whitelist'inde yok — kapsam agaci whitelist'i genisletemez">${esc(ad)} (whitelist disi)</button>`;
+      }
+      return `<button data-run-id="${esc(r.runId)}" data-tip="Kapsam: ${esc(dugumler)}" onclick="startRun('${esc(r.runId)}')">
+        ${esc(ad)} <span class="sc-none">${esc(dugumler.slice(0, 40))}</span></button>`;
+    }).join('')}</div></details>`;
+  decorateTips(el);
+}
+
+/**
+ * PERFORMANS tablosundaki rotalarin yanina kapsam dugumunu yazar.
+ * Eslesme SUNUCUDA yapiliyor (`/api/perf` → `scope`), cunku rota→dugum
+ * karsiligini ayrica istemcide hesaplamak ayni mantigin ikinci kopyasi olurdu.
+ */
+function markPerfScope() {
+  for (const tr of document.querySelectorAll('#perfRoutes tr[data-route]')) {
+    const yol = tr.dataset.route;
+    const m = (PERF_SCOPE || []).find(x => x.route === yol);
+    const hucre = tr.querySelector('.sc-cell');
+    if (!hucre) continue;
+    hucre.innerHTML = m && m.nodeId
+      ? `<a class="sc-tag" href="${scopeNodeUrl(m.nodeId)}"><span class="sc-dot ${scopeStatusCls(m.status)}"></span>${esc(m.name)}</a>`
+      : `<span class="sc-none">kapsamda yok</span>`;
+  }
+}
+/** Son perf okumasinin rota→dugum eslemesi (sunucudan gelir). */
+let PERF_SCOPE = [];
+
+/**
+ * Hizli gidis butonlari ARTIK KAPSAM AGACINDAN (Flowscope) geliyor.
+ *
+ * Eskiden proje profilindeki elle yazilmis `quickRoutes` listesiydi: agaca yeni
+ * bir sayfa eklemek (ya da siteyi taramak) panelde hicbir sey degistirmiyordu.
+ * Simdi agactaki her rota tasiyan dugum burada bir buton; dugumun durumu
+ * (✅/⚠️/❌) butonun uzerinde nokta olarak gorunuyor ve tikla Flowscope'ta
+ * o dugume gidilebiliyor.
+ *
+ * ⚠️ Agacta hic rota yoksa sunucu profil listesine DUSUYOR (`routeSource`) —
+ * bos bir kapsamla acilan panelin rota butonlarinin kaybolmasi gerileme olurdu.
+ * O durumda kullaniciya tek tiklik duzeltme de gosteriliyor (backfill).
+ */
+function renderSiteShortcuts() {
+  const el = $('#siteShortcuts');
+  if (!el) return;
+  const s = window.SCOPE;
+  /* Kapsam henuz okunmadiysa (ilk cizim) profil listesini goster — bir an icin
+     tek "Anasayfa" butonu gostermek gorsel gerileme olurdu. Kapsam gelince
+     onScopeChange bu fonksiyonu yeniden cagiriyor. */
+  const profil = (META?.project?.quickRoutes ?? []).map(([name, path]) => ({ name, path, nodeId: null, status: '⬜' }));
+  const rotalar = s?.routes?.length ? s.routes
+    : (profil.length ? profil : [{ name: 'Anasayfa', path: '/', nodeId: null, status: '⬜' }]);
+
+  el.innerHTML = rotalar.map(r => {
+    const cls = scopeStatusCls(r.status);
+    const nokta = r.nodeId ? `<span class="sc-dot ${cls}" title="kapsam durumu: ${esc(r.status || '⬜')}"></span>` : '';
+    const yol = esc(r.path).replace(/'/g, "\\'");
+    return `<button style="width:auto" data-tip="${esc(r.path)}${r.nodeId ? ` · kapsam: ${esc(r.name)}` : ' · profil listesinden (kapsamda yok)'}"
+      onclick="goSite('${yol}')">${nokta}${esc(r.name)}</button>`;
+  }).join('')
+    + (s && s.routeSource === 'profile'
+      ? `<button class="warn" style="width:auto" onclick="scopeBackfillRoutes()"
+           data-tip="Kapsam agacindaki dugumlerde rota bilgisi yok; panel eski profil listesini gosteriyor. Bu dugme dugumlere rotayi yazar.">kapsami panele bagla</button>`
+      : '');
+  decorateTips(el);
+}
+
+/** Rotasiz kapsam dugumlerine rotayi yazar (sunucu: POST /api/scope/backfill-routes). */
+async function scopeBackfillRoutes() {
+  const r = await post('/api/scope/backfill-routes', {});
+  if (!r.ok) { uiToast(r.error || 'Yazilamadi.', { type: 'err' }); return; }
+  await scopeRefresh();
+  uiToast(r.written
+    ? `${r.written} kapsam dugumune rota yazildi. Panel artik agactan besleniyor.`
+    : 'Yazilacak dugum bulunamadi — kapsam agacinda rota tasiyan sayfa yok. Flowscope > URL\'den Ice Aktar ile siteyi tarayabilirsin.',
+    { type: r.written ? 'ok' : 'info' });
 }
 
 // ---- yan yana tasarim ----
@@ -2018,11 +2223,18 @@ async function loadCards() {
     $('#jMeta').textContent = `${d.cards.length} kart` + (d.jql ? ` · ${d.jql}` : '');
     $('#tcJira').textContent = d.cards.length;
     renderJiraStrip(d.cards);
-    $('#jTable').innerHTML = '<tr><th>Kart</th><th>Özet</th><th>Statü</th><th>Atanan</th><th>Sprint</th></tr>' +
+    /*
+     * KART → KAPSAM DUGUMU. Eskiden bu bag yalnizca kart detayinda (openCard)
+     * ve sabit `cardSpecs` eslemesinde vardi; listede kartin kapsamda nereye
+     * dustugu gorunmuyordu. Artik agactan geliyor: bagli dugum yoksa bu da bir
+     * sinyal ("kapsamda yok"), cunku o kart hicbir sayfaya baglanmamis demek.
+     */
+    $('#jTable').innerHTML = '<tr><th>Kart</th><th>Özet</th><th>Kapsam</th><th>Statü</th><th>Atanan</th><th>Sprint</th></tr>' +
       d.cards.map(c => `<tr>
         <td class="mono"><a href="${c.url}" target="_blank">${esc(c.key)}</a>
           <button style="width:auto;padding:2px 6px;margin:4px 0 0" onclick="openCard('${c.key}')">aç</button></td>
         <td>${esc(c.summary)}</td>
+        <td>${scopeCellForCard(c.key)}</td>
         <td><span class="b ${statusColor(c.status)}">${esc(c.status)}</span></td>
         <td>${esc(c.assignee || '—')}</td>
         <td class="mono">${esc((c.sprint||[]).join(', '))}</td></tr>`).join('');
@@ -2732,6 +2944,26 @@ $('#jSorter').onchange = () => { syncSorterButtons(); loadCards(); };
 
 loadSpecs().then(previewCustom);
 load();
+
+/*
+ * KAPSAM KATMANI. Panelin alti bolumu (Genel bakis · Kosumlar · Sonuclar ·
+ * Jira · Performans · Site canli) artik Flowscope agacindan besleniyor;
+ * `scopeRefresh()` tek okuma, asagidaki dinleyici tek cizim yolu.
+ *
+ * ⚠️ Cizim fonksiyonlari SCOPE null iken de calisabilmeli (kapsam okunamadi):
+ * o durumda profil/eski veriyle devam ederler, sessizce sifir gostermezler.
+ */
+onScopeChange(() => {
+  renderSiteShortcuts();
+  renderScopeKpis();
+  if (!$('#tab-runs').hidden) renderScopeRuns();
+  if (!$('#tab-perf').hidden) markPerfScope();
+  /* Sonuclar ve Jira listeleri kapsam rozetlerini icinde tasiyor; acikken
+     yeniden cizilmezse rozet bayat kalirdi. Kapali sekme cizilmez (bos is). */
+  if (!$('#tab-cases').hidden && typeof SPECS !== 'undefined' && SPECS?.length) renderCases();
+  if (!$('#tab-jira').hidden) loadCards();
+});
+scopeRefresh();
 </script>
 <script>
   /* Tema anahtari ust barin PARCASI: secim, ikon ve `data-theme` yazimi
@@ -3237,8 +3469,14 @@ function perfClass(v, b) { return v == null ? '' : v >= b.bad ? 'no' : v >= b.wa
  */
 async function runPerfSweep() {
   const b = $('#perfRunBtn');
-  if (!await uiConfirm('33 rota baştan ölçülecek (~6-8 dk). Bu sırada başka koşum başlatılamaz.\n\n'
-    + 'Kapı oturumunu kullanır, veri değiştirmez.', { title: 'Perf sweep', ok: 'Ölç', danger: false })) return;
+  /* Rota sayisi ARTIK KAPSAM AGACINDAN: sabit "33" yaziyordu, agac degisince
+     yalan oluyordu. Kapsam okunamadiysa sayi vermeyip "taban liste" diyoruz. */
+  const rotaSayisi = window.SCOPE?.routes?.length || 0;
+  const kaynak = window.SCOPE?.routeSource === 'scope'
+    ? `${rotaSayisi} kapsam rotasi`
+    : 'taban rota listesi';
+  if (!await uiConfirm(`${kaynak} bastan olculecek (~6-8 dk). Bu sirada baska kosum baslatilamaz.\n\n`
+    + 'Kapi oturumunu kullanir, veri degistirmez.', { title: 'Perf sweep', ok: 'Ölç', danger: false })) return;
   b.disabled = true;
   const eski = b.textContent;
   b.textContent = 'olculuyor...';
@@ -3356,10 +3594,13 @@ async function loadPerf() {
       `<span class="b sk" style="margin-right:3px">≤${b.bad}${b.unit}</span>` +
       `<span class="b no" style="margin-right:12px">&gt;${b.bad}${b.unit}</span>`).join('');
 
+    // Rota → kapsam dugumu eslemesi sunucudan gelir (bkz. /api/perf → scope).
+    PERF_SCOPE = d.scope || [];
     $('#perfRoutes').innerHTML =
-      '<tr><th>Rota</th><th>LCP</th><th>load</th><th>TTFB</th><th>istek</th><th>API</th><th>mükerrer</th><th>4xx/5xx</th><th>konsol</th></tr>' +
-      d.routes.map(r => `<tr>
+      '<tr><th>Rota</th><th>Kapsam</th><th>LCP</th><th>load</th><th>TTFB</th><th>istek</th><th>API</th><th>mükerrer</th><th>4xx/5xx</th><th>konsol</th></tr>' +
+      d.routes.map(r => `<tr data-route="${esc(r.route)}">
         <td class="mono">${esc(r.route)}${r.notFound ? ' <span class="b no">404</span>' : ''}</td>
+        <td class="sc-cell"></td>
         <td class="num ${perfClass(r.lcp, BUDGET.lcp)}">${ms(r.lcp)}</td>
         <td class="num ${perfClass(r.load, BUDGET.load)}">${ms(r.load)}</td>
         <td class="num ${perfClass(r.ttfb, BUDGET.ttfb)}">${ms(r.ttfb)}</td>
@@ -3368,6 +3609,7 @@ async function loadPerf() {
         <td class="num">${r.duplicates ? `<span class="b no">${r.duplicates}</span>` : '—'}</td>
         <td class="num">${r.siteErrors ? `<span class="b no">${r.siteErrors}</span>` : '—'}</td>
         <td class="num">${r.consoleErrors ? `<span class="b sk">${r.consoleErrors}</span>` : '—'}</td></tr>`).join('');
+    markPerfScope();
 
     $('#perfEndpoints').innerHTML =
       '<tr><th>Endpoint</th><th>en yavaş</th><th>rota</th><th>çağrı</th><th>mükerrer</th></tr>' +

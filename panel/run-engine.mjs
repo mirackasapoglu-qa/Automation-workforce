@@ -42,6 +42,7 @@ export function createRunEngine({
   mergeHistory = () => {},
   lastResults = () => null,
   applyRunResults = null,
+  applyRunResultsBySpecs = null,
   spawn = nodeSpawn,
   env = () => process.env,
   dedupeMs,
@@ -148,9 +149,11 @@ export function createRunEngine({
       catch { /* gunluk yazilamazsa kosum akisi etkilenmez */ }
       broadcast("run-end", { id: runId, code, durationMs, summary });
 
+      let yazilanDugum = null;
       if (scopeRun && scopeRun.runId === runId && applyRunResults) {
         const bekleyen = scopeRun;
         scopeRun = null;
+        yazilanDugum = bekleyen.nodeId;
         try {
           const out = applyRunResults({ nodeId: bekleyen.nodeId, specs: bekleyen.specs, results: lastResults(), durationMs, code });
           audit({ event: "scope-run-write", nodeId: bekleyen.nodeId, written: out.written });
@@ -159,6 +162,29 @@ export function createRunEngine({
         } catch (e) {
           broadcast("log", { stream: "err", line: `[kapsam] sonuc yazilamadi: ${e.message}` });
           broadcast("scope-run-end", { nodeId: bekleyen.nodeId, error: e.message });
+        }
+      }
+
+      /*
+       * ÇİFT YÖN: koşum Flowscope'tan başlatılmamış olsa da (panelin kendi
+       * "Koşumlar" sekmesi, komut kutusu, kart akışı) sonuç, spec'e `runRef`
+       * ile bağlı düğümlere yazılır. Bunun öncesinde panelden koşulan bir test
+       * ağaçta hiç iz bırakmıyordu: ağaç her zaman "hiç koşulmamış" görünüyordu.
+       *
+       * Yukarıda yazılan düğüm atlanır (`skipNodeId`) — aynı koşum aynı düğüme
+       * iki kayıt düşürmesin.
+       */
+      if (applyRunResultsBySpecs) {
+        try {
+          const out = applyRunResultsBySpecs({ results: lastResults(), durationMs, code, skipNodeId: yazilanDugum });
+          if (out.written) {
+            audit({ event: "scope-run-write-auto", runId, written: out.written, nodes: out.nodes.length });
+            broadcast("scope-run-auto", { runId, ...out });
+            broadcast("log", { stream: "out", line: `[kapsam] ${out.nodes.length} dugume yazildi: ${out.nodes.map((n) => n.name || n.nodeId).join(", ")}` });
+          }
+        } catch (e) {
+          // Ağaca yazamamak koşumu düşürmez — koşum sonucu zaten diskte.
+          broadcast("log", { stream: "err", line: `[kapsam] otomatik yazim basarisiz: ${e.message}` });
         }
       }
       active = null;

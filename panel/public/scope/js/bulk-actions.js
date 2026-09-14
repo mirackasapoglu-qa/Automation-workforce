@@ -6,7 +6,7 @@ import { state } from './state.js';
 import { ICON, STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
 import { findNode, setNodeStatus, persist } from './data.js';
 import { renderContent } from './shell.js';
-import { openTestCaseRequest } from './testcase-request.js';
+import { openTestCaseRequest, applyGenerateLabel } from './testcase-request.js';
 
 export function toggleSelectMode() {
   state.selectMode = !state.selectMode;
@@ -80,6 +80,7 @@ export function buildBulkBar() {
     genBtn.type = 'button';
     genBtn.className = 'btn btn-primary';
     genBtn.innerHTML = ICON.sparkle + '<span>Test case iste (Claude Code)</span>';
+    applyGenerateLabel(genBtn, ICON.sparkle);
     genBtn.title = 'Secili dugumler icin prompt uretir, donen JSON\'u agaca yazar';
     genBtn.onclick = () => openTestCaseRequest({
       nodeIds: [...state.selectedIds],

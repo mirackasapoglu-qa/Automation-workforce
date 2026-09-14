@@ -13,7 +13,7 @@ import { renderDrawerSubtreeSummary } from './subtree-summary.js';
 import { renderDrawerStatusHistory } from './status-history.js';
 import { renderContent } from './shell.js';
 import { openAiAssistModal } from './ai-assist.js';
-import { openTestCaseRequest } from './testcase-request.js';
+import { openTestCaseRequest, applyGenerateLabel } from './testcase-request.js';
 
 // "Test Case İste" için kullanıcının seçtiği test TÜRLERİ. Aşağıdaki `instruction`
 // metinleri artık YALNIZCA pill tooltip'i — modele giden talimat sunucudaki
@@ -358,6 +358,9 @@ export function renderDrawer() {
       ? 'Önce en az bir test türü seç'
       : 'Prompt üretilir; Claude Code\'un döndürdüğü JSON aynı pencereden bu düğüme yazılır';
     aiBtn.innerHTML = ICON.sparkle + '<span>Test Case İste (Claude Code)</span>';
+    // Sunucuda tek tik uretim aciksa yazi "Test Case Uret"e doner (bkz.
+    // testcase-request.js → applyGenerateLabel). Cizimi bekletmiyoruz.
+    applyGenerateLabel(aiBtn, ICON.sparkle);
     aiBtn.onclick = () => openTestCaseRequest({
       nodeIds: [drawerNode.id],
       types: [...selectedTestTypes],

@@ -13,6 +13,7 @@
 import { chromium } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
+import { deriveRoutes } from "../panel/scope-bridge.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : d; };
 const SCROLL = process.argv.includes("--scroll");
@@ -23,6 +24,29 @@ const env = (fs.readFileSync(".env", "utf8").match(/HOMEE_ENV\s*=\s*(\S+)/) ?? [
 const BASE = (fs.readFileSync(".env", "utf8").match(new RegExp(`BASE_URL_${env.toUpperCase()}\\s*=\\s*(\\S+)`)) ?? [])[1];
 if (!BASE) throw new Error(`BASE_URL_${env.toUpperCase()} .env'de yok`);
 const STATE = `playwright/.auth/${env}-gate.json`;
+
+/**
+ * Olculecek rotalar. Sira:
+ *   1. `--routes` ile elle verilen liste
+ *   2. KAPSAM AGACI (Flowscope) — panelin gordugu sayfalar neyse olculen de o
+ *   3. `tests/routes.ts` taban listesi (agac bos ya da okunamazsa)
+ *
+ * (2) neden eklendi: agaca yeni bir sayfa eklemek ya da siteyi taramak, perf
+ * olcumunu HIC etkilemiyordu — panel "33 rota" derken agac bambaska bir kumeyi
+ * gosteriyordu. Okuma burada yapiliyor (panelde degil) ki olcumu kim tetiklerse
+ * tetiklesin (panel, CLI, ileride cron) ayni hedef listesi kullanilsin.
+ */
+function scopeRoutes() {
+  try {
+    const raw = fs.readFileSync(path.join("panel-data", "scope", "tree.json"), "utf8");
+    const parsed = JSON.parse(raw);
+    const tree = Array.isArray(parsed) ? parsed : parsed?.tree;
+    if (!Array.isArray(tree)) return [];
+    // Sorgu dizesi olcumde tekrara dusuyor (ayni sayfa, farkli parametre) — yol yeterli.
+    const yollar = deriveRoutes(tree, { baseUrl: BASE }).map((r) => String(r.path).split("?")[0] || "/");
+    return [...new Set(yollar)];
+  } catch { return []; }
+}
 
 function baselineRoutes() {
   const src = fs.readFileSync(path.join("tests", "routes.ts"), "utf8");
@@ -35,7 +59,9 @@ function baselineRoutes() {
   return [...found];
 }
 const ROUTES = (arg("--routes", "") || "").split(",").map((s) => s.trim()).filter(Boolean);
-const routes = ROUTES.length ? ROUTES : baselineRoutes();
+const kapsam = ROUTES.length ? [] : scopeRoutes();
+const routes = ROUTES.length ? ROUTES : (kapsam.length ? kapsam : baselineRoutes());
+console.log(`[perf] ${routes.length} rota · kaynak: ${ROUTES.length ? "--routes" : kapsam.length ? "kapsam agaci" : "tests/routes.ts"}`);
 
 const slug = (p) => (p === "/" ? "anasayfa" : p.replace(/^\//, "").replace(/\//g, "-"));
 const NOISE = /personaclick|gtag|googletagmanager|google-analytics|clarity|mobildev|hotjar|facebook|doubleclick/i;
