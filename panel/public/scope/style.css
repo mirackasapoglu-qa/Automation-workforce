@@ -13,8 +13,9 @@ html, body { background: var(--bg); margin: 0; }
   box-sizing: border-box;
   width: 100%;
   min-height: 100vh;
-  padding: 28px clamp(20px, 4vw, 64px) 48px;
   font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: flex-start;
 }
 
 .fw, .fw * { box-sizing: border-box; }
@@ -36,25 +37,90 @@ html, body { background: var(--bg); margin: 0; }
 .icon-sm { width: 11px; height: 11px; stroke-width: 1.8; }
 .icon-fill { fill: currentColor; stroke: none; }
 
-/* Header */
-.fw-header { display: flex; align-items: center; gap: 12px; margin-bottom: 22px; }
+/* ── Sidebar — kalıcı sol kolon: marka, birincil ekleme, görünüm anahtarı, kompakt
+   durum özeti. Ayrı bir KOLON olduğu için içerik alanının dikey yerinden çalmıyor
+   (eski üst üste yığılan 6 satırın yerine geçen ana fikir bu). ───────────────── */
+.fw-sidebar {
+  position: sticky;
+  top: var(--hq-nav-h, 70px);
+  height: calc(100vh - var(--hq-nav-h, 70px));
+  width: 232px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 22px 16px;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+.fw-sb-brand { display: flex; align-items: center; gap: 10px; }
 .fw-logo {
-  width: 36px; height: 36px; border-radius: 11px; flex-shrink: 0;
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
   background: linear-gradient(135deg, rgba(63, 208, 255, .2), rgba(63, 208, 255, .03));
   border: 1px solid rgba(63, 208, 255, .3); display: flex; align-items: center; justify-content: center; color: var(--accent);
 }
-.fw-logo .icon { width: 19px; height: 19px; }
-.fw-title { font-size: 17px; font-weight: 700; letter-spacing: -.2px; color: var(--text); }
-.fw-subtitle { font-size: 11.5px; color: var(--text-muted); margin-top: 1px; }
-/* Panele donus: baslikla ayni satirda, saga yapisik. */
-.fw-back { margin-left: auto; text-decoration: none; }
-/* Landing dugmesi "Panele don"un solunda; bosluğu O yiyor, ikisi de saga yapisir. */
-.fw-landing { margin-left: auto; text-decoration: none; }
-.fw-landing + .fw-back { margin-left: 0; }
+.fw-logo .icon { width: 16px; height: 16px; }
+.fw-sb-brand-text { font-size: 14.5px; font-weight: 700; letter-spacing: -.2px; color: var(--text); }
 
-/* Toolbar */
-.fw-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-.toolbar-left { display: flex; gap: 8px; }
+.fw-sb-add {
+  display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%;
+  padding: 10px 14px; border-radius: 10px; border: 1px solid var(--accent);
+  background: var(--accent); color: var(--accent-on); font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: background .15s, transform .08s;
+}
+.fw-sb-add:hover { background: #5fd8ff; }
+.fw-sb-add:active { transform: scale(.97); }
+
+/* Sidebar bir GRUP dizisi: her grup kendi kucuk baslik + iceriginden olusuyor.
+   Ileride "Test Paketleri" gibi yeni bir grup eklenince ayni deseni tekrar eder —
+   duz, etiketsiz bir liste yerine ayirt edilebilir bloklar. */
+.fw-sb-group { display: flex; flex-direction: column; gap: 8px; }
+.fw-sb-group-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-faint); padding: 0 10px;
+}
+
+.fw-sb-nav { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.fw-sb-nav button {
+  position: relative; z-index: 1; display: flex; align-items: center; gap: 10px; width: 100%;
+  text-align: left; border: none; background: transparent; color: var(--text-muted);
+  font-size: 13px; font-weight: 600; padding: 9px 10px; border-radius: 9px; cursor: pointer; transition: color .15s, background .15s;
+}
+/* Bilerek "+ Yeni modul" ile AYNI dolgu degil: o bir eylem, bu bir konum. Ince
+   sol seritli hafif ton — ikisi ilk bakista tek bir buton gibi karismasin diye. */
+.fw-sb-nav button.active { color: var(--accent); background: var(--accent-dim); }
+.fw-sb-nav button .vs-badge { margin-left: auto; }
+.fw-sb-indicator {
+  position: absolute; left: 0; top: 0; width: 3px; height: 0; border-radius: 0 3px 3px 0; background: var(--accent);
+  transition: top .25s cubic-bezier(.4,0,.2,1), height .25s cubic-bezier(.4,0,.2,1); z-index: 0;
+}
+
+/* Kompakt durum özeti — eski 5 büyük kutucuk + tam genişlik bar yerine, tek kolonda.
+   Alta SABITLENMIYOR (eskiden margin-top:auto vardi): Dikkat'te gizlenince altta
+   bosluk birakmasin diye nav grubunun hemen ardindan, dogal akista duruyor. */
+.fw-sb-status { padding-top: 16px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.fw-sb-status[hidden] { display: none; }
+.fw-sb-status-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.fw-sb-status-row b { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-weight: 700; font-size: 13px; color: var(--text); }
+.fw-sb-status-label { display: inline-flex; align-items: center; gap: 7px; }
+.fw-sb-status-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--tile-color); }
+.fw-sb-status .progress-track { margin-top: 4px; }
+
+/* Dar pencerede (laptop genisligi ve alti) sabit 232px sidebar icerigi sikistiriyordu
+   (olculdu). "Her zaman acik" karari degismiyor — sidebar KAPANMIYOR, sadece ikon
+   seridine daralip metinleri gizliyor; manuel bir daraltma dugmesi yok. */
+@media (max-width: 1100px) {
+  .fw-sidebar { width: 68px; padding: 22px 10px; }
+  .fw-sb-brand-text, .fw-sb-add span, .fw-sb-nav button span,
+  .fw-sb-group-label, .fw-sb-status { display: none; }
+  .fw-sb-add, .fw-sb-nav button { justify-content: center; padding: 10px; }
+}
+
+/* ── Ana kolon: eski `.fw`nin yatay dolgusu buraya taşındı. ─────────────────── */
+.fw-main { flex: 1 1 auto; min-width: 0; padding: 28px clamp(20px, 4vw, 64px) 48px; }
+
+/* İnce üst bar — arama + facet (Dikkat'te gizli) + seç + "diğer işlemler" menüsü. */
+.fw-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
 .btn {
   display: inline-flex; align-items: center; gap: 7px; border-radius: 10px; padding: 8px 14px;
   font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--border);
@@ -68,6 +134,7 @@ html, body { background: var(--bg); margin: 0; }
 .btn-danger:hover { border-color: rgba(251,113,133,.5); color: var(--fail); background: rgba(251,113,133,.08); }
 
 .facet-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.facet-row[hidden] { display: none; }
 .facet-pill {
   border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
   border-radius: 999px; padding: 6px 12px; font-size: 12px; font-weight: 600; cursor: pointer;
@@ -80,6 +147,7 @@ html, body { background: var(--bg); margin: 0; }
   display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--border); background: var(--surface);
   border-radius: 10px; padding: 0 10px; color: var(--text-faint);
 }
+.search-box[hidden] { display: none; }
 .search-box .icon { width: 14px; height: 14px; flex-shrink: 0; }
 .search-input {
   border: none; background: transparent; outline: none; color: var(--text); font-size: 12.5px;
@@ -88,36 +156,16 @@ html, body { background: var(--bg); margin: 0; }
 .search-input::placeholder { color: var(--text-faint); }
 .fw .search-input:focus, .fw .search-input:focus-visible { outline: none; box-shadow: none; }
 
-.view-switch { position: relative; display: inline-flex; gap: 2px; margin-left: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 3px; }
-.view-switch button {
-  position: relative; z-index: 1; display: flex; align-items: center; gap: 6px; border: none; background: transparent;
-  color: var(--text-muted); font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: 9px; cursor: pointer;
-  transition: color .2s;
-}
-.view-switch button.active { color: var(--accent-on); }
 .vs-badge {
   background: rgba(251,191,36,.18); color: var(--warn); border-radius: 999px; padding: 1px 7px;
   font-size: 10.5px; font-weight: 700;
-}
-.view-switch button.active .vs-badge { background: rgba(3,5,10,.18); color: var(--accent-on); }
-.vs-indicator {
-  position: absolute; top: 3px; bottom: 3px; left: 3px; width: 0; border-radius: 9px; background: var(--accent);
-  transition: left .25s cubic-bezier(.4,0,.2,1), width .25s cubic-bezier(.4,0,.2,1); z-index: 0;
 }
 
 /* Content transition */
 @keyframes fwFadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
 .fw-content { animation: fwFadeIn .25s ease; }
 
-/* Telemetry / progress */
-.fw-progress { margin: 0 0 22px; }
-.stat-tiles { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-.stat-tile { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 12px 14px; overflow: hidden; }
-.stat-tile::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--tile-color); }
-.stat-num { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 22px; font-weight: 700; color: var(--tile-color); line-height: 1; }
-.stat-label { font-size: 10.5px; color: var(--text-muted); margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }
-.stat-tile .icon { position: absolute; right: 12px; top: 13px; width: 15px; height: 15px; color: var(--tile-color); opacity: .55; }
-
+/* Telemetry / progress — sidebar'daki kompakt özet (.fw-sb-status, bkz. yukarısı) bunu paylaşır. */
 .progress-track { height: 5px; border-radius: 999px; overflow: hidden; background: var(--surface-raised); border: 1px solid var(--border); }
 .progress-fill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--good), #6ee7b7); transition: width .6s cubic-bezier(.4,0,.2,1); }
 .progress-caption { font-size: 11px; color: var(--text-muted); margin-top: 7px; font-family: ui-monospace, monospace; }
@@ -168,6 +216,8 @@ html, body { background: var(--bg); margin: 0; }
 .dd-item .dd-check { margin-left: auto; color: var(--accent); }
 .dd-item-empty { color: var(--text-faint); cursor: default; }
 .dd-item-empty:hover { background: transparent; }
+.dd-item-danger:hover { background: rgba(251,113,133,.12); color: var(--fail); }
+.dd-item-danger:hover .icon { color: var(--fail); }
 
 /* Icon buttons (add / delete) */
 .row-actions { display: flex; gap: 2px; }

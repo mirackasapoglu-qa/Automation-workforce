@@ -59,7 +59,7 @@ export function openMenu(anchor, items, currentValue, onSelect) {
   items.forEach(it => {
     const row = document.createElement('button');
     row.type = 'button';
-    row.className = 'dd-item' + (it.value === currentValue ? ' selected' : '');
+    row.className = 'dd-item' + (it.value === currentValue ? ' selected' : '') + (it.danger ? ' dd-item-danger' : '');
     row.innerHTML = it.icon + `<span>${it.label}</span>` + (it.value === currentValue ? '<span class="dd-check">' + ICON.check + '</span>' : '');
     row.onclick = () => { closeOpenMenu(); onSelect(it.value); };
     menu.appendChild(row);

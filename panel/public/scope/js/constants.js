@@ -35,7 +35,8 @@ export const ICON = {
   checkSquare: '<svg class="icon" viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="2.6"/><polyline points="6.5 10.2 8.8 12.5 13.8 7.2"/></svg>',
   sparkle: '<svg class="icon" viewBox="0 0 20 20"><path d="M9 3 10.3 7.7 15 9 10.3 10.3 9 15 7.7 10.3 3 9 7.7 7.7 9 3Z"/><path d="M15.5 12 16.1 14.1 18 14.7 16.1 15.3 15.5 17.4 14.9 15.3 13 14.7 14.9 14.1 15.5 12Z"/></svg>',
   confluence: '<svg class="icon" viewBox="0 0 20 20"><path d="M5 3.5h7l3 3v10H5Z"/><path d="M12 3.5v3h3"/><line x1="7.5" y1="10" x2="12.5" y2="10"/><line x1="7.5" y1="13" x2="12.5" y2="13"/></svg>',
-  play: '<svg class="icon icon-fill" viewBox="0 0 20 20"><path d="M6 4.2 15.5 10 6 15.8Z"/></svg>'
+  play: '<svg class="icon icon-fill" viewBox="0 0 20 20"><path d="M6 4.2 15.5 10 6 15.8Z"/></svg>',
+  more: '<svg class="icon" viewBox="0 0 20 20"><circle class="icon-fill" cx="4" cy="10" r="1.6"/><circle class="icon-fill" cx="10" cy="10" r="1.6"/><circle class="icon-fill" cx="16" cy="10" r="1.6"/></svg>'
 };
 
 export const TYPE_ORDER = ['module', 'page', 'section', 'function', 'step'];

@@ -1,5 +1,5 @@
-// Kabuk: başlık, toolbar, görünüm anahtarı, ilerleme paneli, tüm içeriğin orkestrasyonu,
-// ve yedekleme (JSON dışa/içe aktarım).
+// Kabuk: sidebar (marka, ekle, görünüm anahtarı, kompakt durum özeti), ince üst bar
+// (arama, facet, seç, diğer işlemler menüsü), tüm içeriğin orkestrasyonu, yedekleme.
 import { state } from './state.js';
 import { ICON, STATUS_META } from './constants.js';
 import {
@@ -14,30 +14,35 @@ import { renderBoard } from './board-view.js';
 import { renderDrawer, closeDrawer } from './drawer.js';
 import { openSitemapImportModal } from './sitemap-import.js';
 import { toggleSelectMode, buildBulkBar } from './bulk-actions.js';
+import { openMenu } from './dropdown.js';
 import { uiToast } from './dialog.js';
 
 let indicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
+let sidebarStatusEl, topbarFacetsEl, topbarSearchWrapEl, fileInputEl;
 
-export function renderProgress() {
+/** Sidebar'daki kompakt durum ozeti — eski buyuk kutucuklarin yerine, tek kolonda. */
+function renderSidebarStatus() {
   const stats = computeStats(state.tree);
   const pctOk = stats.total ? (stats['✅'] / stats.total * 100) : 0;
 
   const wrap = document.createElement('div');
-  wrap.className = 'fw-progress';
+  wrap.className = 'fw-sb-status';
 
-  const tiles = document.createElement('div');
-  tiles.className = 'stat-tiles';
-  [
-    { key: '✅', cls: 'ok' }, { key: '⚠️', cls: 'warn' }, { key: '❌', cls: 'fail' }, { key: '⬜', cls: 'todo' }, { key: '🔵', cls: 'progress' }
-  ].forEach(d => {
-    const meta = STATUS_META[d.key];
-    const tile = document.createElement('div');
-    tile.className = 'stat-tile';
-    tile.style.setProperty('--tile-color', meta.colorVar);
-    tile.innerHTML = meta.icon + `<div class="stat-num">${stats[d.key]}</div><div class="stat-label">${meta.label}</div>`;
-    tiles.appendChild(tile);
+  ['✅', '🔵', '⚠️', '❌', '⬜'].forEach(key => {
+    const meta = STATUS_META[key];
+    const row = document.createElement('div');
+    row.className = 'fw-sb-status-row';
+    const dot = document.createElement('span');
+    dot.className = 'fw-sb-status-dot';
+    dot.style.setProperty('--tile-color', meta.colorVar);
+    const label = document.createElement('span');
+    label.className = 'fw-sb-status-label';
+    label.append(dot, document.createTextNode(meta.label));
+    const num = document.createElement('b');
+    num.textContent = stats[key];
+    row.append(label, num);
+    wrap.appendChild(row);
   });
-  wrap.appendChild(tiles);
 
   const track = document.createElement('div');
   track.className = 'progress-track';
@@ -45,7 +50,7 @@ export function renderProgress() {
   fill.className = 'progress-fill';
   track.appendChild(fill);
   wrap.appendChild(track);
-  void fill.offsetWidth; // senkron reflow zorla ki genişlik geçişi 0'dan gerçekten oynasın
+  void fill.offsetWidth;
   fill.style.width = pctOk + '%';
 
   const caption = document.createElement('div');
@@ -54,6 +59,23 @@ export function renderProgress() {
   wrap.appendChild(caption);
 
   return wrap;
+}
+
+/** İçerik değiştikçe (renderContent) sidebar'daki durum özetini yerinde günceller. */
+function updateSidebarStatus() {
+  if (!sidebarStatusEl) return;
+  if (state.currentView === 'attention') { sidebarStatusEl.hidden = true; return; }
+  sidebarStatusEl.hidden = false;
+  sidebarStatusEl.replaceChildren(...renderSidebarStatus().childNodes);
+}
+
+/** Arama/facet, sadece Ağaç/Diyagram/Pano'da anlamlı — Dikkat kendi kategorilerini kullanır
+ *  ve bu iki kontrolü hiç okumaz (attention-view.js hiçbir yerde searchQuery/activeFacets
+ *  okumuyor). Görünüm değişince ölü kontrolleri göstermemek için gizleniyorlar. */
+function updateTopbarVisibility() {
+  const hide = state.currentView === 'attention';
+  if (topbarSearchWrapEl) topbarSearchWrapEl.hidden = hide;
+  if (topbarFacetsEl) topbarFacetsEl.hidden = hide;
 }
 
 export function exportData() {
@@ -97,100 +119,81 @@ export function importData(file) {
 }
 
 /**
- * Sayfanin KENDI basligi — kim oldugunu soyler, nereye gidilecegini DEGIL.
- *
- * "Panele don" ve "Landing" dugmeleri buradan KALKTI: yuzeyler arasi gecis
- * artik sayfanin en ustundeki ortak barda (shared/nav/nav.js, `go` listesi).
- * Ayni ise iki ayri yerden bakmak, panelin barindan farkli gorunen ikinci bir
- * gezinme seridi demekti. Yeni bir hedef eklemek istersen buraya degil
- * SURFACES yapilandirmasina ekle — o zaman uc yuzeyde birden cikar.
+ * Sol sidebar — marka, birincil ekleme eylemi, görünüm anahtarı, kompakt durum özeti.
+ * "Panele don" ve "Landing" dugmeleri burada YOK — yuzeyler arasi gecis ortak barda
+ * (shared/nav/nav.js). Yeni bir hedef eklemek istersen buraya degil SURFACES'e ekle.
  */
-export function buildHeader() {
-  const header = document.createElement('div');
-  header.className = 'fw-header';
-  header.innerHTML = `
-    <div class="fw-logo">${ICON.logo}</div>
-    <div>
-      <div class="fw-title">Flowscope</div>
-      <div class="fw-subtitle">Proje bileşenlerini haritalayın, test durumunu izleyin</div>
-    </div>`;
-  return header;
-}
+function buildSidebar() {
+  const sidebar = document.createElement('div');
+  sidebar.className = 'fw-sidebar';
 
-export function buildToolbar() {
-  const toolbar = document.createElement('div');
-  toolbar.className = 'fw-toolbar';
-
-  const left = document.createElement('div');
-  left.className = 'toolbar-left';
+  const brand = document.createElement('div');
+  brand.className = 'fw-sb-brand';
+  brand.innerHTML = `<div class="fw-logo">${ICON.logo}</div><span class="fw-sb-brand-text">Flowscope</span>`;
+  sidebar.appendChild(brand);
 
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
-  addBtn.className = 'btn btn-primary';
+  addBtn.className = 'fw-sb-add';
   addBtn.innerHTML = ICON.plus + '<span>Yeni modül</span>';
+  addBtn.title = 'Ağaca yeni bir kök modül ekler — her görünümde görünür';
   addBtn.onclick = () => addChild(null);
-  left.appendChild(addBtn);
+  sidebar.appendChild(addBtn);
 
-  const saveBtn = document.createElement('button');
-  saveBtn.type = 'button';
-  saveBtn.className = 'btn';
-  saveBtn.innerHTML = ICON.download + '<span>Yedek indir</span>';
-  saveBtn.onclick = exportData;
-  left.appendChild(saveBtn);
+  // Ayrı bir GRUP: ileride "Test Paketleri" gibi başka bir grup eklenince aynı
+  // etiket + liste deseni tekrarlanır, düz/etiketsiz bir liste yerine.
+  const group = document.createElement('div');
+  group.className = 'fw-sb-group';
+  const groupLabel = document.createElement('div');
+  groupLabel.className = 'fw-sb-group-label';
+  groupLabel.textContent = 'Görünüm';
+  group.appendChild(groupLabel);
 
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = 'application/json';
-  fileInput.style.display = 'none';
-  fileInput.onchange = () => {
-    if (fileInput.files[0]) importData(fileInput.files[0]);
-    fileInput.value = '';
-  };
-  const importBtn = document.createElement('button');
-  importBtn.type = 'button';
-  importBtn.className = 'btn';
-  importBtn.innerHTML = ICON.upload + '<span>İçe aktar</span>';
-  importBtn.onclick = () => fileInput.click();
-  left.appendChild(importBtn);
-  left.appendChild(fileInput);
+  const nav = document.createElement('nav');
+  nav.className = 'fw-sb-nav';
+  indicatorEl = document.createElement('div');
+  indicatorEl.className = 'fw-sb-indicator';
+  nav.appendChild(indicatorEl);
 
-  /* "Dokümanlara Aktar" KALDIRILDI.
-   *
-   * Amacı, localStorage'daki ağacı agent'ların okuyabileceği bir dosyaya
-   * dökmekti — elle tetiklenen tek yönlü bir anlık görüntü. Ağaç artık zaten
-   * diskte (panel-data/scope/tree.json) ve her değişiklikte yazılıyor;
-   * buton bugün yalnızca "bayat kopya" üretme riski taşırdı. */
+  const VIEWS = [
+    { key: 'tree', label: 'Ağaç', icon: ICON.viewTree },
+    { key: 'diagram', label: 'Diyagram', icon: ICON.viewDiagram },
+    { key: 'board', label: 'Pano', icon: ICON.viewBoard },
+    { key: 'attention', label: 'Dikkat', icon: ICON.statusWarn },
+  ];
+  switchButtons = {};
+  VIEWS.forEach(v => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = state.currentView === v.key;
+    btn.className = isActive ? 'active' : '';
+    if (isActive) btn.setAttribute('aria-current', 'true');
+    btn.title = v.label;
+    btn.innerHTML = v.icon + `<span>${v.label}</span>`;
+    if (v.key === 'attention') {
+      attentionBadgeEl = document.createElement('span');
+      attentionBadgeEl.className = 'vs-badge';
+      btn.appendChild(attentionBadgeEl);
+    }
+    btn.onclick = () => setView(v.key);
+    nav.appendChild(btn);
+    switchButtons[v.key] = btn;
+  });
+  group.appendChild(nav);
+  sidebar.appendChild(group);
+  refreshAttentionBadge();
 
-  const sitemapBtn = document.createElement('button');
-  sitemapBtn.type = 'button';
-  sitemapBtn.className = 'btn';
-  sitemapBtn.innerHTML = ICON.globe + '<span>URL’den İçe Aktar</span>';
-  sitemapBtn.title = 'Bir URL’i gezip kapsam ağacı çıkarır (robots.txt’e uyar, yıkıcı öğelere dokunmaz)';
-  sitemapBtn.onclick = openSitemapImportModal;
-  /*
-   * `/scope#import` ile dogrudan ice aktarma kutusu acilir. Baglantilar
-   * panelindeki "Oturum aç" kurtarmasi buraya yonlendiriyor: oturum ancak
-   * gorunur bir pencerede insan giris yaparak aciliyor, o akis burada.
-   */
-  openImportFromHash();
-  left.appendChild(sitemapBtn);
+  sidebarStatusEl = document.createElement('div');
+  sidebarStatusEl.className = 'fw-sb-status';
+  sidebar.appendChild(sidebarStatusEl);
 
-  const clearBtn = document.createElement('button');
-  clearBtn.type = 'button';
-  clearBtn.className = 'btn btn-danger';
-  clearBtn.innerHTML = ICON.trash + '<span>Temizle</span>';
-  clearBtn.onclick = clearAll;
-  left.appendChild(clearBtn);
+  return sidebar;
+}
 
-  selectBtnEl = document.createElement('button');
-  selectBtnEl.type = 'button';
-  selectBtnEl.className = 'btn' + (state.selectMode ? ' btn-primary' : '');
-  selectBtnEl.innerHTML = ICON.checkSquare + '<span>Seç</span>';
-  selectBtnEl.title = 'Toplu durum güncelleme için öğe seç';
-  selectBtnEl.onclick = toggleSelectMode;
-  left.appendChild(selectBtnEl);
-
-  toolbar.appendChild(left);
+/** İnce üst bar — arama + facet (Dikkat'te gizli) + seç + "diğer işlemler" menüsü. */
+function buildTopbar() {
+  const topbar = document.createElement('div');
+  topbar.className = 'fw-topbar';
 
   const searchWrap = document.createElement('div');
   searchWrap.className = 'search-box';
@@ -202,7 +205,8 @@ export function buildToolbar() {
   searchInput.value = state.searchQuery;
   searchInput.oninput = (e) => { state.searchQuery = e.target.value; renderContent(); };
   searchWrap.appendChild(searchInput);
-  toolbar.appendChild(searchWrap);
+  topbar.appendChild(searchWrap);
+  topbarSearchWrapEl = searchWrap;
 
   const facetRow = document.createElement('div');
   facetRow.className = 'facet-row';
@@ -218,39 +222,60 @@ export function buildToolbar() {
     };
     facetRow.appendChild(pill);
   });
-  toolbar.appendChild(facetRow);
+  topbar.appendChild(facetRow);
+  topbarFacetsEl = facetRow;
 
-  const switcher = document.createElement('div');
-  switcher.className = 'view-switch';
-  indicatorEl = document.createElement('div');
-  indicatorEl.className = 'vs-indicator';
-  switcher.appendChild(indicatorEl);
+  const spacer = document.createElement('div');
+  spacer.style.marginLeft = 'auto';
+  topbar.appendChild(spacer);
 
-  const VIEWS = [
-    { key: 'tree', label: 'Ağaç', icon: ICON.viewTree },
-    { key: 'diagram', label: 'Diyagram', icon: ICON.viewDiagram },
-    { key: 'board', label: 'Pano', icon: ICON.viewBoard },
-    { key: 'attention', label: 'Dikkat', icon: ICON.statusWarn },
-  ];
-  switchButtons = {};
-  VIEWS.forEach(v => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = state.currentView === v.key ? 'active' : '';
-    btn.innerHTML = v.icon + `<span>${v.label}</span>`;
-    if (v.key === 'attention') {
-      attentionBadgeEl = document.createElement('span');
-      attentionBadgeEl.className = 'vs-badge';
-      btn.appendChild(attentionBadgeEl);
-    }
-    btn.onclick = () => setView(v.key);
-    switcher.appendChild(btn);
-    switchButtons[v.key] = btn;
+  selectBtnEl = document.createElement('button');
+  selectBtnEl.type = 'button';
+  selectBtnEl.className = 'btn' + (state.selectMode ? ' btn-primary' : '');
+  selectBtnEl.innerHTML = ICON.checkSquare + '<span>Seç</span>';
+  selectBtnEl.title = 'Toplu durum güncelleme için öğe seç';
+  selectBtnEl.onclick = toggleSelectMode;
+  topbar.appendChild(selectBtnEl);
+
+  // "Yedek indir / İçe aktar / URL'den İçe Aktar / Temizle" — günlük kullanılmayan
+  // bakım eylemleri; hepsi tek bir "Diğer işlemler" menüsünde (bkz. dropdown.js).
+  // Gizli dosya input'u DOM'da kalıcı duruyor, menü her açılışta yeniden kurulmuyor.
+  fileInputEl = document.createElement('input');
+  fileInputEl.type = 'file';
+  fileInputEl.accept = 'application/json';
+  fileInputEl.style.display = 'none';
+  fileInputEl.onchange = () => {
+    if (fileInputEl.files[0]) importData(fileInputEl.files[0]);
+    fileInputEl.value = '';
+  };
+  topbar.appendChild(fileInputEl);
+
+  const moreBtn = document.createElement('button');
+  moreBtn.type = 'button';
+  moreBtn.className = 'btn';
+  moreBtn.innerHTML = ICON.more;
+  moreBtn.title = 'Diğer işlemler';
+  moreBtn.onclick = () => openMenu(moreBtn, [
+    { value: 'export', label: 'Yedek indir', icon: ICON.download },
+    { value: 'import', label: 'İçe aktar', icon: ICON.upload },
+    { value: 'sitemap', label: 'URL’den İçe Aktar', icon: ICON.globe },
+    { value: 'clear', label: 'Temizle', icon: ICON.trash, danger: true },
+  ], null, (value) => {
+    if (value === 'export') exportData();
+    else if (value === 'import') fileInputEl.click();
+    else if (value === 'sitemap') openSitemapImportModal();
+    else if (value === 'clear') clearAll();
   });
-  toolbar.appendChild(switcher);
-  refreshAttentionBadge();
+  topbar.appendChild(moreBtn);
 
-  return toolbar;
+  /*
+   * `/scope#import` ile dogrudan ice aktarma kutusu acilir. Baglantilar
+   * panelindeki "Oturum aç" kurtarmasi buraya yonlendiriyor: oturum ancak
+   * gorunur bir pencerede insan giris yaparak aciliyor, o akis burada.
+   */
+  openImportFromHash();
+
+  return topbar;
 }
 
 /** "Dikkat" sekmesindeki sayı rozeti — taranmış her şeyin toplamı (bkz. attention-view.js). */
@@ -264,20 +289,26 @@ export function refreshAttentionBadge() {
 export function positionIndicator() {
   const btn = switchButtons[state.currentView];
   if (btn && indicatorEl) {
-    indicatorEl.style.left = btn.offsetLeft + 'px';
-    indicatorEl.style.width = btn.offsetWidth + 'px';
+    indicatorEl.style.top = btn.offsetTop + 'px';
+    indicatorEl.style.height = btn.offsetHeight + 'px';
   }
 }
 
 export function setView(key) {
   state.currentView = key;
-  Object.entries(switchButtons).forEach(([k, btn]) => btn.classList.toggle('active', k === key));
+  Object.entries(switchButtons).forEach(([k, btn]) => {
+    const isActive = k === key;
+    btn.classList.toggle('active', isActive);
+    if (isActive) btn.setAttribute('aria-current', 'true'); else btn.removeAttribute('aria-current');
+  });
   positionIndicator();
+  updateTopbarVisibility();
   renderContent();
 }
 
 export function renderContent() {
   if (selectBtnEl) selectBtnEl.classList.toggle('btn-primary', state.selectMode);
+  updateSidebarStatus();
 
   const scrollX = window.scrollX, scrollY = window.scrollY;
   const oldScrollable = state.root.querySelector('.diagram-scroll, .board');
@@ -287,11 +318,10 @@ export function renderContent() {
   const fresh = document.createElement('div');
   fresh.className = 'fw-content';
 
-  // "Dikkat" görünümü ağaç ilerleme kutucuklarını / toplu seçim çubuğunu paylaşmaz —
-  // kendi kendine yeten bir bulgu listesi (bkz. attention-view.js).
-  if (state.currentView !== 'attention') {
-    fresh.appendChild(renderProgress());
-    if (state.selectMode) fresh.appendChild(buildBulkBar());
+  // "Dikkat" görünümü toplu seçim çubuğunu paylaşmaz — kendi kendine yeten bir
+  // bulgu listesi (bkz. attention-view.js). İlerleme özeti artık sidebar'da.
+  if (state.currentView !== 'attention' && state.selectMode) {
+    fresh.appendChild(buildBulkBar());
   }
 
   const q = state.searchQuery.trim().toLowerCase();
@@ -321,7 +351,7 @@ export function renderContent() {
     fresh.appendChild(treeContainer);
   }
 
-  if (old) old.replaceWith(fresh); else state.root.appendChild(fresh);
+  if (old) old.replaceWith(fresh); else state.root.querySelector('.fw-main').appendChild(fresh);
   refreshAttentionBadge();
 
   if (state.drawerNode) {
@@ -344,10 +374,14 @@ export function renderContent() {
 
 export function init() {
   state.root.innerHTML = '';
-  state.root.appendChild(buildHeader());
-  state.root.appendChild(buildToolbar());
+  state.root.appendChild(buildSidebar());
+  const main = document.createElement('div');
+  main.className = 'fw-main';
+  main.appendChild(buildTopbar());
+  state.root.appendChild(main);
   requestAnimationFrame(positionIndicator);
   window.addEventListener('resize', positionIndicator);
+  updateTopbarVisibility();
   renderContent();
 }
 
