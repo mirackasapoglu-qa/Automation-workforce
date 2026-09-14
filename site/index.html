@@ -226,11 +226,100 @@ button { font-family: inherit; }
 /* Marka hero'da, URL kutusunun ustunde: header'daki kucuk logonun buyugu. */
 .hero-brand {
   gap: 12px;
-  margin-bottom: 22px;
+  margin-bottom: 14px;
   font-size: clamp(28px, 3.2vw, 44px);
   letter-spacing: -0.035em;
 }
 .hero-brand .logo-mark { width: 1.15em; height: 1.15em; }
+
+/* Logo ile URL kutusu arasinda, sistemi tek cumlede tanitir. Ilk kez gelen
+   ziyaretci logo + bos bir URL kutusuyla karsilasinca "burasi ne?" hissi
+   veriyordu — acikleyici h1 ise kutunun ALTINDA kaldigi icin yardimci
+   olmuyordu (bkz. hero h1, DOM'da URL kutusundan sonra).
+   Video arka planin dimmed edilmemesi bilincli bir karar (bkz. .hero-photo
+   yorumu) — o yuzden bu satirin kendi kontrasti kendinden gelmeli. Diger her
+   hero metni ya cok buyuk/beyaz (h1) ya da kendi arka planina sahip (badge,
+   hero-url) — sade duz gri renk hicbir katman olmadan videonun uzerinde
+   okunmuyordu. Cozum, sayfadaki mevcut "cam" malzemesiyle (.hero-url,
+   .btn-ghost ile ayni tarif) bir kapsul: garanti kontrast + ayni gorsel dil. */
+.hero-intro {
+  position: relative;
+  display: inline-flex;
+  max-width: 480px;
+  margin: 0 0 20px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  /* Arka plan onceki halinden daha koyu/opak — kapsul, video ac1k renkli bir
+     kareye denk gelse bile KENDI kutusu olarak okunsun; parlama efektleri
+     (::before, metin) bunun UZERINE biner. */
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.72) 50%, rgba(140, 155, 180, 0.06));
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+/* Kenar cizgisinin KENDISI renk degistiriyor — bir blur/glow'a (::before ile
+   ilk denemede oldugu gibi) guvenmiyoruz, cunku bulanik bir parlama acik
+   renkli bir video karesinde kayboluyordu (olculdu). Net bir cizgi her
+   zeminde gorunur. ::before'da durmasinin sebebi .appear'in "landed"
+   oldugunda (bkz. .appear.is-in) elementin KENDI animation ozelligini
+   `none`'a sifirlamasi — dogrudan .hero-intro'ya koysaydik entrance
+   animasyonu bitince bu da susardi. */
+.hero-intro::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  /* Sayfadaki mevcut pastel mavi vurgudan (rgba(170,200,255,...), bkz.
+     .hero-url:focus-within) BILINCLI olarak daha doygun/net — o ton burada
+     "belirgin" hedefi icin fazla soluk kaliyordu (olculdu). Kalinlik da
+     1.5px'ten 2.5px'e cikti, ayni gerekce. */
+  border: 2.5px solid rgba(90, 150, 255, 1);
+  pointer-events: none;
+  animation: intro-pulse 2s ease-in-out infinite;
+}
+/* ONCEKI denemede halka dinlenme anında (opacity:0) TAMAMEN kayboluyordu —
+   dongunun yarisinda goze hic carpmiyordu. Simdi hic sonmuyor (taban 0.6),
+   sadece parlaklik/buyukluk nabiz gibi atiyor — "bazen var bazen yok" degil
+   "surekli orada, aninda parliyor" hissi. */
+@keyframes intro-pulse {
+  0%, 100% { opacity: 0.6; box-shadow: 0 0 16px 2px rgba(90, 150, 255, 0.45); transform: scale(1); }
+  50%      { opacity: 1;   box-shadow: 0 0 42px 10px rgba(90, 150, 255, 1);   transform: scale(1.025); }
+}
+/* Metin, .hero-url-ghost'taki soldan-saga isik kaymasiyla AYNI teknik —
+   yeni bir gorsel dil icat etmek yerine sayfada zaten kanitlanmis deseni
+   tekrar kullaniyor. Taban rengi ONCEKI denemeden (0.35 opaklik) BILINCLI
+   olarak cok daha yuksek (0.78) — dusuk taban metni "donuk" gosteriyordu,
+   "parliyor" hissi vermiyordu; simdi metin HER ZAMAN net okunuyor, isik
+   sadece uzerine biniyor. 6s'den 3.2s'e (ghost-shine ile ayni hiz) —
+   "sik tekrarlanan tek kelime" degil "surekli akan bir cumle" hedeflendi. */
+.hero-intro-text {
+  font-family: var(--ui);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  background: linear-gradient(100deg,
+    rgba(255, 255, 255, 0.78) 0%, rgba(255, 255, 255, 0.78) 30%,
+    #ffffff 46%, #ffffff 54%,
+    rgba(255, 255, 255, 0.78) 70%, rgba(255, 255, 255, 0.78) 100%);
+  background-size: 300% 100%;
+  background-position: 50% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.9));
+  animation: intro-shine 3.2s ease-in-out infinite;
+}
+@keyframes intro-shine {
+  0%   { background-position: 180% 0; }
+  50%  { background-position: 20% 0; }
+  100% { background-position: -140% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-intro-text { animation: none; background-position: 50% 0; }
+  .hero-intro::before { animation: none; opacity: 0.6; }
+}
 
 /* ── Buttons: one liquid-glass language ─────────────────────────────────── */
 .btn {
@@ -967,6 +1056,10 @@ html.js-reveal .shot-frame.reveal:not(.in) { transform: translateY(26px) scale(0
         </svg>
         <span>Case<span class="logo-suffix">2AI</span></span>
       </a>
+
+      <p class="hero-intro appear appear--soft" style="--d: 0.15s">
+        <span class="hero-intro-text">QA kapsamı çıkarmak saatler sürerdi. Artık bir URL yeter.</span>
+      </p>
 
       <!-- URL'i gir, tarama HEMEN baslasin: Flowscope'un "URL'den Ice Aktar"
            kutusuna `/scope#import&url=<adres>` ile gidilir; kutu dolu acilir ve
