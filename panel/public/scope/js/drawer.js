@@ -26,6 +26,12 @@ import { loadPackages, renderPackageRow } from './type-packages.js';
 // modül-kapsamı state'ler gibi (copyFeedbackUntil, expandedRuns) renderDrawer() sık sık
 // DOM'u yeniden kurduğu için burada, DOM dışında tutulur.
 let selectedTestTypes = new Set(['happy', 'negative']);
+// 10 ayrı tür checkbox'ı baştan görünürse (eski davranış) tam da şikayet edilen
+// "çok seçenek, kafa karıştırıyor" durumu oluyordu. Artık üç kademeli preset
+// (aşağıda) ÖNCE gösteriliyor, checkbox listesi yalnızca bir preset'e
+// tıklanınca açılıyor — açıldıktan sonra düğüm değişse bile kapanmıyor
+// (selectedTestTypes ile aynı kalıcılık, module-scope state).
+let testTypesExpanded = false;
 const TEST_TYPE_META = {
   happy: {
     label: 'Happy Path',
@@ -77,6 +83,20 @@ const TEST_TYPE_META = {
       + 'yaz (uygulanabilirse) — kapsamlı bir pentest değil, temel QA seviyesinde bir kontrol.'
   }
 };
+
+/**
+ * Üç kademeli preset — QA pratiğindeki smoke→standart→tam-regresyon sırasına
+ * karşılık gelir. "Temel" bugünkü varsayılan seçimle (happy+negative) birebir
+ * aynı, yani ilk açılışta hiçbir şey değişmiş gibi görünmez. Presete tıklamak
+ * TÜM seçimi o kombinasyona EŞİTLER (eski "Tümü" pili gibi aç/kapa değil,
+ * type-packages.js'teki tür paketi pilleriyle aynı "uygula" davranışı —
+ * üç butonun hepsi tutarlı olsun diye).
+ */
+const TEST_TYPE_PRESETS = [
+  { key: 'happy', label: 'Happy Path', types: ['happy'] },
+  { key: 'temel', label: 'Temel', types: ['happy', 'negative'] },
+  { key: 'tumu', label: 'Tümü', types: Object.keys(TEST_TYPE_META) },
+];
 
 // Kökten node'a kadar olan zinciri (node dahil) döner — bir düğümde canlı sayfa linki
 // yoksa en yakın atada arayabilmek için (buildTestRunPrompt burada kullanıyor).
@@ -312,34 +332,57 @@ export function renderDrawer() {
     aiSection.appendChild(aiLabel);
     const scopeLabel = document.createElement('div');
     scopeLabel.className = 'qa-scope-label';
-    scopeLabel.textContent = 'Test türleri (birden fazla seçilebilir)';
+    scopeLabel.textContent = 'Test kapsamı';
     aiSection.appendChild(scopeLabel);
-    const scopeRow = document.createElement('div');
-    scopeRow.className = 'qa-scope-row';
-    const allSelected = Object.keys(TEST_TYPE_META).every(k => selectedTestTypes.has(k));
-    const allPill = document.createElement('button');
-    allPill.type = 'button';
-    allPill.className = 'qa-scope-pill qa-scope-pill-all' + (allSelected ? ' active' : '');
-    allPill.textContent = 'Tümü';
-    allPill.title = 'Bütün test türlerini seç/kaldır';
-    allPill.onclick = () => {
-      selectedTestTypes = allSelected ? new Set() : new Set(Object.keys(TEST_TYPE_META));
-      renderDrawer();
-    };
-    scopeRow.appendChild(allPill);
-    Object.keys(TEST_TYPE_META).forEach(key => {
+
+    const presetRow = document.createElement('div');
+    presetRow.className = 'qa-scope-row';
+    TEST_TYPE_PRESETS.forEach((preset) => {
+      const isActive = selectedTestTypes.size === preset.types.length && preset.types.every(t => selectedTestTypes.has(t));
       const pill = document.createElement('button');
       pill.type = 'button';
-      pill.className = 'qa-scope-pill' + (selectedTestTypes.has(key) ? ' active' : '');
-      pill.textContent = TEST_TYPE_META[key].label;
-      pill.title = TEST_TYPE_META[key].instruction;
+      pill.className = 'qa-scope-pill qa-scope-preset' + (isActive ? ' active' : '');
+      pill.textContent = preset.label;
+      pill.title = 'Kapsar: ' + preset.types.map(t => TEST_TYPE_META[t].label).join(' · ');
       pill.onclick = () => {
-        if (selectedTestTypes.has(key)) selectedTestTypes.delete(key); else selectedTestTypes.add(key);
+        selectedTestTypes = new Set(preset.types);
+        testTypesExpanded = true;
         renderDrawer();
       };
-      scopeRow.appendChild(pill);
+      presetRow.appendChild(pill);
     });
-    aiSection.appendChild(scopeRow);
+    aiSection.appendChild(presetRow);
+
+    // 10 tekil tür checkbox'ı bir preset'e tıklanana kadar HİÇ görünmüyor —
+    // "hangi preset neyi kapsıyor" sorusunun cevabı burada, ama varsayılan
+    // olarak kapalı (bkz. testTypesExpanded tanımı). Açıldıktan sonra kullanıcı
+    // tek tek işaretini kaldırıp/ekleyip preset'ten sapabilir; o an hiçbir
+    // preset pili aktif görünmez (yukarıdaki isActive hesaplaması zaten böyle).
+    if (testTypesExpanded) {
+      const checklistLabel = document.createElement('div');
+      checklistLabel.className = 'qa-scope-checklist-label';
+      checklistLabel.textContent = 'Kapsanan türler — istersen tek tek değiştir';
+      aiSection.appendChild(checklistLabel);
+      const checklist = document.createElement('div');
+      checklist.className = 'qa-scope-checklist';
+      Object.keys(TEST_TYPE_META).forEach(key => {
+        const row = document.createElement('label');
+        row.className = 'qa-scope-check-row';
+        row.title = TEST_TYPE_META[key].instruction;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = selectedTestTypes.has(key);
+        cb.onchange = () => {
+          if (cb.checked) selectedTestTypes.add(key); else selectedTestTypes.delete(key);
+          renderDrawer();
+        };
+        const span = document.createElement('span');
+        span.textContent = TEST_TYPE_META[key].label;
+        row.append(cb, span);
+        checklist.appendChild(row);
+      });
+      aiSection.appendChild(checklist);
+    }
 
     /*
      * TUR PAKETLERI: isimlendirilmis tur kombinasyonlari. (Sidebar'daki
@@ -352,7 +395,7 @@ export function renderDrawer() {
     aiSection.appendChild(renderPackageRow({
       selected: selectedTestTypes,
       meta: TEST_TYPE_META,
-      onApply: (types) => { selectedTestTypes = new Set(types); renderDrawer(); },
+      onApply: (types) => { selectedTestTypes = new Set(types); testTypesExpanded = true; renderDrawer(); },
       onChange: () => renderDrawer(),
     }));
     loadPackages().then((liste) => {

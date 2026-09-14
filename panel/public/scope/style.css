@@ -402,8 +402,15 @@ html, body { background: var(--bg); margin: 0; }
   border: 1px dashed var(--border); background: transparent; color: var(--text-muted); cursor: pointer; }
 .qa-tpkg-save:hover:not(:disabled) { border-style: solid; border-color: var(--accent); color: var(--text); }
 .qa-tpkg-save:disabled { opacity: .45; cursor: not-allowed; }
-.qa-scope-pill-all { border-style: dashed; font-weight: 700; }
-.qa-scope-pill-all.active { border-style: solid; }
+/* Üç kademeli preset (Happy Path/Temel/Tümü) + tıklanınca açılan checkbox
+   listesi (bkz. drawer.js). Eskiden 10 tür + "Tümü" hep birlikte, aynı
+   ağırlıkta tek satırda duruyordu — kafa karıştırdığı ölçüldü/bildirildi. */
+.qa-scope-preset { font-weight: 700; }
+.qa-scope-checklist-label { font-size: 10.5px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: .3px; margin: 2px 0 6px; }
+.qa-scope-checklist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px 14px; margin-bottom: 10px; }
+.qa-scope-check-row { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-muted); cursor: pointer; padding: 2px 0; }
+.qa-scope-check-row:hover { color: var(--text); }
+.qa-scope-check-row input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
 
 .drawer-textarea {
   width: 100%; min-height: 110px; resize: vertical; box-sizing: border-box;
