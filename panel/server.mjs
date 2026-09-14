@@ -663,6 +663,13 @@ function buildCustomArgs(params = {}) {
   return { args, errors };
 }
 const PROXY_PORT = Number(process.env.PANEL_PROXY_PORT || PORT + 1);
+/*
+ * Proxy'nin DIŞARIDAN görünen adresi. Sunucuda (ters vekil arkasında) proxy
+ * portu kendi domain'iyle yayınlanır ve bu değişkenle söylenir; verilmezse
+ * proxy eskisi gibi `http://localhost:<port>` der (lokalde doğru adres).
+ * Bkz. panel/proxy.mjs → selfOrigin.
+ */
+const PROXY_PUBLIC_URL = process.env.PANEL_PROXY_PUBLIC_URL || "";
 let PROXY_URL = "";
 
 // ---------------- tasarim diff ----------------
@@ -2628,7 +2635,7 @@ ${testBlock}
 });
 
 if (BASE_URL) {
-  const { url } = await startProxy({ baseURL: BASE_URL, port: PROXY_PORT });
+  const { url } = await startProxy({ baseURL: BASE_URL, port: PROXY_PORT, publicUrl: PROXY_PUBLIC_URL });
   PROXY_URL = url;
 }
 

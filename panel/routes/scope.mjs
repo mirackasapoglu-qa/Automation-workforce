@@ -21,6 +21,7 @@ import {
   deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases,
 } from "../scope-bridge.mjs";
 import { PROJECT } from "../project.mjs";
+import { listPackages, savePackage, deletePackage } from "../type-packages.mjs";
 
 export function registerScopeRoutes(router, ctx) {
   const { send, BASE_URL, RUNS } = ctx;
@@ -78,6 +79,36 @@ export function registerScopeRoutes(router, ctx) {
     audit({ event: "scope-backfill-routes", written: out.written });
     return send(res, 200, { ok: true, ...out });
   }, { auth: true });
+
+  /**
+   * TÜR PAKETLERİ — isimlendirilmiş test türü kombinasyonları.
+   * (Case koleksiyonu olan "Paketler" AYRI bir şey: panel/routes/packages.mjs.)
+   * Okuma açık (liste bir tercih kaydı, sır değil), yazma token ister.
+   * Depo ve doğrulama `panel/type-packages.mjs` içinde.
+   */
+  router.get("/api/type-packages", ({ res }) => send(res, 200, { ok: true, packages: listPackages() }));
+
+  router.post("/api/type-packages", ({ res, body, audit }) => {
+    try {
+      const kayit = savePackage(body ?? {});
+      audit({ event: "type-package-save", id: kayit.id, label: kayit.label, types: kayit.types.length });
+      return send(res, 200, { ok: true, package: kayit, packages: listPackages() });
+    } catch (e) {
+      // Doğrulama hatası kullanıcıya AYNEN gösterilir ("En az bir test türü
+      // seçilmeli" gibi); 400, çünkü isteğin kendisi eksik.
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
+
+  router.post("/api/type-packages/delete", ({ res, body, audit }) => {
+    try {
+      const out = deletePackage(body?.id);
+      audit({ event: "type-package-delete", id: out.deleted });
+      return send(res, 200, { ok: true, ...out, packages: listPackages() });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
 
   /**
    * Perf süpürmesinin ölçeceği rotalar — `scripts/perf-sweep.mjs --routes` için

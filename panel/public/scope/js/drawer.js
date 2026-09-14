@@ -14,6 +14,7 @@ import { renderDrawerStatusHistory } from './status-history.js';
 import { renderContent } from './shell.js';
 import { openAiAssistModal } from './ai-assist.js';
 import { openTestCaseRequest, applyGenerateLabel } from './testcase-request.js';
+import { loadPackages, renderPackageRow } from './type-packages.js';
 
 // "Test Case İste" için kullanıcının seçtiği test TÜRLERİ. Aşağıdaki `instruction`
 // metinleri artık YALNIZCA pill tooltip'i — modele giden talimat sunucudaki
@@ -339,6 +340,26 @@ export function renderDrawer() {
       scopeRow.appendChild(pill);
     });
     aiSection.appendChild(scopeRow);
+
+    /*
+     * TUR PAKETLERI: isimlendirilmis tur kombinasyonlari. (Sidebar'daki
+     * "Paketler" case koleksiyonu — baska sey, bkz. js/packages.js.) Ayni uc-bes turu her
+     * dugumde elden secmek kullanicinin en cok tekrar eden isiydi.
+     * Liste sunucudan (paylasilan), onbellekli; ilk okumada satir bos cizilir
+     * ve okuma bitince drawer yeniden cizilir — drawer acilisini ag istegine
+     * bekletmiyoruz.
+     */
+    aiSection.appendChild(renderPackageRow({
+      selected: selectedTestTypes,
+      meta: TEST_TYPE_META,
+      onApply: (types) => { selectedTestTypes = new Set(types); renderDrawer(); },
+      onChange: () => renderDrawer(),
+    }));
+    loadPackages().then((liste) => {
+      // Yalniz ILK okumada yeniden ciz (liste artik onbellekte) ve drawer hala
+      // ayni dugumde acikas — arada baska dugume gecildiyse cizim yapma.
+      if (liste && !state.packagesLoaded) { state.packagesLoaded = true; if (state.drawerNode === drawerNode) renderDrawer(); }
+    });
 
     const aiActions = document.createElement('div');
     aiActions.className = 'qa-analysis-actions';

@@ -129,3 +129,49 @@ export function uiConfirm(mesaj, opt = {}) {
     yes.focus();
   });
 }
+
+/**
+ * Tek satırlık metin sorar. Panelin `uiPrompt`'unun (index.html) Flowscope
+ * karşılığı — çıplak `prompt()` kullanmak, bu dosyanın var olma sebebine
+ * aykırı olurdu (tarayıcı kutusu temasız ve sayfayı kilitliyor).
+ *
+ * ⚠️ `uiConfirm` gibi ASENKRON: `const ad = await uiPrompt(...)`.
+ * Vazgeçildiğinde (Escape / dışa tık / Vazgeç) `null` döner — boş string ile
+ * karıştırma, "boş isim girdi" ile "vazgeçti" farklı kararlar.
+ */
+export function uiPrompt(mesaj, opt = {}) {
+  ensureCss();
+  return new Promise((resolve) => {
+    document.getElementById('fwAsk')?.remove();
+    const ov = document.createElement('div');
+    ov.id = 'fwAsk';
+    const box = document.createElement('div'); box.className = 'box'; box.setAttribute('role', 'dialog'); box.setAttribute('aria-modal', 'true');
+    const h = document.createElement('h3'); h.textContent = opt.title || 'Değer gir';
+    const msg = document.createElement('div'); msg.className = 'msg'; msg.textContent = String(mesaj ?? '');
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.value = opt.value || '';
+    if (opt.placeholder) inp.placeholder = opt.placeholder;
+    inp.style.cssText = 'width:100%;font:inherit;font-size:13.5px;padding:8px 10px;margin:0 0 14px;'
+      + 'border-radius:var(--radius-sm,6px);border:1px solid var(--border,#2b3640);'
+      + 'background:var(--surface-sunken,var(--surface,#12171d));color:var(--text,#e6eaee)';
+    const row = document.createElement('div'); row.className = 'row';
+    const no = document.createElement('button'); no.textContent = opt.cancel || 'Vazgeç';
+    const yes = document.createElement('button'); yes.textContent = opt.ok || 'Tamam'; yes.className = 'primary';
+    row.append(no, yes);
+    box.append(h, msg, inp, row);
+    ov.appendChild(box);
+    const kapat = (cevap) => { document.removeEventListener('keydown', tus); ov.remove(); resolve(cevap); };
+    const onayla = () => { const v = inp.value.trim(); kapat(v || null); };
+    // Enter input'un içindeyken de gönderir; Escape her zaman vazgeçer.
+    const tus = (e) => { if (e.key === 'Escape') kapat(null); };
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); onayla(); } });
+    no.onclick = () => kapat(null);
+    yes.onclick = onayla;
+    ov.onclick = (e) => { if (e.target === ov) kapat(null); };
+    document.addEventListener('keydown', tus);
+    document.body.appendChild(ov);
+    inp.focus();
+    inp.select();
+  });
+}

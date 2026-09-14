@@ -385,6 +385,23 @@ html, body { background: var(--bg); margin: 0; }
 }
 .qa-scope-pill:hover { border-color: var(--accent); color: var(--text); }
 .qa-scope-pill.active { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
+
+/* Tur paketleri — isimlendirilmis tur kombinasyonlari (bkz. js/type-packages.js).
+   Sidebar'daki "Paketler" (case koleksiyonu) ile KARISTIRMA.
+   Tur pill'leriyle ayni gorsel dil; paket olduklari "· N" rozetinden ve
+   yanindaki silme carpisindan anlasiliyor. Yeni renk icat edilmedi. */
+.qa-tpkg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: -4px 0 12px; }
+.qa-tpkg-label { font-size: 10.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .3px; }
+.qa-tpkg-list { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.qa-tpkg-pill { font-size: 11.5px; }
+.qa-tpkg-empty { font-size: 11.5px; color: var(--text-muted); opacity: .8; }
+.qa-tpkg-x { background: none; border: 0; color: var(--text-muted); cursor: pointer; font-size: 15px;
+  line-height: 1; padding: 0 4px 0 0; margin-right: 4px; }
+.qa-tpkg-x:hover { color: var(--fail); }
+.qa-tpkg-save { font: inherit; font-size: 11.5px; padding: 3px 9px; border-radius: var(--radius-sm, 6px);
+  border: 1px dashed var(--border); background: transparent; color: var(--text-muted); cursor: pointer; }
+.qa-tpkg-save:hover:not(:disabled) { border-style: solid; border-color: var(--accent); color: var(--text); }
+.qa-tpkg-save:disabled { opacity: .45; cursor: not-allowed; }
 .qa-scope-pill-all { border-style: dashed; font-weight: 700; }
 .qa-scope-pill-all.active { border-style: solid; }
 

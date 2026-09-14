@@ -2226,6 +2226,64 @@ yavaşlamasın).
 panel:check` ilk turda `scope-bridge.mjs`'teki iki yorum yüzünden kırmızı
 verdi (örnek kart anahtarı + ortam değişkeni adı), ikisi de nötrlendi.
 
+## Site (canlı) iframe'i sunucuda: proxy'nin adresi (2026-09-14)
+
+⚠️ **`panel/proxy.mjs` tarayıcıya sabit `http://localhost:<port>` diyordu** —
+yani iframe **bir domain arkasında hiç çalışmadı**. Ölçüm (canlı):
+`/api/meta → proxyUrl: "http://localhost:3001"`; o adres kullanıcının KENDİ
+makinesini gösteriyor, container'ın içindeki portu değil. Panel https ise
+tarayıcı ayrıca karışık içerik olarak da engeller. Lokalde çalışıyor olması
+yanıltıcı: orada `localhost:4647` gerçekten var.
+
+`PANEL_PROXY_PUBLIC_URL` verilirse proxy hem döndüğü adreste hem yönlendirme
+yeniden yazımında onu kullanır. Sunucuda proxy portuna (container içi
+`PANEL_PORT + 1`) **ikinci bir domain** bağlanmalı ve bu değişken o adrese
+ayarlanmalı. Verilmezse davranış aynen eskisi gibi.
+
+⚠️ **Neden ikinci domain, panel origin'inde bir alt yol değil:** sitenin mutlak
+yolları (`/assets/...`, framework'ün çalışma anında kurduğu adresler) alt yolda
+panelin köküne düşer; HTML yeniden yazmak JS'in kurduğu adresleri yakalayamaz ve
+sayfa yarım render olur. Ayrı origin'de hiçbir yeniden yazma gerekmiyor.
+Panelin `message` dinleyicileri origin doğrulamadığı için (`qa-nav`, `qa-scroll`,
+`qa-rec-*`) yeni domain ek değişiklik istemiyor.
+
+## İKİ AYRI "paket" var — karıştırma (2026-09-14)
+
+Aynı gün, iki ayrı oturumda iki farklı özellik "paket" adını aldı. İkisi de
+duruyor çünkü gerçekten farklı şeyler; etiketler ayrıldı:
+
+| | Paketler | Tür paketleri |
+|---|---|---|
+| Ne | Var olan test CASE'lerinin koşulabilir koleksiyonu | Case ÜRETİLİRKEN seçilen test TÜRÜ kombinasyonu |
+| Nerede | Flowscope sol sidebar → Test Suite grubu | Drawer → QA Analizi → tür seçicisinin altı |
+| Depo | `panel-data/scope/packages.json` | `panel-data/type-packages.json` |
+| Kod | `panel/packages.mjs` · `routes/packages.mjs` · `scope/js/packages.js` | `panel/type-packages.mjs` · `routes/scope.mjs` · `scope/js/type-packages.js` |
+| Uç | `GET/PUT /api/scope/packages` (tüm listeyi yazar) | `GET /api/type-packages`, `POST` + `/delete` |
+
+Biri üretimin GİRDİSİ, diğeri üretimin çıktısının gruplanması. Yeni bir "paket"
+eklemeden önce hangisinin genişlemesi gerektiğine karar ver.
+
+## Tür paketleri (`panel/type-packages.mjs`, 2026-09-14)
+
+Drawer'daki "Test Türleri (birden fazla seçilebilir)" listesi kodda sabit ve öyle
+kalıyor; eksik olan şey türler değil, **aynı kombinasyonu her düğümde elden
+yeniden seçmek** zorunda olmaktı. Paket = o kombinasyonun bir ismi.
+
+- Depo `panel-data/type-packages.json`, desen `jira-sorters.mjs` ile **birebir
+  aynı** (aynı id üretimi, aynı "tohumlama yok" kuralı) — ikinci bir kalıcılık
+  deseni icat etmek aynı hataların ikinci kez yapılması olurdu.
+- Uçlar `panel/routes/scope.mjs`: `GET /api/type-packages` (açık),
+  `POST /api/type-packages` ve `/delete` (token). Doğrulama hataları kullanıcıya
+  aynen gösterilir (400).
+- Arayüz `scope/js/type-packages.js` + drawer'daki tür satırının altı. Liste
+  sunucuda tutuluyor (localStorage DEĞİL): paket panele giren herkes için aynı.
+- ⚠️ **Türler kayıtta doğrulanmaz**, uygulama anında bilinmeyen tür sessizce
+  elenir ve rozette gerçek sayı yazar. Tür listesi değiştiğinde eski bir paket
+  yüzünden kayıt reddedilseydi kullanıcı sebebini anlamazdı.
+- `uiPrompt` Flowscope tarafında YOKTU, `dialog.js`'e eklendi (panelle aynı API,
+  aynı asenkron tuzak: `await` şart, vazgeçince `null` döner — boş string ile
+  karıştırma).
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

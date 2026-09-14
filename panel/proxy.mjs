@@ -43,9 +43,27 @@ async function readBody(req) {
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
-export function startProxy({ baseURL, port, gateCookie = "temporary_auth_verified=true" }) {
+export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "temporary_auth_verified=true" }) {
   const target = new URL(baseURL);
-  const selfOrigin = `http://localhost:${port}`;
+  /*
+   * Proxy'nin TARAYICIYA söylediği adres.
+   *
+   * ⚠️ Sabit `http://localhost:<port>` idi ve bu, panel bir domain arkasına
+   * konduğunda iframe'in HİÇ açılmaması demekti (ölçüldü 2026-09-14, canlıda
+   * `/api/meta → proxyUrl: "http://localhost:3001"`): o adres kullanıcının
+   * KENDİ makinesini gösteriyor, container'ın içindeki portu değil. Üstelik
+   * panel https ise tarayıcı http iframe'ini karışık içerik olarak da engeller.
+   *
+   * `PANEL_PROXY_PUBLIC_URL` verilirse (ters vekil arkasındaki ikinci domain)
+   * hem `url` hem yönlendirme yeniden yazımı onu kullanır. Verilmezse davranış
+   * aynen eskisi gibi — lokalde `localhost:<port>` zaten doğru adres.
+   *
+   * ⚠️ Neden ikinci DOMAIN, panel origin'inde bir alt yol değil: sitenin
+   * mutlak yolları (`/assets/...`, framework'ün çalışma anında kurduğu
+   * adresler) alt yolda panelin köküne düşer ve sayfa yarım render olur.
+   * Ayrı origin'de hiçbir yeniden yazma gerekmiyor.
+   */
+  const selfOrigin = String(publicUrl || "").replace(/\/+$/, "") || `http://localhost:${port}`;
 
   const server = http.createServer(async (req, res) => {
     try {
