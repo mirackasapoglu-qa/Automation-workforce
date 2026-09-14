@@ -5,6 +5,7 @@ import { reloadPersistedTree, findNode, setSaveState } from './data.js';
 import { loadPackages } from './packages.js';
 import { init } from './shell.js';
 import { openDrawer } from './drawer.js';
+import { initLiveSync } from './live.js';
 
 async function bootstrap() {
   state.root = document.getElementById('fw-root');
@@ -23,6 +24,9 @@ async function bootstrap() {
   await loadKnownIssues();
   init();
   openNodeFromHash();
+  // Panelden gelen agac degisikliklerini canli izle (kosum sonucu, perf, Jira,
+  // test case). Kendi duzenlememize tepki vermez — bkz. live.js.
+  initLiveSync();
 }
 
 /**

@@ -52,6 +52,37 @@ export async function aiStatus() {
   }
 }
 
+/**
+ * Üretim düğmesinin metnini GERÇEK yola göre yazar.
+ *
+ * Düğme "Test Case İste (Claude Code)" diyordu: kopyala-yapıştır turunu
+ * anlatan bir metin. Sunucuda Claude hesabı bağlıyken (2026-09-10'dan beri)
+ * aynı düğme modeli kendisi çağırıp case'leri doğrudan ağaca yazıyor — yani
+ * yazı, yapılan işi yanlış anlatıyordu: kullanıcı elle bir şey yapıştırması
+ * gerektiğini sanıyordu.
+ *
+ * Durum sunucudan geliyor (`/api/ai/status`, 30 sn önbellekli) ve düğme
+ * çizildikten SONRA güncelleniyor — çizimi ağ isteğine bekletmek, drawer'ın
+ * açılışını yavaşlatırdı. İstek başarısızsa yazı olduğu gibi kalır (elle yol).
+ *
+ * @param {HTMLButtonElement} btn   metni güncellenecek düğme
+ * @param {string} icon             düğmenin ikonu (aynı kalır)
+ */
+export async function applyGenerateLabel(btn, icon = '') {
+  const ai = await aiStatus();
+  if (!ai?.oneClick) return;   // elle yol: mevcut metin zaten doğru
+  const hesap = ai.accounts?.length === 1 ? ai.accounts[0].label : null;
+  const yol = ai.mode === 'api'
+    ? `${ai.model || 'API anahtarı'} ile sunucuda`
+    : hesap ? `"${hesap}" Claude hesabıyla sunucuda` : 'sunucudaki Claude oturumuyla';
+  const span = btn.querySelector('span');
+  if (span) span.textContent = 'Test Case Üret';
+  else btn.textContent = 'Test Case Üret';
+  if (icon && !btn.querySelector('svg')) btn.innerHTML = icon + btn.innerHTML;
+  // Devre dışı düğmenin kendi gerekçesi var ("önce test türü seç") — ezme.
+  if (!btn.disabled) btn.title = `${yol} üretilir ve doğrudan ağaca yazılır (~15-40 sn). Kopyala-yapıştır gerekmez.`;
+}
+
 /** Yazma sonucunu tek satıra indirger (iki yol da bunu gösterir). */
 function ozet(out) {
   const atlanan = (out.sonuc ?? []).reduce((a, x) => a + (x.skipped || 0), 0);

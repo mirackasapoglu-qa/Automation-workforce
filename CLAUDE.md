@@ -2131,6 +2131,101 @@ arası geçişte "Dikkat" durumunun (önbellek + kategori) korunduğu — sıfı
 konsol hatasıyla. Kaynak dosyalardaki (`data.js`, `jira.js`, `design-drift.js`,
 `server.mjs`) eski `attention-panel.js` referansları da güncellendi.
 
+## Flowscope ↔ panel: çift yönlü canlı bağ (2026-09-14)
+
+**İstek:** "Flowscope'ta olan her şey paneli dinamik olarak etkilesin, API'lerle."
+
+Önceki durum ölçüldü: panelin altı bölümü (Genel bakış · Koşumlar · Sonuçlar ·
+Jira · Performans · Site canlı) **profildeki elle yazılmış listelerden**
+besleniyordu (`quickRoutes`, `routes.rules`, `cardSpecs`); Flowscope ise aynı
+ürünün canlı ağacını tutuyordu. İkisi birbirini hiç görmüyordu: ağaca sayfa
+eklemek panelde hiçbir şey değiştirmiyor, panelden koşulan test ağaçta **hiç iz
+bırakmıyordu** (ağaç her zaman "hiç koşulmamış" görünüyordu).
+
+### Okuma yönü: ağaç → panel (`panel/scope-bridge.mjs`, SAF katman)
+
+fs/HTTP/PROJECT bilmez, ağacı parametre alır → birim testli (`scope-bridge.test.mjs`, 12 test).
+
+| Fonksiyon | Ne üretir | Paneldeki karşılığı |
+|---|---|---|
+| `deriveRoutes` | rota tasıyan düğümler (+runId, specs, jiraKeys) | Site (canlı) butonları, perf hedefleri |
+| `routesWithFallback` | ağaçta rota yoksa profil listesi (`source:"profile"`) | rota butonları asla kaybolmaz |
+| `deriveSummary` | düğüm/kapsam/case/Jira sayaçları | Genel bakış "Kapsam" şeridi |
+| `deriveJiraIndex` | kart → düğüm dizini | Jira sekmesindeki "Kapsam" kolonu |
+| `deriveRuns` | `runRef`li koşumlar (+`known` whitelist işareti) | Koşumlar'daki "Kapsam ağacından" grubu |
+| `nodesForSpec` / `deriveCases` | spec ↔ düğüm bağı, ağaçtaki case'ler | Sonuçlar sekmesi rozetleri |
+
+Uçlar `panel/routes/scope.mjs` (if-zincirine DEĞİL): `GET /api/scope/summary`
+(altı bölümün ortak kaynağı) · `/routes` · `/jira` · `/perf-targets` ·
+`POST /backfill-routes` (token).
+
+⚠️ **Rota iki kaynaktan gelir, bu sırayla:** düğümdeki **göreli** `route`
+("/sepet") ve `resourceLinks` içindeki **mutlak** adres (crawler böyle yazıyor).
+Göreli olan öncelikli çünkü **ortamdan bağımsız** — `HOMEE_ENV` test'ten
+staging'e geçince aynı ağaç doğru adresi gösterir. `seedFromProfile` artık
+göreli rotayı da yazıyor; ondan ÖNCE tohumlanmış ağaçlar için
+`backfillRoutes()` var (panelde "kapsami panele bagla" düğmesi, tekrar
+çalıştırmak güvenli, rotası olan düğüme dokunmaz).
+
+### Yazma yönü: panel → ağaç (`panel/scope.mjs`)
+
+- `applyRunResultsBySpecs` — **panelden tetiklenen HER koşum** (yalnız
+  Flowscope'tan başlatılan değil) sonucu, spec'e `runRef.specs` ile bağlı
+  bütün düğümlere yazar. Koşum motorunda `finish()` içinde, `skipNodeId` ile
+  Flowscope'tan gelen koşum iki kez yazılmaz.
+- `applyPerfToTree` — perf ölçümü rota→düğüm eşlenip `node.perf`'e **üzerine
+  yazılarak** işlenir. Not olarak yazılsaydı her süpürme düğümün not listesini
+  bir satır büyütür, insanın notları arasında kaybolurdu. Aynı `measuredAt`
+  ikinci kez yazılmaz (`/api/perf` her sekme açılışında okunuyor).
+- `writeRunIntoNode` — yukarıdaki ikisi ve `applyRunResults` aynı gövdeyi
+  paylaşır; iki kopya kaçınılmaz olarak birbirinden saparadı.
+
+⚠️ **Bağ TAHMİN EDİLMEZ**: yalnız açık `runRef.specs` eşleşmesi. URL/isim
+benzerliğine dayalı eşleme yanlış düğüme otomatik case yazar ve bunu fark etmek
+neredeyse imkânsız olurdu (`scope-writeback.test.mjs` bunu ölçüyor: bağlantısız
+düğüme hiç dokunulmadığı ayrı bir test).
+
+⚠️ **Düğümün KENDİ durumu değiştirilmez** (R19, mevcut kural): otomatik koşum
+insanın verdiği durumu sessizce ezmez.
+
+### Canlı bağ: `scope-changed` SSE
+
+`writeTree()` tek kapı → `onTreeChange()` dinleyicileri → `broadcast("scope-changed", {reason})`.
+Ağacın değiştiği **sekiz yol** (drawer düzenlemesi, Jira bağlama, üç sweep,
+koşum, perf, test case üretimi) için ayrı ayrı olay eklemek birini unutmak
+demekti.
+
+- **Panel** (`public/js/scope-client.js`, klasik script): olayı alır →
+  `scopeRefresh()` → `onScopeChange` dinleyicileri etkilenen bölümleri çizer.
+  Panelin kendi `EventSource`'u kullanılır; ikinci bağlantı açılmaz.
+- **Flowscope** (`scope/js/live.js`): `reason:"edit"` (kendi PUT'u) HARİÇ her
+  değişiklikte ağacı tazeler, açık drawer'ı yeni düğüm nesnesine bağlar, toast
+  basar. ⚠️ **Metin alanı odaktayken tazeleme ERTELENİR** (odak kaybında yapılır)
+  — sunucudan gelen bir koşum sonucu kullanıcının yazdığı notu ekrandan silmemeli.
+- Olay **veri taşımaz**, sadece haber verir: alan taraf taze okur, iki sürüm
+  arasında şema uyuşmazlığı sessiz yanlış gösterime dönüşmez.
+
+### Perf hedefleri de ağaçtan
+
+`scripts/perf-sweep.mjs` sıraya girdi: `--routes` > **kapsam ağacı** >
+`tests/routes.ts`. Okuma script'te (panelde değil) ki ölçümü kim tetiklerse
+tetiklesin (panel, CLI, ileride cron) aynı hedef listesi kullanılsın. Koşum
+başında hangi kaynağın kullanıldığı log'a basılır.
+
+### Test case üretimi: düğme artık gerçeği söylüyor
+
+"Test Case İste (Claude Code)" yazısı kopyala-yapıştır turunu anlatıyordu; oysa
+sunucuda Claude hesabı bağlıyken (bkz. "Claude hesapları") aynı düğme modeli
+kendisi çağırıp case'leri doğrudan ağaca yazıyor. `applyGenerateLabel()`
+(`testcase-request.js`) `/api/ai/status`'a bakıp yazıyı **"Test Case Üret"**e
+çeviriyor ve başlıkta hangi hesapla koşacağını söylüyor. Sağlayıcı yoksa yazı
+değişmez — elle yol hâlâ orada. Çizim ağ isteğine bekletilmez (drawer açılışı
+yavaşlamasın).
+
+⚠️ Panel çekirdeğine proje adı sızmaz kuralı burada da geçerli: `npm run
+panel:check` ilk turda `scope-bridge.mjs`'teki iki yorum yüzünden kırmızı
+verdi (örnek kart anahtarı + ortam değişkeni adı), ikisi de nötrlendi.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

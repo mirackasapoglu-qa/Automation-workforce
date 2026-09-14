@@ -58,7 +58,8 @@ import { figmaForRoute } from "./figma-map.mjs";
 import { preflight } from "./preflight.mjs";
 import { tracker, capability } from "./connectors/index.mjs";
 import { isCut } from "./connectors/cuts.mjs";
-import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
+import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, applyRunResultsBySpecs, applyPerfToTree, onTreeChange, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
+import { deriveRoutes as scopeDeriveRoutes, matchPerfRoutes } from "./scope-bridge.mjs";
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
 import * as crawler from "./crawler.mjs";
@@ -82,6 +83,7 @@ import { registerAssetRoutes } from "./routes/assets.mjs";
 import { registerConnectorRoutes } from "./routes/connectors.mjs";
 import { registerClaudeRoutes } from "./routes/claude.mjs";
 import { registerPackagesRoutes } from "./routes/packages.mjs";
+import { registerScopeRoutes } from "./routes/scope.mjs";
 import { createRunGate } from "./run-queue.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
@@ -747,6 +749,18 @@ function startDiff({ path: routePath }) {
 const sse = createSseHub();
 const broadcast = (event, data) => sse.broadcast(event, data);
 
+/** `applyPerfToTree` icin rota indeksi — ayni turetme, tek yerden. */
+const scopeRoutes = (tree) => scopeDeriveRoutes(tree, { baseUrl: BASE_URL });
+
+/*
+ * FLOWSCOPE → PANEL CANLI BAGI. Agac hangi yoldan degisirse degissin (drawer
+ * duzenlemesi, Jira baglama, sweep, kosum sonucu, perf, test case uretimi)
+ * tek olay yayilir; panel ve Flowscope ayni olayi dinleyip kendi bolumlerini
+ * tazeler. Olay SADECE haber verir, veri tasimaz — alan taraf taze okur,
+ * boylece iki surum arasinda sema uyusmazligi olmaz.
+ */
+onTreeChange((info) => broadcast("scope-changed", info));
+
 // ---------------- kosum motoru ----------------
 /*
  * Tek slot + idempotency + kuyruk run-engine.mjs'te (birim testli). Buradaki
@@ -765,6 +779,7 @@ const engine = createRunEngine({
   mergeHistory,
   lastResults,
   applyRunResults,
+  applyRunResultsBySpecs,
 });
 
 // ---------------- verdict ----------------
@@ -919,6 +934,7 @@ registerRagRoutes(router, CTX);
 registerConnectorRoutes(router, CTX);
 registerClaudeRoutes(router, CTX);
 registerPackagesRoutes(router, CTX);
+registerScopeRoutes(router, CTX);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
@@ -1128,7 +1144,7 @@ const server = http.createServer(async (req, res) => {
       const body = await readBody(req);
       // Hata YUTULMAZ: yazma basarisizsa cagiran gorsun (Flowscope'un sessiz
       // catch'i dokumante edilmis veri kaybi riskiydi, tasinmadi).
-      const info = writeTree(body.tree);
+      const info = writeTree(body.tree, { reason: "edit" });
       audit({ event: "scope-tree-save", nodes: info.nodes });
       return send(res, 200, { ok: true, ...info });
     }
@@ -1781,8 +1797,21 @@ const server = http.createServer(async (req, res) => {
       if (payload.measuredAt) {
         try { perfCapture(payload); }
         catch (e) { audit({ event: "perf-history-capture-error", message: e.message.slice(0, 160) }); }
+        /*
+         * ÇİFT YÖN: ölçüm rota→düğüm eşlenip ağaca yazılır (`node.perf`, üzerine
+         * yazarak — not olarak yazılsa her süpürme düğümün not listesini bir
+         * satır büyütürdü). Aynı `measuredAt` ikinci kez yazılmaz, bu uç her
+         * sekme açılışında okunuyor.
+         */
+        try { applyPerfToTree(payload, (tree) => scopeRoutes(tree)); }
+        catch (e) { audit({ event: "perf-scope-write-error", message: e.message.slice(0, 160) }); }
       }
-      return send(res, 200, payload);
+      // Ölçüm satırları hangi kapsam düğümüne düşüyor — panel rota yanında gösterir.
+      // Ağaç okunamazsa ölçüm YİNE döner: kapsam kolonu boş kalır, perf sekmesi çalışır.
+      let eslesme = [];
+      try { eslesme = matchPerfRoutes(readTree().tree, payload.routes, { baseUrl: BASE_URL }); }
+      catch { /* kapsam okunamadi: eslesme yok */ }
+      return send(res, 200, { ...payload, scope: eslesme });
     }
 
     /**

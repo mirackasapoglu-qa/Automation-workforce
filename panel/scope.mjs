@@ -56,16 +56,83 @@ export function seedFromProfile() {
   });
 
   const rules = PROJECT.routes?.rules ?? [];
-  const pages = rules.map((r) =>
-    node(r.label ?? r.runId ?? "(isimsiz)", "page", {
+
+  /*
+   * Tohum düğümlere GÖRELİ rota da yazılır (`route: "/sepet"`).
+   *
+   * Neden: panelin "Site (canlı)" ve Performans bölümleri artık ağaçtan
+   * besleniyor (bkz. scope-bridge.mjs). Rota taşımayan bir tohum ağaçla taze
+   * kurulan sunucu, kapsam ağacı dolu görünmesine rağmen panelde eski profil
+   * listesine düşerdi — "Flowscope paneli besler" cümlesi ilk açılışta yalan
+   * olurdu. Eşleme profilin KENDİ kuralıyla yapılır (`rule.test(path)`), yani
+   * ikinci bir elle liste doğmaz.
+   *
+   * ⚠️ MUTLAK adres yazılmaz: ağaç ortamdan bağımsız kalsın (test → staging
+   * geçişinde aynı düğüm doğru adresi gösterir). Crawler'ın eklediği mutlak
+   * adresler ayrı bir kaynak ve ikisi birlikte çalışıyor.
+   */
+  const rotaFor = (rule) => {
+    for (const [, yol] of PROJECT.quickRoutes ?? []) {
+      const temiz = String(yol).split("?")[0] || "/";
+      try { if (rule.test?.(temiz)) return yol; } catch { /* kural patlarsa rota yok */ }
+    }
+    return null;
+  };
+
+  const pages = rules.map((r) => {
+    const rota = rotaFor(r);
+    return node(r.label ?? r.runId ?? "(isimsiz)", "page", {
       jiraTasks: (r.cards ?? []).map(mkJira),
       runRef: { runId: r.runId ?? null, specs: r.specs ?? [] },
-    }),
-  );
+      ...(rota ? { route: rota } : {}),
+    });
+  });
 
   const root = node(PROJECT.product ?? PROJECT.title ?? PROJECT.id, "module", { open: true });
   root.children = pages.sort((a, b) => a.name.localeCompare(b.name, "tr"));
   return [root];
+}
+
+/**
+ * Rota taşımayan ESKİ düğümlere göreli rotayı sonradan yazar (tek seferlik,
+ * tekrar çalıştırmak güvenli).
+ *
+ * Neden ayrı bir eylem: `seedFromProfile` artık rota yazıyor, ama ağacı ondan
+ * ÖNCE tohumlanmış kurulumlarda (sunucudaki mevcut ağaç dahil) düğümler rotasız
+ * duruyor ve panel profil listesine düşüyor. Bunu `readTree` içinde sessizce
+ * yapmak, her açılışta kullanıcının verisini habersiz değiştirmek olurdu —
+ * eylem açık, sonucu raporlu ve token'lı bir uçtan geliyor.
+ *
+ * Eşleme yine profilin kendi kuralıyla: düğümün `runRef.runId`'si hangi kurala
+ * aitse, o kuralın eşleştiği ilk hızlı rota. Rotası olan düğüme DOKUNULMAZ.
+ */
+export function backfillRoutes() {
+  const rules = PROJECT.routes?.rules ?? [];
+  const quick = PROJECT.quickRoutes ?? [];
+  const rotaFor = (runId) => {
+    const rule = rules.find((r) => r.runId === runId);
+    if (!rule) return null;
+    for (const [, yol] of quick) {
+      const temiz = String(yol).split("?")[0] || "/";
+      try { if (rule.test?.(temiz)) return yol; } catch { /* kural patlarsa rota yok */ }
+    }
+    return null;
+  };
+
+  const { tree } = readTree();
+  const yazilan = [];
+  (function walk(list) {
+    for (const n of list ?? []) {
+      if (!n.route && n.runRef?.runId) {
+        const rota = rotaFor(n.runRef.runId);
+        if (rota) { n.route = rota; yazilan.push({ nodeId: n.id, name: n.name ?? "", route: rota }); }
+      }
+      walk(n.children);
+    }
+  })(tree);
+
+  if (yazilan.length) writeTree(tree, { reason: "backfill-routes" });
+  return { written: yazilan.length, nodes: yazilan };
 }
 
 /** Ağacı okur. Dosya yoksa profilden tohumlar ve YAZAR (ilk açılış). */
@@ -83,20 +150,37 @@ export function readTree() {
       try { fs.mkdirSync(DIR, { recursive: true }); fs.copyFileSync(FILE, `${FILE}.bozuk-${Date.now()}`); } catch { /* yoksa gec */ }
     }
     const tree = seedFromProfile();
-    writeTree(tree);
+    writeTree(tree, { reason: "seed" });
     return { tree, seeded: true };
   }
 }
 
+/**
+ * Ağaç her yazıldığında haber verilecek dinleyiciler.
+ *
+ * NEDEN BURADA: ağaç sekiz ayrı yoldan değişiyor (PUT /api/scope/tree, Jira
+ * bağlama, üç sweep, koşum yazımı, perf yazımı, test case üretimi). Panelin
+ * "Flowscope değişti, tazele" olayını bu yolların her birine ayrı ayrı eklemek
+ * kaçınılmaz olarak birini unutmak demekti — tek kapı `writeTree`.
+ *
+ * Dinleyici hatası yazmayı DÜŞÜRMEZ: kalıcılık, bildirimden önce gelir.
+ */
+const treeListeners = new Set();
+export function onTreeChange(fn) { treeListeners.add(fn); return () => treeListeners.delete(fn); }
+
 /** Atomik yazma + tek kademe yedek. Hata YUTULMAZ, çağırana fırlar. */
-export function writeTree(tree) {
+export function writeTree(tree, meta = {}) {
   if (!Array.isArray(tree)) throw new Error("ağaç bir dizi olmalı");
   fs.mkdirSync(DIR, { recursive: true });
   if (fs.existsSync(FILE)) fs.copyFileSync(FILE, BAK);
   const tmp = `${FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(tree, null, 1));
   fs.renameSync(tmp, FILE);
-  return { savedAt: nowIso(), nodes: countNodes(tree) };
+  const out = { savedAt: nowIso(), nodes: countNodes(tree) };
+  for (const fn of treeListeners) {
+    try { fn({ ...out, ...meta }); } catch { /* bildirim hatasi yazmayi dusurmez */ }
+  }
+  return out;
 }
 
 export function countNodes(tree) {
@@ -165,6 +249,21 @@ export function applyRunResults({ nodeId, specs, results, durationMs, code = 0 }
   const node = findNode(tree, nodeId);
   if (!node) throw new Error(`Düğüm bulunamadı: ${nodeId}`);
 
+  const out = writeRunIntoNode(tree, node, { specs, results, durationMs, code });
+  if (out.written) writeTree(tree, { reason: "run" });
+  return out;
+}
+
+/**
+ * Tek düğüme koşum sonucu yazar — KALICI DEĞİL, yalnız ağacı değiştirir.
+ *
+ * `applyRunResults` (tek düğüm, panelin "bu düğümü koştur" akışı) ve
+ * `applyRunResultsBySpecs` (çift yön: panelden tetiklenen HER koşum, spec'e
+ * bağlı bütün düğümler) aynı gövdeyi paylaşsın diye ayrıldı. İki ayrı kopya
+ * kaçınılmaz olarak birbirinden sapardı; bu gövde Flowscope'un R13/R14
+ * kuralını (koşum kaydı olmadan "geçti" yok) taşıyan yer.
+ */
+function writeRunIntoNode(tree, node, { specs, results, durationMs, code = 0 }) {
   const at = nowIso();
   const perSpec = [];
   let written = 0;
@@ -246,8 +345,114 @@ export function applyRunResults({ nodeId, specs, results, durationMs, code = 0 }
     perSpec.push({ spec, status, note });
   }
 
-  if (written) writeTree(tree);
   return { written, perSpec };
+}
+
+/**
+ * ÇİFT YÖN: panelden tetiklenen HERHANGİ bir koşumun sonucunu, o spec'lere
+ * `runRef.specs` ile bağlı BÜTÜN düğümlere yazar.
+ *
+ * Bugüne kadar koşum sonucu ağaca yalnızca koşum Flowscope'tan ("bu düğümü
+ * koştur") başlatılmışsa düşüyordu; panelin kendi "Koşumlar" sekmesinden
+ * başlatılan koşum ağaçta hiç iz bırakmıyordu. Kullanıcının gördüğü sonuç:
+ * ağaç her zaman "hiç koşulmamış" görünüyordu.
+ *
+ * ⚠️ Bağ TAHMİN EDİLMEZ: yalnız açık `runRef.specs` eşleşmesi. URL benzerliğine
+ * dayalı bir eşleme yanlış düğüme otomatik case yazar ve bunu fark etmek
+ * neredeyse imkânsız olurdu.
+ *
+ * ⚠️ Düğümün KENDİ durumu yine değiştirilmez (R19) — burada da insan kararı.
+ *
+ * @param {{results: object, durationMs?: number, code?: number, skipNodeId?: string|null}} p
+ *   `skipNodeId`: Flowscope'tan başlatılan koşum zaten `applyRunResults` ile
+ *   yazıldıysa aynı düğüme İKİNCİ kez yazmamak için.
+ * @returns {{written: number, nodes: {nodeId,name,written,perSpec}[]}}
+ */
+export function applyRunResultsBySpecs({ results, durationMs, code = 0, skipNodeId = null }) {
+  const specs = [...new Set((results?.rows ?? []).map((r) => r.file).filter(Boolean))];
+  if (!specs.length) return { written: 0, nodes: [] };
+
+  const { tree } = readTree();
+  const hedefler = new Map(); // nodeId -> {node, specs:Set}
+
+  (function walk(list) {
+    for (const n of list ?? []) {
+      if (n.id !== skipNodeId) {
+        const kesisim = (n.runRef?.specs ?? []).filter((s) => specs.includes(String(s).trim()));
+        if (kesisim.length) hedefler.set(n.id, { node: n, specs: kesisim });
+      }
+      walk(n.children);
+    }
+  })(tree);
+
+  const nodes = [];
+  let written = 0;
+  for (const { node, specs: nodeSpecs } of hedefler.values()) {
+    const out = writeRunIntoNode(tree, node, { specs: nodeSpecs, results, durationMs, code });
+    if (!out.written) continue;
+    written += out.written;
+    nodes.push({ nodeId: node.id, name: node.name ?? "", written: out.written, perSpec: out.perSpec });
+  }
+
+  if (written) writeTree(tree, { reason: "run" });
+  return { written, nodes };
+}
+
+/**
+ * ÇİFT YÖN: perf ölçümünü rota→düğüm eşleyip düğümün üzerine yazar.
+ *
+ * Not olarak DEĞİL, `node.perf` alanına ÜZERİNE YAZARAK: ölçüm her süpürmede
+ * tekrarlanıyor, not olarak yazılsaydı düğümün not listesi her koşumda birer
+ * satır büyürdü ve insanın yazdığı notların arasında kaybolurdu. Flowscope
+ * bilmediği alanları JSON turunda koruyor (`runRef` de böyle taşınıyor).
+ *
+ * @param {{measuredAt: string|null, routes: object[]}} perf  readPerfData çıktısı
+ * @param {(tree: object[]) => {path: string, nodeId: string}[]} routeIndex
+ *   ağaçtan rota listesi üreten fonksiyon (scope-bridge.deriveRoutes sarmalayıcısı)
+ * @returns {{written: number, nodes: string[]}}
+ */
+export function applyPerfToTree(perf, routeIndex) {
+  const rows = perf?.routes ?? [];
+  if (!rows.length) return { written: 0, nodes: [] };
+
+  const { tree } = readTree();
+  const rotalar = routeIndex(tree) ?? [];
+  const idx = new Map();
+  for (const r of rotalar) {
+    idx.set(r.path, r.nodeId);
+    const sorgusuz = String(r.path).split("?")[0] || "/";
+    if (!idx.has(sorgusuz)) idx.set(sorgusuz, r.nodeId);
+  }
+
+  const at = perf.measuredAt ?? nowIso();
+  const nodes = [];
+  for (const row of rows) {
+    const yol = String(row.route ?? "").trim() || "/";
+    const nodeId = idx.get(yol) ?? idx.get(yol.split("?")[0] || "/");
+    if (!nodeId) continue;
+    const node = findNode(tree, nodeId);
+    if (!node) continue;
+    const yeni = {
+      at,
+      route: yol,
+      lcp: row.lcp ?? null,
+      load: row.load ?? null,
+      ttfb: row.ttfb ?? null,
+      requests: row.requests ?? null,
+      api: row.api ?? null,
+      notFound: !!row.notFound,
+      siteErrors: row.siteErrors ?? 0,
+      consoleErrors: row.consoleErrors ?? 0,
+    };
+    // Aynı ölçüm ikinci kez yazılmasın (aynı `at` + aynı rota) — /api/perf her
+    // okunduğunda çağrılıyor, her açılışta ağacı kirletmemeli.
+    if (node.perf && node.perf.at === yeni.at && node.perf.route === yeni.route) continue;
+    node.perf = yeni;
+    nodes.push(nodeId);
+  }
+
+  if (nodes.length) writeTree(tree, { reason: "perf" });
+  return { written: nodes.length, nodes };
 }
 
 // ---------------- agent köprüsü: kart → düğüm bağlama ----------------
@@ -311,7 +516,7 @@ export function attachJiraTask({ nodeIds, taskId, statusInfo = null }) {
     }
   }
 
-  if (attached.length || flagged.length) writeTree(tree);
+  if (attached.length || flagged.length) writeTree(tree, { reason: "jira" });
   return { attached, skipped, flagged, notFound };
 }
 
@@ -377,7 +582,7 @@ export function sweepJiraStatuses(statusMap) {
     }
   })(tree);
 
-  if (flagged.length) writeTree(tree);
+  if (flagged.length) writeTree(tree, { reason: "jira-sweep" });
   return { scannedNodes, flagged, reviewSuggested };
 }
 
@@ -450,7 +655,7 @@ export function sweepResourceDrift(lastModifiedByKey, links, sourceLabel) {
     flagged.push({ nodeId: node.id, url: link.url, lastModified });
   }
 
-  if (flagged.length) writeTree(tree);
+  if (flagged.length) writeTree(tree, { reason: "drift" });
   return { flagged };
 }
 

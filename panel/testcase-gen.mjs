@@ -424,6 +424,6 @@ export function applyFromModel({ items, card = null, allowedNodeIds = null }) {
     toplam += out.written;
     sonuc.push({ nodeId: it.nodeId, node: node.name, written: out.written, skipped: out.skipped.length });
   }
-  if (toplam) writeTree(tree);
+  if (toplam) writeTree(tree, { reason: "testcase" });
   return { written: toplam, sonuc };
 }
