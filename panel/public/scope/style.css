@@ -1270,6 +1270,14 @@ html, body { background: var(--bg); margin: 0; }
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
 }
 .pkg-item-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--tile-color); }
+/* İçerdiği paketler listesindeki satırın ikonu — .pkg-card-icon'un küçüğü,
+   aynı renk dili (accent-dim zemin + accent ikon) — "bu bir paket, tek bir
+   test case değil" ayrımı tek bakışta anlaşılsın diye. */
+.pkg-item-package-icon {
+  width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-dim); color: var(--accent);
+}
+.pkg-item-package-icon .icon { width: 12px; height: 12px; }
 .pkg-item-body { min-width: 0; flex: 1; }
 .pkg-item-jump {
   border: 0; background: transparent; padding: 0; margin: 0; font: inherit; text-align: left; cursor: pointer; color: inherit;

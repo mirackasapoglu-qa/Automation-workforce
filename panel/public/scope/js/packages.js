@@ -1,165 +1,29 @@
-// Paketler: kullanıcının test case'leri gruplamak için oluşturduğu adlandırılmış
-// koleksiyonlar (ör. "Regresyon paketi", "Validasyon paketi"). tree.json'dan AYRI
-// bir dosyada kalıcı (bkz. panel/packages.mjs) — bir paket ağacın kendisi değil,
-// ona dair bir REFERANS listesi ({nodeId, testCaseId} çiftleri).
+// Paketler — GÖRÜNÜM katmanı. Veri/model kuralları packages-data.js'te, gerçek
+// koşumu tetikleyen motor packages-run.js'te; burada yalnızca DOM kurulumu ve
+// bu iki katmanın çağrılması var.
 //
-// Bir test case aynı anda birden çok pakette olabilir — pakete eklemek onu
-// "taşımaz", sadece bir referans ekler (etiket gibi). Bağlı olduğu düğüm ya da
-// test case'in kendisi silinirse referans sessizce TEMİZLENMEZ: "kaynağı
-// silinmiş" olarak görünür kalır, kullanıcı isterse elle çıkarır — veri kaybını
-// gizlemek yerine izlenebilir tutuyoruz (bkz. resolvePackageItem).
-import { state, newPackageId } from './state.js';
+// Paketler: kullanıcının test case'leri gruplamak için oluşturduğu adlandırılmış
+// koleksiyonlar (ör. "Regresyon paketi", "Validasyon paketi"). Bir paket başka
+// paketleri de içerebilir ("x paketi y'nin içinden çağrılabilir") — bkz.
+// packages-data.js'teki isPackageRefItem notu.
+import { state } from './state.js';
 import { ICON, STATUS_META } from './constants.js';
-import { findNode, debounce, setSaveState, effectiveTestCaseStatus, isTestCaseRunStale, DEFAULT_STALE_DAYS, loadPersisted } from './data.js';
+import { findNode, isTestCaseRunStale, DEFAULT_STALE_DAYS, effectiveTestCaseStatus } from './data.js';
 import { formatNoteDate } from './notes.js';
 import { uiConfirm, uiToast } from './dialog.js';
 import { renderContent } from './shell.js';
 import { openDrawer } from './drawer.js';
+import {
+  nowIso, validatePackageName, createPackage, deletePackage, renamePackage, setPackageDescription,
+  addTestCaseToPackage, removeItemFromPackage, addPackageToPackage, clonePackage,
+  resolvePackageItem, allTestCases, isPackageRefItem, canNestPackage,
+  collectEffectiveTestCaseItems, dedupeTestCaseItems, computePackageStats, recordPackageRun,
+} from './packages-data.js';
+import { runPackage } from './packages-run.js';
 
-const nowIso = () => new Date().toISOString();
+export { loadPackages } from './packages-data.js';
+
 const MAX_CANDIDATES_SHOWN = 60;
-
-export async function loadPackages() {
-  const res = await fetch('/api/scope/packages');
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  state.packages = Array.isArray(data.packages) ? data.packages : [];
-  fixPackageIdCounter(state.packages);
-}
-
-/**
- * `state.packageIdCounter` her sayfa yüklemesinde 1'den başlar (bkz. state.js) —
- * yüklenen paketlerin ID'lerinin ÖNÜNE geçmezse bir sonraki `newPackageId()`
- * zaten var olan bir ID'yle çakışır ve o paketin ÜZERİNE YAZAR (ölçüldü: bir
- * sayfa yenilemesinden sonra oluşturulan paket, aynı ID'yi taşıyan eski bir
- * paketi sessizce değiştirdi). `data.js → fixIdCounter`'ın aynısı, paketler için.
- */
-function fixPackageIdCounter(packages) {
-  packages.forEach((p) => {
-    const num = parseInt(String(p.id).replace('pkg', ''), 10);
-    if (!isNaN(num) && num >= state.packageIdCounter) state.packageIdCounter = num + 1;
-  });
-}
-
-function persistPackages() {
-  // Yükleme başarısızsa YAZMA: sunucudaki gerçek listeyi boş/eksik bir kopyayla
-  // ezmemek için (bkz. data.js → persist()'in aynı gerekçeli aynı deseni).
-  if (state.packagesLoadFailed) return;
-  fetch('/api/scope/packages', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
-    body: JSON.stringify({ packages: state.packages }),
-  })
-    .then(async (r) => {
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok || j.ok === false) throw new Error(j.error || `HTTP ${r.status}`);
-      setSaveState(null);
-    })
-    .catch((e) => setSaveState(e.message));
-}
-const persistPackagesDebounced = debounce(persistPackages, 400);
-
-/**
- * Ad denetimi — büyük/küçük harf ve baştaki/sondaki boşluk YOK sayılarak
- * karşılaştırılır ("Regresyon" ile "regresyon " aynı isim sayılır). `excludeId`
- * yeniden adlandırmada paketin KENDİSİYLE çakışmasını engellemek için —
- * verilmezse (oluşturma) tüm paketlere karşı kontrol edilir.
- * @returns {string|null} hata mesajı, geçerliyse null
- */
-export function validatePackageName(name, excludeId) {
-  const trimmed = (name || '').trim();
-  if (!trimmed) return 'Paket adı boş olamaz.';
-  const norm = trimmed.toLowerCase();
-  const dup = state.packages.some((p) => p.id !== excludeId && p.name.trim().toLowerCase() === norm);
-  if (dup) return `"${trimmed}" isimli bir paket zaten var.`;
-  return null;
-}
-
-export function createPackage(name) {
-  const pkg = { id: newPackageId(), name: name.trim(), description: '', createdAt: nowIso(), updatedAt: nowIso(), items: [] };
-  state.packages.push(pkg);
-  persistPackages();
-  return pkg;
-}
-
-export function deletePackage(id) {
-  state.packages = state.packages.filter((p) => p.id !== id);
-  persistPackages();
-}
-
-export function renamePackage(pkg, name) {
-  pkg.name = name.trim();
-  pkg.updatedAt = nowIso();
-  persistPackagesDebounced();
-}
-
-export function setPackageDescription(pkg, description) {
-  pkg.description = description;
-  pkg.updatedAt = nowIso();
-  persistPackagesDebounced();
-}
-
-export function addTestCaseToPackage(pkg, nodeId, testCaseId) {
-  if (pkg.items.some((it) => it.nodeId === nodeId && it.testCaseId === testCaseId)) return;
-  pkg.items.push({ nodeId, testCaseId });
-  pkg.updatedAt = nowIso();
-  persistPackages();
-}
-
-export function removeItemFromPackage(pkg, index) {
-  pkg.items.splice(index, 1);
-  pkg.updatedAt = nowIso();
-  persistPackages();
-}
-
-/**
- * Bir paketi kopyalar — "geçen sprint'in regresyon paketini al, üstüne ekle"
- * gibi gerçek bir alışkanlık. Item referansları (nodeId/testCaseId) aynen
- * kopyalanır (aynı test case'lere işaret eder, taşımaz); ad çakışmasın diye
- * "(kopya)", çakışırsa "(kopya 2)" şeklinde ilk BOŞ ismi bulur.
- */
-export function clonePackage(pkg) {
-  const base = `${pkg.name} (kopya)`;
-  let name = base;
-  let n = 2;
-  while (validatePackageName(name, null)) { name = `${base} ${n}`; n += 1; }
-  const clone = {
-    id: newPackageId(), name, description: pkg.description, createdAt: nowIso(), updatedAt: nowIso(),
-    items: pkg.items.map((it) => ({ ...it })),
-  };
-  state.packages.push(clone);
-  persistPackages();
-  return clone;
-}
-
-/** {node, testCase} çözer; kaynak silinmişse ilgili alan null döner (ghost satır). */
-export function resolvePackageItem(item) {
-  const node = findNode(state.tree, item.nodeId);
-  const testCase = node ? node.testCases.find((tc) => tc.id === item.testCaseId) : null;
-  return { node, testCase: testCase || null };
-}
-
-/** Ağaçtaki TÜM test case'leri düz bir listeye çıkarır — arama/seçim için. */
-function allTestCases(nodes, acc = []) {
-  for (const n of nodes) {
-    for (const tc of n.testCases) acc.push({ nodeId: n.id, nodeName: n.name, testCase: tc });
-    allTestCases(n.children, acc);
-  }
-  return acc;
-}
-
-/** Paketin ÇÖZÜLEBİLEN item'ları üzerinden durum dağılımı — kaynağı silinmişler ayrı sayılır. */
-function computePackageStats(pkg) {
-  const stats = { '✅': 0, '🔵': 0, '⚠️': 0, '❌': 0, '⬜': 0, total: 0, ghosts: 0 };
-  pkg.items.forEach((item) => {
-    const { node, testCase } = resolvePackageItem(item);
-    if (!node || !testCase) { stats.ghosts += 1; return; }
-    stats.total += 1;
-    const s = effectiveTestCaseStatus(testCase);
-    if (stats[s] !== undefined) stats[s] += 1;
-  });
-  return stats;
-}
 
 function renderPackageStats(pkg) {
   const stats = computePackageStats(pkg);
@@ -195,136 +59,6 @@ function renderPackageStats(pkg) {
  */
 function jumpToNode(node) {
   openDrawer(node);
-}
-
-/**
- * Paketin gerçek koşumu — drawer.js → renderAutomatedRunSection'daki TEK
- * düğüm koşumunun ("Testi Koştur") AYNI ucunu (`/api/scope/run`) kullanır,
- * sadece paketteki her FARKLI sayfa için sırayla tekrarlar. Test case
- * düzeyinde ayrı bir filtre YOK — motor bir düğümün tüm whitelist'li
- * spec'ini koşuyor, tek tek test başlığı seçmiyor (bkz. panel/routes/runs.mjs).
- * Motor TEK SLOT olduğu için (aynı anda tek koşum) sayfalar paralel değil,
- * biri bitmeden diğeri başlamadan, sırayla koşulur.
- *
- * Her düğüm bitince tree sunucudan tazelenip GERÇEK sonuç (geçti/kaldı, hangi
- * spec, not) hemen çıkarılıyor — böylece popup her satırı sırayla, gerçek
- * verilerle doldurabiliyor; paketin tamamı bitene kadar beklemek gerekmiyor.
- *
- * `stopFlag` ({requested:boolean}) her döngü başında kontrol edilir — "Durdur"a
- * basılınca yalnızca O ANKİ sayfanın koşumu değil, PAKETİN TAMAMI durur ve
- * kalan sayfalar "atlandı" sayılır (eskiden Durdur yalnızca tek sayfayı
- * kesiyor, döngü bir sonraki sayfayı başlatmaya devam ediyordu — ölçüldü).
- *
- * `onProgress({ done, total, node, phase, reason?, result? })` her adımda
- * çağrılır; `phase`: 'running' | 'skipped' | 'error' | 'done'.
- * @returns {Promise<{ranNodeIds:string[], skipped:{node,reason}[], nodeResults:object[], stoppedEarly:boolean}>}
- */
-async function runPackage(pkg, onProgress, stopFlag) {
-  const nodeIds = [...new Set(pkg.items.map((it) => it.nodeId))]
-    .map((id) => findNode(state.tree, id))
-    .filter(Boolean);
-
-  const ran = [];
-  const skipped = [];
-  const nodeResults = [];
-  const total = nodeIds.length;
-
-  const markRemainingStopped = (fromIndex) => {
-    for (let j = fromIndex; j < nodeIds.length; j += 1) {
-      const reason = 'Kullanıcı durdurdu';
-      skipped.push({ node: nodeIds[j], reason });
-      nodeResults.push({ nodeId: nodeIds[j].id, nodeName: nodeIds[j].name, ok: false, reason });
-      onProgress?.({ done: j, total, node: nodeIds[j], phase: 'skipped', reason });
-    }
-  };
-
-  for (let i = 0; i < nodeIds.length; i += 1) {
-    if (stopFlag?.requested) { markRemainingStopped(i); return { ranNodeIds: ran, skipped, nodeResults, stoppedEarly: true }; }
-    const node = nodeIds[i];
-    if (!node.runRef?.runId) {
-      const reason = 'Bu sayfa için otomatik koşum tanımlı değil';
-      skipped.push({ node, reason });
-      nodeResults.push({ nodeId: node.id, nodeName: node.name, ok: false, reason });
-      onProgress?.({ done: i + 1, total, node, phase: 'skipped', reason });
-      continue;
-    }
-
-    onProgress?.({ done: i, total, node, phase: 'running' });
-    const startedAt = nowIso();
-    let res, data;
-    try {
-      res = await fetch('/api/scope/run', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-panel-token': window.PANEL_TOKEN ?? '' },
-        body: JSON.stringify({ nodeId: node.id }),
-      });
-      data = await res.json();
-    } catch (e) {
-      const reason = `Panel sunucusuna ulaşılamadı: ${e.message}`;
-      skipped.push({ node, reason });
-      nodeResults.push({ nodeId: node.id, nodeName: node.name, ok: false, reason });
-      onProgress?.({ done: i + 1, total, node, phase: 'error', reason });
-      continue;
-    }
-    if (!data.ok) {
-      const reason = data.error || 'Başlatılamadı';
-      skipped.push({ node, reason });
-      nodeResults.push({ nodeId: node.id, nodeName: node.name, ok: false, reason });
-      onProgress?.({ done: i + 1, total, node, phase: 'error', reason });
-      // BUSY: panel başka bir koşum yürütüyor — sırayı bekletmenin anlamı yok,
-      // kalanları da "atlandı" say ve bitir.
-      if (data.code === 'BUSY') {
-        markRemainingStopped(i + 1);
-        return { ranNodeIds: ran, skipped, nodeResults, stoppedEarly: true };
-      }
-      continue;
-    }
-    await waitForScopeRunToFinish();
-    if (stopFlag?.requested) { markRemainingStopped(i + 1); return { ranNodeIds: ran, skipped, nodeResults, stoppedEarly: true }; }
-
-    await loadPersisted();
-    const freshNode = findNode(state.tree, node.id);
-    const entries = (freshNode?.testCases || [])
-      .filter((tc) => tc.automated)
-      .map((tc) => {
-        const last = (tc.runs || [])[tc.runs.length - 1];
-        return last && last.at >= startedAt ? { spec: tc.spec, status: last.status, note: last.note } : null;
-      })
-      .filter(Boolean);
-    const nodeResult = { nodeId: node.id, nodeName: freshNode?.name || node.name, ok: true, entries };
-    nodeResults.push(nodeResult);
-    ran.push(node.id);
-    onProgress?.({ done: i + 1, total, node, phase: 'done', result: nodeResult });
-  }
-  return { ranNodeIds: ran, skipped, nodeResults, stoppedEarly: false };
-}
-
-const PACKAGE_RUN_HISTORY_KEEP = 20;
-
-/**
- * Bir "Paketi Çalıştır" koşumunun sonucunu pakete KALICI olarak yazar. Öncesinde
- * sonuç yalnızca geçici bir toast'ta gösteriliyordu (bkz. buildRunSection) —
- * sayfadan ayrılınca ya da panel yenilenince "en son ne olmuştu" sorusunun
- * cevabı kayboluyordu. `case-history.json`'daki HISTORY_KEEP deseniyle aynı:
- * en yeni koşum başta, son N koşum saklanır.
- */
-function recordPackageRun(pkg, run) {
-  pkg.runs = pkg.runs || [];
-  pkg.runs.unshift(run);
-  if (pkg.runs.length > PACKAGE_RUN_HISTORY_KEEP) pkg.runs.length = PACKAGE_RUN_HISTORY_KEEP;
-  pkg.updatedAt = run.at;
-  persistPackages();
-}
-
-function waitForScopeRunToFinish() {
-  return new Promise((resolve) => {
-    const iv = setInterval(async () => {
-      try {
-        const st = await (await fetch('/api/scope/run-state')).json();
-        if (!st.running) { clearInterval(iv); resolve(); }
-      } catch { /* gecici hata: bir sonraki turda tekrar denenir */ }
-    }, 2000);
-  });
 }
 
 export function renderPackagesView() {
@@ -501,7 +235,10 @@ function renderPackageCard(pkg) {
   name.textContent = pkg.name || 'İsimsiz paket';
   const meta = document.createElement('div');
   meta.className = 'pkg-card-meta';
-  meta.textContent = `${pkg.items.length} test case · ${formatNoteDate(pkg.updatedAt)}`;
+  const nestedCount = pkg.items.filter(isPackageRefItem).length;
+  meta.textContent = `${computePackageStats(pkg).total} test case`
+    + (nestedCount ? ` · ${nestedCount} paket dahil` : '')
+    + ` · ${formatNoteDate(pkg.updatedAt)}`;
   body.append(name, meta, renderPackageStats(pkg));
   card.appendChild(body);
 
@@ -613,31 +350,132 @@ function renderPackageDetail(pkg) {
   wrap.appendChild(buildRunSection(pkg));
   wrap.appendChild(renderPackageRunHistory(pkg));
 
-  // Mevcut test case'ler
-  const currentSection = document.createElement('div');
-  currentSection.className = 'pkg-section';
-  const currentLabel = document.createElement('div');
-  currentLabel.className = 'pkg-section-label';
-  currentLabel.textContent = `Test case'ler (${pkg.items.length})`;
-  currentSection.append(currentLabel, renderPackageStats(pkg));
+  // `pkg.items` iki tür referans karışık tutar (bkz. packages-data.js →
+  // isPackageRefItem) — ama KARIŞIK gösterilmez: hangi kapsamın nereden
+  // geldiği belli olsun diye iki ayrı bölüm. `idx` her iki grupta da
+  // pkg.items'taki GERÇEK indeks (silme ondan çalışıyor, filtrelenmiş
+  // dizideki sıradan değil).
+  const indexed = pkg.items.map((item, idx) => ({ item, idx }));
+  const testCaseEntries = indexed.filter(({ item }) => !isPackageRefItem(item));
+  const packageRefEntries = indexed.filter(({ item }) => isPackageRefItem(item));
 
-  if (!pkg.items.length) {
+  wrap.appendChild(buildTestCaseSection(pkg, testCaseEntries));
+  wrap.appendChild(buildNestedPackagesSection(pkg, packageRefEntries));
+  wrap.appendChild(buildAddPackageSection(pkg));
+  wrap.appendChild(buildAddTestCaseSection(pkg));
+
+  return wrap;
+}
+
+/** Paketin doğrudan test case'lerinin listesi ("Mevcut test case'ler"). */
+function buildTestCaseSection(pkg, testCaseEntries) {
+  const section = document.createElement('div');
+  section.className = 'pkg-section';
+  const label = document.createElement('div');
+  label.className = 'pkg-section-label';
+  label.textContent = `Test case'ler (${testCaseEntries.length})`;
+  section.append(label, renderPackageStats(pkg));
+
+  if (!testCaseEntries.length) {
     const empty = document.createElement('div');
     empty.className = 'board-col-empty';
     empty.textContent = 'Henüz test case eklenmedi. Aşağıdan arayıp ekleyebilirsin.';
-    currentSection.appendChild(empty);
+    section.appendChild(empty);
   } else {
-    pkg.items.forEach((item, idx) => currentSection.appendChild(renderPackageItemRow(pkg, item, idx)));
+    testCaseEntries.forEach(({ item, idx }) => section.appendChild(renderPackageItemRow(pkg, item, idx)));
   }
-  wrap.appendChild(currentSection);
+  return section;
+}
 
-  // Test case ekle
-  const addSection = document.createElement('div');
-  addSection.className = 'pkg-section';
-  const addLabel = document.createElement('div');
-  addLabel.className = 'pkg-section-label';
-  addLabel.textContent = 'Test case ekle';
-  addSection.appendChild(addLabel);
+/**
+ * "İçerdiği paketler" — "x paketi y'nin içinden çağrılabilir" burada. Her
+ * satır tıklanabilir kendi paketi olarak kalır (test case'lerine "eritilip"
+ * yukarıdaki listeye karışmaz) — kullanıcı kapsamın nereden geldiğini
+ * görebilsin, gerekirse içine girip düzenleyebilsin diye (bkz.
+ * renderPackageRefRow). Koşum/durum özeti (buildTestCaseSection'daki stats,
+ * "Paketi Çalıştır") ise bunları özyinelemeli olarak KENDİ kapsamına katıyor.
+ */
+function buildNestedPackagesSection(pkg, packageRefEntries) {
+  const section = document.createElement('div');
+  section.className = 'pkg-section';
+  const label = document.createElement('div');
+  label.className = 'pkg-section-label';
+  label.textContent = `İçerdiği paketler (${packageRefEntries.length})`;
+  section.appendChild(label);
+
+  if (!packageRefEntries.length) {
+    const empty = document.createElement('div');
+    empty.className = 'board-col-empty';
+    empty.textContent = 'Henüz başka paket eklenmedi. Aşağıdan arayıp ekleyebilirsin.';
+    section.appendChild(empty);
+  } else {
+    packageRefEntries.forEach(({ item, idx }) => section.appendChild(renderPackageRefRow(pkg, item, idx)));
+  }
+  return section;
+}
+
+/** "Paket ekle" — arayıp iç içe paket referansı ekleme. */
+function buildAddPackageSection(pkg) {
+  const section = document.createElement('div');
+  section.className = 'pkg-section';
+  const label = document.createElement('div');
+  label.className = 'pkg-section-label';
+  label.textContent = 'Paket ekle';
+  section.appendChild(label);
+
+  const searchWrap = document.createElement('div');
+  searchWrap.className = 'search-box pkg-search';
+  searchWrap.innerHTML = ICON.search;
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'search-input';
+  searchInput.placeholder = 'Paket adıyla ara...';
+  searchInput.value = state.packageNestSearchQuery;
+  searchWrap.appendChild(searchInput);
+  section.appendChild(searchWrap);
+
+  // Aynı gerekçeyle (bkz. renderPackageList → renderResults): aday listesi
+  // kendi sabit kabında güncellenir, arama kutusu ve giriş animasyonu her
+  // tuşta yeniden kurulmaz.
+  const candidateHolder = document.createElement('div');
+  candidateHolder.className = 'pkg-candidate-list';
+  section.appendChild(candidateHolder);
+
+  function renderCandidates() {
+    // Kendisi, zaten eklenenler VE çevrim oluşturacaklar hiç LİSTELENMEZ —
+    // geçersiz bir seçeneği gösterip tıklayınca reddetmek yerine baştan
+    // görünmez (bkz. packages-data.js → canNestPackage).
+    const candidates = state.packages.filter((p) =>
+      p.id !== pkg.id
+      && !pkg.items.some((it) => it.packageId === p.id)
+      && canNestPackage(pkg, p.id));
+    const q = state.packageNestSearchQuery.trim().toLowerCase();
+    const filtered = q ? candidates.filter((p) => p.name.toLowerCase().includes(q)) : candidates;
+
+    candidateHolder.replaceChildren();
+    if (!filtered.length) {
+      const empty = document.createElement('div');
+      empty.className = 'board-col-empty';
+      empty.textContent = q ? 'Eşleşen paket yok.' : 'Eklenebilir başka paket yok.';
+      candidateHolder.appendChild(empty);
+      return;
+    }
+    filtered.forEach((p) => candidateHolder.appendChild(renderPackageCandidateRow(pkg, p)));
+  }
+
+  searchInput.oninput = (e) => { state.packageNestSearchQuery = e.target.value; renderCandidates(); };
+  renderCandidates();
+  return section;
+}
+
+/** "Test case ekle" — arayıp doğrudan test case referansı ekleme. */
+function buildAddTestCaseSection(pkg) {
+  const section = document.createElement('div');
+  section.className = 'pkg-section';
+  const label = document.createElement('div');
+  label.className = 'pkg-section-label';
+  label.textContent = 'Test case ekle';
+  section.appendChild(label);
 
   const searchWrap = document.createElement('div');
   searchWrap.className = 'search-box pkg-search';
@@ -648,14 +486,14 @@ function renderPackageDetail(pkg) {
   searchInput.placeholder = 'Test case veya sayfa adıyla ara...';
   searchInput.value = state.packageSearchQuery;
   searchWrap.appendChild(searchInput);
-  addSection.appendChild(searchWrap);
+  section.appendChild(searchWrap);
 
   // Aynı gerekçeyle (bkz. renderPackageList → renderResults): aday listesi
   // kendi sabit kabında güncellenir, arama kutusu ve giriş animasyonu her
   // tuşta yeniden kurulmaz.
   const candidateHolder = document.createElement('div');
   candidateHolder.className = 'pkg-candidate-list';
-  addSection.appendChild(candidateHolder);
+  section.appendChild(candidateHolder);
 
   function renderCandidates() {
     const candidates = allTestCases(state.tree)
@@ -684,9 +522,7 @@ function renderPackageDetail(pkg) {
 
   searchInput.oninput = (e) => { state.packageSearchQuery = e.target.value; renderCandidates(); };
   renderCandidates();
-  wrap.appendChild(addSection);
-
-  return wrap;
+  return section;
 }
 
 /**
@@ -825,8 +661,8 @@ function openPackageRunModal(pkg, nodes, { onStop } = {}) {
 
 /**
  * "Paketi Çalıştır" bölümü — paketteki farklı sayfaların GERÇEK, whitelist'li
- * koşumlarını sırayla tetikler (bkz. runPackage). Tıklamadan ÖNCE hangi
- * sayfaların koşulacağını ve kaçının otomatik koşumu olmadığı için
+ * koşumlarını sırayla tetikler (bkz. packages-run.js → runPackage). Tıklamadan
+ * ÖNCE hangi sayfaların koşulacağını ve kaçının otomatik koşumu olmadığı için
  * atlanacağını gösterir — sessiz bir "hiçbir şey olmadı" durumu yaşanmasın.
  */
 function buildRunSection(pkg) {
@@ -838,7 +674,7 @@ function buildRunSection(pkg) {
   label.textContent = 'Paketi çalıştır';
   sec.appendChild(label);
 
-  const nodes = [...new Set(pkg.items.map((it) => it.nodeId))]
+  const nodes = [...new Set(dedupeTestCaseItems(collectEffectiveTestCaseItems(pkg)).map((it) => it.nodeId))]
     .map((id) => findNode(state.tree, id))
     .filter(Boolean);
   const runnable = nodes.filter((n) => n.runRef?.runId);
@@ -976,7 +812,7 @@ function buildRunSection(pkg) {
  * "Koşum geçmişi" — recordPackageRun'ın kalıcı hâle getirdiği koşumları en
  * yeniden eskiye listeler. buildRunSection'daki ilerleme metni koşum bitince
  * kayboluyordu; bu bölüm o sonucu sayfadan ayrılınca/panel yenilenince de
- * görünür tutar (bkz. recordPackageRun).
+ * görünür tutar (bkz. packages-data.js → recordPackageRun).
  */
 function renderPackageRunHistory(pkg) {
   const sec = document.createElement('div');
@@ -1129,6 +965,101 @@ function renderCandidateRow(pkg, c) {
   addBtn.innerHTML = ICON.plus;
   addBtn.title = 'Pakete ekle';
   addBtn.onclick = () => { addTestCaseToPackage(pkg, c.nodeId, c.testCase.id); renderContent(); };
+  row.appendChild(addBtn);
+
+  return row;
+}
+
+/**
+ * İçerdiği paketler listesindeki bir satır — test case satırından (bkz.
+ * renderPackageItemRow) farklı olarak tıklanınca AĞACA değil o PAKETİN
+ * detayına gider (state.openPackageId, renderPackageCard'daki open() ile
+ * aynı desen). Kaynağı silinmişse (paket bir yerden silinmiş) aynı "kaynağı
+ * silinmiş" ghost görünümü — nodeId/testCaseId yerine packageId için.
+ */
+function renderPackageRefRow(pkg, item, idx) {
+  const child = state.packages.find((p) => p.id === item.packageId);
+  const row = document.createElement('div');
+  row.className = 'pkg-item-row';
+
+  if (!child) {
+    row.classList.add('pkg-item-ghost');
+    const body = document.createElement('div');
+    body.className = 'pkg-item-body';
+    const title = document.createElement('div');
+    title.className = 'pkg-item-title';
+    title.textContent = 'Kaynağı silinmiş';
+    const meta = document.createElement('div');
+    meta.className = 'pkg-item-meta';
+    meta.textContent = 'Bağlı paket artık yok';
+    body.append(title, meta);
+    row.appendChild(body);
+  } else {
+    const icon = document.createElement('span');
+    icon.className = 'pkg-item-package-icon';
+    icon.innerHTML = ICON.package;
+    row.appendChild(icon);
+
+    const body = document.createElement('button');
+    body.type = 'button';
+    body.className = 'pkg-item-body pkg-item-jump';
+    body.title = 'Bu paketi aç';
+    const title = document.createElement('div');
+    title.className = 'pkg-item-title';
+    title.textContent = child.name;
+    const meta = document.createElement('div');
+    meta.className = 'pkg-item-meta';
+    // childStats.ghosts kendi içindeki (özyinelemeli) kırık referansları da
+    // kapsıyor — B'nin içindeki C silinmişse bu satırda hemen görünsün diye,
+    // A'yı açan kullanıcı B'nin içine girmeden sorunu fark etsin.
+    const childStats = computePackageStats(child);
+    meta.textContent = `${childStats.total} test case`
+      + (childStats.ghosts ? ` · ${childStats.ghosts} kaynağı silinmiş` : '');
+    body.append(title, meta);
+    body.onclick = () => { state.openPackageId = child.id; renderContent(); };
+    row.appendChild(body);
+  }
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'icon-btn';
+  removeBtn.innerHTML = ICON.close;
+  removeBtn.title = 'Paketten çıkar';
+  removeBtn.onclick = () => { removeItemFromPackage(pkg, idx); renderContent(); };
+  row.appendChild(removeBtn);
+
+  return row;
+}
+
+/** "Paket ekle" arama sonucundaki bir aday satırı — tıklayınca pkg'e iç içe eklenir. */
+function renderPackageCandidateRow(pkg, candidate) {
+  const row = document.createElement('div');
+  row.className = 'pkg-item-row pkg-candidate-row';
+
+  const icon = document.createElement('span');
+  icon.className = 'pkg-item-package-icon';
+  icon.innerHTML = ICON.package;
+  row.appendChild(icon);
+
+  const body = document.createElement('div');
+  body.className = 'pkg-item-body';
+  const title = document.createElement('div');
+  title.className = 'pkg-item-title';
+  title.textContent = candidate.name;
+  const meta = document.createElement('div');
+  meta.className = 'pkg-item-meta';
+  const candidateStats = computePackageStats(candidate);
+  meta.textContent = `${candidateStats.total} test case`
+    + (candidateStats.ghosts ? ` · ${candidateStats.ghosts} kaynağı silinmiş` : '');
+  body.append(title, meta);
+  row.appendChild(body);
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'icon-btn';
+  addBtn.innerHTML = ICON.plus;
+  addBtn.title = 'Pakete ekle';
+  addBtn.onclick = () => { addPackageToPackage(pkg, candidate.id); renderContent(); };
   row.appendChild(addBtn);
 
   return row;

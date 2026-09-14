@@ -23,6 +23,7 @@ export const state = {
   openPackageId: null, // null = liste görünümü; doluysa o paketin detayı
   packageListQuery: '', // liste sayfasında paket adı/açıklamasına göre arama
   packageSearchQuery: '', // detay görünümünde "test case ekle" arama kutusu
+  packageNestSearchQuery: '', // detay görünümünde "paket ekle" (iç içe paket) arama kutusu
 
   jiraBaseUrl: '',
   jiraStatusCache: {}, // taskId -> { found, statusName, statusCategory, summary }
