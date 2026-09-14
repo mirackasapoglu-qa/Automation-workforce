@@ -126,6 +126,11 @@ html, body { background: var(--bg); margin: 0; }
   font-size: 12.5px; font-weight: 600; cursor: pointer; border: 1px solid var(--border);
   background: var(--surface); color: var(--text); transition: border-color .15s, background .15s, transform .08s;
 }
+/* `.btn`'nin kendi display'i [hidden]'ın UA display:none'unu eziyordu (bkz.
+   fw-sb-status/search-box'ta ölçülen aynı hata) — el.hidden=true ile
+   gizlenen bir .btn görünür kalıyordu (ölçüldü: "Durdur" koşum başlamadan
+   önce de görünüyordu). */
+.btn[hidden] { display: none; }
 .btn:hover { border-color: var(--border-strong); background: var(--surface-raised); }
 .btn:active { transform: scale(.96); }
 .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-on); }
@@ -1147,3 +1152,197 @@ html, body { background: var(--bg); margin: 0; }
 }
 .subtree-testcase-row:hover { border-color: var(--accent); background: var(--surface); }
 .subtree-testcase-name { font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Paketler — liste + detay. `.board-col-empty`, `.btn`, `.search-box`,
+   `.icon-btn` gibi paylaşılan sınıfları olduğu gibi kullanıyor.
+   ══════════════════════════════════════════════════════════════════════════ */
+.pkg-page-header h2 { font-size: 19px; font-weight: 700; letter-spacing: -.2px; color: var(--text); margin-bottom: 4px; }
+.pkg-page-header p { font-size: 12.5px; color: var(--text-muted); margin-bottom: 18px; }
+.pkg-create-holder { margin-bottom: 22px; }
+.pkg-add-btn { margin: 0; }
+.pkg-create-form { display: flex; gap: 8px; align-items: center; max-width: 420px; }
+.pkg-create-input {
+  flex: 1; min-width: 0; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font: inherit; font-size: 13px; padding: 9px 12px; border-radius: 10px;
+}
+.pkg-create-input:focus { border-color: var(--accent); outline: none; }
+.pkg-create-input::placeholder { color: var(--text-faint); }
+.pkg-input-invalid { border-color: var(--fail) !important; }
+.pkg-inline-error { font-size: 11.5px; color: var(--fail); margin-top: 6px; }
+.pkg-inline-error[hidden] { display: none; }
+.pkg-name-field { flex: 1 1 260px; min-width: 0; }
+.pkg-name-field .pkg-name-input { width: 100%; }
+
+.pkg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.pkg-card {
+  position: relative; display: flex; gap: 12px; align-items: flex-start; text-align: left; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px;
+  transition: border-color .15s, background .15s;
+}
+.pkg-card:hover, .pkg-card:focus-visible { border-color: var(--accent); background: var(--surface-raised); }
+.pkg-card-icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  background: var(--accent-dim); color: var(--accent);
+}
+.pkg-card-icon .icon { width: 17px; height: 17px; }
+.pkg-card-body { min-width: 0; }
+.pkg-card-name { font-size: 13.5px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* .pkg-card-actions (kopyala/sil) absolute konumlandığı için normal akışta yer
+   ayırmıyor; uzun isimde ellipsis ikonların altına kayıyordu. Boşluğu sadece
+   ikonların GÖRÜNDÜĞÜ anda (hover/focus) ayırıyoruz — durgun hâlde kısa isimleri
+   gereksiz yere erken kesmesin diye her zaman değil. */
+.pkg-card:hover .pkg-card-name, .pkg-card:focus-within .pkg-card-name { padding-right: 58px; }
+.pkg-card-meta { font-size: 11px; color: var(--text-muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+.pkg-card-actions { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; opacity: 0; transition: opacity .15s; }
+.pkg-card:hover .pkg-card-actions, .pkg-card:focus-within .pkg-card-actions { opacity: 1; }
+
+/* Paket bazlı durum özeti — sidebar'daki genel özetin küçük, tek satırlık hâli. */
+.pkg-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.pkg-stat-chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.pkg-stat-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--tile-color); }
+.pkg-stat-ghost { color: var(--text-faint); font-style: italic; }
+
+.pkg-back {
+  display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text-muted);
+  font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 0; margin-bottom: 16px; transition: color .15s;
+}
+.pkg-back:hover { color: var(--text); }
+.pkg-back .icon { width: 13px; height: 13px; }
+
+.pkg-detail-head { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; margin-bottom: 26px; }
+.pkg-name-input {
+  border: 1px solid transparent; background: transparent; color: var(--text);
+  font-size: 19px; font-weight: 700; letter-spacing: -.2px; padding: 4px 6px; border-radius: 8px;
+}
+.pkg-name-input:hover { border-color: var(--border); }
+.pkg-name-input:focus { border-color: var(--accent); background: var(--surface); outline: none; }
+.pkg-desc-input {
+  flex: 1 1 100%; resize: vertical; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted);
+  font: inherit; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; min-height: 40px;
+}
+.pkg-desc-input:focus { border-color: var(--accent); outline: none; color: var(--text); }
+.pkg-clone, .pkg-delete { flex-shrink: 0; }
+
+.pkg-section { margin-bottom: 28px; }
+.pkg-section-label {
+  font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-faint); margin-bottom: 6px;
+}
+.pkg-section .pkg-stats { margin-top: 0; margin-bottom: 14px; }
+.pkg-search { width: 100%; max-width: 360px; margin-bottom: 12px; }
+.pkg-search .search-input { width: 100%; }
+.pkg-list-search { width: 100%; max-width: 320px; margin-bottom: 18px; }
+.pkg-list-search .search-input { width: 100%; }
+
+.pkg-candidate-list { display: flex; flex-direction: column; gap: 6px; }
+.pkg-candidate-more { font-size: 11px; color: var(--text-faint); text-align: center; padding: 6px 0; }
+
+.pkg-item-row {
+  display: flex; align-items: center; gap: 10px; padding: 9px 11px; margin-bottom: 6px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+}
+.pkg-item-status { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: var(--tile-color); }
+.pkg-item-body { min-width: 0; flex: 1; }
+.pkg-item-jump {
+  border: 0; background: transparent; padding: 0; margin: 0; font: inherit; text-align: left; cursor: pointer; color: inherit;
+  border-radius: 6px;
+}
+.pkg-item-jump:hover .pkg-item-title { color: var(--accent); }
+.pkg-item-jump:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pkg-item-title { font-size: 12.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkg-item-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkg-item-ghost { border-style: dashed; opacity: .65; }
+.pkg-item-ghost .pkg-item-title { color: var(--text-faint); }
+.pkg-candidate-row { background: transparent; }
+.pkg-candidate-row:hover { background: var(--surface); }
+
+.pkg-run-info { font-size: 12px; color: var(--text-muted); margin-bottom: 10px; }
+.pkg-run-actions { display: flex; gap: 8px; }
+.pkg-run-progress {
+  margin-top: 10px; font-size: 12px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  display: flex; align-items: center; gap: 6px;
+}
+/* [hidden] + kendi display:flex kuralımız çakışıyor — UA'nın display:none'ı
+   kaybediyor (bu projede tekrar eden bir hata sınıfı, bkz. .btn[hidden]). */
+.pkg-run-progress[hidden] { display: none; }
+/* Koşum sürerken dönen ikon — jira-spin, drawer'daki Jira yenile ikonuyla AYNI
+   animasyon (bkz. .drawer-jira-refresh-btn.spinning). İkon ayrı bir span'da
+   durduğu için ilerleme metni her adımda değişirken animasyon sıfırlanmıyor. */
+.pkg-run-spin-icon { display: inline-flex; flex-shrink: 0; }
+.pkg-run-spin-icon .icon { width: 13px; height: 13px; color: var(--accent); animation: jira-spin .9s linear infinite; }
+.btn.is-running .icon { animation: jira-spin .9s linear infinite; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   "Paketi Çalıştır" popup'ı — sitemap-overlay ile AYNI katman (z-index 400,
+   aynı koyu zemin), ama kendi "sinema" efektleri (video/glow) YOK; bu bir
+   test koşumu, bir site taraması değil — sade bir dönen halka + canlı liste
+   yeterli. Giriş/çıkış: fade + hafif "pop" (Kowalski: ease-out, <300ms).
+   ══════════════════════════════════════════════════════════════════════════ */
+.pkgrun-overlay {
+  position: fixed; inset: 0; background: rgba(3, 5, 10, .6); z-index: 400;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  animation: pkgrun-fade-in .18s ease-out;
+}
+@keyframes pkgrun-fade-in { from { opacity: 0; } to { opacity: 1; } }
+.pkgrun-modal {
+  width: 420px; max-width: 100%; max-height: calc(100vh - 48px); overflow: auto;
+  background: var(--surface-raised); border: 1px solid var(--border); border-radius: 16px;
+  padding: 22px; box-shadow: 0 24px 64px rgba(0,0,0,.45);
+  animation: pkgrun-pop-in .22s cubic-bezier(.2,.9,.3,1.1);
+}
+@keyframes pkgrun-pop-in { from { opacity: 0; transform: scale(.95) translateY(6px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+@media (prefers-reduced-motion: reduce) {
+  .pkgrun-modal { animation: none; }
+}
+
+.pkgrun-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.pkgrun-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.pkgrun-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+.pkgrun-spinner-wrap { display: flex; justify-content: center; margin: 26px 0 18px; }
+.pkgrun-ring {
+  width: 52px; height: 52px; border-radius: 50%; border: 4px solid var(--border);
+  border-top-color: var(--accent); animation: pkgrun-spin .8s linear infinite;
+}
+@keyframes pkgrun-spin { to { transform: rotate(360deg); } }
+.pkgrun-done-icon { text-align: center; font-size: 40px; line-height: 1; margin: 14px 0 18px; animation: pkgrun-pop-in .25s cubic-bezier(.2,.9,.3,1.2); }
+
+.pkgrun-status-line { text-align: center; font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+
+.pkgrun-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 18px; max-height: 240px; overflow-y: auto; }
+.pkgrun-row {
+  display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 9px;
+  background: var(--surface); border: 1px solid var(--border); font-size: 12.5px; color: var(--text-faint);
+  transition: border-color .15s, color .15s;
+}
+.pkgrun-row-icon { width: 15px; height: 15px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.pkgrun-row-icon .icon { width: 13px; height: 13px; color: var(--accent); animation: jira-spin .9s linear infinite; }
+.pkgrun-row-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkgrun-row-note { font-size: 11px; color: var(--text-faint); flex-shrink: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pkgrun-row.is-active { border-color: var(--accent); color: var(--text); }
+.pkgrun-row.is-done { color: var(--text); }
+.pkgrun-row.is-done.is-fail { border-color: rgba(251,113,133,.4); }
+.pkgrun-row.is-done.is-fail .pkgrun-row-note { color: var(--fail); }
+.pkgrun-row.is-skip { font-style: italic; }
+
+.pkgrun-actions { display: flex; justify-content: flex-end; }
+
+.pkg-run-history { display: flex; flex-direction: column; gap: 10px; }
+.pkg-run-entry { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; background: var(--surface); }
+.pkg-run-entry-head {
+  display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.pkg-run-entry-summary { color: var(--text); font-weight: 600; }
+.pkg-run-entry-rows { margin-top: 8px; display: flex; flex-direction: column; gap: 3px; }
+.pkg-run-entry-row {
+  font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.pkg-run-entry-fail { color: var(--fail); }
+.pkg-run-entry-skipped { color: var(--text-faint); font-style: italic; }

@@ -2,6 +2,7 @@
 // migration'ları belirli sırayla çalıştırır, sonra uygulamayı başlatır.
 import { state } from './state.js';
 import { reloadPersistedTree, findNode, setSaveState } from './data.js';
+import { loadPackages } from './packages.js';
 import { init } from './shell.js';
 import { openDrawer } from './drawer.js';
 
@@ -18,9 +19,24 @@ async function bootstrap() {
     return;
   }
 
+  await loadPackagesQuietly();
   await loadKnownIssues();
   init();
   openNodeFromHash();
+}
+
+/**
+ * Paketler ağaçtan AYRI bir dosyada (bkz. packages.mjs) — yüklemesi ağacın
+ * yüklenmesini bloklamaz (bilinen hatalar gibi bir "bonus"), ama başarısız
+ * olursa YAZMAYI kapatır: aksi halde bir sonraki paket kaydı sunucudaki
+ * gerçek listeyi boş bir kopyayla ezerdi (bkz. packages.js → persistPackages).
+ */
+async function loadPackagesQuietly() {
+  try {
+    await loadPackages();
+  } catch (e) {
+    state.packagesLoadFailed = true;
+  }
 }
 
 /**

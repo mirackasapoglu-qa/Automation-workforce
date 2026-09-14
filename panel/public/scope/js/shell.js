@@ -16,9 +16,16 @@ import { openSitemapImportModal } from './sitemap-import.js';
 import { toggleSelectMode, buildBulkBar } from './bulk-actions.js';
 import { openMenu } from './dropdown.js';
 import { uiToast } from './dialog.js';
+import { renderPackagesView } from './packages.js';
+import { renderTestCasesView } from './testcases.js';
 
-let indicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
+let indicatorEl, toolsIndicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
 let sidebarStatusEl, topbarFacetsEl, topbarSearchWrapEl, fileInputEl;
+
+// "Dikkat" ve "Paketler" ağacın bir GÖRÜNÜMÜ değil, kendi kendine yeten ayrı
+// sayfalar — arama/facet/durum özeti/toplu seçim ikisinde de anlamsız (bkz.
+// updateTopbarVisibility, updateSidebarStatus, renderContent).
+const AUX_VIEWS = new Set(['attention', 'packages', 'testcases']);
 
 /** Sidebar'daki kompakt durum ozeti — eski buyuk kutucuklarin yerine, tek kolonda. */
 function renderSidebarStatus() {
@@ -64,18 +71,20 @@ function renderSidebarStatus() {
 /** İçerik değiştikçe (renderContent) sidebar'daki durum özetini yerinde günceller. */
 function updateSidebarStatus() {
   if (!sidebarStatusEl) return;
-  if (state.currentView === 'attention') { sidebarStatusEl.hidden = true; return; }
+  if (AUX_VIEWS.has(state.currentView)) { sidebarStatusEl.hidden = true; return; }
   sidebarStatusEl.hidden = false;
   sidebarStatusEl.replaceChildren(...renderSidebarStatus().childNodes);
 }
 
-/** Arama/facet, sadece Ağaç/Diyagram/Pano'da anlamlı — Dikkat kendi kategorilerini kullanır
- *  ve bu iki kontrolü hiç okumaz (attention-view.js hiçbir yerde searchQuery/activeFacets
- *  okumuyor). Görünüm değişince ölü kontrolleri göstermemek için gizleniyorlar. */
+/** Arama/facet/Seç, sadece Ağaç/Diyagram/Pano'da anlamlı — Dikkat kendi kategorilerini,
+ *  Paketler kendi arama kutusunu kullanır; toplu seçim de yaprak düğüm gerektirir,
+ *  ikisinde de seçilecek bir düğüm yok. Görünüm değişince ölü kontrolleri göstermemek
+ *  için gizleniyorlar. */
 function updateTopbarVisibility() {
-  const hide = state.currentView === 'attention';
+  const hide = AUX_VIEWS.has(state.currentView);
   if (topbarSearchWrapEl) topbarSearchWrapEl.hidden = hide;
   if (topbarFacetsEl) topbarFacetsEl.hidden = hide;
+  if (selectBtnEl) selectBtnEl.hidden = hide;
 }
 
 export function exportData() {
@@ -183,6 +192,42 @@ function buildSidebar() {
   sidebar.appendChild(group);
   refreshAttentionBadge();
 
+  // İkinci grup: ağacın bir GÖRÜNÜMÜ olmayan, kendi başına sayfalar. "Test
+  // Case'ler" henüz İÇİ BOŞ (bkz. testcases.js) — sidebar'da yeri bilerek
+  // şimdiden ayrıldı, tasarımı ayrı bir turda yapılacak. İki öğeli bir grup
+  // olduğu için kayan vurgu çubuğunu hak ediyor artık (Görünüm grubuyla aynı desen).
+  const toolsGroup = document.createElement('div');
+  toolsGroup.className = 'fw-sb-group';
+  const toolsLabel = document.createElement('div');
+  toolsLabel.className = 'fw-sb-group-label';
+  toolsLabel.textContent = 'Test Suite';
+  toolsGroup.appendChild(toolsLabel);
+
+  const toolsNav = document.createElement('nav');
+  toolsNav.className = 'fw-sb-nav';
+  toolsIndicatorEl = document.createElement('div');
+  toolsIndicatorEl.className = 'fw-sb-indicator';
+  toolsNav.appendChild(toolsIndicatorEl);
+
+  const TOOLS = [
+    { key: 'packages', label: 'Paketler', icon: ICON.package },
+    { key: 'testcases', label: "Test Case'ler", icon: ICON.typeStep },
+  ];
+  TOOLS.forEach((t) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = state.currentView === t.key;
+    btn.className = isActive ? 'active' : '';
+    if (isActive) btn.setAttribute('aria-current', 'true');
+    btn.title = t.label;
+    btn.innerHTML = t.icon + `<span>${t.label}</span>`;
+    btn.onclick = () => setView(t.key);
+    toolsNav.appendChild(btn);
+    switchButtons[t.key] = btn;
+  });
+  toolsGroup.appendChild(toolsNav);
+  sidebar.appendChild(toolsGroup);
+
   sidebarStatusEl = document.createElement('div');
   sidebarStatusEl.className = 'fw-sb-status';
   sidebar.appendChild(sidebarStatusEl);
@@ -288,10 +333,15 @@ export function refreshAttentionBadge() {
 
 export function positionIndicator() {
   const btn = switchButtons[state.currentView];
-  if (btn && indicatorEl) {
-    indicatorEl.style.top = btn.offsetTop + 'px';
-    indicatorEl.style.height = btn.offsetHeight + 'px';
-  }
+  // İki grup, iki bağımsız vurgu çubuğu — aktif düğüme sahip OLMAYAN grubun
+  // çubuğu sıfır yüksekliğe çekilip gizleniyor (ör. Paketler aktifken Görünüm
+  // grubunda gösterilecek bir şey yok).
+  [indicatorEl, toolsIndicatorEl].forEach((el) => {
+    if (!el) return;
+    if (!btn || !el.parentElement.contains(btn)) { el.style.height = '0px'; return; }
+    el.style.top = btn.offsetTop + 'px';
+    el.style.height = btn.offsetHeight + 'px';
+  });
 }
 
 export function setView(key) {
@@ -318,9 +368,9 @@ export function renderContent() {
   const fresh = document.createElement('div');
   fresh.className = 'fw-content';
 
-  // "Dikkat" görünümü toplu seçim çubuğunu paylaşmaz — kendi kendine yeten bir
-  // bulgu listesi (bkz. attention-view.js). İlerleme özeti artık sidebar'da.
-  if (state.currentView !== 'attention' && state.selectMode) {
+  // "Dikkat"/"Paketler" toplu seçim çubuğunu paylaşmaz — ikisi de kendi kendine
+  // yeten ayrı sayfalar (bkz. attention-view.js, packages.js).
+  if (!AUX_VIEWS.has(state.currentView) && state.selectMode) {
     fresh.appendChild(buildBulkBar());
   }
 
@@ -330,6 +380,10 @@ export function renderContent() {
 
   if (state.currentView === 'attention') {
     fresh.appendChild(renderAttentionView(renderContent));
+  } else if (state.currentView === 'packages') {
+    fresh.appendChild(renderPackagesView());
+  } else if (state.currentView === 'testcases') {
+    fresh.appendChild(renderTestCasesView());
   } else if (state.currentView === 'diagram') {
     fresh.appendChild(renderDiagram(visibleIds));
   } else if (state.currentView === 'board') {

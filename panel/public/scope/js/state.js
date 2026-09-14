@@ -13,6 +13,16 @@ export const state = {
   testCaseIdCounter: 1,
   testStepIdCounter: 1,
   testRunIdCounter: 1,
+  packageIdCounter: 1,
+
+  // Paketler (bkz. packages.js) — tree.json'dan AYRI kalıcılık, kendi yükleme
+  // hatasını tutar (loadFailed'e karışmaz, ağaç yüklenemese bile paketler
+  // denenebilir olsun diye).
+  packages: [],
+  packagesLoadFailed: false,
+  openPackageId: null, // null = liste görünümü; doluysa o paketin detayı
+  packageListQuery: '', // liste sayfasında paket adı/açıklamasına göre arama
+  packageSearchQuery: '', // detay görünümünde "test case ekle" arama kutusu
 
   jiraBaseUrl: '',
   jiraStatusCache: {}, // taskId -> { found, statusName, statusCategory, summary }
@@ -71,3 +81,4 @@ export function newJiraAnalysisId() { return 'jan' + (state.jiraAnalysisIdCounte
 export function newTestCaseId() { return 'tc' + (state.testCaseIdCounter++); }
 export function newTestStepId() { return 'tcs' + (state.testStepIdCounter++); }
 export function newTestRunId() { return 'tcr' + (state.testRunIdCounter++); }
+export function newPackageId() { return 'pkg' + (state.packageIdCounter++); }

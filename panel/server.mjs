@@ -81,6 +81,7 @@ import { registerRunRoutes } from "./routes/runs.mjs";
 import { registerAssetRoutes } from "./routes/assets.mjs";
 import { registerConnectorRoutes } from "./routes/connectors.mjs";
 import { registerClaudeRoutes } from "./routes/claude.mjs";
+import { registerPackagesRoutes } from "./routes/packages.mjs";
 import { createRunGate } from "./run-queue.mjs";
 import { listMapping, mappingFor, setMapping, clearMapping, snippet as mapSnippet } from "./card-map.mjs";
 import * as runJournal from "./run-journal.mjs";
@@ -917,6 +918,7 @@ registerAiRoutes(router, CTX);
 registerRagRoutes(router, CTX);
 registerConnectorRoutes(router, CTX);
 registerClaudeRoutes(router, CTX);
+registerPackagesRoutes(router, CTX);
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${PORT}`);
