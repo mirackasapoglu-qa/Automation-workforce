@@ -222,3 +222,19 @@ test("depo yokken diskteki uretilmis spec SAHIPLENILIR (ilk deploy'da ucmasin)",
   assert.deepEqual(r.adopted, ["gen-eski.spec.ts"]);
   assert.deepEqual(r.__disk.store, ["gen-eski.spec.ts"], "elle yazilan test sahiplenilmemeli");
 });
+
+test("specExists dosyayi gorur, yol kacisini reddeder", () => {
+  const r = calistir(`
+    g.storeSpec("gen-var.spec.ts", "kod");
+    return {
+      var: g.specExists("gen-var.spec.ts"),
+      yok: g.specExists("gen-yok.spec.ts"),
+      bos: g.specExists(""),
+      kacis: g.specExists("../package.json"),
+    };
+  `);
+  assert.equal(r.var, true);
+  assert.equal(r.yok, false, "dosyasi kaybolmus spec 'otomatik' sayilmamali");
+  assert.equal(r.bos, false);
+  assert.equal(r.kacis, false);
+});

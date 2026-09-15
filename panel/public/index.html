@@ -2238,6 +2238,7 @@ async function renderScopePackages() {
         p.manualCases ? `${p.manualCases} elle` : null,
         p.missingRefs ? `${p.missingRefs} kayip referans` : null,
         p.needsLogin && !kimlik.saved ? 'giris bilgisi yok' : null,
+        p.missingSpecs?.length ? `${p.missingSpecs.length} spec dosyasi kayip` : null,
         !p.specs.length ? 'otomatik karsiligi yok — elle kosulur' : null,
       ].filter(Boolean);
       const c = son?.counts;
@@ -2257,8 +2258,10 @@ async function renderScopePackages() {
             title="${p.specs.length ? esc(p.specs.join(', ')) : 'Bu paketteki case\'lerin Playwright karsiligi yok: adimlardan olusan elle case\'ler. Elle kos ya da otomatige cevir.'}">${kosuyor ? '...' : 'kos'}</button>
           <button class="rc-manual" ${p.cases ? `onclick="runPackageManual('${esc(p.id)}')"` : 'disabled'}
             title="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina ve deftere yazilir.">elle kos</button>
-          ${p.manualCases ? `<button class="rc-gen" onclick="packageToSpec('${esc(p.id)}')"
-            title="Adimlardan Playwright spec'i uretir (tests/gen-*.spec.ts), dugume baglar; sonra 'kos' ile calisir.">otomatige cevir</button>` : ''}
+          ${p.manualCases || p.missingSpecs?.length ? `<button class="rc-gen" onclick="packageToSpec('${esc(p.id)}')"
+            title="${p.missingSpecs?.length
+              ? esc(`Kayip spec dosyasi: ${p.missingSpecs.join(', ')} — adimlardan YENIDEN uretir.`)
+              : "Adimlardan Playwright spec'i uretir (tests/gen-*.spec.ts), dugume baglar; sonra 'kos' ile calisir."}">${p.missingSpecs?.length ? 'yeniden uret' : 'otomatige cevir'}</button>` : ''}
         </div>
       </div>`;
     }).join('')}</div>
@@ -2401,8 +2404,15 @@ async function packageToSpec(id) {
   catch (e) { uiToast('Paket okunamadi: ' + e.message, { type: 'err' }); return; }
   if (!d.ok) { uiToast(d.error || 'Paket okunamadi.', { type: 'err' }); return; }
 
-  // Otomatik karsiligi OLMAYAN case'lerin dugumleri
-  const dugumler = [...new Set((d.cases || []).filter(c => !c.missing && !c.automated && !c.spec).map(c => c.nodeId))];
+  /*
+   * Cevrilecekler: (a) hic spec'i olmayan elle case'ler, (b) spec'i olan ama
+   * DOSYASI KAYBOLMUS case'ler. (b) olmadan, deploy'da ucan bir dosya case'i
+   * "otomatik" birakiyor ve kullanicinin yeniden uretecek hicbir yolu kalmiyor
+   * (olculdu 2026-09-15 canlida).
+   */
+  const cevrilecek = (d.cases || []).filter(c => !c.missing && ((!c.automated && !c.spec) || c.specMissing));
+  const dugumler = [...new Set(cevrilecek.map(c => c.nodeId))];
+  const kayip = [...new Set(cevrilecek.filter(c => c.specMissing).map(c => c.spec))];
   if (!dugumler.length) { uiToast('Bu pakette cevrilecek elle case yok.', { type: 'info' }); return; }
 
   const ai = await (await fetch('/api/ai/status')).json().catch(() => ({}));
@@ -2412,6 +2422,7 @@ async function packageToSpec(id) {
   }
   if (!await uiConfirm(
     `${dugumler.length} dugum icin Playwright spec'i uretilecek.\n\n`
+    + (kayip.length ? `• Kayip dosya YENIDEN uretilecek: ${kayip.join(', ')}\n` : '')
     + `• Dosyalar tests/gen-*.spec.ts olarak YAZILACAK\n`
     + `• Uretilen kod kapidan gecer (Playwright testi mi, istenen case'ler var mi, tehlikeli kalip var mi)\n`
     + `• Kosum AYRI adim — once dosyayi gorebilirsin\n\nYol: ${esc(ai.detail || ai.mode)}`,

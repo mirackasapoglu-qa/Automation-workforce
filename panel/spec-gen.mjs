@@ -173,6 +173,21 @@ export function gate(out, { titles = [], secret = null } = {}) {
   return { ok: true, missing: eksik };
 }
 
+/**
+ * `tests/` altinda bu spec dosyasi VAR MI?
+ *
+ * Agacta bir case'in `spec` alani dolu olabilir ama dosya kaybolmus olabilir
+ * (deploy `tests/`i yeniden kurar — bkz. STORE yorumu). O durumda case
+ * "otomatik" gorunuyor ama kosulamiyor: panel "otomatige cevir" dugmesini
+ * gizliyor ve kullanicinin elinde HICBIR yol kalmiyordu (olculdu 2026-09-15:
+ * gen-salon.spec.ts). Bu yuzden "otomatik mi" sorusu artik dosyaya da bakiyor.
+ */
+export function specExists(filename) {
+  const ad = String(filename ?? "").trim();
+  if (!ad || ad.includes("/") || ad.includes("\\")) return false;
+  try { return fs.existsSync(path.join(TESTS, ad)); } catch { return false; }
+}
+
 /** Çakışmayan dosya adı üretir: `gen-<slug>.spec.ts`, gerekirse `-2`, `-3`… */
 export function pickFilename(slug) {
   const temel = `gen-${slug}`;

@@ -2765,6 +2765,34 @@ panel/spec-restore.mjs → restoreSpecs(readTree): depo + agac, tek cagri
 kayıtları hiçbir yerde yok, yeniden üretilmeleri gerekir. Kaydediciden gelenler
 (`gen-rec-*`) ağaçtaki adımlardan kurtulur.
 
+### Ölü spec referansı: "otomatik" görünen ama koşulamayan case (2026-09-15)
+
+Yukarıdakinin ikinci yarısı, kullanıcı bildirdi: *"otomatiğe çevir bir kez
+yapıldı, o paket için artık gözükmüyor — nereden yapacaktım?"* Ölçüldü: dosya
+uçtuğunda case'in `spec` alanı DURUYOR, yani case her yerde **otomatik**
+sayılıyordu →
+
+- `manualCases` 0 → **"otomatiğe çevir" düğmesi gizli**
+- `POST /api/scope/testcases/spec` filtresi `!tc.spec` → **400 "çevrilecek elle
+  case yok"**
+- koşum → **"Bilinmeyen spec"**
+
+Yani kullanıcının elinde hiçbir yol kalmıyordu. Artık **"otomatik mi" sorusu
+dosyaya da bakıyor** (`spec-gen.mjs → specExists`, yol kaçışını da reddeder):
+
+| Yer | Ne değişti |
+|---|---|
+| `packages.mjs → resolvePackageCases` | case başına `specMissing` |
+| `/api/scope/packages/runnable` | kayıp spec'li case `manualCases`a sayılır; `missingSpecs[]` döner |
+| Koşumlar satırı | "N spec dosyası kayıp" + düğme geri gelir, adı **"yeniden üret"** |
+| `/api/scope/testcases/spec` | filtre `(!automated && !spec) \|\| (spec && !specExists(spec))` |
+| aynı uç, yazma | **ölü referans TEMİZLENİR**: `runRef.specs`ten düşer, `tc.spec` yeni dosyaya döner — kalsaydı doğrulama "Bilinmeyen spec" demeye devam eder, yeni dosya hiç denenmezdi |
+
+Ölçüm: dosya silinip ağaçtaki referans bırakılınca satır `5 case · 1 spec
+otomatik · 2 elle · 1 spec dosyası kayıp` + "yeniden üret" (ipucunda dosya adı);
+üretim filtresi eski hâlinde 4 case görüp reddederken yeni hâlinde ölü
+referanslı case'i de alıyor (5).
+
 ### Giriş bilgisi ihtiyacı artık paketin yanında görünüyor
 
 `/api/scope/packages/runnable` her paket için `needsLogin` (case/spec adında

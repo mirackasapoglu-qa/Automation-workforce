@@ -16,6 +16,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import { specExists } from "./spec-gen.mjs";
 
 const DIR = path.join(process.cwd(), "panel-data", "scope");
 const FILE = path.join(DIR, "packages.json");
@@ -116,6 +117,9 @@ export function resolvePackageCases(tree, packages, id, findNode) {
       title: tc.title ?? "",
       automated: !!tc.automated,
       spec: tc.spec ?? null,
+      // Dosyasi kaybolmus spec "otomatik" sayilmaz — yoksa case ne kosulabilir
+      // ne de yeniden uretilebilir hale gelir (bkz. spec-gen.mjs -> specExists).
+      specMissing: Boolean(tc.spec) && !specExists(tc.spec),
       nodeSpecs: node.runRef?.specs ?? [],
       steps: (tc.steps ?? []).map((st) => ({ action: st.action ?? "", expected: st.expected ?? "" })),
       lastRun: (tc.runs ?? []).at(-1) ?? null,

@@ -19,7 +19,7 @@
 import { readTree, backfillRoutes, applyManualRuns, addRecordedCase } from "../scope.mjs";
 import { recordPackageRun, listPackageRuns, getPackageRun } from "../package-runs.mjs";
 import * as recSpec from "../recorded-spec.mjs";
-import { slugify, pickFilename, storeSpec } from "../spec-gen.mjs";
+import { slugify, pickFilename, storeSpec, specExists } from "../spec-gen.mjs";
 import {
   deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases, deriveFindings,
 } from "../scope-bridge.mjs";
@@ -387,6 +387,7 @@ export function registerScopeRoutes(router, ctx) {
       const specs = new Set();
       const nodes = new Set();
       let elle = 0, eksik = 0, login = false;
+      const kayipSpec = new Set();
       for (const it of items) {
         const node = findNode(tree, it.nodeId);
         if (!node) { eksik++; continue; }
@@ -395,8 +396,19 @@ export function registerScopeRoutes(router, ctx) {
         const nodeSpecs = node.runRef?.specs ?? [];
         // Case'in kendi spec'i varsa o; yoksa düğümün spec'leri.
         if (loginMi(tc.title) || loginMi(tc.spec)) login = true;
-        const aday = tc.spec ? [tc.spec] : nodeSpecs;
-        if (!aday.length) { elle++; continue; }
+        /*
+         * DOSYASI KAYBOLMUS SPEC = "elle" muamelesi. Case'in `spec` alani dolu
+         * diye onu otomatik saymak, paketi hem kosulamaz hem de "otomatige
+         * cevir" dugmesi gizli birakiyordu — kullanicinin elinde hicbir yol
+         * kalmiyordu (olculdu 2026-09-15 canlida: gen-salon.spec.ts).
+         */
+        if (tc.spec && !specExists(tc.spec)) { kayipSpec.add(tc.spec); elle++; continue; }
+        const aday = (tc.spec ? [tc.spec] : nodeSpecs).filter((sp) => specExists(sp));
+        if (!aday.length) {
+          for (const sp of tc.spec ? [tc.spec] : nodeSpecs) kayipSpec.add(sp);
+          elle++;
+          continue;
+        }
         nodes.add(node.id);
         for (const sp of aday) specs.add(sp);
       }
@@ -409,6 +421,7 @@ export function registerScopeRoutes(router, ctx) {
         manualCases: elle,
         missingRefs: eksik,
         needsLogin: login,
+        missingSpecs: [...kayipSpec],
       };
     });
     return send(res, 200, {

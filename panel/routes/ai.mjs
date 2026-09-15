@@ -149,9 +149,22 @@ export function registerAiRoutes(router, ctx) {
     const node = findNode(tree, nodeId);
     if (!node) return send(res, 404, { ok: false, error: `Dugum bulunamadi: ${nodeId}` });
 
-    // Yalniz ELLE case'ler cevrilir; otomatik olanlarin zaten spec'i var.
-    const cases = (node.testCases ?? []).filter((tc) => !tc.automated && !tc.spec);
-    if (!cases.length) return send(res, 400, { ok: false, error: "Bu dugumde cevrilecek elle case yok" });
+    /*
+     * ELLE case'ler + DOSYASI KAYBOLMUS spec'i olan case'ler cevrilir.
+     *
+     * Ikincisi 2026-09-15'te canlida olculen cikmazin cozumu: deploy `tests/`i
+     * yeniden kurunca uretilmis dosya ucuyor, case'in `spec` alani duruyor ve
+     * case "otomatik" gorunuyordu — panel "otomatige cevir"i gizliyor, kosum
+     * "Bilinmeyen spec" diyordu ve kullanicinin elinde HICBIR yol kalmiyordu.
+     */
+    const cases = (node.testCases ?? []).filter(
+      (tc) => (!tc.automated && !tc.spec) || (tc.spec && !specGen.specExists(tc.spec)),
+    );
+    if (!cases.length) {
+      return send(res, 400, { ok: false, error: "Bu dugumde cevrilecek elle case yok (otomatik case'lerin spec dosyasi yerinde)" });
+    }
+    // Yeniden uretim sonrasi temizlenecek olu referanslar.
+    const oluSpecler = new Set(cases.map((tc) => tc.spec).filter(Boolean));
 
     const rota = deriveRoutes(activeSubtree(tree, active), { baseUrl: active?.baseUrl })
       .find((r) => r.nodeId === node.id);
@@ -198,7 +211,13 @@ export function registerAiRoutes(router, ctx) {
         const n2 = findNode(t2, nodeId);
         if (n2) {
           n2.runRef = n2.runRef ?? { runId: null, specs: [] };
-          n2.runRef.specs = [...new Set([...(n2.runRef.specs ?? []), dosya])];
+          // Olu referanslar DUSER: kalirlarsa kosum dogrulamasi "Bilinmeyen
+          // spec" demeye devam eder ve yeni dosya hic denenmez.
+          const kalan = (n2.runRef.specs ?? []).filter((sp) => !oluSpecler.has(sp));
+          n2.runRef.specs = [...new Set([...kalan, dosya])];
+          for (const tc of n2.testCases ?? []) {
+            if (tc.spec && oluSpecler.has(tc.spec)) tc.spec = dosya;
+          }
           writeTree(t2, { reason: "spec-gen" });
         }
 
