@@ -27,8 +27,9 @@ import {
 import { buildPrompt as buildPerfPrompt, applyFromModel as applyPerfFindings, SCHEMA as PERF_SCHEMA } from "../perf-analyze.mjs";
 import { stableDigest } from "../rag/digest.mjs";
 import * as specGen from "../spec-gen.mjs";
+import * as productCred from "../product-credentials.mjs";
 import { readTree, writeTree, findNode } from "../scope.mjs";
-import { resolveActive, activeSubtree } from "../active-product.mjs";
+import { resolveActive, activeSubtree, productSlug } from "../active-product.mjs";
 import { deriveRoutes } from "../scope-bridge.mjs";
 
 const clampLimit = (v, def, max) => Math.min(Math.max(Number(v) || def, 1), max);
@@ -162,6 +163,13 @@ export function registerAiRoutes(router, ctx) {
         baseUrl: active?.baseUrl ?? ctx.BASE_URL,
         node: { name: node.name, path: rota?.path ?? null, nodeId: node.id },
         cases: cases.map((c) => ({ title: c.title, steps: c.steps ?? [] })),
+        /*
+         * ⚠️ Modele PAROLA VERİLMEZ — yalnız "kayıt var mı, kullanıcı adı ne,
+         * giriş sayfası neresi". Parolayı isteme koymak, onu model günlüğüne
+         * ve üretilen koda taşıma riski demekti; koda `process.env.QA_PASSWORD`
+         * yazması söyleniyor, değeri koşumda ortamdan geliyor.
+         */
+        credentials: active ? productCred.get(productSlug(active)) : null,
       }),
       retrieval: null,
     };
@@ -170,7 +178,9 @@ export function registerAiRoutes(router, ctx) {
       purpose: "scope-spec-generate", built, schema: specGen.SCHEMA, res, account: body?.account ?? null,
       useStable: !active || active.isProfile !== false,
       apply: (json) => {
-        const k = specGen.gate(json, { titles: cases.map((c) => c.title) });
+        // Kapıya parolayı VERİYORUZ ki kodda düz metin geçerse yakalasın.
+        const gizli = active ? (productCred.readSecret(productSlug(active))?.password ?? null) : null;
+        const k = specGen.gate(json, { titles: cases.map((c) => c.title), secret: gizli });
         if (!k.ok) throw new Error(k.error);
 
         const dosya = specGen.pickFilename(specGen.slugify(node.name));

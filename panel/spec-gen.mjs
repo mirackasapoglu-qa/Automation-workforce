@@ -42,7 +42,7 @@ export function slugify(s) {
  * zaten ortamdan çözüyor, koda gömülen adres ortam değişince sessizce yanlış
  * siteyi test eder.
  */
-export function renderUser({ product, baseUrl, node, cases }) {
+export function renderUser({ product, baseUrl, node, cases, credentials = null }) {
   const adimlar = cases.map((c, i) => {
     const satirlar = (c.steps ?? []).map((st, j) =>
       `     ${j + 1}. ${st.action ?? "(adım yok)"}${st.expected ? `  →  beklenen: ${st.expected}` : ""}`);
@@ -66,7 +66,21 @@ KURALLAR
 6. Yalnızca OKUYAN adımlar yaz; form gönderme, silme, sipariş verme gibi yan etkili
    adım varsa o testi test.skip ile işaretle ve sebebini yorumda yaz.
 7. Beklenen yoksa en azından sayfanın yüklendiğini doğrula (expect(page).toHaveURL / locator görünür).
-8. Kod DIŞINDA açıklama yazma; yanıt yalnızca istenen JSON olsun.`;
+8. Kod DIŞINDA açıklama yazma; yanıt yalnızca istenen JSON olsun.${credentials ? `
+
+GİRİŞ GEREKTİREN ADIMLAR
+Bu ürün için giriş bilgisi TANIMLI (kullanıcı: ${credentials.username}).
+- PAROLAYI KODA YAZMA. Kullanıcı adı ve parola koşum sırasında ortam
+  değişkeninden gelir: process.env.QA_USERNAME ve process.env.QA_PASSWORD.
+  Giriş sayfası: ${credentials.loginUrl || "(verilmedi — adımlardaki yola git)"}${credentials.loginUrl ? " (process.env.QA_LOGIN_URL ile de okunabilir)" : ""}.
+- Giriş gerektiren testin başında bu değişkenler yoksa test.skip ile atla:
+  test.skip(!process.env.QA_USERNAME, "giriş bilgisi tanımlı değil").
+- Giriş adımlarını case'de yazdığı gibi uygula; formu doldurup gönder.` : `
+
+GİRİŞ BİLGİSİ YOK
+Bu ürün için kayıtlı giriş bilgisi YOK. Giriş gerektiren bir case varsa onu
+test.skip ile atla ve sebebini yorumda yaz ("giriş bilgisi tanımlı değil") —
+kullanıcı adı/parola UYDURMA.`}`;
 }
 
 export const SYSTEM = `Sen bir QA otomasyon mühendisisin. Verilen test case adımlarını
@@ -109,7 +123,7 @@ export function pickCode(out) {
   return "";
 }
 
-export function gate(out, { titles = [] } = {}) {
+export function gate(out, { titles = [], secret = null } = {}) {
   const kod = String(pickCode(out) ?? "");
   if (!kod.trim()) return { ok: false, error: "model kod üretmedi" };
   if (!/from\s+["']@playwright\/test["']/.test(kod)) return { ok: false, error: "Playwright import'u yok — bu bir spec dosyası değil" };
@@ -127,6 +141,15 @@ export function gate(out, { titles = [] } = {}) {
     [/process\s*\.\s*env\s*\[/, "dinamik env erişimi"],
   ]) {
     if (re.test(kod)) return { ok: false, error: `üretilen kodda ${ad} var — reddedildi` };
+  }
+
+  /*
+   * ⚠️ PAROLA SIZINTISI. Model "yardımcı olmak" için parolayı koda gömerse o
+   * dosya `tests/` altına düz metin olarak yazılır ve oradan git'e sızabilir.
+   * İstem zaten `process.env` demesini söylüyor; bu kapı onu DOĞRULUYOR.
+   */
+  if (secret && kod.includes(secret)) {
+    return { ok: false, error: "üretilen kodda parola düz metin geçiyor — reddedildi" };
   }
 
   // İstenen başlıklar gerçekten var mı (model kendi testini uydurmasın).

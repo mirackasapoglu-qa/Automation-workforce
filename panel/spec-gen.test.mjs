@@ -89,3 +89,34 @@ test("uzun ama Playwright olmayan metin kod SAYILMAZ", () => {
   const r = gate({ notes: "x".repeat(400) });
   assert.equal(r.ok, false);
 });
+
+test("kimlik VARSA istem parolayi VERMEZ, process.env okumasini soyler", () => {
+  const u = renderUser({
+    product: "X", baseUrl: "https://x.test", node: { name: "Giris", path: "/giris" },
+    cases: [{ title: "Login akisi", steps: [{ action: "Giris yap", expected: "Hesabim gorunur" }] }],
+    credentials: { username: "qa@x.test", loginUrl: "/giris", hasPassword: true },
+  });
+  assert.match(u, /process\.env\.QA_USERNAME/);
+  assert.match(u, /process\.env\.QA_PASSWORD/);
+  assert.match(u, /PAROLAYI KODA YAZMA/);
+  assert.match(u, /qa@x\.test/);          // kullanici adi verilir
+  assert.match(u, /test\.skip/);          // kimlik yoksa atla
+});
+
+test("kimlik YOKSA istem 'uydurma, atla' der", () => {
+  const u = renderUser({
+    product: "X", baseUrl: "https://x.test", node: { name: "Giris" },
+    cases: [{ title: "Login akisi", steps: [] }],
+  });
+  assert.match(u, /GİRİŞ BİLGİSİ YOK/);
+  assert.match(u, /UYDURMA/);
+});
+
+test("kapida PAROLA SIZINTISI yakalanir", () => {
+  const sizan = KOD.replace('await page.goto("/sepet");', 'await page.fill("#pass", "s3cret!");');
+  const r = gate({ code: sizan }, { titles: ["Sepete urun eklenir"], secret: "s3cret!" });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /parola düz metin/);
+  // Ayni kod, parola verilmemisse (kayit yok) gecer — yanlis pozitif yok.
+  assert.equal(gate({ code: sizan }, { titles: ["Sepete urun eklenir"] }).ok, true);
+});

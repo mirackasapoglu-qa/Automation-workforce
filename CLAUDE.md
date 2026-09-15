@@ -2672,6 +2672,53 @@ seçicisi ilk kutuyu (paket aramasını) yakalıyor.
 Ölçüm: süzgeçsiz `Tümünü ekle (125)` → onay → "125 case eklendi" → düğme (0);
 arama "connect" → `(10)`; eşleşmeyen arama → `(0)` ve düğme kapalı.
 
+## Ürün giriş bilgileri — login akışı testleri (2026-09-15)
+
+Bir URL taranıp kapsam kurulunca "Login akışı" gibi case'ler üretiliyor ama
+onları koşacak kimlik hiçbir yerde yoktu: `.env`'deki `TEST_EMAIL`/
+`TEST_PASSWORD` **profilin** sitesine ait. `panel/product-credentials.mjs` her
+ürün için ayrı kayıt tutuyor (`panel-data/scope/product-credentials.json`, 0600).
+
+- Uçlar: `GET /api/scope/credentials` (maskeli) · `POST` (kaydet) ·
+  `POST /remove`. Panelde **Koşumlar → "giriş bilgileri"**.
+- Koşuma `QA_LOGIN_URL` / `QA_USERNAME` / `QA_PASSWORD` olarak geçer — ve
+  yalnızca `gen-*` spec'leri, yalnızca aktif ürün repo'nunki değilken
+  (`server.mjs → productEnv`, baseURL override'ıyla aynı dar kapı).
+
+⚠️ **PAROLA HİÇBİR YANITTA DÖNMEZ.** Okuma ucu kullanıcı adını ve "parola var
+mı" bilgisini verir (`publicView`). Ölçüldü: `/api/scope/credentials`,
+`/summary`, `/meta`, `/products` ve denetim kaydı temiz; parola yalnızca 0600
+izinli dosyada.
+
+⚠️ **PAROLA MODELE DE VERİLMEZ.** Spec üretim istemi yalnız kullanıcı adını ve
+giriş sayfasını söyler; modele `process.env.QA_PASSWORD` okuması yazdırılır.
+Kapı bunu DOĞRULUYOR: üretilen kodda parola düz metin geçerse dosya **yazılmaz**
+(`gate(..., { secret })`). Aksi halde parola `tests/` altına düz metin olarak
+düşer ve oradan git'e sızabilirdi.
+
+⚠️ **Kimlik yoksa test ATLANIR, uydurulmaz**: istem "kullanıcı adı/parola
+UYDURMA, `test.skip` ile atla ve sebebini yaz" diyor; `runEnv` de kayıt yoksa
+boş dönüyor.
+
+⚠️ **Parola boş gönderilirse eskisi korunur.** Arayüz parolayı hiç göstermiyor;
+her kaydetmede boş alanı "sil" saymak, kullanıcı yalnızca kullanıcı adını
+düzelttiğinde parolayı sessizce uçururdu. Silmek için ayrı uç var.
+
+## `known` ile `runnable` ayrı şey (2026-09-15)
+
+`deriveRuns` bir düğümün koşumunu `known: runId ? whitelist.has(runId) : false`
+diye işaretliyordu. Üretilen spec'lerin (`gen-*.spec.ts`) `runId`'si YOK, o
+yüzden hepsi `known:false` çıkıyor ve panel **"whitelist'te yok — panelden
+başlatılamaz"** uyarısı basıyordu; oysa aynı ekranda paket satırı onları
+"2 spec otomatik" diye koşuyordu (parametreli koşum yolu, spec'ler `tests/` ile
+doğrulanıyor). Artık:
+
+- `known` — yalnız `runId` varken anlamlı; yoksa `null` (soru sorulmamış)
+- `runnable` — spec varsa true (parametreli yol), ya da bilinen bir runId varsa
+
+Uyarı yalnızca `runnable === false && runId` durumunda basılır: ağaç, whitelist'te
+gerçekten olmayan bir koşum id'si gösteriyorsa.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

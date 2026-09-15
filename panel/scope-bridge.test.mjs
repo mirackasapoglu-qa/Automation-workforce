@@ -130,6 +130,28 @@ test("deriveRuns: whitelist disi runId known:false ile isaretlenir", () => {
   assert.equal(deriveRuns(AGAC, [])[0].known, false);
 });
 
+test("runId YOKSA known sorulmaz (null) ama spec varsa KOSULABILIR", () => {
+  // Uretilen spec: runId yok, spec var — parametreli kosum yolundan calisir.
+  const uretilmis = [node("k", "K", {
+    type: "module",
+    children: [node("g", "Gen", { runRef: { runId: null, specs: ["gen-login.spec.ts"] } })],
+  })];
+  const r = deriveRuns(uretilmis, []);
+  assert.equal(r.length, 1);
+  assert.equal(r[0].known, null, "runId yokken known sorulmamali");
+  assert.equal(r[0].runnable, true, "spec varsa kosulabilir");
+});
+
+test("whitelist disi runId + spec YOK => kosulamaz", () => {
+  const eksik = [node("k", "K", {
+    type: "module",
+    children: [node("x", "X", { runRef: { runId: "olmayan-kosum", specs: [] } })],
+  })];
+  const r = deriveRuns(eksik, ["test-anasayfa"]);
+  assert.equal(r[0].known, false);
+  assert.equal(r[0].runnable, false);
+});
+
 test("matchPerfRoutes: sorgu dizesi yok sayilarak eslesir", () => {
   const m = matchPerfRoutes(AGAC, [{ route: "/sepet" }, { route: "/yok" }], { baseUrl: "https://site.test" });
   assert.equal(m[0].nodeId, "n3");

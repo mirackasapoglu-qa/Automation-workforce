@@ -374,7 +374,8 @@ function rcRenderFiltre() {
   el.innerHTML = `
     <input id="rcQ" class="rc-q" type="search" placeholder="Koşum, spec ya da grup ara...  ( / )" value="${rcEsc(RC.q)}">
     <span class="rc-pills">${secenek.map(([v, t]) =>
-      `<button class="rc-pill${RC.durum === v ? ' active' : ''}" onclick="rcDurum('${v}')">${t}</button>`).join('')}</span>`;
+      `<button class="rc-pill${RC.durum === v ? ' active' : ''}" onclick="rcDurum('${v}')">${t}</button>`).join('')}</span>
+`;
   const q = document.getElementById('rcQ');
   q.addEventListener('input', () => {
     RC.q = q.value;

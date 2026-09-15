@@ -61,6 +61,7 @@ import { isCut } from "./connectors/cuts.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, applyRunResultsBySpecs, applyPerfToTree, onTreeChange, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
 import { deriveRoutes as scopeDeriveRoutes, matchPerfRoutes } from "./scope-bridge.mjs";
 import { resolveActive, activeSubtree, productSlug } from "./active-product.mjs";
+import { runEnv as productCredEnv } from "./product-credentials.mjs";
 import { recordPackageRun, mapResultsToCases } from "./package-runs.mjs";
 import { readPackages, resolvePackageCases } from "./packages.mjs";
 import * as recSpec from "./recorded-spec.mjs";
@@ -1016,7 +1017,16 @@ const engine = createRunEngine({
      * kapısını o sitede arayıp üye girişine kalkışıyor ve koşum daha test
      * başlamadan düşüyordu (ölçüldü 2026-09-15: promptfoo'da /giris yok).
      */
-    return { [`BASE_URL_${ENV.toUpperCase()}`]: u.baseUrl, PW_PRODUCT: "1" };
+    /*
+     * Giris bilgileri AYNI dar kapidan: yalnizca uretilen spec'ler ve yalnizca
+     * aktif urunun kendi kaydi. Parola KODA GOMULMUYOR, surece ortam degiskeni
+     * olarak giriyor (bkz. panel/product-credentials.mjs).
+     */
+    return {
+      [`BASE_URL_${ENV.toUpperCase()}`]: u.baseUrl,
+      PW_PRODUCT: "1",
+      ...productCredEnv(productSlug(u.active)),
+    };
   },
   /*
    * PAKET KOŞUMU → DEFTER. Paketten başlatılan koşum (`params.package`) bitince

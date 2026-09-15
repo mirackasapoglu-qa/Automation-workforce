@@ -26,7 +26,8 @@ import {
   deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases, deriveFindings,
 } from "../scope-bridge.mjs";
 import { PROJECT } from "../project.mjs";
-import { resolveActive, activeSubtree, writeActiveId } from "../active-product.mjs";
+import { resolveActive, activeSubtree, writeActiveId, productSlug } from "../active-product.mjs";
+import * as cred from "../product-credentials.mjs";
 import { listPackages, savePackage, deletePackage } from "../type-packages.mjs";
 import { readPackages, resolvePackageItems, resolvePackageCases } from "../packages.mjs";
 import { findNode } from "../scope.mjs";
@@ -247,6 +248,44 @@ export function registerScopeRoutes(router, ctx) {
     } catch (e) {
       return send(res, 400, { ok: false, error: e.message });
     }
+  }, { auth: true, body: true });
+
+  /**
+   * ÜRÜN GİRİŞ BİLGİLERİ — login akışı testleri için.
+   *
+   * ⚠️ Parola HİÇBİR yanıtta dönmez (`publicView`): okuma ucu yalnız kullanıcı
+   * adını ve "parola var mı" bilgisini verir. Parola sadece koşum sürecine
+   * ortam değişkeni olarak geçer (bkz. run-engine → productEnv).
+   */
+  router.get("/api/scope/credentials", ({ res }) => {
+    const { active } = resolveActive(tamAgac(), { profileBaseUrl: BASE_URL });
+    if (!active) return send(res, 200, { ok: true, product: null, credentials: null });
+    return send(res, 200, {
+      ok: true,
+      product: { nodeId: active.nodeId, name: active.name, baseUrl: active.baseUrl },
+      credentials: cred.get(productSlug(active)),
+    });
+  });
+
+  router.post("/api/scope/credentials", ({ res, body, audit }) => {
+    const { active } = resolveActive(tamAgac(), { profileBaseUrl: BASE_URL });
+    if (!active) return send(res, 400, { ok: false, error: "Aktif ürün yok" });
+    try {
+      const out = cred.save(productSlug(active), body ?? {});
+      // ⚠️ Denetim kaydına yalnız ALAN ADLARI düşer, değerler değil.
+      audit({ event: "product-credentials-save", product: productSlug(active), username: Boolean(out.username) });
+      return send(res, 200, { ok: true, credentials: out });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
+
+  router.post("/api/scope/credentials/remove", ({ res, audit }) => {
+    const { active } = resolveActive(tamAgac(), { profileBaseUrl: BASE_URL });
+    if (!active) return send(res, 400, { ok: false, error: "Aktif ürün yok" });
+    const out = cred.remove(productSlug(active));
+    audit({ event: "product-credentials-remove", product: productSlug(active), removed: out.removed });
+    return send(res, 200, { ok: true, ...out });
   }, { auth: true, body: true });
 
   /**

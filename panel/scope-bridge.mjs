@@ -315,13 +315,25 @@ export function deriveRuns(tree, knownRunIds = []) {
     const specs = n.runRef?.specs ?? [];
     if (!runId && !specs.length) return;
     const key = runId ?? `spec:${specs.join(",")}`;
+    /*
+     * ⚠️ `known` ile `runnable` AYRI ŞEY.
+     *
+     * `known` = düğümün gösterdiği whitelist koşumu gerçekten var mı. `runId`
+     * YOKSA bu soru anlamsızdır: spec'i olan düğüm zaten PARAMETRELİ koşum
+     * yolundan çalışır (spec'ler `tests/` ile doğrulanır). İkisi tek alanda
+     * toplanınca üretilen spec'ler (`gen-*.spec.ts`, runId'siz) panelde
+     * "whitelist'te yok — başlatılamaz" uyarısı alıyordu; oysa aynı ekranda
+     * paket satırı onları "2 spec otomatik" diye koşuyordu (ölçüldü 2026-09-15).
+     */
     const kayit = byRun.get(key) ?? {
       runId: runId ?? null,
-      known: runId ? bilinen.has(runId) : false,
+      known: runId ? bilinen.has(runId) : null,
+      runnable: Boolean(specs.length) || (runId ? bilinen.has(runId) : false),
       specs: [],
       nodes: [],
     };
     for (const s of specs) if (!kayit.specs.includes(s)) kayit.specs.push(s);
+    if (kayit.specs.length) kayit.runnable = true;
     kayit.nodes.push({ nodeId: n.id, name: n.name ?? "", status: n.status ?? "⬜" });
     byRun.set(key, kayit);
   });
