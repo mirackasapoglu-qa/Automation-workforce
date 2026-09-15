@@ -2889,6 +2889,30 @@ tuzağı ölçtüğünde **ikisini birden** güncelle.
 ⚠️ Üretilen kod `locator.filter({ visible: true })` kullanıyor; `package.json`
 tabanı bu yüzden `@playwright/test ^1.51.0` (ölçülen sürüm 1.62.1).
 
+### Üreteç düzelince ELDE DURAN dosyalar ne olacak
+
+Bu tam olarak canlıda yaşandı: seçici hataları düzeltildi ama düzeltme yalnız
+YENİ kayıtlara uygulansaydı, elde duran kayıtlar sonsuza kadar bozuk locator'la
+koşardı. Üstelik daha kötüsü ölçüldü — depodaki (volume) eski kopya her
+deploy'da geri konup taze render'ı **gölgeliyordu** (`restoreGenerated` önce
+koşuyor, `restoreFromTree` "dosya zaten var" deyip atlıyordu).
+
+| Spec | Yenileme | Ne zaman |
+|---|---|---|
+| Kayıttan (`gen-rec-*`) | **otomatik**, ücretsiz, deterministik | panel açılışında, `üretici: kayıt vN` eskiyse |
+| AI'dan (`gen-*`) | **tek tık**, model çağrısı (ücretli) | Koşumlar → paket satırı → "yeniden üret" |
+
+- `recorded-spec.mjs → GENERATOR` sürüm sayısı dosya başlığına yazılıyor.
+  **Üreteci her değiştirdiğinde bu sayıyı ARTIR** — yoksa düzeltmen elde duran
+  kayıtlara hiç ulaşmaz.
+- Tazeleme **kalıcı kopyayı da** günceller (`storeSpec`); yalnız `tests/`e
+  yazsaydı bir sonraki deploy eskisini geri koyardı.
+- Güncel sürüm damgası taşıyan dosyaya DOKUNULMAZ (birim testi bunu ölçüyor).
+- ⚠️ AI spec'i için düğme eskiden **yalnız dosya eksikken** çıkıyordu; üretim
+  kuralları değişince elde duran dosyayı yenilemenin hiçbir yolu yoktu
+  (kullanıcı bildirdi). Artık dosya yerindeyken de çıkıyor ve onay kutusu
+  "model çağrısı yapılır, YENİ dosya açılır, eskisi ezilmez" diyor.
+
 ### Neden modelin kendisi koşmuyor da spec dosyası üretiliyor
 
 Sık gelen soru. Model **kodu yazar, Playwright koşar** — model tarayıcıyı

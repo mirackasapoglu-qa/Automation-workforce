@@ -157,11 +157,23 @@ export function registerAiRoutes(router, ctx) {
      * case "otomatik" gorunuyordu — panel "otomatige cevir"i gizliyor, kosum
      * "Bilinmeyen spec" diyordu ve kullanicinin elinde HICBIR yol kalmiyordu.
      */
-    const cases = (node.testCases ?? []).filter(
-      (tc) => (!tc.automated && !tc.spec) || (tc.spec && !specGen.specExists(tc.spec)),
-    );
+    /*
+     * `force`: dosyası YERİNDE duran bir AI spec'ini yeniden üretmek. Buna
+     * gerek var çünkü üretim kuralları (SYSTEM istemi) düzeldiğinde elde duran
+     * dosyalar eski kurallarla yazılmış kalıyor ve onları yenilemenin başka
+     * yolu YOKTU (düğme yalnız dosya eksikken çıkıyordu — kullanıcı bildirdi).
+     * Kayıttan üretilenler (gen-rec-*) buraya girmez: onlar modelsiz, ücretsiz
+     * ve otomatik tazeleniyor (bkz. spec-restore.mjs → üretici sürümü).
+     */
+    const zorla = Boolean(body?.force);
+    const kayittan = (tc) => Array.isArray(tc.recorded) && tc.recorded.length;
+    const cases = (node.testCases ?? []).filter((tc) => {
+      if (kayittan(tc)) return false;
+      if ((!tc.automated && !tc.spec) || (tc.spec && !specGen.specExists(tc.spec))) return true;
+      return zorla && (tc.steps ?? []).length > 0;
+    });
     if (!cases.length) {
-      return send(res, 400, { ok: false, error: "Bu dugumde cevrilecek elle case yok (otomatik case'lerin spec dosyasi yerinde)" });
+      return send(res, 400, { ok: false, error: "Bu dugumde cevrilecek case yok (adimi olmayan ya da kayittan uretilen case'ler bu yoldan gecmez)" });
     }
     /*
      * Yeniden uretim sonrasi temizlenecek OLU referanslar — iki yerden gelir:

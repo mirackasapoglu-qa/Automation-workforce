@@ -120,6 +120,8 @@ export function resolvePackageCases(tree, packages, id, findNode) {
       // Dosyasi kaybolmus spec "otomatik" sayilmaz — yoksa case ne kosulabilir
       // ne de yeniden uretilebilir hale gelir (bkz. spec-gen.mjs -> specExists).
       specMissing: Boolean(tc.spec) && !specExists(tc.spec),
+      // Kayittan gelen case: yeniden uretimi ucretsiz ve otomatik, model yoluna girmez.
+      recorded: (tc.recorded ?? []).length,
       nodeSpecs: node.runRef?.specs ?? [],
       steps: (tc.steps ?? []).map((st) => ({ action: st.action ?? "", expected: st.expected ?? "" })),
       lastRun: (tc.runs ?? []).at(-1) ?? null,

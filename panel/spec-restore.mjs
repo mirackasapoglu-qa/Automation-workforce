@@ -21,8 +21,8 @@
  */
 import fs from "node:fs";
 import path from "node:path";
-import { restoreGenerated } from "./spec-gen.mjs";
-import { restoreFromTree } from "./recorded-spec.mjs";
+import { restoreGenerated, storeSpec } from "./spec-gen.mjs";
+import { restoreFromTree, GENERATOR } from "./recorded-spec.mjs";
 
 const TESTS = path.join(process.cwd(), "tests");
 
@@ -34,15 +34,36 @@ const TESTS = path.join(process.cwd(), "tests");
 export function restoreSpecs(readTree, { product = "" } = {}) {
   const depo = restoreGenerated();
 
+  /*
+   * ⚠️ ESKİ ÜRETEÇTEN ÇIKMIŞ DOSYA TAZELENİR. Dosya diskte duruyor diye
+   * atlamak yetmiyordu: üreteçteki seçici hataları düzeltildikten sonra bile
+   * depodaki (volume) eski kopya her deploy'da geri konup yeni render'ı
+   * gölgeliyordu — yani düzeltme elde duran kayıtlara HİÇ ulaşmazdı.
+   *
+   * Yalnız ÜRETEÇ ÇIKTISI tazelenir ve yalnız sürüm eskiyse: dosya başlığında
+   * güncel `üretici: kayıt vN` varsa dokunulmaz. Sunucuda spec dosyasını elle
+   * düzenlemenin bir yolu yok, yani tazelenen şey her zaman makine çıktısı.
+   */
+  const guncelMi = (f) => {
+    try {
+      const bas = fs.readFileSync(path.join(TESTS, f), "utf8").slice(0, 600);
+      const m = bas.match(/üretici\s*:\s*kayıt v(\d+)/);
+      return m ? Number(m[1]) >= GENERATOR : false;
+    } catch { return false; }
+  };
+
   let agac = { restored: [], skipped: 0 };
+  let tazelenen = 0;
   try {
     const { tree } = readTree();
     agac = restoreFromTree(tree, {
-      exists: (f) => fs.existsSync(path.join(TESTS, f)),
-      write: (f, icerik) => {
-        fs.mkdirSync(TESTS, { recursive: true });
-        fs.writeFileSync(path.join(TESTS, f), icerik);
+      exists: (f) => {
+        const vardi = fs.existsSync(path.join(TESTS, f));
+        if (vardi && !guncelMi(f)) { tazelenen++; return false; }   // eski surum -> yeniden uret
+        return vardi;
       },
+      // Kalici kopya da guncellensin: yoksa bir sonraki deploy eskisini geri koyar.
+      write: (f, icerik) => storeSpec(f, icerik),
       product,
     });
   } catch { /* agac okunamazsa depodan geleni yine de koru */ }
@@ -51,6 +72,7 @@ export function restoreSpecs(readTree, { product = "" } = {}) {
     restored: [...depo.restored, ...agac.restored],
     fromStore: depo.restored.length,
     fromTree: agac.restored.length,
+    refreshed: tazelenen,
     adopted: depo.adopted.length,
   };
 }

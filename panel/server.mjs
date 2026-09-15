@@ -2998,7 +2998,7 @@ ${testBlock}
 try {
   const geri = restoreSpecs(readTree, { product: aktifUrun().active?.name ?? "" });
   if (geri.restored.length) {
-    console.log(`  uretilmis spec geri yuklendi: ${geri.restored.length} (depo ${geri.fromStore}, kayittan ${geri.fromTree})`);
+    console.log(`  uretilmis spec geri yuklendi: ${geri.restored.length} (depo ${geri.fromStore}, kayittan ${geri.fromTree}${geri.refreshed ? `, eski uretecten tazelenen ${geri.refreshed}` : ""})`);
   }
 } catch (e) { console.log(`  uretilmis spec geri yuklenemedi: ${e.message}`); }
 

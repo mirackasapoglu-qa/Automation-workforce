@@ -2258,10 +2258,25 @@ async function renderScopePackages() {
             title="${p.specs.length ? esc(p.specs.join(', ')) : 'Bu paketteki case\'lerin Playwright karsiligi yok: adimlardan olusan elle case\'ler. Elle kos ya da otomatige cevir.'}">${kosuyor ? '...' : 'kos'}</button>
           <button class="rc-manual" ${p.cases ? `onclick="runPackageManual('${esc(p.id)}')"` : 'disabled'}
             title="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina ve deftere yazilir.">elle kos</button>
-          ${p.manualCases || p.missingSpecs?.length ? `<button class="rc-gen" onclick="packageToSpec('${esc(p.id)}')"
-            title="${p.missingSpecs?.length
-              ? esc(`Kayip spec dosyasi: ${p.missingSpecs.join(', ')} — adimlardan YENIDEN uretir.`)
-              : "Adimlardan Playwright spec'i uretir (tests/gen-*.spec.ts), dugume baglar; sonra 'kos' ile calisir."}">${p.missingSpecs?.length ? 'yeniden uret' : 'otomatige cevir'}</button>` : ''}
+          ${(() => {
+            /*
+             * Uc durum, tek dugme:
+             *   elle case var        -> "otomatige cevir"
+             *   spec dosyasi kayip   -> "yeniden uret"
+             *   AI spec'i YERINDE    -> "yeniden uret" (uretim kurallari degisince
+             *     elde duran dosyayi yenilemenin baska yolu yoktu — kullanici bildirdi)
+             * Kayittan uretilenler (gen-rec-*) burada YOK: onlar ucretsiz ve
+             * acilista otomatik tazeleniyor.
+             */
+            const kayip = p.missingSpecs?.length ?? 0;
+            const ai = p.aiSpecs?.length ?? 0;
+            if (!p.manualCases && !kayip && !ai) return '';
+            const etiket = kayip || (!p.manualCases && ai) ? 'yeniden uret' : 'otomatige cevir';
+            const ipucu = kayip ? `Kayip spec dosyasi: ${p.missingSpecs.join(', ')} — adimlardan YENIDEN uretir.`
+              : !p.manualCases && ai ? `Mevcut dosyayi YENIDEN uretir (model cagrisi): ${p.aiSpecs.join(', ')}. Yeni dosya acilir, eskisi ezilmez.`
+                : "Adimlardan Playwright spec'i uretir (tests/gen-*.spec.ts), dugume baglar; sonra 'kos' ile calisir.";
+            return `<button class="rc-gen" onclick="packageToSpec('${esc(p.id)}')" title="${esc(ipucu)}">${etiket}</button>`;
+          })()}
         </div>
       </div>`;
     }).join('')}</div>
@@ -2413,7 +2428,20 @@ async function packageToSpec(id) {
   const cevrilecek = (d.cases || []).filter(c => !c.missing && ((!c.automated && !c.spec) || c.specMissing));
   const dugumler = [...new Set(cevrilecek.map(c => c.nodeId))];
   const kayip = [...new Set(cevrilecek.filter(c => c.specMissing).map(c => c.spec))];
-  if (!dugumler.length) { uiToast('Bu pakette cevrilecek elle case yok.', { type: 'info' }); return; }
+  let zorla = false;
+  if (!dugumler.length) {
+    // Dosyalar yerinde: kullanici muhtemelen "kurallar degisti, yenile" istiyor.
+    const adaylar = (d.cases || []).filter(c => !c.missing && !c.recorded && (c.steps || []).length);
+    if (!adaylar.length) { uiToast('Bu pakette cevrilecek case yok.', { type: 'info' }); return; }
+    if (!await uiConfirm(
+      `Bu paketteki spec dosyalari YERINDE.\n\n`
+      + `Yine de yeniden uretilsin mi? Uretim kurallari degistiyse ise yarar.\n`
+      + `• MODEL CAGRISI yapilir (ucretli, ~30-40 sn)\n`
+      + `• YENI dosya acilir, eskisi ezilmez`,
+      { title: 'Yeniden uret', ok: 'Uret' })) return;
+    zorla = true;
+    dugumler.push(...new Set(adaylar.map(c => c.nodeId)));
+  }
 
   const ai = await (await fetch('/api/ai/status')).json().catch(() => ({}));
   if (!ai.oneClick) {
@@ -2431,7 +2459,7 @@ async function packageToSpec(id) {
   const bildirim = uiToast('Model calisiyor...', { title: 'Spec uretiliyor', ms: 0 });
   const sonuclar = [];
   for (const nodeId of dugumler) {
-    const r = await post('/api/scope/testcases/spec', { nodeId });
+    const r = await post('/api/scope/testcases/spec', { nodeId, force: zorla });
     sonuclar.push({ nodeId, ...r });
   }
   bildirim.remove();

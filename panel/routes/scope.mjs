@@ -388,6 +388,7 @@ export function registerScopeRoutes(router, ctx) {
       const nodes = new Set();
       let elle = 0, eksik = 0, login = false;
       const kayipSpec = new Set();
+      const aiSpec = new Set();
       for (const it of items) {
         const node = findNode(tree, it.nodeId);
         if (!node) { eksik++; continue; }
@@ -410,7 +411,9 @@ export function registerScopeRoutes(router, ctx) {
           continue;
         }
         nodes.add(node.id);
-        for (const sp of aday) specs.add(sp);
+        // Kayittan uretilenler (gen-rec-*) ucretsiz ve otomatik tazeleniyor;
+        // AI uretimi olanlar ancak model cagrisiyla yenilenir — arayuz ayirt etsin.
+        for (const sp of aday) { specs.add(sp); if (/^gen-(?!rec-)/.test(sp)) aiSpec.add(sp); }
       }
       return {
         id: pkg.id,
@@ -422,6 +425,7 @@ export function registerScopeRoutes(router, ctx) {
         missingRefs: eksik,
         needsLogin: login,
         missingSpecs: [...kayipSpec],
+        aiSpecs: [...aiSpec],
       };
     });
     return send(res, 200, {

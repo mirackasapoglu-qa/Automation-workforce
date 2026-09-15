@@ -271,3 +271,52 @@ test("istem SECICI KURALLARINI tasir — AI yolu da ayni tuzaklardan korunur", (
     assert.ok(S.includes(kural), `istemde eksik kural: ${kural}`);
   }
 });
+
+test("ESKI uretecten cikmis kayit spec'i deploy'da TAZELENIR", () => {
+  // Canli tuzak: depodaki (volume) eski kopya her deploy'da geri konup yeni
+  // render'i golgeliyordu -> uretec duzeltmesi elde duran kayitlara ulasmazdi.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tazele-"));
+  const ESKI = "/*\n *   adım : 2 · iddia: 1\n */\nimport { test } from \"@playwright/test\";\n// eski uretec ciktisi\n";
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.mkdirSync(path.join(dir, "panel-data", "generated"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "tests", "gen-rec-x.spec.ts"), ESKI);
+  fs.writeFileSync(path.join(dir, "panel-data", "generated", "gen-rec-x.spec.ts"), ESKI);
+
+  const AGAC = [{
+    id: "n1", name: "Giris", children: [],
+    testCases: [{ title: "Akis", spec: "gen-rec-x.spec.ts", recordedPath: "/", recorded: [{ action: "goto", value: "/" }] }],
+  }];
+  const script = `
+    const { restoreSpecs } = await import(${JSON.stringify(path.resolve(import.meta.dirname, "spec-restore.mjs"))});
+    const sonuc = restoreSpecs(() => ({ tree: ${JSON.stringify(AGAC)} }), { product: "X" });
+    console.log("<<<" + JSON.stringify(sonuc) + ">>>");
+  `;
+  const out = execFileSync(process.execPath, ["--input-type=module", "-e", script], { cwd: dir, encoding: "utf8" });
+  const sonuc = JSON.parse(out.slice(out.indexOf("<<<") + 3, out.lastIndexOf(">>>")));
+  const yeni = fs.readFileSync(path.join(dir, "tests", "gen-rec-x.spec.ts"), "utf8");
+  const depo = fs.readFileSync(path.join(dir, "panel-data", "generated", "gen-rec-x.spec.ts"), "utf8");
+  fs.rmSync(dir, { recursive: true, force: true });
+
+  assert.equal(sonuc.refreshed, 1, "eski surum tazelenmeliydi");
+  assert.match(yeni, /üretici: kayıt v\d+/, "yeni dosya uretec surumu tasimali");
+  assert.equal(yeni.includes("eski uretec ciktisi"), false);
+  assert.equal(depo, yeni, "KALICI kopya da guncellenmeli — yoksa sonraki deploy eskisini geri koyar");
+});
+
+test("GUNCEL uretecten cikmis dosyaya DOKUNULMAZ", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tazele2-"));
+  const GUNCEL = "/*\n *   üretici: kayıt v99\n */\nimport { test } from \"@playwright/test\";\n// dokunulmamali\n";
+  fs.mkdirSync(path.join(dir, "tests"), { recursive: true });
+  fs.writeFileSync(path.join(dir, "tests", "gen-rec-y.spec.ts"), GUNCEL);
+  const AGAC = [{ id: "n1", name: "G", children: [], testCases: [{ title: "A", spec: "gen-rec-y.spec.ts", recorded: [{ action: "goto", value: "/" }] }] }];
+  const script = `
+    const { restoreSpecs } = await import(${JSON.stringify(path.resolve(import.meta.dirname, "spec-restore.mjs"))});
+    console.log("<<<" + JSON.stringify(restoreSpecs(() => ({ tree: ${JSON.stringify(AGAC)} }))) + ">>>");
+  `;
+  const out = execFileSync(process.execPath, ["--input-type=module", "-e", script], { cwd: dir, encoding: "utf8" });
+  const sonuc = JSON.parse(out.slice(out.indexOf("<<<") + 3, out.lastIndexOf(">>>")));
+  const icerik = fs.readFileSync(path.join(dir, "tests", "gen-rec-y.spec.ts"), "utf8");
+  fs.rmSync(dir, { recursive: true, force: true });
+  assert.equal(sonuc.refreshed, 0);
+  assert.match(icerik, /dokunulmamali/);
+});
