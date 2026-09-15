@@ -2870,6 +2870,25 @@ sn'de yeşil** (öncesi: 20 sn timeout).
   geçti: adımların hepsi çalıştı ama "giriş yapıldı mı" diye soran bir iddia
   yok. Kaydederken **İDDİA MODU** ile en az bir doğrulama bırakılmalı.
 
+### Bu düzeltmeler İKİ üretim yolunda da geçerli
+
+Spec üreten iki yol var ve **ortak kod paylaşmıyorlar** — biri düzeltilince
+diğeri kendiliğinden düzelmez:
+
+| Yol | Kodu kim yazıyor | Kurallar nerede |
+|---|---|---|
+| Kayıttan (`gen-rec-*`) | `recorded-spec.mjs` (deterministik) | fonksiyonun içinde — `asLocator`, `repairLoc`, `passwordLoc` |
+| AI'dan (`gen-*`) | model | **istemde** — `spec-gen.mjs → SYSTEM` |
+
+Yukarıdaki dört hata önce yalnız kayıt yolunda kapatılmıştı; aynı maddeler
+(görünür süzgeç, `force`, parola ortamdan, `type="password"` varsayma, Türkçe
+`İ`, iddia zorunluluğu) **istem kurallarına da yazıldı** ve bir birim testi
+istemde durduklarını doğruluyor (sessizce silinmesinler diye). Yeni bir seçici
+tuzağı ölçtüğünde **ikisini birden** güncelle.
+
+⚠️ Üretilen kod `locator.filter({ visible: true })` kullanıyor; `package.json`
+tabanı bu yüzden `@playwright/test ^1.51.0` (ölçülen sürüm 1.62.1).
+
 ### Neden modelin kendisi koşmuyor da spec dosyası üretiliyor
 
 Sık gelen soru. Model **kodu yazar, Playwright koşar** — model tarayıcıyı

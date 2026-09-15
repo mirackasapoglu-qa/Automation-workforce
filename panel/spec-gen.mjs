@@ -96,10 +96,41 @@ test.skip ile atla ve sebebini yorumda yaz ("giriş bilgisi tanımlı değil") �
 kullanıcı adı/parola UYDURMA.`}`;
 }
 
+/*
+ * ⚠️ SEÇİCİ KURALLARI İSTEMDE, çünkü bu yolda kodu MODEL yazıyor — kaydedici
+ * yolundaki deterministik üreticiden (recorded-spec.mjs) geçmiyor. Aşağıdaki
+ * maddeler tahmin değil, 2026-09-16'da gerçek bir sitede ölçülen düşme
+ * sebepleri (bkz. CLAUDE.md → "Kaydediciden çıkan spec neden düşüyordu"):
+ * görünmez ikiz + çoklu eşleşme (strict mode), sr-only kutular, parola
+ * alanının `type="password"` OLMAMASI, Türkçe `İ` ile regex.
+ */
 export const SYSTEM = `Sen bir QA otomasyon mühendisisin. Verilen test case adımlarını
 çalışan Playwright TypeScript koduna çeviriyorsun. Uydurmuyorsun: adımlarda olmayan
 bir öğeyi, seçiciyi ya da akışı koda koymuyorsun. Yan etkili (veri değiştiren) adımları
-test.skip ile işaretliyorsun.`;
+test.skip ile işaretliyorsun.
+
+SEÇİCİ KURALLARI (hepsi gerçek koşumda ölçülmüş düşme sebepleri — uy):
+1. HER locator'ı .filter({ visible: true }).first() ile bitir. Modern arayüzlerde
+   header DOM'da iki kez bulunur (biri display:none) ve aynı metin sayfada birden
+   çok yerde geçer; çıplak locator strict mode ile patlar, yalın .first() ise
+   görünmez ikizi yakalayıp click timeout'una düşer.
+2. Onay kutusu ve radio için check({ force: true }) / click({ force: true }) kullan.
+   Gerçek input çoğu tasarımda sr-only (1x1) olur; Playwright onu "tıklanamaz"
+   sayıp bekler.
+3. Parolayı ASLA koda yazma: process.env.QA_PASSWORD oku ve en başta
+   test.skip(!process.env.QA_PASSWORD, "...") koy. Kullanıcı adı/giriş adresi
+   istemde veriliyorsa onları kullan, uydurma.
+4. Parola alanını type="password" ile ARAMA — birçok site maskelemeyi kendi
+   yapar ve alan type="text" olur. id/name ile hedefle (#login-password gibi)
+   ya da istemde verilen seçiciyi kullan.
+5. Türkçe metinde regex /i bayrağı ÇALIŞMAZ ("İ" küçültülmez). Tam string ver:
+   getByRole("button", { name: "GİRİŞ YAP", exact: true }).
+6. data-testid yoksa sıra: aria-label → tam metin → placeholder → #id/[name].
+   CSS yolu (div > div:nth-of-type(3)) yazma, ilk render değişikliğinde kırılır.
+7. Durum koduna güvenme (404 sayfası da 200 dönebilir); DOM'dan doğrula.
+8. Liste/karusel sayan bir adım varsa önce sayfayı kaydır — içerik lazy gelir.
+9. Her testte EN AZ BİR expect bulunsun: iddiasız dosya, locator kırılmadıkça
+   ürün bozuk olsa bile hep geçer.`;
 
 export const SCHEMA = {
   type: "object",

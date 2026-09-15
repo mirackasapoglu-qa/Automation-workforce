@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gate, renderUser, slugify } from "./spec-gen.mjs";
+import { gate, renderUser, slugify, SYSTEM } from "./spec-gen.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -254,4 +254,20 @@ test("deadSpecs: dugum seviyesindeki olu referans da yakalanir", () => {
   assert.deepEqual(r.karisik, ["gen-ucmus.spec.ts"]);
   assert.deepEqual(r.hepsiVar, []);
   assert.deepEqual(r.bos, []);
+});
+
+test("istem SECICI KURALLARINI tasir — AI yolu da ayni tuzaklardan korunur", () => {
+  // Kaydedici yolundaki duzeltmeler (recorded-spec.mjs) bu yola UYGULANMAZ:
+  // kodu model yaziyor. Kurallar istemde olmazsa AI ayni hatalari tekrar uretir.
+  const S = SYSTEM;
+  for (const kural of [
+    "filter({ visible: true }).first()",   // gorunmez ikiz + strict mode
+    "force: true",                          // sr-only kutular
+    "process.env.QA_PASSWORD",              // parola koda gomulmez
+    'type="password" ile ARAMA',            // maskelemeyi site yapiyor olabilir
+    "bayrağı ÇALIŞMAZ",                     // Turkce İ
+    "EN AZ BİR expect",                     // iddiasiz dosya test degildir
+  ]) {
+    assert.ok(S.includes(kural), `istemde eksik kural: ${kural}`);
+  }
 });

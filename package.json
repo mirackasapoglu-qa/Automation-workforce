@@ -39,7 +39,7 @@
     "panel:mto": "PANEL_PROJECT=mto PANEL_PORT=4656 node panel/server.mjs"
   },
   "devDependencies": {
-    "@playwright/test": "^1.44.0",
+    "@playwright/test": "^1.51.0",
     "@types/node": "^20.0.0",
     "prettier": "^3.8.3"
   }
