@@ -15,6 +15,7 @@
  */
 import { readTree, writeTree, findNode } from "./scope.mjs";
 import { contextFor, renderContextBlock } from "./rag/retrieve.mjs";
+import { knownIssuesForNode } from "./known-issues.mjs";
 
 /**
  * Yapılandırılmış çıktı şeması — API yolunda sunucu tarafında zorlanır
@@ -147,6 +148,12 @@ export function buildContext(tree, node) {
     mevcutCaseler: (node.testCases ?? []).map((t) => t.title).filter(Boolean),
     kartlar: (node.jiraTasks ?? []).map((t) => t.taskId),
     otomatikSpec: node.runRef?.specs ?? [],
+    // Üçü de daha önce hiç prompta girmiyordu — "performans"/"regresyon"
+    // türleri modele "bak" diyordu ama bakacağı veriyi hiç vermiyorduk,
+    // model körlemesine tahmin ediyordu. Artık gerçek ölçüm var.
+    perf: node.perf ?? null,
+    gecmisDurumlar: (node.statusHistory ?? []).slice(-5),
+    bilinenHatalar: knownIssuesForNode(node.id),
   };
 }
 
@@ -166,6 +173,7 @@ export const SYSTEM = `Bir QA ekibi için test case yazıyorsun. Kurallar:
 
 export function renderUser(ctx, types, limit) {
   const istenen = types.map((t) => `- ${t}: ${TYPES[t] ?? t}`).join("\n");
+  const istenenSet = new Set(types);
   return [
     `Ağaçtaki yol: ${ctx.yol}`,
     `Düğüm: "${ctx.ad}" (tür: ${ctx.tur})`,
@@ -183,12 +191,41 @@ export function renderUser(ctx, types, limit) {
       ? `Bu sayfada tespit edilen bölüm/işlevler:\n${ctx.altBaslıklar.map((s) => `  - ${s}`).join("\n")}`
       : "Bu düğüm için alt bölüm bilgisi yok — yalnızca ad ve yol üzerinden yaz.",
     ctx.kartlar.length ? `Bağlı kartlar: ${ctx.kartlar.join(", ")}` : "",
-    ctx.otomatikSpec.length ? `Bu düğümde zaten otomatik koşan spec: ${ctx.otomatikSpec.join(", ")}` : "",
+    ctx.otomatikSpec.length
+      ? `Bu düğümde zaten otomatik koşan spec: ${ctx.otomatikSpec.join(", ")} — case'lerin bu spec'in `
+        + `ÜSTÜNE bir şey katsın (farklı senaryo/adım), aynı akışı elle tekrar yazma.`
+      : "",
+    // Yalnızca ilgili tür istendiğinde ekleniyor — hem prompt gereksiz
+    // şişmiyor hem de model "performans istenmedi ama LCP sayısı var, buna
+    // göre bir şey mi yazmalıyım" diye kafa karıştırmıyor.
+    (istenenSet.has("perf") && ctx.perf)
+      ? `Ölçülmüş performans (GERÇEK veri, "performans" case'lerini buna göre yaz):\n`
+        + `  - Rota: ${ctx.perf.route ?? "?"} (ölçüm: ${ctx.perf.at ?? "?"})\n`
+        + `  - LCP: ${ctx.perf.lcp ?? "?"} ms (eşik: ≤2500 iyi, >4000 zayıf) · TTFB: ${ctx.perf.ttfb ?? "?"} ms (eşik: ≤800 iyi)\n`
+        + (ctx.perf.consoleErrors ? `  - ${ctx.perf.consoleErrors} konsol hatası ölçüldü — bunu doğrulayan bir case yaz.\n` : "")
+        + (ctx.perf.siteErrors ? `  - ${ctx.perf.siteErrors} sayfa hatası ölçüldü — bunu doğrulayan bir case yaz.\n` : "")
+        + `Beklenen sonuçta rastgele bir sayı UYDURMA — yalnızca yukarıdaki ölçülmüş değerlere ve eşiklere dayan.`
+      : "",
+    (istenenSet.has("regression") && ctx.gecmisDurumlar.length)
+      ? `Bu düğümün gerçek durum geçmişi (en son ${ctx.gecmisDurumlar.length} geçiş):\n`
+        + ctx.gecmisDurumlar.map((s) => `  - ${s.from ?? "?"} → ${s.to ?? "?"} (${s.at ?? "?"})`).join("\n")
+      : "",
+    (istenenSet.has("regression") && ctx.bilinenHatalar.length)
+      ? `Bu düğüme BAĞLI, zaten bilinen hatalar (${ctx.bilinenHatalar.map((b) => b.id).join(", ")}) — bunları `
+        + `yeni bir "keşif" gibi anlatma; her biri için düzelip düzelmediğini doğrulayan AYRI bir regresyon `
+        + `case'i yaz (başlığa hata id'sini ekle):\n`
+        + ctx.bilinenHatalar.map((b) => `  - ${b.id}${b.where ? ` (${b.where})` : ""}: ${b.detail}`).join("\n")
+      : "",
     ctx.mevcutCaseler.length
       ? `Mevcut case başlıkları (TEKRARLAMA):\n${ctx.mevcutCaseler.map((s) => `  - ${s}`).join("\n")}`
       : "Bu düğümde henüz case yok.",
     `İstenen türler:\n${istenen}`,
-    `En fazla ${limit} case üret.`,
+    // "negative" türünün kendi talimatı sayıyı YAPAY sınırlama diyor; hemen
+    // altında tüm türlere tek bir sabit tavan koymak onu boşa çıkarıyordu
+    // (ölçüldü: iki talimat birbirini yiyordu). Sınır artık tür başına ve
+    // negative'i açıkça istisna tutuyor.
+    `Her tür için en fazla ${limit} case üret — İSTİSNA: "negative" türü seçiliyse kendi talimatındaki gibi `
+      + `gerçek doğrulama/hata kuralı sayısı kadar yaz, bu sınır o türü kapsamaz.`,
   ].filter(Boolean).join("\n\n");
 }
 
