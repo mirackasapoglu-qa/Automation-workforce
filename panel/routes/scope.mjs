@@ -31,6 +31,7 @@ import * as cred from "../product-credentials.mjs";
 import { listPackages, savePackage, deletePackage } from "../type-packages.mjs";
 import { readPackages, resolvePackageItems, resolvePackageCases } from "../packages.mjs";
 import { findNode } from "../scope.mjs";
+import { FIGMA_ROUTES } from "../figma-map.mjs";
 
 export function registerScopeRoutes(router, ctx) {
   const { send, BASE_URL, RUNS } = ctx;
@@ -78,6 +79,28 @@ export function registerScopeRoutes(router, ctx) {
     return send(res, 200, { ok: true, active, products });
   }, { auth: true, body: true });
 
+  /**
+   * Aktif ürün için Figma eşlemesi var mı? Profil ürününde profilin sabit
+   * haritası; yabancı üründe ağaçtaki node-id'li Figma linkleri sayılır
+   * (server.mjs → figmaOverrideForPath ile aynı kural). Panel "Tasarım diff"
+   * sekmesini ve Site'deki diff düğmesini buna göre gösterir/gizler.
+   */
+  const tasarimDurumu = (t, active) => {
+    const profil = active?.isProfile !== false;
+    if (profil) return { figma: FIGMA_ROUTES.length > 0, source: FIGMA_ROUTES.length ? "profile" : null, links: 0 };
+    let links = 0;
+    (function walk(a) {
+      for (const n of a ?? []) {
+        for (const rl of n.resourceLinks ?? []) {
+          const u = String(rl?.url ?? "");
+          if (/figma\.com/i.test(u) && /[?&]node-id=/.test(u)) links++;
+        }
+        walk(n.children);
+      }
+    })(t);
+    return { figma: links > 0, source: links ? "scope" : null, links };
+  };
+
   router.get("/api/scope/summary", ({ res }) => {
     const { tree: t, active, products, baseUrl } = aktif();
     const r = rotalar(t, baseUrl);
@@ -87,6 +110,7 @@ export function registerScopeRoutes(router, ctx) {
       active,
       products,
       profileBaseUrl: BASE_URL ?? null,
+      design: tasarimDurumu(t, active),
       summary: deriveSummary(t, { baseUrl }),
       routeSource: r.source,
       routes: r.routes,

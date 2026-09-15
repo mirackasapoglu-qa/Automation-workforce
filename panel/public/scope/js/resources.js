@@ -4,6 +4,7 @@ import { newResourceLinkId } from './state.js';
 import { ICON } from './constants.js';
 import { persist } from './data.js';
 import { renderDrawer } from './drawer.js';
+import { renderDesignDiffRow } from './design-diff.js';
 
 const RESOURCE_TYPE_META = {
   figma: { label: 'Figma', icon: ICON.figma },
@@ -165,6 +166,11 @@ export function renderDrawerResourcesSection(node) {
       chip.appendChild(removeBtn);
 
       list.appendChild(chip);
+      // Figma frame linki (node-id'li) → altında tasarım diff şeridi (design-diff.js).
+      if (r.type === 'figma') {
+        const diffRow = renderDesignDiffRow(node, r);
+        if (diffRow) list.appendChild(diffRow);
+      }
     });
   }
   section.appendChild(list);

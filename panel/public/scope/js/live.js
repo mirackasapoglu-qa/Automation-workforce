@@ -88,6 +88,16 @@ export function initLiveSync() {
     tazele(info);
   });
 
+  // Tasarım diff (panel sunucusunda koşar) → çekmecedeki Figma şeridi ve toast
+  // (design-diff.js dinler). Veri olduğu gibi aktarılır; burada yorum yok.
+  for (const t of ['diff-start', 'diff-end']) {
+    es.addEventListener(t, (e) => {
+      let d = {};
+      try { d = JSON.parse(e.data) || {}; } catch { /* veri yok */ }
+      document.dispatchEvent(new CustomEvent('figma-diff', { detail: { ...d, type: t === 'diff-end' ? 'end' : 'start' } }));
+    });
+  }
+
   // Odak kaybında ertelenmiş tazeleme yapılır.
   document.addEventListener('focusout', () => {
     if (!bekleyen) return;

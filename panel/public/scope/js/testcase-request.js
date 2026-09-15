@@ -13,6 +13,7 @@ import { openAiAssistModal } from './ai-assist.js';
 import { loadPersisted } from './data.js';
 import { renderContent } from './shell.js';
 import { uiToast, uiConfirm, uiChoose } from './dialog.js';
+import { genStarted, genEnded, genProduced } from './gen-status.js';
 
 /**
  * Secilen Claude hesabi tarayicida hatirlanir — panelin ana ekraniyla AYNI
@@ -133,11 +134,14 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
     }
     if (onay) {
       const bildirim = uiToast('Model çalışıyor… bu pencereyi kapatabilirsin, sonuç toast olarak gelir.', { title: 'Üretiliyor', ms: 0 });
-      const { status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit, account });
-      bildirim.remove();
+      genStarted();   // sidebar "Test Case'ler" nabzı — toast kapatılsa da iz kalır
+      let status, data;
+      try { ({ status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit, account })); }
+      finally { genEnded(); bildirim.remove(); }
       if (data.ok) {
         await loadPersisted();
         renderContent();
+        genProduced(data.written);   // yeşil "üretildi" rozeti (görünüme girince söner)
         if (afterApply) afterApply();
         uiToast(ozet(data), { type: 'ok', title: 'Case\'ler yazıldı', ms: 12_000 });
         return;
@@ -173,6 +177,7 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
       if (!out.ok) throw new Error(out.error || 'Yazılamadı.');
       await loadPersisted();
       renderContent();
+      genProduced(out.written);
       if (afterApply) afterApply();
       return ozet(out);
     },

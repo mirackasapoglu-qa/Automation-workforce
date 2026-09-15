@@ -784,21 +784,45 @@ const FIGMA_OUT_DIR = path.join(DATA_DIR, "figma");
 fs.mkdirSync(FIGMA_OUT_DIR, { recursive: true });
 let activeDiff = null; // { slug, child, startedAt }
 
-function startDiff({ path: routePath }) {
+/**
+ * TASARIM DIFF — ROTA → FRAME ESLEMESI KAPSAM AGACINDAN (2026-09-15).
+ *
+ * Eskiden yalniz profilin sabit haritasi (`figmaForRoute`) kullaniliyordu;
+ * Flowscope'ta dugume eklenen Figma linki diff icin gorunmezdi. Simdi once
+ * agac (`figmaOverrideForPath`: dugumun node-id'li Figma kaynagi), profil
+ * urununde yedek olarak profil haritasi. Yabanci urunde:
+ *   - canli taraf aktif urunun adresine gider (`BASE_URL_<ENV>` override'i;
+ *     scripts/figma-diff.mjs adresi oradan okur),
+ *   - rapor slug'i host ile oneklenir ("promptfoo-dev-anasayfa") ki iki urunun
+ *     "/" raporu birbirini ezmesin.
+ * Rapor JSON'una `nodeId`/`product` yazilir: Flowscope cekmecesi "son rapor"u
+ * dugumden bulur (rota ikinci anahtar).
+ */
+function startDiff({ path: routePath, nodeId = null }) {
   if (activeDiff)
-    return { ok: false, error: `Diff zaten kosuyor: ${activeDiff.slug}` };
-  const map = figmaForRoute(routePath ?? "/");
+    return { ok: false, error: `Diff zaten kosuyor: ${activeDiff.slug}`, code: "BUSY" };
+  const yol = routePath ?? "/";
+  const ov = figmaOverrideForPath(yol);
+  let map = ov.map && !ov.map.__none ? ov.map : null;
+  if (!map && ov.profile) map = figmaForRoute(yol);
   if (!map)
     return {
       ok: false,
-      error: `Bu rota icin Figma eslesmesi yok: ${routePath}`,
+      error: `Bu rota icin Figma eslesmesi yok: ${yol}`,
+      code: "NO_MAP",
+      nodeId: ov.nodeId ?? nodeId,
     };
 
-  const slug = (
+  const urun = aktifUrun();
+  const yabanci = urun.active?.isProfile === false;
+  let host = "";
+  try { host = new URL(urun.baseUrl).hostname.replace(/^www\./, ""); } catch { /* adres yok */ }
+  const temel = (
     map.matched === "/"
       ? "anasayfa"
       : map.matched.replace(/[^a-zA-Z0-9]+/g, "-")
   ).replace(/^-|-$/g, "");
+  const slug = yabanci && host ? `${host.replace(/[^a-zA-Z0-9]+/g, "-")}-${temel}` : temel;
   const htmlOut = path.join("panel-data", "figma", `${slug}.html`);
   const jsonOut = path.join("panel-data", "figma", `${slug}.json`);
 
@@ -819,16 +843,24 @@ function startDiff({ path: routePath }) {
   // Login arkasindaki rotalar uye oturumu ister; profildeki `auth` alani soyler.
   if (map.auth === "member") args.push("--state", "member");
 
+  const envKey = `BASE_URL_${String(process.env.HOMEE_ENV ?? "test").toUpperCase()}`;
   const child = spawn("node", args, {
     cwd: ROOT,
-    env: { ...process.env, FORCE_COLOR: "0" },
+    env: {
+      ...process.env,
+      FORCE_COLOR: "0",
+      ...(yabanci && urun.baseUrl ? { [envKey]: urun.baseUrl } : {}),
+    },
   });
-  activeDiff = { slug, child, startedAt: Date.now(), map };
+  const dugum = ov.nodeId ?? nodeId ?? null;
+  activeDiff = { slug, child, startedAt: Date.now(), map, nodeId: dugum, route: map.matched, product: urun.active?.name ?? null };
   broadcast("diff-start", {
     slug,
     route: map.matched,
     page: map.page,
     cards: map.cards,
+    nodeId: dugum,
+    source: map.source ?? "profile",
   });
 
   const push = (chunk, stream) => {
@@ -842,7 +874,14 @@ function startDiff({ path: routePath }) {
   child.on("close", (code) => {
     let summary = null;
     try {
-      summary = JSON.parse(fs.readFileSync(path.join(ROOT, jsonOut), "utf8"));
+      const dosya = path.join(ROOT, jsonOut);
+      summary = JSON.parse(fs.readFileSync(dosya, "utf8"));
+      // Cekmece "son rapor"u dugumden bulsun; rota/frame yoksa haritadan doldur.
+      summary.nodeId = activeDiff.nodeId ?? summary.nodeId ?? null;
+      summary.product = activeDiff.product ?? summary.product ?? null;
+      summary.route ??= activeDiff.route;
+      summary.frame ??= map.frame ?? map.page ?? null;
+      fs.writeFileSync(dosya, JSON.stringify(summary, null, 2));
     } catch {
       /* rapor uretilemedi */
     }
@@ -852,11 +891,13 @@ function startDiff({ path: routePath }) {
       durationMs: Date.now() - activeDiff.startedAt,
       summary,
       reportUrl: `/figma/${slug}.html`,
+      nodeId: activeDiff.nodeId,
+      route: activeDiff.route,
     });
     activeDiff = null;
   });
 
-  return { ok: true, slug, reportUrl: `/figma/${slug}.html` };
+  return { ok: true, slug, reportUrl: `/figma/${slug}.html`, nodeId: dugum, route: map.matched };
 }
 
 // ---------------- SSE ----------------

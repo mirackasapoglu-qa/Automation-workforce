@@ -18,8 +18,10 @@ import { openMenu } from './dropdown.js';
 import { uiToast } from './dialog.js';
 import { renderPackagesView } from './packages.js';
 import { renderTestCasesView } from './testcases.js';
+import { genStatus, onGenStatus, genSeen } from './gen-status.js';
 
 let indicatorEl, toolsIndicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
+let genBadgeEl; // "Test Case'ler" öğesindeki üretim rozeti (bkz. gen-status.js)
 let sidebarStatusEl, topbarFacetsEl, topbarSearchWrapEl, fileInputEl;
 
 // "Dikkat" ve "Paketler" ağacın bir GÖRÜNÜMÜ değil, kendi kendine yeten ayrı
@@ -221,11 +223,20 @@ function buildSidebar() {
     if (isActive) btn.setAttribute('aria-current', 'true');
     btn.title = t.label;
     btn.innerHTML = t.icon + `<span>${t.label}</span>`;
+    if (t.key === 'testcases') {
+      // Üretim rozeti: sürerken nabız, bitince yeşil "üretildi". Sidebar
+      // yeniden kurulunca eleman da yeniden kurulur; durum modülde kalır.
+      genBadgeEl = document.createElement('span');
+      genBadgeEl.className = 'fw-gen-badge';
+      genBadgeEl.hidden = true;
+      btn.appendChild(genBadgeEl);
+    }
     btn.onclick = () => setView(t.key);
     toolsNav.appendChild(btn);
     switchButtons[t.key] = btn;
   });
   toolsGroup.appendChild(toolsNav);
+  renderGenBadge(genStatus);
   sidebar.appendChild(toolsGroup);
 
   sidebarStatusEl = document.createElement('div');
@@ -331,6 +342,35 @@ export function refreshAttentionBadge() {
   attentionBadgeEl.hidden = !n;
 }
 
+/**
+ * Üretim rozeti (sidebar → "Test Case'ler"):
+ *   sürüyor  → nabız atan nokta, "N üretim sürüyor"
+ *   bitti    → yeşil onay + yazılan case sayısı; görünüme girilince söner
+ * Kullanıcı zaten Test Case'ler sayfasındayken biten üretim rozet bırakmaz —
+ * liste gözünün önünde tazelendi, ayrıca "bak" demek gürültü olurdu.
+ */
+function renderGenBadge(st) {
+  if (!genBadgeEl) return;
+  if (!st.running && st.unseenRuns && state.currentView === 'testcases') { genSeen(); return; }
+  if (st.running) {
+    genBadgeEl.className = 'fw-gen-badge running';
+    genBadgeEl.innerHTML = '<i></i>';
+    genBadgeEl.title = st.running > 1 ? `${st.running} test case üretimi sürüyor…` : 'Test case üretiliyor…';
+    genBadgeEl.hidden = false;
+  } else if (st.unseenRuns) {
+    genBadgeEl.className = 'fw-gen-badge done';
+    genBadgeEl.innerHTML = ICON.check + (st.unseen ? `<span>${st.unseen}</span>` : '');
+    genBadgeEl.title = st.unseen
+      ? `${st.unseen} yeni case üretildi — görmek için tıkla`
+      : 'Üretim bitti (yeni case yok: hepsi tekrar diye atlandı)';
+    genBadgeEl.hidden = false;
+  } else {
+    genBadgeEl.hidden = true;
+    genBadgeEl.title = '';
+  }
+}
+onGenStatus(renderGenBadge);
+
 export function positionIndicator() {
   const btn = switchButtons[state.currentView];
   // İki grup, iki bağımsız vurgu çubuğu — aktif düğüme sahip OLMAYAN grubun
@@ -346,6 +386,7 @@ export function positionIndicator() {
 
 export function setView(key) {
   state.currentView = key;
+  if (key === 'testcases') genSeen();   // rozet "bakıldı" — bildirim deseni
   Object.entries(switchButtons).forEach(([k, btn]) => {
     const isActive = k === key;
     btn.classList.toggle('active', isActive);

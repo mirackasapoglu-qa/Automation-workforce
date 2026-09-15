@@ -89,6 +89,16 @@
   button.danger:hover:not(:disabled){border-color:var(--no);background:color-mix(in srgb,var(--no) 20%,transparent);color:var(--no)}
   .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
   .row button{width:auto;margin-bottom:0}
+  /* Quick actions: tek satir, yatay kaydirma */
+  .qa-wrap{position:relative;margin-bottom:10px}
+  .qa-row{flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;margin-bottom:0;padding-bottom:6px;
+    scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  .qa-row::-webkit-scrollbar{height:6px}
+  .qa-row::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .qa-row button{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start}
+  .qa-wrap::after{content:'';position:absolute;right:0;top:22px;bottom:6px;width:48px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,var(--bg));opacity:1;transition:opacity .15s}
+  .qa-wrap.at-end::after{opacity:0}
   input,textarea,select{font:13px/1.4 var(--sans);width:100%;padding:8px 10px;border:1px solid var(--line);
     border-radius:var(--r-sm);background:var(--bg);color:var(--fg);margin-bottom:8px;transition:border-color var(--t),box-shadow var(--t)}
   input:hover,textarea:hover,select:hover{border-color:color-mix(in srgb,var(--acc) 40%,var(--line))}
@@ -432,23 +442,6 @@
   .issue .id{font:600 12px/1.3 var(--mono)}
   .issue .w{font-size:11px;color:var(--mut);font-family:var(--mono);word-break:break-all}
 
-  /* ---- tasarim diff: farklar kirmizi vurgulu ---------------------------- */
-  /* Tasarim diff tablosuna OZEL: farkli sayilar kirmizi. Kapsamsiz yazilmisti
-     ve Perf tablosundaki esik renklerini (.ok/.sk/.no) eziyordu — `td.num`
-     ozgullugu (0,1,1) sinif seciciden (0,1,0) yuksek. Artik #dTable'a kilitli. */
-  #dTable td.num{color:var(--no);font-weight:700}
-  tr.rowmiss td{background:var(--no-dim)}
-  tr.rowspec td{background:var(--sk-dim)}
-  .dexp{color:var(--ok)} .dgot{color:var(--no);font-weight:600}
-  #dCards .c .n.no{color:var(--no)}
-  /* NOT: inline "display:grid" verilirse hidden bayragi EZILIR; ustteki
-     [hidden]{display:none!important} kurali bunu global olarak garantiliyor. */
-  #dShots{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-  #shotSyncWrap{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--mut);
-    margin:0 0 6px;cursor:pointer}
-  #shotSyncWrap input{width:auto;margin:0}
-  @media (max-width:900px){#dShots{grid-template-columns:1fr}}
-
   /* ---- bilgi butonu ----------------------------------------------------- */
   .tipwrap{display:inline-flex;align-items:center;gap:5px;position:relative;max-width:100%}
   button.tip{width:19px;min-width:19px;height:19px;padding:0;margin:0;border-radius:50%;
@@ -539,7 +532,7 @@
   #paBtn{background:var(--acc);border-color:var(--acc);color:var(--bg);font-weight:600;width:auto;margin:0;
     display:inline-flex;align-items:center;gap:7px}
   #paBtn:hover:not(:disabled){background:color-mix(in srgb,var(--acc) 85%,#fff)}
-  #paBtn svg{width:14px;height:14px}
+  #paBtn svg,#paOneBtn svg{width:14px;height:14px}
   .pa-sum{border:1px solid color-mix(in srgb,var(--acc) 30%,var(--line));border-radius:var(--r);
     background:var(--acc-dim);padding:12px 14px;margin:12px 0;font-size:13.5px;line-height:1.65}
   .pa-f{border:1px solid var(--line);border-left:3px solid var(--mut);border-radius:0 var(--r-sm) var(--r-sm) 0;
@@ -1032,7 +1025,6 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <button data-tab="site" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg></span>Site (canli)</button>
       <button data-tab="log" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg></span>Canli log</button>
       <button data-tab="verdict" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 8l7-5 7 5"/><path d="M3 12l4-4 4 4a4 4 0 0 1-8 0zM13 12l4-4 4 4a4 4 0 0 1-8 0z"/></svg></span>Verdict</button>
-      <button data-tab="diff" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/></svg></span>Tasarim diff</button>
     </div>
     <!-- Tasarim: nav'in altinda "BUGUN" is listesi, en altta birincil eylem. -->
     <div id="todayWrap">
@@ -1115,14 +1107,22 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
         <button style="width:auto" onclick="$('#siteFrame').src = $('#siteFrame').src">Yenile</button>
         <button style="width:auto" onclick="window.open($('#siteFrame').src,'_blank')">Yeni sekmede</button>
       </div>
-      <div class="row" id="siteShortcuts"></div>
+      <!-- Hizli rotalar: TEK SATIR, yana kayar (2026-09-15). 15+ rota dort satira
+           yayilip cerceveyi asagi itiyordu; simdi yatay kaydirma, sag kenarda
+           "devami var" solmasi. Aciklama yerel title'da: "i" balonu kaydirma
+           kutusunun overflow'unda kirpiliyordu. -->
+      <div class="qa-wrap" id="siteQuick">
+        <div class="ov-sec" style="margin:0 0 6px"><span class="ov-sec-t">Quick actions</span>
+          <span class="ov-sec-m mono" id="siteQuickN"></span></div>
+        <div class="row qa-row" id="siteShortcuts"></div>
+      </div>
       <div class="row" style="justify-content:space-between;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px">
         <span class="mono" id="siteNow">iframe yukleniyor...</span>
         <span>
           <span class="mono" id="siteMatch"></span>
           <button id="siteRunBtn" style="width:auto;margin:0 0 0 8px" disabled onclick="runForCurrent()">Bu sayfayi test et</button>
           <button id="siteDesignBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleDesign()">Yan yana tasarim</button>
-          <button id="siteDiffBtn" style="width:auto;margin:0 0 0 6px" onclick="diffForCurrent()">Tasarim diff</button>
+          <button id="siteDiffBtn" style="width:auto;margin:0 0 0 6px" onclick="designDiffInFlowscope()">Tasarim diff</button>
           <button id="siteRecBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleIframeRec()">Kaydet</button>
         </span>
       </div>
@@ -1309,72 +1309,6 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       </details>
     </div>
 
-    <div id="tab-diff" hidden>
-      <details id="odWrap" open>
-        <summary>
-          <svg style="width:17px;height:17px;color:var(--ok);flex:0 0 auto" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
-            <path d="M4 7h7M4 12h7M4 17h7M15 7l5 5-5 5"/>
-          </svg>
-          <span class="sg-name">Kotasız diff</span>
-          <span class="sg-sub" id="odCtx">Figma'ya sıfır çağrı — önbellekteki düğüm ağacından</span>
-          <span class="caret"></span>
-        </summary>
-        <div id="odBody">
-          <p class="sg-hint">
-            Tasarım metinleri <b>panel-data/figma-cache/</b> içindeki ağaçtan okunur (font, punto, ağırlık dahil),
-            canlı taraf tarayıcıyla yakalanır. Kota kapalıyken de çalışır.
-            <b>Durum eşitle:</b> frame ürünlü/dolu bir hâl gösteriyorsa canlıyı da aynı hâle getir.
-          </p>
-          <div class="row" style="margin-bottom:8px;align-items:center">
-            <label class="mono" style="font-size:11px;color:var(--mut)">frame
-              <select id="odFrame" style="width:auto;min-width:300px;margin:0 0 0 5px"></select></label>
-            <label class="mono" style="font-size:11px;color:var(--mut)">rota
-              <input id="odRoute" value="/" style="width:150px;margin:0 0 0 5px"></label>
-            <label class="mono" style="font-size:11px;color:var(--mut)">oturum
-              <select id="odState" style="width:auto;margin:0 0 0 5px">
-                <option value="guest">misafir</option><option value="member">üye</option>
-              </select></label>
-          </div>
-          <div class="row" style="margin-bottom:0;align-items:center">
-            <button id="odBtn" onclick="offlineDiff()">Diff al</button>
-            <label class="mono" style="font-size:11px;color:var(--mut)">yoksay (regex, virgüllü)
-              <input id="odIgnore" placeholder="yoksay (regex)" style="width:190px;margin:0 0 0 5px"></label>
-            <span class="mono" id="odState2"></span>
-          </div>
-          <div id="odOut"></div>
-        </div>
-      </details>
-      <div class="row">
-        <input id="dPath" placeholder="/" style="width:220px;margin:0">
-        <button style="width:auto" onclick="runDiff()">Diff al</button>
-        <button style="width:auto" onclick="loadDiffReports()">Kayitli raporlar</button>
-        <span class="mono" id="dMatch"></span>
-      </div>
-      <div class="cards" id="dCards"></div>
-      <pre id="dLog" style="background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px;
-        max-height:150px;overflow:auto;font:11.5px/1.4 ui-monospace,monospace;margin:0 0 10px;white-space:pre-wrap">Bir rota icin diff alin...</pre>
-      <p class="mono err" id="dShotsErr"></p>
-      <label id="shotSyncWrap" class="mono" title="Iki panel birlikte kaysin (oransal)">
-        <input type="checkbox" id="shotSync" checked> es zamanli kaydir
-      </label>
-      <div id="dShots" hidden>
-        <figure style="margin:0">
-          <figcaption class="mono" style="margin-bottom:4px">Tasarim — <b style="color:#e11d48">kirmizi: canlida bulunamayan metinler</b></figcaption>
-          <div class="shotpane" data-pane="design" style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
-            <img id="dShotDesign" style="width:100%;display:block" alt="isaretli tasarim"></div>
-        </figure>
-        <figure style="margin:0">
-          <figcaption class="mono" style="margin-bottom:4px">Canli — <b style="color:#e11d48">kirmizi: spec farki olan ogeler</b></figcaption>
-          <div class="shotpane" data-pane="live" style="height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:#fff">
-            <img id="dShotLive" style="width:100%;display:block" alt="isaretli canli"></div>
-        </figure>
-      </div>
-      <div class="scroll"><table id="dTable"></table></div>
-      <iframe id="dFrame" title="Tasarim diff raporu" hidden
-        style="width:100%;height:700px;border:1px solid var(--line);border-radius:8px;background:#fff;margin-top:10px"></iframe>
-    </div>
-
     <div id="tab-verdict" hidden>
       <div class="row" style="display:block;max-width:520px">
         <input id="vKey" placeholder="Kayit anahtari (orn. 06-sepet)">
@@ -1449,7 +1383,7 @@ const TIPS = {
   '#sgOneBtn': 'Tek tikla senaryo onerisi: istek + repo baglami modele gider, donen senaryolar 3 katmanli kapidan gecer (dayanaksiz olan elenir). ~15-40 sn, ucretli.',
   '#siteRunBtn': "iframe'de acik rotanin kapsam dugumune bagli spec'leri kosar. Spec adlari sunucuda tests/ ile dogrulanir; serbest komut calistirilamaz.",
   '#siteDesignBtn': 'Sagda o rotanin Figma frame\'ini acar. Kaydirma senkronludur; rota degisince tasarim da degisir. Render onbellekten gelir, Figma\'ya cagri yapmaz.',
-  '#siteDiffBtn': 'Acik rota icin tasarim diff\'i kosar (~45 sn) ve Tasarim diff sekmesine gecer.',
+  '#siteDiffBtn': 'Acik rotanin kapsam dugumunu Flowscope\'ta acar; diff oradaki Figma kaynagindan alinir (~45 sn).',
   'Git': 'URL cubugundaki yolu iframe\'de acar (panelin proxy\'si uzerinden, x-frame-options sokulur).',
   'Yeni sekmede': 'Acik sayfayi proxy adresiyle yeni tarayici sekmesinde acar.',
   'Diff al': 'Yol alanindaki rota icin Figma ↔ canli karsilastirmasi kosar. Metin varligi + spec (font/boyut/kalinlik/renk) + isaretli snapshot uretir. Figma agaci onbellekten okunur.',
@@ -1553,8 +1487,6 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   }
   if (b.dataset.tab === 'jira') { loadBugForm(); renderBugQueue(); }
   if (b.dataset.tab === 'site') { loadRecordings(); requestAnimationFrame(fitSiteFrame); }
-  if (b.dataset.tab === 'diff') loadOfflineFrames();
-  if (b.dataset.tab === 'diff') { $('#dPath').value = CURRENT_PATH || '/'; matchFigma($('#dPath').value); loadDiffReports(); }
 });
 
 let META = null;   // /api/meta sonucu — bug sablonu ortam bilgisini buradan okuyor
@@ -2244,7 +2176,7 @@ async function renderScopePackages() {
   const el = $('#scopePackages');
   if (!el) return;
   let liste = [];
-  try { liste = (await (await fetch('/api/scope/packages/runnable')).json()).packages || []; }
+  try { liste = (await (await fetch('/api/scope/packages/runnable')).json()).packages || []; PKG_LIST = liste; }
   catch { el.innerHTML = '<p class="mono err">Paket listesi okunamadi.</p>'; return; }
   await loadPackageRunIndex();
   const tr = $('#tcRuns'); if (tr) tr.textContent = liste.length;
@@ -2593,17 +2525,39 @@ function renderSiteShortcuts() {
     const cls = scopeStatusCls(r.status);
     const nokta = r.nodeId ? `<span class="sc-dot ${cls}" title="kapsam durumu: ${esc(r.status || '⬜')}"></span>` : '';
     const yol = esc(r.path).replace(/'/g, "\\'");
-    return `<button style="width:auto" data-tip="${esc(r.path)}${r.nodeId ? ` · kapsam: ${esc(r.name)}` : ' · kapsam agacinda rota yok'}"
+    return `<button style="width:auto" title="${esc(r.path)}${r.nodeId ? ` · kapsam: ${esc(r.name)}` : ' · kapsam agacinda rota yok'}"
       onclick="goSite('${yol}')">${nokta}${esc(r.name)}</button>`;
   }).join('')
     + (s && s.routeSource === 'profile'
       ? `<button class="warn" style="width:auto" onclick="scopeBackfillRoutes()"
-           data-tip="Kapsam agacindaki dugumlerde rota bilgisi yok; panel eski profil listesini gosteriyor. Bu dugme dugumlere rotayi yazar.">kapsami panele bagla</button>`
+           title="Kapsam agacindaki dugumlerde rota bilgisi yok; panel eski profil listesini gosteriyor. Bu dugme dugumlere rotayi yazar.">kapsami panele bagla</button>`
       : '');
-  decorateTips(el);
-  // Butonlar satir sayisini degistirdi — cerceve yeniden olculmeli.
+  const n = $('#siteQuickN');
+  if (n) n.textContent = rotalar.length > 1 ? `${rotalar.length} rota · yana kaydir` : '';
+  quickRowEdge();
+  // Satir yuksekligi degisebilir — cerceve yeniden olculmeli.
   requestAnimationFrame(fitSiteFrame);
 }
+
+/** Sag kenar solmasi yalniz devami varken; dikey tekerlek yatay kaydirir (fare kullanicilari). */
+function quickRowEdge() {
+  const el = $('#siteShortcuts'), wrap = $('#siteQuick');
+  if (!el || !wrap) return;
+  const son = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+  wrap.classList.toggle('at-end', son);
+}
+(function initQuickRow() {
+  const el = $('#siteShortcuts');
+  if (!el) return;
+  el.addEventListener('scroll', quickRowEdge, { passive: true });
+  window.addEventListener('resize', quickRowEdge);
+  el.addEventListener('wheel', (e) => {
+    if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;   // trackpad yatay zaten kayar
+    if (el.scrollWidth <= el.clientWidth) return;
+    el.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+})();
 
 /** Rotasiz kapsam dugumlerine rotayi yazar (sunucu: POST /api/scope/backfill-routes). */
 async function scopeBackfillRoutes() {
@@ -2770,80 +2724,6 @@ async function runForCurrent() {
 }
 
 /**
- * Tasarim/canli panellerinde ES ZAMANLI KAYDIRMA.
- *
- * ORANSAL eslestirme: iki gorselin yuksekligi ayni degil (tasarim frame'i
- * 5681px, canli sayfa baska). Piksel bazli eslemede alt kisimda kayma birikir;
- * oran korunursa "tasarimin %40'i" ile "canlinin %40'i" yan yana kalir.
- *
- * `kilit` bayragi geri besleme dongusunu keser: b'yi programla kaydirmak
- * b'nin scroll olayini tetikler, o da a'yi kaydirmaya calisirdi.
- */
-(function shotSync() {
-  let kilit = false;
-  const oran = (el) => {
-    const pay = el.scrollHeight - el.clientHeight;
-    return pay > 0 ? el.scrollTop / pay : 0;
-  };
-  const uygula = (kaynak, hedef) => {
-    if (kilit || !$('#shotSync')?.checked) return;
-    kilit = true;
-    const pay = hedef.scrollHeight - hedef.clientHeight;
-    hedef.scrollTop = oran(kaynak) * pay;
-    // Yatay kaydirma da eslesin (gorseller tam genislikte, genelde 0 kalir).
-    const yPay = hedef.scrollWidth - hedef.clientWidth;
-    if (yPay > 0) {
-      const kPay = kaynak.scrollWidth - kaynak.clientWidth;
-      hedef.scrollLeft = (kPay > 0 ? kaynak.scrollLeft / kPay : 0) * yPay;
-    }
-    requestAnimationFrame(() => { kilit = false; });
-  };
-  document.addEventListener('scroll', (e) => {
-    const el = e.target;
-    if (!(el instanceof HTMLElement) || !el.classList?.contains('shotpane')) return;
-    const digeri = [...document.querySelectorAll('.shotpane')].find((x) => x !== el);
-    if (digeri) uygula(el, digeri);
-  }, true);   // scroll BALONLASMAZ — capture fazinda dinliyoruz
-})();
-
-// ---------------- Tasarim diff ----------------
-async function matchFigma(path) {
-  const m = await (await fetch('/api/figma/match?path=' + encodeURIComponent(path || '/'))).json();
-  $('#dMatch').textContent = m && m.node
-    ? `${m.page}  ·  node ${m.node}  ·  ${(m.cards||[]).join(', ')}`
-    : 'bu rota icin Figma eslesmesi yok';
-  return m;
-}
-
-$('#dPath').addEventListener('change', () => matchFigma($('#dPath').value));
-
-async function runDiff(path) {
-  const p = path ?? ($('#dPath').value.trim() || '/');
-  $('#dPath').value = p;
-  const m = await matchFigma(p);
-  if (!m || !m.node) {
-    // Sebep: baglanti mi yok, eslesme mi? (bkz. loadDesign)
-    let fr = null;
-    try { fr = await (await fetch('/api/figma/frame?path=' + encodeURIComponent(p))).json(); } catch { /* asagida genel mesaj */ }
-    if (fr?.code === 'NO_CREDS') { uiToast("Figma bagli degil — once Baglantilar'dan token gir.", { type: 'err', title: 'Tasarim diff' }); openConnector('figma'); return; }
-    return uiToast(fr?.nodeId
-      ? "Bu rota icin Figma eslesmesi yok. Flowscope'ta dugume Figma frame linki ekle."
-      : 'Bu rota için Figma frame eşleşmesi yok.', { type: 'err', title: 'Tasarim diff' });
-  }
-  document.querySelector('.tabs button[data-tab=diff]').click();
-  $('#dLog').textContent = '';
-  $('#dFrame').hidden = true;
-  $('#dShots').hidden = true;                 // eski kosumun gorselleri kalmasin
-  $('#dShotDesign').removeAttribute('src');
-  $('#dShotLive').removeAttribute('src');
-  $('#dShotsErr').textContent = '';
-  const r = await post('/api/figma/diff', { path: p });
-  if (!r.ok) appendDiffLog('PANEL: ' + r.error, true);
-}
-
-function diffForCurrent() { runDiff(CURRENT_PATH || '/'); }
-
-/**
  * BAGLANTI GEREKEN OZELLIK → BAGLANTILAR PANELI (2026-09-15).
  * Ozellik (tasarim kolonu, tasarim diff...) baglanti yokken ne yapilacagini
  * kendisi soyler: paneli acar ve o saglayicinin "Baglan…" kutusunu gosterir.
@@ -2860,94 +2740,22 @@ async function openConnector(key) {
   }, 60);
 }
 
-function appendDiffLog(line, isErr) {
-  const el = $('#dLog');
-  const span = document.createElement('span');
-  if (isErr) span.className = 'err';
-  span.textContent = line + '\n';
-  el.appendChild(span);
-  el.scrollTop = el.scrollHeight;
-}
-
-function renderDiffSummary(s, reportUrl) {
-  if (!s) { $('#dCards').innerHTML = '<p class="mono err">Rapor uretilemedi</p>'; return; }
-  const c = s.counts;
-  $('#dCards').innerHTML = `
-    <div class="c"><div class="n">${c.compared}</div><div class="l">karsilastirilan metin</div></div>
-    <div class="c"><div class="n ok">${c.clean}</div><div class="l">birebir</div></div>
-    <div class="c"><div class="n sk">${c.mismatched}</div><div class="l">spec farki</div></div>
-    <div class="c"><div class="n no">${c.missing}</div><div class="l">sayfada yok</div></div>
-    <div class="c"><div class="n">${c.needsInteraction}</div><div class="l">etkilesim gerektiren</div></div>
-    <div class="c"><div class="n">${c.dynamicSkipped}</div><div class="l">dinamik (gurultu)</div></div>`;
-  // Farklar: "beklenen (tasarim) → gerceklesen (canli)" biciminde, kirmizi vurgulu
-  const splitDiff = (d) => {
-    const m = String(d).match(/^(.*?)\s*→\s*(.*)$/);
-    return m ? { exp: m[1], got: m[2] } : { exp: d, got: '' };
-  };
-  const rows = [
-    ...(s.mismatches||[]).map((m, i) => ({
-      n: i + 1, t: m.text, layer: m.layer, kind: 'spec farki',
-      parts: (m.diffs||[]).map(splitDiff),
-    })),
-    ...(s.missingTexts||[]).map((m, i) => ({
-      n: i + 1, t: m.text, layer: m.layer, kind: 'canlida yok', parts: null,
-    })),
-  ];
-  $('#dTable').innerHTML =
-    '<tr><th style="width:34px">#</th><th style="width:28%">Metin</th><th style="width:15%">Tur</th>' +
-    '<th>Tasarim (beklenen)</th><th>Canli (gerceklesen)</th><th style="width:14%">Katman</th></tr>' +
-    rows.map(r => {
-      const kindCell = r.parts
-        ? '<span class="b sk">spec farki</span>'
-        : '<span class="b no">canlida yok</span>';
-      const exp = r.parts
-        ? r.parts.map(p => `<span class="dexp">${esc(p.exp)}</span>`).join('<br>')
-        : `<span class="dexp">${esc(r.t)}</span>`;
-      const got = r.parts
-        ? r.parts.map(p => `<span class="dgot">${esc(p.got)}</span>`).join('<br>')
-        : '<span class="dgot">— (DOM\'da bulunamadi)</span>';
-      return `<tr class="${r.parts ? 'rowspec' : 'rowmiss'}">
-        <td class="num">${r.n}</td><td>${esc(r.t)}</td><td>${kindCell}</td>
-        <td class="mono">${exp}</td><td class="mono">${got}</td>
-        <td class="mono">${esc(r.layer||'-')}</td></tr>`;
-    }).join('');
-  decorateTips();
-  if (reportUrl) {
-    const f = $('#dFrame'); f.src = reportUrl; f.hidden = false;
-    // isaretli snapshot'lar (rapor adiyla ayni kok)
-    const base = reportUrl.replace(/\.html$/, '');
-    const t = Date.now();
-    for (const [id, suffix] of [['#dShotDesign','-tasarim-isaretli.png'], ['#dShotLive','-canli-isaretli.png']]) {
-      const el = $(id);
-      el.onerror = () => { $('#dShotsErr').textContent =
-        'Isaretli snapshot bulunamadi: ' + base + suffix + ' (fark yoksa uretilmez)'; };
-      el.src = base + suffix + '?t=' + t;
-    }
-    $('#dShots').hidden = false;
+/**
+ * TASARIM DIFF FLOWSCOPE'TA (2026-09-15). Panelin ayri "Tasarim diff" sekmesi
+ * kaldirildi: diff, dugumun Figma KAYNAGINA bagli bir eylem oldu (Flowscope →
+ * dugum cekmecesi → Kaynaklar → Figma satiri → "Diff al"). Site sekmesindeki
+ * dugme acik rotanin dugumunu orada acar; rota agacta yoksa sebebini soyler.
+ */
+function designDiffInFlowscope() {
+  const yol = (CURRENT_PATH || '/').split('#')[0];
+  const temiz = yol.split('?')[0].replace(/\/+$/, '') || '/';
+  const r = (window.SCOPE?.routes || []).find(x => x.path === yol || String(x.path).split('?')[0].replace(/\/+$/, '') === temiz);
+  if (!r) {
+    uiToast(`Bu rota kapsam agacinda yok: ${yol}. Once Flowscope'ta dugumu (route ya da site adresiyle) ekle.`, { type: 'err', title: 'Tasarim diff' });
+    return;
   }
+  location.href = scopeNodeUrl(r.nodeId);
 }
-
-async function loadDiffReports() {
-  const list = await (await fetch('/api/figma/reports')).json();
-  if (!list.length) { $('#dTable').innerHTML = '<tr><td class="mono">Kayitli rapor yok</td></tr>'; return; }
-  $('#dTable').innerHTML = '<tr><th>Rota</th><th>Frame</th><th>Ozet</th><th>Tarih</th></tr>' +
-    list.map(r => `<tr>
-      <td class="mono"><a href="${r.reportUrl}" target="_blank">${esc(r.route||r.slug)}</a></td>
-      <td>${esc(r.frame||'-')}</td>
-      <td class="mono">${r.counts ? `${r.counts.clean} birebir · ${r.counts.mismatched} spec · ${r.counts.missing} eksik` : '-'}</td>
-      <td class="mono">${esc((r.generatedAt||'').slice(0,16).replace('T',' '))}</td></tr>`).join('');
-}
-
-es.addEventListener('diff-start', e => {
-  const d = JSON.parse(e.data);
-  appendDiffLog(`=== ${d.page} (${d.route}) diff basladi ===`);
-});
-es.addEventListener('diff-log', e => { const d = JSON.parse(e.data); appendDiffLog(d.line, d.stream === 'err'); });
-es.addEventListener('diff-end', e => {
-  const d = JSON.parse(e.data);
-  appendDiffLog(`=== bitti (${(d.durationMs/1000).toFixed(0)} sn, cikis ${d.code}) ===`, d.code !== 0);
-  renderDiffSummary(d.summary, d.reportUrl);
-});
 
 // ---------------- Jira ----------------
 const statusColor = (st) => /Failed|Blocked/i.test(st) ? 'no' : /Tamam|Release|Deploy/i.test(st) ? 'ok' : 'sk';
@@ -3703,7 +3511,24 @@ load();
  * ⚠️ Cizim fonksiyonlari SCOPE null iken de calisabilmeli (kapsam okunamadi):
  * o durumda profil/eski veriyle devam ederler, sessizce sifir gostermezler.
  */
-onScopeChange(() => {
+/**
+ * Site sekmesindeki "Tasarim diff" dugmesi yalniz aktif urunun bir Figma
+ * eslemesi varsa gorunur (profil haritasi ya da agactaki node-id'li Figma
+ * linkleri — sunucu `summary.design` ile soyler). Diff'in kendisi Flowscope'ta
+ * (bkz. designDiffInFlowscope).
+ */
+function applyDesignAvailability(d) {
+  const acik = d?.design?.figma !== false;   // ozet okunamadiysa gizleme — kor kalmayalim
+  const sb = $('#siteDiffBtn');
+  if (sb) {
+    sb.style.display = acik ? '' : 'none';
+    sb.title = acik ? '' : "Bu urun icin Figma eslemesi yok — Flowscope'ta dugume Figma frame linki ekle.";
+  }
+}
+
+onScopeChange((d) => {
+  applyDesignAvailability(d);
+  loadRunnablePackages();
   renderProductBar();
   renderScopeCases();
   if (!$('#tab-overview').hidden) { renderOverviewFindings(); renderOverviewKpis(); }
@@ -4494,61 +4319,6 @@ async function loadPerf() {
   }
 }
 
-// ---------------- kotasiz diff ----------------
-/**
- * Mevcut "Tasarim diff" akisi API'ye gidiyor ve 10 rotanin 2'sinde calisiyor.
- * Bu blok onbellekten okur: 26 ekran frame'i, Figma'ya sifir cagri.
- */
-async function loadOfflineFrames() {
-  const sel = $('#odFrame');
-  if (sel.options.length) return;
-  try {
-    const d = await (await fetch('/api/figma/offline-frames')).json();
-    const byCanvas = {};
-    for (const f of d.frames) (byCanvas[f.canvas] ??= []).push(f);
-    sel.innerHTML = Object.entries(byCanvas).map(([c, list]) =>
-      `<optgroup label="${esc(c)}">` + list.map(f =>
-        `<option value="${esc(f.id)}">${esc(f.name)} · ${f.w}x${f.h} · ${f.texts} metin</option>`).join('') +
-      '</optgroup>').join('');
-    $('#odCtx').textContent = `${d.frames.length} frame önbellekte — Figma'ya sıfır çağrı`;
-  } catch (e) { $('#odCtx').textContent = 'frame listesi okunamadı'; }
-}
-
-async function offlineDiff() {
-  const btn = $('#odBtn');
-  btn.disabled = true;
-  $('#odState2').textContent = 'canlı yakalanıyor…';
-  $('#odOut').innerHTML = '';
-  try {
-    const ignore = ($('#odIgnore').value || '').split(',').map(x => x.trim()).filter(Boolean);
-    const d = await post('/api/figma/offline-diff', {
-      frameId: $('#odFrame').value, route: $('#odRoute').value.trim() || '/',
-      state: $('#odState').value, ignore,
-    });
-    if (d.error) { $('#odOut').innerHTML = `<p class="mono err">${esc(d.error)}</p>`; return; }
-    $('#odOut').innerHTML =
-      `<div class="strip" style="margin:12px 0">
-        <span class="cell"><span class="k">FRAME</span><span class="v" style="font-size:13px">${esc(d.frame)}</span></span>
-        <span class="cell"><span class="k">TASARIM METNI</span><span class="v">${d.total}</span></span>
-        <span class="cell"><span class="k">DINAMIK AYIKLANDI</span><span class="v mut">${d.dynamicSkipped}</span></span>
-        <span class="cell"><span class="k">ESLESTI</span><span class="v ok">${d.matched}</span></span>
-        <span class="cell"><span class="k">EKSIK</span><span class="v ${d.missing.length ? 'no' : 'ok'}">${d.missing.length}</span></span>
-        <span class="cell"><span class="k">FIGMA CAGRISI</span><span class="v ok">${d.apiCalls}</span></span>
-      </div>` +
-      (d.missing.length
-        ? d.missing.map(m => `<div class="od-miss">
-            <span class="tx">${esc(m.t)}</span>
-            <span class="fn">${esc(m.f ?? '?')} ${m.s ?? '?'}px w${m.w ?? '?'}</span></div>`).join('')
-        : '<p class="mono">eksik yok — tasarımdaki statik metinlerin hepsi canlıda var.</p>');
-    $('#odState2').textContent = '';
-  } catch (e) {
-    $('#odOut').innerHTML = `<p class="mono err">${esc(e.message)}</p>`;
-  } finally {
-    btn.disabled = false;
-    if ($('#odState2').textContent === 'canlı yakalanıyor…') $('#odState2').textContent = '';
-  }
-}
-
 // ---------------- onkosullar seridi ----------------
 /**
  * Disa bagimli her sey tek seritte. 20-21 Agustos'ta ucu birden sessizce
@@ -4663,14 +4433,36 @@ function toggleSidebar() {
  * Yuzey gecisleri (Kapsam, Landing) barin kendi kaynagindan gelir, buraya
  * eklenmez.
  */
+/*
+ * KOSUMLAR AKTIF URUNUN PAKETLERINDEN (2026-09-15). Eskiden `META.runs`
+ * (profilin whitelist'i: "Misafir seti", "01 Anasayfa"...) listeleniyordu —
+ * Home'dan taranan urunle ilgisi yoktu ve Kosumlar sekmesi paketlere gectikten
+ * sonra kutu tek basina eski dunyayi gosteriyordu. Simdi: Flowscope paketleri
+ * (`/api/scope/packages/runnable`, kapsam degisince tazelenir). Spec'i olan
+ * paket otomatik kosar, olmayan elle kosuma acilir. Whitelist siniri korunuyor:
+ * paket kosumu da ayni motordan, ayni izinli komutlarla gecer.
+ */
+let PKG_LIST = [];   // aktif urunun kosulabilir paketleri — komut kutusu + Kosumlar
+async function loadRunnablePackages() {
+  try { PKG_LIST = (await (await fetch('/api/scope/packages/runnable')).json()).packages || []; }
+  catch { PKG_LIST = []; }
+  return PKG_LIST;
+}
 HqNav.registerCommands(t => {
   const out = [];
-  for (const r of (META?.runs || [])) {
-    if (!t || r.label.toLowerCase().includes(t) || r.id.toLowerCase().includes(t))
-      out.push({ k: 'kos', ad: r.label, ip: r.id, yap: () => startRun(r.id) });
+  for (const p of PKG_LIST) {
+    if (t && !p.name.toLowerCase().includes(t)) continue;
+    const oto = p.specs.length > 0;
+    out.push({
+      k: oto ? 'kos' : 'elle',
+      ad: p.name,
+      ip: `${p.cases} case${oto ? ` · ${p.specs.length} spec` : ' · elle'}`,
+      yap: () => (oto ? runPackage(p.id) : runPackageManual(p.id)),
+    });
   }
   for (const b of document.querySelectorAll('.tabs button')) {
-    const ad = b.textContent.replace(/\s*\d+\s*$/, '').trim();
+    if (b.style.display === 'none' || b.hidden) continue;   // dinamik gizlenen sekme (Tasarim diff) listelenmez
+    const ad = b.textContent.replace(/\s*(\d+|[–-])\s*$/, '').trim();   // sayac (0, –) etikete karismasin
     if (!t || ad.toLowerCase().includes(t)) out.push({ k: 'ac', ad, ip: '', yap: () => b.click() });
   }
   return out;
