@@ -163,8 +163,18 @@ export function registerAiRoutes(router, ctx) {
     if (!cases.length) {
       return send(res, 400, { ok: false, error: "Bu dugumde cevrilecek elle case yok (otomatik case'lerin spec dosyasi yerinde)" });
     }
-    // Yeniden uretim sonrasi temizlenecek olu referanslar.
-    const oluSpecler = new Set(cases.map((tc) => tc.spec).filter(Boolean));
+    /*
+     * Yeniden uretim sonrasi temizlenecek OLU referanslar — iki yerden gelir:
+     * case'in kendi `spec`i VE dugumun `runRef.specs`i. Ikincisi olmadan,
+     * kaydedici disi uretimlerde (case'in kendi `spec` alani bos, bag yalniz
+     * dugumde) olu ad agacta KALIYOR ve kosum yeni dosyayi hic denemeden
+     * "Bilinmeyen spec" demeye devam ediyordu (olculdu 2026-09-16 canlida:
+     * n2 Salon -> runRef ['gen-salon.spec.ts'], case.spec = null).
+     */
+    const oluSpecler = new Set(specGen.deadSpecs([
+      ...cases.map((tc) => tc.spec),
+      ...(node.runRef?.specs ?? []),
+    ]));
 
     const rota = deriveRoutes(activeSubtree(tree, active), { baseUrl: active?.baseUrl })
       .find((r) => r.nodeId === node.id);

@@ -188,6 +188,15 @@ export function specExists(filename) {
   try { return fs.existsSync(path.join(TESTS, ad)); } catch { return false; }
 }
 
+/**
+ * Verilen spec adlarindan DOSYASI OLMAYANLAR. Yeniden uretimden sonra agactaki
+ * olu referanslar bununla temizleniyor; kalsalardi kosum dogrulamasi yeni
+ * dosyayi hic denemeden "Bilinmeyen spec" demeye devam ederdi.
+ */
+export function deadSpecs(list) {
+  return [...new Set((list ?? []).filter(Boolean))].filter((sp) => !specExists(sp));
+}
+
 /** Çakışmayan dosya adı üretir: `gen-<slug>.spec.ts`, gerekirse `-2`, `-3`… */
 export function pickFilename(slug) {
   const temel = `gen-${slug}`;

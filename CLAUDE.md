@@ -2788,6 +2788,14 @@ dosyaya da bakıyor** (`spec-gen.mjs → specExists`, yol kaçışını da redde
 | `/api/scope/testcases/spec` | filtre `(!automated && !spec) \|\| (spec && !specExists(spec))` |
 | aynı uç, yazma | **ölü referans TEMİZLENİR**: `runRef.specs`ten düşer, `tc.spec` yeni dosyaya döner — kalsaydı doğrulama "Bilinmeyen spec" demeye devam eder, yeni dosya hiç denenmezdi |
 
+⚠️ **Ölü referans İKİ yerde olabilir** ve ikisi de temizlenmeli: case'in kendi
+`spec` alanı VE düğümün `runRef.specs`i. Canlıda ölçüldü (2026-09-16):
+`n2 Salon → runRef ['gen-salon.spec.ts']`, case'in `spec`i **null** — bağ
+yalnızca düğüm seviyesinde. Yalnız `tc.spec`e bakan temizlik o adı ağaçta
+bırakır ve yeniden üretilen dosya hiç denenmeden koşum yine "Bilinmeyen spec"
+der. `spec-gen.mjs → deadSpecs(list)` ikisini birden süzüyor (tek yer, birim
+testli).
+
 Ölçüm: dosya silinip ağaçtaki referans bırakılınca satır `5 case · 1 spec
 otomatik · 2 elle · 1 spec dosyası kayıp` + "yeniden üret" (ipucunda dosya adı);
 üretim filtresi eski hâlinde 4 case görüp reddederken yeni hâlinde ölü

@@ -238,3 +238,20 @@ test("specExists dosyayi gorur, yol kacisini reddeder", () => {
   assert.equal(r.bos, false);
   assert.equal(r.kacis, false);
 });
+
+test("deadSpecs: dugum seviyesindeki olu referans da yakalanir", () => {
+  // Canli durum (2026-09-16): case'in kendi spec'i YOK, bag yalniz dugumde
+  // (runRef.specs) ve o dosya deploy'da ucmus. Temizlenmezse yeniden uretilen
+  // dosya hic denenmeden kosum "Bilinmeyen spec" demeye devam eder.
+  const r = calistir(`
+    g.storeSpec("gen-var.spec.ts", "kod");
+    return {
+      karisik: g.deadSpecs(["gen-var.spec.ts", "gen-ucmus.spec.ts", null, undefined]),
+      hepsiVar: g.deadSpecs(["gen-var.spec.ts"]),
+      bos: g.deadSpecs(null),
+    };
+  `);
+  assert.deepEqual(r.karisik, ["gen-ucmus.spec.ts"]);
+  assert.deepEqual(r.hepsiVar, []);
+  assert.deepEqual(r.bos, []);
+});
