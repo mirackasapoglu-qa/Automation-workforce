@@ -2719,6 +2719,63 @@ doğrulanıyor). Artık:
 Uyarı yalnızca `runnable === false && runId` durumunda basılır: ağaç, whitelist'te
 gerçekten olmayan bir koşum id'si gösteriyorsa.
 
+## Üretilen spec'ler deploy'da uçuyordu — kalıcı depo (2026-09-15)
+
+Canlıda ölçülen belirti: koşum "**Bilinmeyen spec: gen-rec-login-akisi.spec.ts ·
+Bilinmeyen spec: gen-salon.spec.ts**" diyordu. Ölçüm: ağacın `runRef.specs`i o
+iki dosyayı istiyor, `/api/specs` 17 spec görüyor ve **hiçbiri `gen-` değil**.
+
+Sebep: üretilen spec `tests/` altına yazılıyordu, yani **imajın içine**;
+`tests/gen-*.spec.ts` gitignore'da olduğu için her deploy imajı git'ten yeniden
+kurup dosyaları siliyor. Referans ise `panel-data` volume'ünde kalıyor. İki
+katman birbirinden ayrı ömür sürünce koşum sessizce imkânsız hâle geliyordu.
+
+**Çözüm — asıl kopya volume'de, `tests/` çalışma kopyası:**
+
+```
+panel-data/generated/gen-*.spec.ts   ASIL (volume)
+tests/gen-*.spec.ts                  calisma kopyasi (imaj; Playwright buraya bakar)
+panel/spec-gen.mjs   → storeSpec() ikisine birden yazar; restoreGenerated() geri koyar
+panel/spec-restore.mjs → restoreSpecs(readTree): depo + agac, tek cagri
+```
+
+- **Tek yazma yolu.** `storeSpec()` hem depoya hem `tests/`e yazar; `writeSpec()`
+  başlığı ekleyip ona düşer, kayıttan üretim (`/api/scope/testcases/record`) de
+  onu çağırır. ⚠️ Doğrudan `fs.writeFileSync(tests/…)` yazan ikinci bir yol
+  açma — tam olarak bu hata `gen-rec-*` dosyalarını uçuran şeydi.
+- **Geri yükleme iki kaynaktan**: (1) depo → `tests/`; (2) **kapsam ağacından**
+  yeniden üretim — kaydedici adımları (`testCase.recorded`) ağaçta, yani
+  volume'de duruyor, `recorded-spec.mjs → restoreFromTree()` onları modelsiz ve
+  deterministik olarak yeniden render ediyor (ölçüldü: yeniden üretilen dosya
+  orijinaliyle kod olarak BİREBİR aynı, yalnız başlıktaki ürün adı satırı
+  farklı olabiliyor). Bu, depo var olmadan üretilmiş kayıtları da kurtarır.
+- **Sahiplenme (tests → depo).** Depo kurulmadan önce üretilmiş ve hâlâ diskte
+  duran `gen-*` dosyaları ilk çağrıda depoya kopyalanır; bir daha uçmazlar.
+  Elle yazılmış testler adlandırma deseni yüzünden sahiplenilmez.
+- **Hiçbir dosya EZİLMEZ.** Var olan `tests/` dosyası atlanır (`skipped`):
+  üretilen kod elle düzeltilmiş olabilir, dosya başlığı zaten bunu söylüyor.
+- **Ne zaman koşar:** panel açılışında (proxy'den önce, `BASE_URL`den bağımsız)
+  ve **her koşumdan önce** (`/api/run` + `/api/scope/run`). Hatası koşumu
+  düşürmez.
+- `pickFilename()` çakışmayı **her iki dizinde** arar; yalnız `tests/`e bakmak,
+  deploy sonrası boş dizinde var olan bir adı yeniden verip geri yüklemede
+  dosyayı ezmeye yol açardı.
+
+⚠️ **Bu değişiklikten ÖNCE kaybolmuş AI üretimi spec'ler geri gelmez** —
+kayıtları hiçbir yerde yok, yeniden üretilmeleri gerekir. Kaydediciden gelenler
+(`gen-rec-*`) ağaçtaki adımlardan kurtulur.
+
+### Giriş bilgisi ihtiyacı artık paketin yanında görünüyor
+
+`/api/scope/packages/runnable` her paket için `needsLogin` (case/spec adında
+login·giriş·oturum·sign-in geçiyor mu) ve yanıt başında `credentials:
+{saved, username}` döndürüyor (**parola dönmez**). Koşumlar sekmesi, login akışı
+içeren bir paket varken kayıt yoksa paketlerin ÜSTÜNDE sarı bir uyarı ve tek
+tıkla kutuyu açan "giris bilgisi ekle" düğmesi basıyor; kayıt varsa "… <kullanıcı>
+ile koşacak" satırı. Satır özetine de "giris bilgisi yok" giriyor. Gerekçe:
+kullanıcı canlıda giriş düğmesini (üst bardaki ve başlıktaki iki adet) bulamadı —
+kimlik istemek için doğru an, ihtiyacın doğduğu yer.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

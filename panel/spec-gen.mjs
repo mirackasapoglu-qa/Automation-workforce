@@ -23,6 +23,19 @@ import path from "node:path";
 
 const ROOT = process.cwd();
 const TESTS = path.join(ROOT, "tests");
+/**
+ * ⚠️ ÜRETİLEN SPEC'İN ASIL YERİ BURASI — `panel-data` VOLUME'Ü.
+ *
+ * Dosya `tests/` altına yazılmak ZORUNDA (Playwright'ın testDir'i ve panelin
+ * spec doğrulaması orayı tarıyor), ama orası İMAJIN İÇİ: her deploy imajı
+ * git'ten yeniden kuruyor ve `tests/gen-*.spec.ts` gitignore'da olduğu için
+ * dosyalar siliniyor. Referans (`runRef.specs`) volume'de kaldığı için koşum
+ * "Bilinmeyen spec" diye düşüyordu (ölçüldü 2026-09-15 canlıda: ağaç 2 gen
+ * spec istiyor, sunucu 0 görüyor).
+ *
+ * Çözüm: ASIL KOPYA volume'de; `tests/` altındaki onun çalışma kopyası.
+ */
+const STORE = path.join(ROOT, "panel-data", "generated");
 
 /** Dosya adı: ürün/düğüm adından türetilir, çakışırsa sayı eklenir. */
 export function slugify(s) {
@@ -165,7 +178,10 @@ export function pickFilename(slug) {
   const temel = `gen-${slug}`;
   for (let i = 0; i < 50; i++) {
     const ad = i === 0 ? `${temel}.spec.ts` : `${temel}-${i + 1}.spec.ts`;
-    if (!fs.existsSync(path.join(TESTS, ad))) return ad;
+    // Kalici depo da sorulur: deploy sonrasi `tests/` bos gelebiliyor ve
+    // yalniz oraya bakmak, volume'de duran bir dosyanin adini YENIDEN verip
+    // geri yuklemede onu ezmeye yol acardi.
+    if (!fs.existsSync(path.join(TESTS, ad)) && !fs.existsSync(path.join(STORE, ad))) return ad;
   }
   return `${temel}-${Date.now()}.spec.ts`;
 }
@@ -174,6 +190,20 @@ export function pickFilename(slug) {
  * Dosyayı yazar. Başlığa nereden geldiği ve ELLE DÜZENLENEBİLECEĞİ yazılır —
  * üretilen kod kutsal değil, başlangıç noktası.
  */
+/**
+ * Hazir icerigi İKİ YERE birden yazar: kalici depo (volume) + calisma kopyasi
+ * (`tests/`). Kendi basligini tasiyan ureticiler (kayittan spec) bunu kullanir;
+ * `writeSpec` de basligi ekledikten sonra buraya duser. Tek yazma yolu olmasi
+ * onemli: ikinci bir yol yalniz `tests/`e yazarsa o dosya ilk deploy'da ucar.
+ */
+export function storeSpec(filename, icerik) {
+  fs.mkdirSync(STORE, { recursive: true });
+  fs.writeFileSync(path.join(STORE, filename), icerik);
+  fs.mkdirSync(TESTS, { recursive: true });
+  fs.writeFileSync(path.join(TESTS, filename), icerik);
+  return { file: filename, path: path.join("tests", filename) };
+}
+
 export function writeSpec(filename, code, { product, node, at = new Date().toISOString() }) {
   const baslik = `/*
  * ÜRETİLMİŞ DOSYA — kapsam ağacındaki test case adımlarından oluşturuldu.
@@ -184,7 +214,54 @@ export function writeSpec(filename, code, { product, node, at = new Date().toISO
  * Elle düzenleyebilirsin; bir daha üretilirse YENİ dosya açılır, bu ezilmez.
  */
 `;
-  fs.mkdirSync(TESTS, { recursive: true });
-  fs.writeFileSync(path.join(TESTS, filename), baslik + code.replace(/^﻿/, "") + "\n");
-  return { file: filename, path: path.join("tests", filename) };
+  return storeSpec(filename, baslik + code.replace(/^﻿/, "") + "\n");
+}
+
+/**
+ * Volume'deki üretilmiş spec'leri `tests/` altına geri koyar.
+ *
+ * Açılışta ve her koşumdan ÖNCE çağrılır: deploy sonrası `tests/` tertemiz
+ * gelir, ağaçtaki referanslar ise durur. Var olan dosyanın ÜZERİNE YAZILMAZ —
+ * kullanıcı üretilen kodu elle düzenlemiş olabilir ve o düzenleme kaybolmamalı
+ * (dosya başlığı zaten "elle düzenleyebilirsin" diyor).
+ *
+ * @returns {{restored: string[], skipped: number}}
+ */
+export function restoreGenerated() {
+  const uretilmis = (dir) => {
+    try { return fs.readdirSync(dir).filter((f) => /^gen-[\w.-]+\.spec\.ts$/.test(f)); }
+    catch { return []; }
+  };
+
+  const restored = [];
+  const adopted = [];
+  let skipped = 0;
+
+  // depo → tests: asil is.
+  const depoda = uretilmis(STORE);
+  if (depoda.length) fs.mkdirSync(TESTS, { recursive: true });
+  for (const f of depoda) {
+    const hedef = path.join(TESTS, f);
+    if (fs.existsSync(hedef)) { skipped++; continue; }
+    try { fs.copyFileSync(path.join(STORE, f), hedef); restored.push(f); }
+    catch { /* kopyalanamayan dosya kosumu dusurmesin */ }
+  }
+
+  /*
+   * tests → depo: SAHİPLENME. Bu depo var olmadan önce üretilmiş ve hâlâ
+   * diskte duran dosyalar başka hiçbir yerde yok — ilk deploy'da uçarlardı.
+   * Bir kez kopyalanınca kalıcı olurlar. Elle yazılmış bir test bu desene
+   * uymadığı için (ad `gen-` ile başlamıyor) sahiplenilmez.
+   */
+  for (const f of uretilmis(TESTS)) {
+    const hedef = path.join(STORE, f);
+    if (fs.existsSync(hedef)) continue;
+    try {
+      fs.mkdirSync(STORE, { recursive: true });
+      fs.copyFileSync(path.join(TESTS, f), hedef);
+      adopted.push(f);
+    } catch { /* sahiplenme basarisizligi kosumu dusurmesin */ }
+  }
+
+  return { restored, adopted, skipped };
 }

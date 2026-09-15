@@ -9,6 +9,37 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { gate, renderUser, slugify } from "./spec-gen.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { execFileSync } from "node:child_process";
+
+const MOD = path.resolve(import.meta.dirname, "spec-gen.mjs");
+
+/*
+ * Diske yazan yollar (`storeSpec` / `restoreGenerated` / `pickFilename`) GEÇİCİ
+ * bir cwd'de, AYRI SÜREÇTE koşar: modül yol sabitlerini yüklenirken
+ * `process.cwd()`den alıyor ve repo'nun kendi `tests/` dizinine dosya bırakmak
+ * istemiyoruz. Aynı desen `product-credentials.test.mjs`te de var.
+ */
+function calistir(kod) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "specgen-"));
+  const script = `
+    const g = await import(${JSON.stringify(MOD)});
+    const sonuc = await (async () => { ${kod} })();
+    console.log("<<<" + JSON.stringify(sonuc) + ">>>");
+  `;
+  const out = execFileSync(process.execPath, ["--input-type=module", "-e", script], { cwd: dir, encoding: "utf8" });
+  const parsed = JSON.parse(out.slice(out.indexOf("<<<") + 3, out.lastIndexOf(">>>")));
+  const oku = (rel) => (fs.existsSync(path.join(dir, rel)) ? fs.readFileSync(path.join(dir, rel), "utf8") : null);
+  const liste = (rel) => (fs.existsSync(path.join(dir, rel)) ? fs.readdirSync(path.join(dir, rel)).sort() : null);
+  const disk = {
+    tests: liste("tests"), store: liste(path.join("panel-data", "generated")),
+    testsIcerik: oku(path.join("tests", "gen-x.spec.ts")),
+  };
+  fs.rmSync(dir, { recursive: true, force: true });
+  return { ...parsed, __disk: disk };
+}
 
 const KOD = `import { test, expect } from "@playwright/test";
 test("Sepete urun eklenir", async ({ page }) => { await page.goto("/sepet"); await expect(page).toHaveURL(/sepet/); });`;
@@ -119,4 +150,75 @@ test("kapida PAROLA SIZINTISI yakalanir", () => {
   assert.match(r.error, /parola düz metin/);
   // Ayni kod, parola verilmemisse (kayit yok) gecer — yanlis pozitif yok.
   assert.equal(gate({ code: sizan }, { titles: ["Sepete urun eklenir"] }).ok, true);
+});
+
+test("storeSpec İKİ yere birden yazar — volume kopyasi olmadan deploy ucururdu", () => {
+  const r = calistir(`return g.storeSpec("gen-x.spec.ts", "kod");`);
+  assert.deepEqual(r.__disk.tests, ["gen-x.spec.ts"]);
+  assert.deepEqual(r.__disk.store, ["gen-x.spec.ts"]);
+  assert.equal(r.__disk.testsIcerik, "kod");
+  assert.equal(r.file, "gen-x.spec.ts");
+});
+
+test("restoreGenerated deploy sonrasi eksikleri geri koyar", () => {
+  // Deploy taklidi: depo dolu, `tests/` silinmis.
+  const r = calistir(`
+    g.storeSpec("gen-x.spec.ts", "kod");
+    (await import("node:fs")).rmSync("tests", { recursive: true, force: true });
+    return g.restoreGenerated();
+  `);
+  assert.deepEqual(r.restored, ["gen-x.spec.ts"]);
+  assert.deepEqual(r.__disk.tests, ["gen-x.spec.ts"]);
+  assert.equal(r.__disk.testsIcerik, "kod");
+});
+
+test("restoreGenerated ELLE DUZENLENMIS dosyayi EZMEZ", () => {
+  const r = calistir(`
+    g.storeSpec("gen-x.spec.ts", "kod");
+    const fs = (await import("node:fs")).default;
+    fs.writeFileSync("tests/gen-x.spec.ts", "elle duzeltilmis");
+    return g.restoreGenerated();
+  `);
+  assert.deepEqual(r.restored, []);
+  assert.equal(r.skipped, 1);
+  assert.equal(r.__disk.testsIcerik, "elle duzeltilmis");
+});
+
+test("depo yoksa sessizce bos doner (hic uretim yapilmamis panel)", () => {
+  const r = calistir(`return g.restoreGenerated();`);
+  assert.deepEqual(r.restored, []);
+  assert.equal(r.skipped, 0);
+});
+
+test("gen- olmayan dosya geri yuklenmez (depo dizini yalniz uretime ait)", () => {
+  const r = calistir(`
+    const fs = (await import("node:fs")).default;
+    fs.mkdirSync("panel-data/generated", { recursive: true });
+    fs.writeFileSync("panel-data/generated/not.md", "x");
+    fs.writeFileSync("panel-data/generated/gen-y.spec.ts", "y");
+    return g.restoreGenerated();
+  `);
+  assert.deepEqual(r.restored, ["gen-y.spec.ts"]);
+  assert.deepEqual(r.__disk.tests, ["gen-y.spec.ts"]);
+});
+
+test("pickFilename cakismayi DEPODA da arar (tests/ deploy'da bos gelebilir)", () => {
+  const r = calistir(`
+    g.storeSpec("gen-a.spec.ts", "kod");
+    (await import("node:fs")).rmSync("tests", { recursive: true, force: true });
+    return { ad: g.pickFilename("a") };
+  `);
+  assert.equal(r.ad, "gen-a-2.spec.ts", "depodaki dosyanin adi yeniden verilmemeli");
+});
+
+test("depo yokken diskteki uretilmis spec SAHIPLENILIR (ilk deploy'da ucmasin)", () => {
+  const r = calistir(`
+    const fs = (await import("node:fs")).default;
+    fs.mkdirSync("tests", { recursive: true });
+    fs.writeFileSync("tests/gen-eski.spec.ts", "depo oncesi uretildi");
+    fs.writeFileSync("tests/01-elle.spec.ts", "elle yazildi");
+    return g.restoreGenerated();
+  `);
+  assert.deepEqual(r.adopted, ["gen-eski.spec.ts"]);
+  assert.deepEqual(r.__disk.store, ["gen-eski.spec.ts"], "elle yazilan test sahiplenilmemeli");
 });

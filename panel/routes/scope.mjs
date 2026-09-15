@@ -19,9 +19,7 @@
 import { readTree, backfillRoutes, applyManualRuns, addRecordedCase } from "../scope.mjs";
 import { recordPackageRun, listPackageRuns, getPackageRun } from "../package-runs.mjs";
 import * as recSpec from "../recorded-spec.mjs";
-import { slugify, pickFilename } from "../spec-gen.mjs";
-import fs from "node:fs";
-import path from "node:path";
+import { slugify, pickFilename, storeSpec } from "../spec-gen.mjs";
 import {
   deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases, deriveFindings,
 } from "../scope-bridge.mjs";
@@ -209,10 +207,11 @@ export function registerScopeRoutes(router, ctx) {
     try {
       dosya = pickFilename(`rec-${slugify(title)}`);
       const kod = recSpec.renderSpec({ title, steps, product: active?.name ?? "", node: { name: node.name, nodeId: node.id }, path: rota });
-      // renderSpec kendi basligini tasiyor; spec-gen.writeSpec'in basligi ikinci kez eklenmesin.
-      const testsDir = path.join(process.cwd(), "tests");
-      fs.mkdirSync(testsDir, { recursive: true });
-      fs.writeFileSync(path.join(testsDir, dosya), kod);
+      // renderSpec kendi basligini tasiyor; spec-gen.writeSpec'in basligi ikinci
+      // kez eklenmesin — ama yazma yolu ORTAK olmali: dogrudan `tests/`e yazmak
+      // dosyayi ilk deploy'da ucuruyordu (olculdu 2026-09-15: "Bilinmeyen spec:
+      // gen-rec-login-akisi.spec.ts", agac istiyor, imajda dosya yok).
+      storeSpec(dosya, kod);
     } catch (e) {
       // Spec yazılamazsa case YİNE açılır (elle koşulabilir); sebep yanıtta.
       dosya = null;
@@ -372,11 +371,22 @@ export function registerScopeRoutes(router, ctx) {
   router.get("/api/scope/packages/runnable", ({ res }) => {
     const { tree } = (() => { try { return readTree(); } catch { return { tree: [] }; } })();
     const paketler = readPackages();
+    /*
+     * GİRİŞ BİLGİSİ GEREKİYOR MU? Kullanıcı canlıda "login akışı" case'i olan
+     * bir paketi koşamadı ve kimliği nereye gireceğini bulamadı (2026-09-15).
+     * Kimliği istemek için doğru an, paketin yanında: arayüz bu bayrağı görünce
+     * satıra "giriş bilgisi ekle" uyarısı koyuyor. Sezgisel — case/spec adına
+     * bakar, yanlış pozitifi zararsız (yalnız bir uyarı), yanlış negatifi de
+     * (kimlik zaten üst bardaki düğmeden girilebiliyor).
+     */
+    const aktifUrun = aktif();
+    const kimlik = cred.get(productSlug(aktifUrun.active));
+    const loginMi = (metin) => /login|giri[sş]|oturum|sign[- ]?in|log[- ]?in|üye ol|kay[ıi]t ol/i.test(String(metin ?? ""));
     const out = paketler.map((pkg) => {
       const items = resolvePackageItems(paketler, pkg.id);
       const specs = new Set();
       const nodes = new Set();
-      let elle = 0, eksik = 0;
+      let elle = 0, eksik = 0, login = false;
       for (const it of items) {
         const node = findNode(tree, it.nodeId);
         if (!node) { eksik++; continue; }
@@ -384,6 +394,7 @@ export function registerScopeRoutes(router, ctx) {
         if (!tc) { eksik++; continue; }
         const nodeSpecs = node.runRef?.specs ?? [];
         // Case'in kendi spec'i varsa o; yoksa düğümün spec'leri.
+        if (loginMi(tc.title) || loginMi(tc.spec)) login = true;
         const aday = tc.spec ? [tc.spec] : nodeSpecs;
         if (!aday.length) { elle++; continue; }
         nodes.add(node.id);
@@ -397,9 +408,15 @@ export function registerScopeRoutes(router, ctx) {
         nodes: [...nodes],
         manualCases: elle,
         missingRefs: eksik,
+        needsLogin: login,
       };
     });
-    return send(res, 200, { ok: true, packages: out });
+    return send(res, 200, {
+      ok: true,
+      packages: out,
+      // Parola DÖNMEZ; arayüzün tek ihtiyacı "kayıt var mı" (bkz. product-credentials.mjs).
+      credentials: { saved: Boolean(kimlik?.hasPassword), username: kimlik?.username ?? "" },
+    });
   });
 
   /**

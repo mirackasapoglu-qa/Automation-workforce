@@ -62,6 +62,7 @@ import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunRes
 import { deriveRoutes as scopeDeriveRoutes, matchPerfRoutes } from "./scope-bridge.mjs";
 import { resolveActive, activeSubtree, productSlug } from "./active-product.mjs";
 import { runEnv as productCredEnv } from "./product-credentials.mjs";
+import { restoreSpecs } from "./spec-restore.mjs";
 import { recordPackageRun, mapResultsToCases } from "./package-runs.mjs";
 import { readPackages, resolvePackageCases } from "./packages.mjs";
 import * as recSpec from "./recorded-spec.mjs";
@@ -843,7 +844,9 @@ function startDiff({ path: routePath, nodeId = null }) {
   // Login arkasindaki rotalar uye oturumu ister; profildeki `auth` alani soyler.
   if (map.auth === "member") args.push("--state", "member");
 
-  const envKey = `BASE_URL_${String(process.env.HOMEE_ENV ?? "test").toUpperCase()}`;
+  // Ortam adi PROFILDEN gelir (`activeEnv()`); cekirdek proje degiskeninin
+  // adini bilmez — `npm run panel:check` bunu olcuyor.
+  const envKey = `BASE_URL_${ENV.toUpperCase()}`;
   const child = spawn("node", args, {
     cwd: ROOT,
     env: {
@@ -2974,6 +2977,20 @@ ${testBlock}
     return send(res, status, { ok: false, error: String(e.message ?? e), code: e.code ?? (status === 400 ? "BAD_JSON" : null) });
   }
 });
+
+/*
+ * DEPLOY SONRASI KURTARMA — proxy'den ÖNCE ve BASE_URL'den BAĞIMSIZ.
+ *
+ * `tests/` imajdan gelir ve üretilmiş spec'ler orada yoktur (gitignore);
+ * asılları volume'de. Açılışta geri koymazsak ağaçtaki referanslar koşum
+ * anında "Bilinmeyen spec" verir (ölçüldü 2026-09-15 canlıda).
+ */
+try {
+  const geri = restoreSpecs(readTree, { product: aktifUrun().active?.name ?? "" });
+  if (geri.restored.length) {
+    console.log(`  uretilmis spec geri yuklendi: ${geri.restored.length} (depo ${geri.fromStore}, kayittan ${geri.fromTree})`);
+  }
+} catch (e) { console.log(`  uretilmis spec geri yuklenemedi: ${e.message}`); }
 
 if (BASE_URL) {
   const { url } = await startProxy({ baseURL: () => aktifBaseUrl(), port: PROXY_PORT, publicUrl: PROXY_PUBLIC_URL });

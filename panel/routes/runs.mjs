@@ -12,8 +12,20 @@
  *
  * HTTP eşlemesi: mesgul/sıra dolu/aynı iş → 409; geçersiz istek → 400.
  */
+import { restoreSpecs } from "../spec-restore.mjs";
+
 export function registerRunRoutes(router, ctx) {
   const { send, audit, engine, sse, RUNS, buildCustomArgs, journal, readTree, findScopeNode } = ctx;
+
+  /*
+   * Uretilmis spec'ler `panel-data`da (volume), calisma kopyasi `tests/`te
+   * (imaj) — deploy imaji yeniden kurunca kopya ucuyor, agactaki referans
+   * kaliyor ve dogrulama "Bilinmeyen spec" diyor (olculdu 2026-09-15 canlida).
+   * Her kosumdan ONCE eksikleri geri koy; hatasi kosumu dusurmesin.
+   */
+  const specleriKurtar = () => {
+    try { return restoreSpecs(readTree); } catch { return null; }
+  };
 
   router.post("/api/run/preview", ({ res, body }) => {
     const built = buildCustomArgs(body.params ?? {});
@@ -22,6 +34,7 @@ export function registerRunRoutes(router, ctx) {
 
   router.post("/api/run", ({ res, body }) => {
     const { id, params, headless, record, requestId, queue } = body;
+    specleriKurtar();
     const r = engine.start(id, params ?? null, Boolean(headless), Boolean(record), {
       requestId: typeof requestId === "string" ? requestId.slice(0, 80) : null,
       queue: Boolean(queue),
@@ -60,6 +73,7 @@ export function registerRunRoutes(router, ctx) {
    */
   router.post("/api/scope/run", ({ res, body }) => {
     const { nodeId, headless = true } = body;
+    specleriKurtar();
     const { tree } = readTree();
     const node = findScopeNode(tree, nodeId);
     if (!node) return send(res, 404, { ok: false, error: "Dugum bulunamadi." });

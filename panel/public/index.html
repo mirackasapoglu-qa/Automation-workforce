@@ -214,6 +214,13 @@
   .runs-head h2{margin:0}
   .runs-cred{width:auto;margin:0 0 0 auto;padding:5px 12px;font-size:12px;border-radius:999px;border-style:dashed}
   .runs-cred:hover{border-style:solid;border-color:var(--acc);color:var(--acc)}
+  /* Giris bilgisi uyarisi — ihtiyacin dogdugu yerde, paketlerin ustunde. */
+  .rc-cred-warn,.rc-cred-ok{display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+    padding:10px 12px;margin:0 0 10px;border-radius:10px;font-size:12.5px;line-height:1.5}
+  .rc-cred-warn{border:1px solid var(--warn,#d9a441);background:color-mix(in srgb,var(--warn,#d9a441) 11%,transparent)}
+  .rc-cred-ok{border:1px solid var(--bd);color:var(--mut)}
+  .rc-cred-warn button,.rc-cred-ok button{width:auto;margin:0 0 0 auto;padding:5px 12px;font-size:12px;border-radius:999px}
+  .rc-cred-warn button{border-color:var(--warn,#d9a441);color:var(--warn,#d9a441)}
   .rc-bos{color:var(--mut);padding:14px 2px}
 
   .rc-grp{margin-bottom:18px}
@@ -2175,8 +2182,12 @@ async function loadPackageRunIndex() {
 async function renderScopePackages() {
   const el = $('#scopePackages');
   if (!el) return;
-  let liste = [];
-  try { liste = (await (await fetch('/api/scope/packages/runnable')).json()).packages || []; PKG_LIST = liste; }
+  let liste = [], kimlik = { saved: false, username: '' };
+  try {
+    const d = await (await fetch('/api/scope/packages/runnable')).json();
+    liste = d.packages || []; PKG_LIST = liste;
+    kimlik = d.credentials || kimlik;
+  }
   catch { el.innerHTML = '<p class="mono err">Paket listesi okunamadi.</p>'; return; }
   await loadPackageRunIndex();
   const tr = $('#tcRuns'); if (tr) tr.textContent = liste.length;
@@ -2194,7 +2205,27 @@ async function renderScopePackages() {
   const byPkg = new Map();
   for (const r of PKG_RUNS) { if (!byPkg.has(r.packageId)) byPkg.set(r.packageId, []); byPkg.get(r.packageId).push(r); }
 
-  el.innerHTML = `<div class="rc-grp">
+  /*
+   * GIRIS BILGISI UYARISI. Login akisi case'i olan bir paket, kimlik girilmeden
+   * kosulursa test "kimlik verilmemis" diye atlanir ve sebebi hicbir yerde
+   * gorunmezdi — kullanici canlida tam bunu yasadi (2026-09-15): paketi
+   * kosamadi, kimligi nereye girecegini bulamadi. Uyari ihtiyac DOGDUGU YERDE,
+   * paketlerin ustunde ve tek tikla kutuyu aciyor.
+   */
+  const loginPaket = liste.filter(p => p.needsLogin);
+  const uyari = loginPaket.length && !kimlik.saved
+    ? `<div class="rc-cred-warn">
+        <b>Giris bilgisi gerekiyor.</b>
+        ${loginPaket.length} pakette login akisi testi var (${esc(loginPaket.map(p => p.name).join(', ').slice(0, 90))}),
+        ama bu urun icin kayitli kullanici adi/parola yok — test kimlik olmadan atlanir.
+        <button onclick="openProductCreds()">giris bilgisi ekle</button>
+       </div>`
+    : loginPaket.length && kimlik.saved
+      ? `<div class="rc-cred-ok">Login akisi testleri <b>${esc(kimlik.username)}</b> ile kosacak.
+          <button onclick="openProductCreds()">degistir</button></div>`
+      : '';
+
+  el.innerHTML = `${uyari}<div class="rc-grp">
     <div class="rc-grp-h">Paketler<span class="cnt">${liste.length}</span>
       <a class="rc-grp-l" href="/scope/#view=packages">Flowscope'ta yonet</a></div>
     <div class="rc-tbl">${liste.map(p => {
@@ -2206,6 +2237,7 @@ async function renderScopePackages() {
         p.specs.length ? `${p.specs.length} spec otomatik` : null,
         p.manualCases ? `${p.manualCases} elle` : null,
         p.missingRefs ? `${p.missingRefs} kayip referans` : null,
+        p.needsLogin && !kimlik.saved ? 'giris bilgisi yok' : null,
         !p.specs.length ? 'otomatik karsiligi yok — elle kosulur' : null,
       ].filter(Boolean);
       const c = son?.counts;
