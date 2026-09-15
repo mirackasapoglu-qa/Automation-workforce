@@ -1062,25 +1062,31 @@ const engine = createRunEngine({
    */
   productEnv: ({ specs }) => {
     const u = aktifUrun();
-    if (!u.active || u.active.isProfile !== false || !u.baseUrl) return {};
+    if (!u.active) return {};
+    /*
+     * İKİ AYRI KARAR — karıştırma:
+     *
+     * a) baseURL override + PW_PRODUCT="1": yalnız YABANCI ürün için ve yalnız
+     *    üretilmiş spec'lerde. PW_PRODUCT ile playwright.config storageState
+     *    vermez, global-setup kapı/üye girişini ATLAR; aksi hâlde global-setup
+     *    profilin kapısını yabancı sitede arayıp koşumu daha test başlamadan
+     *    düşürüyordu (ölçüldü 2026-09-15). Repo'nun kendi suite'i profilin
+     *    sitesini test ettiği için onun adresi ASLA kaydırılmaz.
+     *
+     * b) GİRİŞ BİLGİLERİ: kullanıcı o ürün için AÇIKÇA kaydettiyse koşuma
+     *    geçer — ürün profilinki olsa bile. Önceden (a)'nın dar kapısına
+     *    bağlıydı ve profil ürününde kimlik hiç geçmiyordu: login akışı testi
+     *    "QA_PASSWORD yok" diye kendini atlıyordu (ölçüldü 2026-09-16; canlıda
+     *    tek ürün var ve o profilinki). Parola koda gömülmez, sürece ortam
+     *    değişkeni olarak girer (bkz. panel/product-credentials.mjs).
+     */
+    const kimlik = productCredEnv(productSlug(u.active));
     const liste = Array.isArray(specs) ? specs : [];
-    if (!liste.length || !liste.every((sp) => String(sp).startsWith("gen-"))) return {};
-    /*
-     * PW_PRODUCT=1: playwright.config storageState vermez, global-setup kapı/üye
-     * girişini ATLAR. Aksi hâlde yabancı ürün için global-setup profilin
-     * kapısını o sitede arayıp üye girişine kalkışıyor ve koşum daha test
-     * başlamadan düşüyordu (ölçüldü 2026-09-15: promptfoo'da /giris yok).
-     */
-    /*
-     * Giris bilgileri AYNI dar kapidan: yalnizca uretilen spec'ler ve yalnizca
-     * aktif urunun kendi kaydi. Parola KODA GOMULMUYOR, surece ortam degiskeni
-     * olarak giriyor (bkz. panel/product-credentials.mjs).
-     */
-    return {
-      [`BASE_URL_${ENV.toUpperCase()}`]: u.baseUrl,
-      PW_PRODUCT: "1",
-      ...productCredEnv(productSlug(u.active)),
-    };
+    const uretilmis = liste.length > 0 && liste.every((sp) => String(sp).startsWith("gen-"));
+    if (u.active.isProfile === false && u.baseUrl && uretilmis) {
+      return { [`BASE_URL_${ENV.toUpperCase()}`]: u.baseUrl, PW_PRODUCT: "1", ...kimlik };
+    }
+    return kimlik;
   },
   /*
    * PAKET KOŞUMU → DEFTER. Paketten başlatılan koşum (`params.package`) bitince
