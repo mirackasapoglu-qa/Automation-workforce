@@ -2812,6 +2812,73 @@ ile koşacak" satırı. Satır özetine de "giris bilgisi yok" giriyor. Gerekçe
 kullanıcı canlıda giriş düğmesini (üst bardaki ve başlıktaki iki adet) bulamadı —
 kimlik istemek için doğru an, ihtiyacın doğduğu yer.
 
+## Kaydediciden çıkan spec neden düşüyordu — dört ölçülmüş hata (2026-09-16)
+
+Canlıda bir paket koşuldu, 4 case de düştü (`expect(locator).toBeVisible()
+failed` ×3, `locator.click: Timeout 20000ms` ×1). Ölçüm sırası:
+
+- Site **ayakta ve kapı ekranı YOK** (anonim istek 85 KB gerçek içerik döndü) —
+  sebep ortam değil, **locator'lar**.
+- Kayıttan üretilen spec, canlı ağaçtaki adımlardan yeniden render edilip tek
+  tek gerçek siteye karşı koşuldu. Dört ayrı hata çıktı, dördü de kapatıldı:
+
+**1. Erişilebilir ad, kullanıcının YAZDIĞI değerden türetiliyordu.**
+`proxy.mjs → locator()` ad için `el.value`a düşüyordu; form alanında bu
+`getByRole('textbox', { name: 'mirac@ornek.co' })` ve
+`getByRole('checkbox', { name: 'on' })` üretiyordu (`on` = input'un varsayılan
+`value`si). Ölçüldü: ikisi de **0 eşleşme**. Form alanında sıra artık
+`aria-label > placeholder > <label> metni > #id > [name] > css`; `el.value`
+hiçbir zaman kullanılmaz.
+
+**2. PAROLA kaydediliyordu.** `step({action:"fill", value: el.value})` parola
+alanında düz metin parolayı hem kapsam ağacına hem `tests/` altındaki dosyaya
+yazardı. Artık `secret: true` işareti konuyor, değer taşınmıyor; üretilen kod
+`process.env.QA_PASSWORD` okuyor ve kimlik yoksa `test.skip` ile atlıyor (bkz.
+"Ürün giriş bilgileri"). Eski kayıtlarda kalan maskelenmiş dize (`••••••••`) de
+render sırasında parola sayılıyor (`isSecretStep`).
+
+**3. `input[type="password"]` bu sitede YOK.** Parola kutusu
+`id="login-password"` ama **`type="text"`** — maskelemeyi kendi yapıyor (zaten
+`el.value`nin `••••••••` dönmesinin sebebi bu). `passwordLoc()` önce AYNI kaydın
+başka bir adımında geçen parola-benzeri locator'ı arıyor (kaydedici onu genelde
+bir iddiada `#login-password` olarak yakalamış oluyor), sonra geniş bir CSS
+listesine düşüyor.
+
+**4. Kutular `sr-only`.** `<input type="checkbox" class="sr-only">` — görünen şey
+etiketi; Playwright aktiflik kontrolünde 20 sn bekleyip düşüyor. `check`/
+`uncheck` ve kutuya yapılan `click` artık `{ force: true }` ile üretiliyor
+(reponun POM'undaki `focus()+Space` çözümüyle aynı gerekçe, seçici tuzakları
+madde 11).
+
+Ayrıca **çoklu eşleşme**: giriş sayfasında `getByRole('button', { name: 'GİRİŞ
+YAP' })` **2 eşleşme** döndü → çıplak locator strict mode ile patlar. Üretilen
+her locator artık `.filter({ visible: true }).first()` ile bitiyor; `.first()`
+tek başına görünmez ikizi yakalayıp click timeout'una düşerdi (madde 2).
+
+Eski kayıtlar da **render sırasında onarılıyor** (`repairLoc`): tahmin yok,
+yalnız üç güvenli kaynak — parola alanı, bir önceki adımın aynı alana tıklaması,
+adsız rol. Onarılamayan bozuk ad için koda `// TODO` satırı düşüyor.
+
+**Sonuç ölçümü:** aynı kayıt, düzeltmelerden sonra gerçek siteye karşı **2,3
+sn'de yeşil** (öncesi: 20 sn timeout).
+
+⚠️ **Kalan iki sınır, bilinçli:**
+- **Tek seferlik pop-up'lar.** Kayıt sırasında çıkan bir modalın "KAPAT"
+  düğmesine tıklanmışsa o adım dosyaya girer ve temiz koşumda 20 sn bekler.
+  Kaydedici bunu bilemez — dosya elle düzenlenebilir (başlığı bunu söylüyor).
+- **Kayıt tek başına TEST DEĞİL.** Yukarıdaki koşum YANLIŞ parolayla da yeşil
+  geçti: adımların hepsi çalıştı ama "giriş yapıldı mı" diye soran bir iddia
+  yok. Kaydederken **İDDİA MODU** ile en az bir doğrulama bırakılmalı.
+
+### Neden modelin kendisi koşmuyor da spec dosyası üretiliyor
+
+Sık gelen soru. Model **kodu yazar, Playwright koşar** — model tarayıcıyı
+sürmez. Gerekçeler ölçülebilir: aynı dosya her koşumda **aynı** adımları atar
+(model her seferinde başka yol seçebilir), koşum **saniyeler** sürer ve
+**ücretsizdir** (üretim ~30-40 sn ve ücretli), düşen adım **trace/video/ekran
+görüntüsü** bırakır, dosya git'e girer ve insan **düzeltebilir**. Model bir kez
+yazar, dosya sonsuz kez koşar.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

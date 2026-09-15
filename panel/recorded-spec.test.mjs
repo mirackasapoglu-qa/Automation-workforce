@@ -36,13 +36,17 @@ test("kod satirlari: locator turleri, iddia, tek tirnak kacisi ve satir sonu tem
     { action: "fill", loc: { kind: "css", value: "input[name='q']" }, value: "it's\nmulti\tline" },
   ]);
   assert.equal(lines[0], "  await page.goto('/docs/intro/');");
-  assert.equal(lines[1], "  await page.getByRole('link', { name: 'Docs' }).click();");
-  assert.match(lines[4], /expect\(page\.getByText\('No results found'\)\)\.toContainText\('No results'\)/);
+  // Gorunur suzgeci HER locator'a eklenir: ikiz/coklu eslesme strict mode ile
+  // patiyordu (olculdu canli /giris: "GİRİŞ YAP" 2 eslesme).
+  assert.equal(lines[1], "  await page.getByRole('link', { name: 'Docs' }).filter({ visible: true }).first().click();");
+  assert.match(lines[4], /expect\(page\.getByText\('No results found'\)\.filter\(\{ visible: true \}\)\.first\(\)\)\.toContainText\('No results'\)/);
   // escapeRe '/' karakterini KACIRMAZ (RegExp kurucusunda gerekmez)
   assert.equal(lines[5], "  await expect(page).toHaveURL(new RegExp('/docs'));");
-  assert.equal(lines[6], "  await page.getByTestId('agree').check();");
+  // Kutular force ile: sr-only checkbox Playwright'in aktiflik kontrolunde
+  // 20 sn bekleyip dusuyordu (olculdu canli /giris).
+  assert.equal(lines[6], "  await page.getByTestId('agree').filter({ visible: true }).first().check({ force: true });");
   // tek tirnak kacti, satir sonu/tab bosluga dondu — dosya gecerli JS kalir
-  assert.equal(lines[7], "  await page.locator('input[name=\\'q\\']').fill('it\\'s multi line');");
+  assert.equal(lines[7], "  await page.locator('input[name=\\'q\\']').filter({ visible: true }).first().fill('it\\'s multi line');");
   assert.equal(q("ab"), "'ab'", "kontrol karakteri atilir");
 });
 
@@ -63,4 +67,26 @@ test("describeLocator rol adlari", () => {
   assert.equal(describeLocator({ kind: "role", role: "button", name: "Gönder" }), "'Gönder' düğmesi");
   assert.equal(describeLocator({ kind: "placeholder", value: "e-posta" }), "'e-posta' alanı");
   assert.equal(describeLocator(null), "sayfa");
+});
+
+test("PAROLA ne koda ne case adimina duser — ortamdan okunur", () => {
+  const adimlar = [{ action: "fill", loc: { kind: "css", value: "#login-password" }, secret: true }];
+  const kod = toCodeLines(adimlar).join("\n");
+  assert.match(kod, /process\.env\.QA_PASSWORD/);
+  assert.match(kod, /test\.skip\(!process\.env\.QA_PASSWORD/, "kimlik yoksa atla, yanlis parolayla deneme");
+  assert.equal(/fill\('/.test(kod), false, "duz metin parola yazilmamali");
+  assert.match(toCaseSteps(adimlar)[0].action, /kayıtlı parolayı yaz/);
+});
+
+test("gorunur suzgeci iddiaya da uygulanir", () => {
+  const kod = toCodeLines([{ action: "assert", loc: { kind: "role", role: "button", name: "GİRİŞ YAP" } }])[0];
+  assert.match(kod, /\.filter\(\{ visible: true \}\)\.first\(\)/);
+  assert.match(kod, /toBeVisible/);
+});
+
+test("ESKI kayitta maskelenmis deger de parola sayilir", () => {
+  // Agacta duran eski kayit: site parolayi kendi maskelemis (olculdu canlida).
+  const kod = toCodeLines([{ action: "fill", loc: { kind: "css", value: "#login-password" }, value: "•••••••••" }]).join("\n");
+  assert.match(kod, /process\.env\.QA_PASSWORD/);
+  assert.equal(kod.includes("•"), false, "maskelenmis dize koda yazilmamali");
 });

@@ -288,11 +288,40 @@ export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCooki
     return n || el;
   }
 
+  /*
+   * ⚠️ YAZILAN DEGER KIMLIK DEGILDIR. Eski surum erisilebilir ad icin
+   * el.value'a dusuyordu; form alaninda bu, kullanicinin YAZDIGI metni
+   * locator adi yapiyordu:
+   *   getByRole('textbox', { name: 'mirac@ornek.co' })   -> hic eslesmez
+   *   getByRole('checkbox', { name: 'on' })              -> 'on' = input.value
+   * Olculdu 2026-09-16 (canli /giris): ikisi de 0 eslesme. Form alaninda sira
+   * artik aria-label > placeholder > <label> metni > #id > [name] > css.
+   */
+  function labelOf(el){
+    try {
+      if (el.labels && el.labels.length) return (el.labels[0].innerText || "").trim().replace(/\\s+/g, " ").slice(0, 60);
+      if (el.id) { var l = document.querySelector('label[for="' + el.id + '"]'); if (l) return (l.innerText || "").trim().slice(0, 60); }
+    } catch (e) {}
+    return "";
+  }
+
   function locator(el){
     var tid = el.getAttribute && el.getAttribute("data-testid");
     if (tid) return { kind: "testid", value: tid };
     var role = el.getAttribute("role") || implicitRole(el);
-    var name = (el.getAttribute("aria-label") || el.innerText || el.value || el.title || "").trim().replace(/\\s+/g, " ").slice(0, 60);
+    var aria = (el.getAttribute("aria-label") || "").trim().replace(/\\s+/g, " ").slice(0, 60);
+
+    if (/^(input|select|textarea)$/i.test(el.tagName)) {
+      if (role && aria) return { kind: "role", role: role, name: aria };
+      if (el.placeholder) return { kind: "placeholder", value: el.placeholder };
+      var lbl = labelOf(el);
+      if (role && lbl) return { kind: "role", role: role, name: lbl };
+      if (el.id) return { kind: "css", value: "#" + el.id };
+      if (el.name) return { kind: "css", value: el.tagName.toLowerCase() + '[name="' + el.name + '"]' };
+      return { kind: "css", value: cssPath(el) };
+    }
+
+    var name = (aria || el.innerText || el.title || "").trim().replace(/\\s+/g, " ").slice(0, 60);
     if (role && name) return { kind: "role", role: role, name: name };
     if (el.placeholder) return { kind: "placeholder", value: el.placeholder };
     if (name) return { kind: "text", value: name };
@@ -358,7 +387,18 @@ export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCooki
     if (ty === "checkbox" || ty === "radio") {
       step({ action: el.checked ? "check" : "uncheck", loc: locator(el), at: Date.now() });
     } else {
-      step({ action: "fill", loc: locator(el), value: String(el.value ?? "").slice(0, 120), at: Date.now() });
+      /*
+       * ⚠️ PAROLA KAYDEDILMEZ. el.value bir parola alaninda DUZ METIN parolayi
+       * verir; kaydedilen adimlar hem kapsam agacina hem uretilen spec dosyasina
+       * yaziliyor — yani parola panel-data'ya ve tests/ altina duz metin
+       * duserdi. Bunun yerine secret isareti konur; uretilen kod parolayi
+       * ortamdan okur (bkz. product-credentials.mjs -> QA_PASSWORD).
+       */
+      var gizli = (el.type || "").toLowerCase() === "password"
+        || /pass|parola|sifre|şifre/i.test(el.name || el.id || el.getAttribute("autocomplete") || "");
+      step(gizli
+        ? { action: "fill", loc: locator(el), secret: true, at: Date.now() }
+        : { action: "fill", loc: locator(el), value: String(el.value ?? "").slice(0, 120), at: Date.now() });
     }
   }, true);
 
