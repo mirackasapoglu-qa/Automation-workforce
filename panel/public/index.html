@@ -134,6 +134,20 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* Kart acilmayi bekleyenler (Jira sekmesi ustu) — basarisiz case'ler +
+     bilinen hatalar. Panelin mevcut satir dilinden (ov-row) miras. */
+  .bq{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 16px;background:var(--card)}
+  .bq-h{font-size:12px;font-weight:600;color:var(--fg);margin-bottom:10px;display:flex;
+    align-items:center;gap:10px;text-transform:uppercase;letter-spacing:.4px}
+  .bq-c{font-size:11px;font-weight:400;color:var(--mut);text-transform:none;letter-spacing:0}
+  .bq-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--line)}
+  .bq-row:first-of-type{border-top:0}
+  .bq-tag{font-size:9.5px;font-weight:700;letter-spacing:.5px;padding:2px 6px;border-radius:4px;
+    flex:0 0 auto;border:1px solid currentColor}
+  .bq-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+  .bq-t{font-size:12.5px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bq-m{font-size:11px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .bq-btn{width:auto;margin:0;flex:0 0 auto;padding:5px 12px;font-size:12px}
   /* Vekil adresi ulasilamazken iframe yerine cikan aciklama kutusu. */
   .proxy-warn{border:1px solid var(--line);border-left:3px solid var(--sk);border-radius:8px;
     padding:18px 20px;background:var(--card);max-width:760px}
@@ -949,6 +963,10 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
     <div id="tab-jira" hidden>
       <div class="strip" id="jiraStrip"></div>
+      <!-- Kart acilmayi bekleyenler: son kosumun GERCEK basarisizliklari + bilinen
+           hatalar. Tek tikla asagidaki bug formunu doldurur (kart ACMAZ — yazma
+           hala onayla ve tek yerden). -->
+      <div id="bugQueue"></div>
       <details id="bugWrap">
         <summary>
           <svg style="width:17px;height:17px;color:var(--no);flex:0 0 auto" viewBox="0 0 24 24" fill="none"
@@ -1401,7 +1419,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
     kopya.querySelector('.tc')?.remove();
     leaf.textContent = kopya.textContent.trim();
   }
-  if (b.dataset.tab === 'jira') loadBugForm();
+  if (b.dataset.tab === 'jira') { loadBugForm(); renderBugQueue(); }
   if (b.dataset.tab === 'site') loadRecordings();
   if (b.dataset.tab === 'diff') loadOfflineFrames();
   if (b.dataset.tab === 'diff') { $('#dPath').value = CURRENT_PATH || '/'; matchFigma($('#dPath').value); loadDiffReports(); }
@@ -3328,6 +3346,76 @@ OLCUM
 
 let EV_SELECTED = new Set();
 
+/**
+ * KART ACILMAYI BEKLEYENLER — Jira sekmesinin en ustu.
+ *
+ * NEDEN: bug formu vardi ama "neye kart acacagim" sorusunun cevabi hicbir
+ * yerde yoktu; kullanici basarisiz case'i Son sonuclar sekmesinde gorup
+ * ozeti/aciklamayi ELDEN yazmak zorundaydi (bildirdi 2026-09-15: "hatali sonuc
+ * veren kosumlari jira sayfasinda goremiyorum").
+ *
+ * Iki kaynak, bilerek AYRI gosteriliyor:
+ *   - son kosumun GERCEK basarisizliklari (`expected !== 'failed'`)
+ *   - bilinen hatalar (tests/known-issues.ts) — bunlar `test.fail()` ile
+ *     izleniyor, yani suite YESIL kaliyor; kart acilip acilmadigi ayri bir soru
+ *
+ * ⚠️ Bu bolum kart ACMAZ, yalnizca formu DOLDURUR. Yazma tek yerden ve onayla
+ * (`createBugCard`) — panelin Jira yazma kurali degismedi.
+ */
+async function renderBugQueue() {
+  const el = $('#bugQueue');
+  if (!el) return;
+
+  let rows = [];
+  try { rows = (await (await fetch('/api/results')).json()).rows || []; } catch { /* sonuc yoksa yalnizca bilinen hatalar */ }
+  // "Bilinen hata" = test.fail() ile isaretli, BEKLENEN basarisizlik. Gercek
+  // basarisizlikla karistirmak raporu bozar (bkz. CLAUDE.md).
+  const gercek = rows.filter(r => (r.status === 'failed' || r.status === 'timedOut') && r.expected !== 'failed');
+  const bilinen = META?.knownIssues ?? [];
+
+  if (!gercek.length && !bilinen.length) { el.innerHTML = ''; return; }
+
+  const satir = (tur, baslik, alt, ipucu, veri) => `
+    <div class="bq-row">
+      <span class="bq-tag ${tur === 'fail' ? 'no' : 'sk'}">${tur === 'fail' ? 'BASARISIZ' : 'BILINEN'}</span>
+      <span class="bq-body"><span class="bq-t">${esc(baslik)}</span><span class="bq-m">${esc(alt)}</span></span>
+      <button class="bq-btn" title="${esc(ipucu)}" onclick='bugFromQueue(${JSON.stringify(veri).replace(/'/g, "&#39;")})'>kart aç</button>
+    </div>`;
+
+  el.innerHTML = `<div class="bq">
+    <div class="bq-h">Kart açılmayı bekleyenler
+      <span class="bq-c">${gercek.length} başarısız · ${bilinen.length} bilinen hata</span></div>
+    ${gercek.map(r => satir('fail', r.title, `${r.file}${r.error ? ' · ' + r.error.split('\n')[0].slice(0, 70) : ''}`,
+        'Bu başarısızlıkla bug formunu doldur', {
+          summary: `${r.file}: ${r.title}`.slice(0, 120),
+          detail: [r.error || '', r.file ? `Spec: ${r.file}` : ''].filter(Boolean).join('\n'),
+        })).join('')}
+    ${bilinen.map(k => satir('known', `${k.id} · ${(k.where || '').slice(0, 60)}`, (k.detail || '').slice(0, 90),
+        'Bu bilinen hatayla bug formunu doldur', {
+          summary: `${k.id}: ${(k.where || '').slice(0, 90)}`,
+          detail: k.detail || '',
+          nodeId: k.nodeId || null,
+          issue: k.id,
+        })).join('')}
+  </div>`;
+}
+
+/** Kuyruktaki bir satiri bug formuna doldurur (kart ACMAZ). */
+let BUG_SCOPE_NODE = null;   // kart acilinca kapsam dugumune baglanacak id
+function bugFromQueue(v) {
+  BUG_SCOPE_NODE = v.nodeId || null;
+  $('#bugSummary').value = v.summary || '';
+  $('#bugDesc').value = BUG_TEMPLATE()
+    + (v.issue ? `\nDAYANAK: ${v.issue}` : '')
+    + (v.detail ? `\n\nOLCUM/HATA\n${v.detail}` : '');
+  $('#bugWrap').open = true;
+  $('#bugSummary').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  $('#bugSummary').focus();
+  uiToast(v.nodeId
+    ? 'Form dolduruldu. Kart açılınca ilgili kapsam düğümüne de bağlanacak.'
+    : 'Form dolduruldu — özeti gözden geçirip "Kartı aç" de.', { type: 'info', ms: 5000 });
+}
+
 async function loadBugForm() {
   if ($('#bugDesc') && !$('#bugDesc').value) $('#bugDesc').value = BUG_TEMPLATE();
   // atanabilir kullanicilar — accountId ile, cunku ad ile atama CALISMIYOR
@@ -3381,8 +3469,22 @@ async function createBugCard() {
   try {
     const d = await post('/api/jira/bug', { summary, description, assigneeAccountId, evidence });
     if (d.error) { $('#bugOut').innerHTML = `<p class="mono err">${esc(d.error)}</p>`; return; }
+    /*
+     * Kart bir KAPSAM DUGUMUNDEN acildiysa (bilinen hata kaydinda nodeId var)
+     * karti agaca geri bagla — `attachJiraTask` durumu da soruyor ve dugumu
+     * gerekiyorsa ❌'ye cekiyor. Baglama basarisiz olursa kart yine acilmis
+     * olur; sebep satir olarak yazilir, sessizce yutulmaz.
+     */
+    let bagliNot = '';
+    if (BUG_SCOPE_NODE) {
+      try {
+        const b = await post('/api/scope/jira/attach', { nodeIds: [BUG_SCOPE_NODE], taskId: d.key });
+        bagliNot = b.ok ? ` · kapsam düğümüne bağlandı` : ` · kapsama bağlanamadı: ${esc(b.error || '?')}`;
+      } catch (e) { bagliNot = ` · kapsama bağlanamadı: ${esc(e.message)}`; }
+      BUG_SCOPE_NODE = null;
+    }
     $('#bugOut').innerHTML = `<p class="mono"><a href="${d.url}" target="_blank">${esc(d.key)}</a> açıldı`
-      + (d.attached?.length ? ` · ${d.attached.length} ek yüklendi` : '') + '</p>';
+      + (d.attached?.length ? ` · ${d.attached.length} ek yüklendi` : '') + bagliNot + '</p>';
     $('#bugSummary').value = '';
     $('#bugDesc').value = BUG_TEMPLATE();
     EV_SELECTED.clear();

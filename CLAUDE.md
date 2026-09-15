@@ -2393,6 +2393,28 @@ bu "88 case'in hepsi kaldı" gibi okunuyordu — oysa anlamı "bu makinede koşu
 kaydı yok" (`panel-data/case-history.json` boş). Kayıt yoksa artık sayı değil
 **durum** yazılıyor: `– · kosum kaydi yok · 88 otomatik case`.
 
+## Jira: "Kart açılmayı bekleyenler" (2026-09-15)
+
+Bug formu vardı ama **neye kart açacağım** sorusunun cevabı hiçbir yerde yoktu:
+kullanıcı başarısız case'i "Son sonuçlar" sekmesinde görüp özeti ve açıklamayı
+ELDEN yazmak zorundaydı. Jira sekmesinin en üstünde artık tek liste:
+
+- **son koşumun GERÇEK başarısızlıkları** (`/api/results` → `expected !== "failed"`)
+- **bilinen hatalar** (`tests/known-issues.ts`, `/api/meta → knownIssues`)
+
+⚠️ İkisi bilerek AYRI etiketli: `test.fail()` ile işaretli bir case beklenen
+şekilde düştüğünde suite YEŞİL kalır — onu "başarısız" saymak raporu bozar
+(mevcut kural, bkz. "Bilinen ürün hataları"). Bu liste o ayrımı koruyor.
+
+⚠️ **Bu bölüm kart AÇMAZ, formu DOLDURUR.** Özet + açıklama (hata metni /
+dayanak kodu) hazır gelir, kullanıcı gözden geçirip "Kartı aç" der. Jira'ya
+yazma tek yerden ve onayla (`createBugCard`) — kural değişmedi.
+
+**Kapsam bağı:** bilinen hata kaydında `nodeId` varsa kart açıldıktan sonra
+`POST /api/scope/jira/attach` ile ağaca geri bağlanır (aynı çağrı düğümün
+durumunu da Jira statüsüne göre değerlendiriyor). Bağlama başarısız olursa kart
+yine açılmıştır; sebep satırda yazar, sessizce yutulmaz.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |
