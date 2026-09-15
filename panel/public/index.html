@@ -134,6 +134,17 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* Yan yana tasarim kolonu. Yukseklik kapsayicidan (#siteSplit) gelir —
+     sabit deger yazma, cerceveyle hizasi kacar. */
+  .dcol{flex:1;height:100%;overflow:auto;border:1px solid var(--line);border-radius:8px;
+    background:var(--card);position:relative;display:flex;flex-direction:column}
+  .dcol-info{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);
+    padding:5px 9px;font:11px ui-monospace,monospace;color:var(--mut);z-index:2;flex:0 0 auto}
+  /* Durum kutusu: KIRIK GORSEL ikonu yerine okunur bir aciklama. */
+  .dcol-state{flex:1;display:flex;align-items:center;justify-content:center;text-align:center;
+    padding:32px 28px;font-size:13px;line-height:1.6;color:var(--mut);white-space:pre-line}
+  .dcol-state.err{color:var(--no)}
+  .dcol-img{width:100%;display:block}
   /* Elle kosum ekrani (paketteki case'leri sirayla yurutme). Panelin kendi
      diyalog dilinden (uiConfirm) miras: ayni ortu, ayni kutu olculeri. */
   .pkg-line{display:inline-flex;align-items:center;gap:4px}
@@ -975,11 +986,15 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
             </span>
           </div>
         </div>
-        <div id="designCol" hidden style="flex:1;height:640px;overflow:auto;border:1px solid var(--line);
-             border-radius:8px;background:#fff;position:relative">
-          <div style="position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--line);
-               padding:4px 8px;font:11px ui-monospace,monospace;color:var(--mut);z-index:2" id="designInfo">tasarim</div>
-          <img id="designImg" alt="Figma tasarimi" style="width:100%;display:block">
+        <!-- ⚠️ Yukseklik SABIT DEGIL: kapsayici (#siteSplit) olculerek ayarlaniyor
+             (bkz. fitSiteFrame), tasarim kolonu da onu doldurur. -->
+        <div id="designCol" hidden class="dcol">
+          <div class="dcol-info" id="designInfo">tasarim</div>
+          <!-- ⚠️ `hidden` kullanan ogeye INLINE `display:` VERME — UA'nin
+               display:none'unu ezer ve oge gizlenmez (bkz. CLAUDE.md). Bu yuzden
+               gorselin bicimi CSS'te (.dcol-img), satir ici degil. -->
+          <div class="dcol-state" id="designState">Tasarim yukleniyor...</div>
+          <img id="designImg" class="dcol-img" alt="Figma tasarimi" hidden>
         </div>
       </div>
       <p class="mono">Proxy uzerinden servis ediliyor: <span id="proxyInfo"></span> — <code>x-frame-options</code> sokuluyor, gecici erisim cookie'si enjekte ediliyor.</p>
@@ -2321,28 +2336,64 @@ async function toggleDesign() {
   DESIGN_ON = !DESIGN_ON;
   $('#designCol').hidden = !DESIGN_ON;
   $('#siteDesignBtn').textContent = DESIGN_ON ? 'Tasarimi kapat' : 'Yan yana tasarim';
+  // Kolon acilip kapanmasi cerceve genisligini degistiriyor; yukseklik de
+  // yeniden olculmeli (bkz. fitSiteFrame).
+  requestAnimationFrame(fitSiteFrame);
   if (DESIGN_ON) await loadDesign(CURRENT_PATH || '/');
+}
+
+/**
+ * Yan yana tasarim kolonu.
+ *
+ * ⚠️ Durum GORSELIN KENDISIYLE anlatilmaz: onceden `<img>` src'siz birakiliyordu
+ * ve tarayici KIRIK GORSEL ikonu cizip kolonu bos birakiyordu; tek aciklama
+ * ustteki 11px'lik monospace satirdi ve okunmuyordu (bildirildi 2026-09-15).
+ * Artik ayri bir durum kutusu var: yukleniyor / hata / hazir.
+ */
+function designState(mesaj, tur = 'info') {
+  const st = $('#designState'), img = $('#designImg');
+  if (mesaj) {
+    st.textContent = mesaj;
+    st.className = 'dcol-state' + (tur === 'err' ? ' err' : '');
+    st.hidden = false;
+    img.hidden = true;
+    img.removeAttribute('src');
+  } else {
+    st.hidden = true;
+    img.hidden = false;
+  }
 }
 
 async function loadDesign(path) {
   if (!DESIGN_ON) return;
   const info = $('#designInfo');
-  info.textContent = 'tasarim yukleniyor...';
-  const r = await (await fetch('/api/figma/frame?path=' + encodeURIComponent(path))).json();
+  info.textContent = `${path} · tasarim araniyor`;
+  designState('Tasarim yukleniyor...');
+  let r;
+  try { r = await (await fetch('/api/figma/frame?path=' + encodeURIComponent(path))).json(); }
+  catch (e) { info.textContent = path; designState('Tasarim alinamadi: ' + e.message, 'err'); return; }
+
   if (r.error) {
-    // Rate limit / onbellek eksigi: hangi rotalarin hazir oldugunu soyle
+    // Rate limit / onbellek eksigi: hangi rotalarin hazir oldugunu SOYLE —
+    // "bulunamadi" tek basina kullaniciyi kotanin dolu oldugunu sanmaya itiyor.
     let ready = '';
     try {
       const c = await (await fetch('/api/figma/cache')).json();
       const ok = c.filter(x => x.ready).map(x => x.page);
-      if (ok.length) ready = '  ·  onbellekten hazir: ' + ok.join(', ');
-    } catch {}
-    info.textContent = r.error.slice(0, 160) + ready;
-    $('#designImg').removeAttribute('src');
+      if (ok.length) ready = '\n\nOnbellekten hazir olanlar: ' + ok.join(', ');
+    } catch { /* onbellek listesi alinamadi: yalnizca hata metni */ }
+    info.textContent = `${path} · tasarim yok`;
+    designState(r.error.slice(0, 220) + ready, 'err');
     return;
   }
+
   info.textContent = `${r.page} · ${r.frame.name} · ${r.frame.w}x${r.frame.h} · ${(r.cards||[]).join(', ')}${r.cached ? ' · onbellek' : ''}`;
-  $('#designImg').src = '/api/figma/render?path=' + encodeURIComponent(path);
+  const img = $('#designImg');
+  // Gorsel GERCEKTEN yuklenene kadar durum kutusu kalir; render ucu yavas
+  // (ya da 429) olabiliyor ve bos beyaz kolon "bozuk" gibi gorunuyordu.
+  img.onload = () => designState(null);
+  img.onerror = () => designState('Tasarim goruntusu yuklenemedi (render ucu yanit vermedi).', 'err');
+  img.src = '/api/figma/render?path=' + encodeURIComponent(path);
 }
 
 // iframe kaydirmasini tasarim kolonuna oranlayarak yansit

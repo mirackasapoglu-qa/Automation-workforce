@@ -2415,6 +2415,24 @@ yazma tek yerden ve onayla (`createBugCard`) — kural değişmedi.
 durumunu da Jira statüsüne göre değerlendiriyor). Bağlama başarısız olursa kart
 yine açılmıştır; sebep satırda yazar, sessizce yutulmaz.
 
+## Yan yana tasarım kolonu: hizalama ve durum (2026-09-15)
+
+İki kusur birlikte kapandı (ikisi de bildirildi):
+
+1. **Kolon yüksekliği `640px` SABİT yazılıydı** — gömülü çerçeve artık ölçülerek
+   büyüdüğü için (bkz. `fitSiteFrame`) tasarım kolonu onunla hizasını kaybediyordu.
+   Yükseklik kapsayıcıdan (`#siteSplit`) geliyor; ölçüm: kolon 604px = çerçeve 604px.
+2. **Yükleme/hata durumu `<img>`in KENDİSİYLE anlatılıyordu**: src kaldırılıyor,
+   tarayıcı KIRIK GÖRSEL ikonu çiziyor, tek açıklama üstteki 11px monospace
+   satırda kalıyordu ("zar zor okunuyor"). Artık ayrı bir durum kutusu var
+   (`#designState`, 13px, ortalanmış): yükleniyor · hata · hazır. Görsel
+   GERÇEKTEN yüklenene kadar kutu kalır (`img.onload`/`onerror`) — render ucu
+   yavaş ya da 429 olduğunda boş beyaz kolon "bozuk" gibi görünüyordu.
+
+⚠️ `hidden` kullanan öğeye **inline `display:` verme** — görselin biçimi bu
+yüzden CSS'e (`.dcol-img`) taşındı. Bu, panelde daha önce de ölçülmüş bir tuzak
+(`#dShots`, bkz. "QA Paneli").
+
 ## Elle koşum: adımlardan oluşan case'ler nasıl "koşulur" (2026-09-15)
 
 AI'ın ürettiği case'ler ADIMLARDAN oluşuyor, Playwright spec'i yok — paket
