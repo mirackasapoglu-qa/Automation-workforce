@@ -2480,6 +2480,49 @@ sebebiyle birlikte döner.
 kayıtta durur: otomatik koşumla karıştırılırsa "bu case gerçekten koştu mu"
 sorusu cevapsız kalır.
 
+## Koşum konsolu — "Koşumlar" sekmesi (2026-09-15)
+
+Sayfanın amacı: panelin geri kalanı OKUMA ekranı, burası **YAPMA** ekranı. Üç
+adımı da aynı sayfada tutmak zorunda — ne koşacağını seç · koşarken ne olduğunu
+gör · bitince sonuca göre aksiyon al. Önceki hâli yalnızca birincisini yapıyordu
+(düğme listesi): koşum başlayınca sayfa susuyor, bitince "Son sonuçlar" ve
+"Jira" sekmelerine gitmek gerekiyordu.
+
+Kod `panel/public/js/runs-console.js` (klasik script, `rc*` önekli globaller).
+Veri kaynaklarının HEPSİ zaten vardı, gösterilmiyordu.
+
+| Ne | Nasıl |
+|---|---|
+| **Canlı koşum kartı** | SSE (`run-start`/`log`/`run-end`) → koşan işin adı, geçen süre (1 sn'lik sayaç), o an koşan test, akan geçti/kaldı sayımı, durdur |
+| **Biten koşum sonucu** | `/api/results` → geçti/başarısız/bilinen hata + düşen case listesi; her satırda **bug kartı** (Jira formunu doldurur) ve **tekrar koş** (`-g`) |
+| **Koşum tablosu** | ad · risk · kapsam düğümü · son sonuç · ortalama süre · son 10 koşum noktası · koş |
+| **Kuyruk** | `/api/run/state → pending` — sunucu kuyruğu vardı ama arayüzde HİÇ görünmüyordu; sıraya alınan koşum "kayboluyor" gibiydi |
+| **Filtre** | arama + Tümü/Son koşumu düşen/Hiç koşulmamış/Riskli · `/` tuşu odaklar |
+| **Risk rozetleri** | sipariş açar (guard durumuna göre) · üye oturumu · veri değiştirir |
+| **Geçmiş noktaları** | `/api/runs/history` → `runId` başına son 10 koşum, renk = düşen var mı |
+
+⚠️ **`META`/`SPECS`/`HEADLESS` panelin satır içi kodunda `let`** — global
+sözlüksel kapsamdalar, `window` ÜZERİNDE DEĞİL. `window.META` undefined döner
+ve tablo sessizce BOŞ çizilir (ölçüldü). Ayrı script'lerden çıplak adla okunmalı
+(`rcMeta()`/`rcSpecs()`/`rcHeadless()` sarmalayıcıları TDZ'ye karşı).
+
+⚠️ **Risk rozetleri için spec listesi SUNUCUDAN** (`/api/meta → runs[].specs`,
+`specsForCommand`): koşumların çoğu `npm run test:sepet` biçiminde ve gerçek
+spec yolu `package.json` scriptinde. İstemcide komut ayrıştırmak 22 koşumun
+15'inde boş liste veriyordu, yani rozetler sessizce kayboluyordu.
+
+⚠️ **Tablo hizası**: her satır kendi grid'i, o yüzden `auto` kolon kullanılamaz —
+genişlik satır başına değişir ve kolonlar satırlar arasında kayar (ölçüldü:
+risk rozeti olan/olmayan satırlar tutmadı). Ad ve kapsam dışındaki kolonlar
+SABİT genişlikte; ölçüm: 22 satırın kolon başlangıçları birebir aynı.
+
+⚠️ **`.facet-pill` Flowscope'un stil dosyasında, panelde YOK.** O sınıfı
+kullanan düğme panelin genel `button{width:100%}` kuralına düşüp tam genişlik
+blok oluyor (ölçüldü: 392px). Panelde `.rc-pill` kullanılmalı.
+
+⚠️ `#tab-runs`'ın `max-width`i 760px → **1280px**: düğme listesi için yeterliydi,
+tablo için değil. Sınırsız da bırakılmadı — çok geniş ekranda satır okunmaz olur.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

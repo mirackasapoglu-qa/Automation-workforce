@@ -515,6 +515,29 @@ function requireAuth(req, res) {
 /** Suren codegen kaydi (aynı anda bir tane). */
 let RECORDING = null;
 
+/**
+ * Bir koşum komutunun DOKUNDUĞU spec dosyaları.
+ *
+ * Panelin koşum tablosu risk rozetlerini (üye oturumu · veri değiştirir ·
+ * sipariş açar) spec dosyalarından çıkarıyor. Komutların çoğu doğrudan
+ * `playwright test tests/06-cart.spec.ts` değil `npm run test:sepet`; script
+ * çözülmezse spec listesi boş kalır ve rozetler SESSİZCE kaybolur (ölçüldü:
+ * 22 koşumun 15'inde boş). Çözüm burada, sunucuda: `package.json` scriptleri
+ * zaten okunuyor (headless çevrimi için).
+ *
+ * Dönen değerler ya tam dosya adı ("06-cart.spec.ts") ya da önek ("0*",
+ * `tests/0` gibi küme filtreleri için).
+ */
+function specsForCommand(cmd) {
+  let metin = String(cmd ?? "");
+  const npm = metin.match(/npm run ([A-Za-z0-9:_-]+)/);
+  if (npm) metin += " " + String(PKG_SCRIPTS[npm[1]] ?? "");
+  const out = new Set();
+  for (const m of metin.matchAll(/tests\/([0-9A-Za-z._-]+\.spec\.ts)/g)) out.add(m[1]);
+  for (const m of metin.matchAll(/tests\/(\d)(?![0-9A-Za-z._-]*\.spec\.ts)/g)) out.add(`${m[1]}*`);
+  return [...out];
+}
+
 /** package.json scriptleri — headless cevrimi icin gerekli. */
 const PKG_SCRIPTS = (() => {
   try {
@@ -1554,13 +1577,10 @@ const server = http.createServer(async (req, res) => {
           scenarioPresets: PROJECT.scenarioPresets,
         },
         ordersAllowed: ordersAllowed(),
-        runs: Object.entries(RUNS).map(([id, r]) => ({
-          id,
-          label: r.label,
-          group: r.group ?? "",
-          tip: r.tip ?? "",
-          cmd: [r.cmd, ...(r.args ?? [])].join(" "),
-        })),
+        runs: Object.entries(RUNS).map(([id, r]) => {
+          const cmd = [r.cmd, ...(r.args ?? [])].join(" ");
+          return { id, label: r.label, group: r.group ?? "", tip: r.tip ?? "", cmd, specs: specsForCommand(cmd) };
+        }),
         active: engine.active(),
         knownIssues: knownIssues(),
       });
@@ -1662,7 +1682,7 @@ const server = http.createServer(async (req, res) => {
       /*
        * ⚠️ KAPSAM AĞACI ÖNCE, profil yedek.
        *
-       * Bu satır ("01 Anasayfa · MAC-7037, MAC-7040, MAC-7041") profildeki ELLE
+       * Bu satır ("01 Anasayfa · <kart anahtarları>") profildeki ELLE
        * YAZILMIŞ `routes.rules[].cards` listesinden geliyordu; kullanıcı haklı
        * olarak "bu nereden geliyor" diye sordu (2026-09-15). Ağaçta o rotayı
        * temsil eden bir düğüm varsa ad ve kartlar ORADAN gelmeli — kartı

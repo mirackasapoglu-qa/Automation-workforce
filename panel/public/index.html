@@ -134,6 +134,112 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* ---- Kosum konsolu (public/js/runs-console.js) ---- */
+  .rc-filter{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 12px}
+  .rc-q{flex:1 1 260px;min-width:0;font:inherit;font-size:13px;padding:7px 11px;border-radius:8px;
+    border:1px solid var(--line);background:var(--card);color:var(--fg)}
+  .rc-q:focus{outline:none;border-color:var(--acc)}
+  .rc-pills{display:flex;flex-wrap:wrap;gap:4px}
+  /* ⚠️ `.facet-pill` Flowscope'un stil dosyasinda, PANELDE YOK: o sinifi
+     kullanan dugmeler panelin genel `button{width:100%}` kuralina dusup tam
+     genislik blok oluyordu (olculdu: 392px). Panelin kendi hapi burada. */
+  .rc-pill{width:auto;margin:0;padding:5px 12px;font-size:12px;border-radius:999px;
+    border:1px solid var(--line);background:var(--card);color:var(--mut)}
+  .rc-pill:hover{border-color:var(--acc);color:var(--fg)}
+  .rc-pill.active{border-color:var(--acc);color:var(--acc);background:var(--acc-dim,transparent)}
+  .rc-bos{color:var(--mut);padding:14px 2px}
+
+  .rc-grp{margin-bottom:18px}
+  .rc-grp-h{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--mut);display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .rc-grp-h .cnt{font-weight:400;opacity:.7}
+  .rc-tbl{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--card)}
+  /* Kolonlar SATIRLAR ARASI HIZALI olmali: sonuc/sure/gecmis sabit genislikte,
+     yoksa icerigi olmayan satirda kolon 5px'e dusup tablo kayiyor (olculdu). */
+  /* ⚠️ HER SATIR KENDI GRID'I: `auto` kolon kullanirsan genislik satir basina
+     degisir ve kolonlar satirlar arasinda KAYAR (olculdu: risk rozeti olan ve
+     olmayan satirlarin kolonlari tutmadi). Bu yuzden ad/kapsam disindaki
+     kolonlar SABIT genislikte. */
+  .rc-row{display:grid;
+    grid-template-columns:minmax(0,1.7fr) 168px minmax(0,1.1fr) 92px 66px 68px 92px;
+    align-items:center;gap:12px;padding:9px 13px;border-top:1px solid var(--line)}
+  .rc-row:first-child{border-top:0}
+  .rc-row:hover{background:var(--bg)}
+  .rc-row.kosuyor{background:var(--ok-dim,rgba(0,160,90,.07))}
+  .rc-c-ad{min-width:0;display:flex;flex-direction:column;gap:2px}
+  .rc-ad{font-size:13px;color:var(--fg);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rc-specs{font-size:10.5px;color:var(--mut);font-family:ui-monospace,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rc-c-risk{display:flex;gap:4px;flex-wrap:wrap}
+  .rc-badge{font-size:9.5px;font-weight:700;letter-spacing:.4px;padding:2px 6px;border-radius:4px;
+    border:1px solid currentColor;color:var(--mut)}
+  .rc-badge.no{color:var(--no)} .rc-badge.sk{color:var(--sk)}
+  .rc-c-kapsam{min-width:0;font-size:11.5px}
+  .rc-scope{display:inline-flex;align-items:center;gap:5px;color:var(--mut);text-decoration:none;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .rc-scope:hover{color:var(--fg)}
+  .rc-c-sonuc{font-size:12.5px;font-variant-numeric:tabular-nums;display:flex;flex-direction:column;
+    align-items:flex-end;gap:1px}
+  .rc-ne,.rc-none{font-size:10.5px;color:var(--mut)}
+  .rc-now{color:var(--ok);font-size:12px}
+  .rc-c-sure{font-size:11px;color:var(--mut);font-variant-numeric:tabular-nums;text-align:right}
+  .rc-c-gecmis{display:flex;justify-content:flex-end}
+  .rc-dots{display:inline-flex;gap:2px;align-items:center}
+  .rc-dots i{width:5px;height:12px;border-radius:2px;background:var(--line);display:block}
+  .rc-dots i.ok{background:var(--ok)} .rc-dots i.no{background:var(--no)}
+  .rc-dots i.run{background:var(--acc)} .rc-dots i.yok{background:var(--line)}
+  .rc-dots-bos{color:var(--mut);font-size:11px}
+  .rc-c-act{display:flex;justify-content:flex-end}
+  .rc-c-act button{width:auto;margin:0;padding:5px 14px;font-size:12px}
+
+  /* Canli kosum karti */
+  .rc-live{display:flex;align-items:center;gap:12px;border:1px solid var(--acc);border-radius:10px;
+    padding:11px 14px;background:var(--card);margin-bottom:10px}
+  .rc-live-dot{width:9px;height:9px;border-radius:50%;background:var(--ok);flex:0 0 auto;
+    animation:rcPulse 1.1s ease-in-out infinite}
+  @keyframes rcPulse{0%,100%{opacity:1}50%{opacity:.25}}
+  .rc-live-body{flex:1;min-width:0}
+  .rc-live-t{font-size:13.5px;font-weight:600}
+  .rc-live-m{font-size:11px;color:var(--mut);font-family:ui-monospace,monospace;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px}
+  .rc-live-n{font-size:15px;font-variant-numeric:tabular-nums;display:flex;align-items:baseline;gap:3px}
+  .rc-live-n .sep{color:var(--mut)}
+  .rc-live-n .mut{color:var(--mut)}
+  .rc-live-s{font-size:11px;color:var(--mut);margin-left:8px}
+  .rc-stop{width:auto;margin:0;padding:6px 14px;font-size:12px;border-color:var(--no);color:var(--no)}
+
+  /* Kuyruk */
+  .rc-queue{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px;padding:7px 12px;
+    border:1px dashed var(--line);border-radius:8px;font-size:11.5px;color:var(--mut)}
+  .rc-queue-h{font-weight:600;color:var(--fg)}
+  .rc-queue-i{border:1px solid var(--line);border-radius:5px;padding:1px 7px}
+  .rc-queue-x{width:auto;margin:0;padding:3px 9px;font-size:11px}
+
+  /* Biten kosum sonucu */
+  .rc-res{border:1px solid var(--line);border-left:3px solid var(--ok);border-radius:10px;
+    background:var(--card);margin-bottom:12px;overflow:hidden}
+  .rc-res.no{border-left-color:var(--no)}
+  .rc-res-h{display:flex;align-items:center;gap:10px;padding:10px 14px}
+  .rc-res-b{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+  .rc-res.ok .rc-res-b{color:var(--ok)} .rc-res.no .rc-res-b{color:var(--no)}
+  .rc-res-t{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rc-res-m{font-size:11.5px;color:var(--mut);margin-left:auto;white-space:nowrap}
+  .rc-res-x{width:auto;margin:0;background:none;border:0;color:var(--mut);font-size:19px;
+    line-height:1;padding:0 2px;cursor:pointer}
+  .rc-res-list{border-top:1px solid var(--line)}
+  .rc-res-row{display:flex;align-items:center;gap:8px;padding:7px 14px;border-top:1px solid var(--line)}
+  .rc-res-row:first-child{border-top:0}
+  .rc-res-n{flex:1;min-width:0;font-size:12.5px;display:flex;flex-direction:column;gap:1px}
+  .rc-res-n .f{font-size:10.5px;color:var(--mut);font-family:ui-monospace,monospace}
+  .rc-res-row button{width:auto;margin:0;padding:4px 10px;font-size:11.5px;flex:0 0 auto}
+  .rc-res-more{padding:7px 14px;font-size:11.5px;color:var(--mut);border-top:1px solid var(--line)}
+  .rc-res-act{display:flex;gap:8px;padding:10px 14px;border-top:1px solid var(--line)}
+  .rc-res-act button{width:auto;margin:0;padding:5px 12px;font-size:12px}
+
+  @media (max-width:1100px){
+    .rc-row{grid-template-columns:minmax(0,1.6fr) auto auto auto;row-gap:6px}
+    .rc-c-kapsam,.rc-c-sure{display:none}
+  }
   /* Yan yana tasarim kolonu. Yukseklik kapsayicidan (#siteSplit) gelir —
      sabit deger yazma, cerceveyle hizasi kacar. */
   .dcol{flex:1;height:100%;overflow:auto;border:1px solid var(--line);border-radius:8px;
@@ -650,7 +756,11 @@
   #startRunBtn:hover{border-color:var(--acc);color:var(--acc);background:var(--acc-dim)}
 
   /* Kosum listesi artik kendi sekmesinde; orada tam genislik. */
-  #tab-runs{padding:26px 30px 40px;max-width:760px}
+  /* Kosumlar sekmesi bir DUGME LISTESIYKEN 760px yeterliydi; artik tablo
+     (ad · risk · kapsam · sonuc · sure · gecmis) — dar kolonda kolonlar
+     birbirine giriyordu. Genis ama sinirsiz degil: cok genis ekranda satirlar
+     okunmaz uzunluga cikmasin. */
+  #tab-runs{padding:26px 30px 40px;max-width:1280px}
   #tab-runs h2:first-child{margin-top:0}
 
 
@@ -811,6 +921,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 <script src="/js/run-client.js"></script>
 <script src="/js/ai-client.js"></script>
 <script src="/js/scope-client.js"></script>
+<script src="/js/runs-console.js"></script>
 
 
 <main>
@@ -872,8 +983,13 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
     <!-- Kapsam agacindaki `runRef`lerden turetilen kosumlar + Test Suite paketleri
          (Flowscope → panel). Whitelist guvenligi degismedi: buradan cikan her
          kosum panel/runs.json ya da parametreli kosum dogrulamasindan gecer. -->
+    <!-- 1) suren kosum  2) biten kosumun sonucu — ikisi de bos iken gizli -->
+    <div id="runLive" hidden></div>
+    <div id="runResult" hidden></div>
     <div id="scopePackages"></div>
     <div id="scopeRuns"></div>
+    <!-- 5) sayfa ici filtre (uzun listede ⌘K'dan hizli) -->
+    <div id="runFilter" class="rc-filter"></div>
     <label id="hlWrap" title="Headed kosum TEST BASINA bir tarayici penceresi acar. Bu anahtar --headed'i kaldirir.">
       <input type="checkbox" id="hlChk" onchange="toggleHeadless()">
       <span id="hlLabel">headless kos (pencere acilmaz)</span>
@@ -1454,7 +1570,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'perf') loadPerf();
   if (b.dataset.tab === 'overview') renderOverview();
-  if (b.dataset.tab === 'runs') { renderScopeRuns(); renderScopePackages(); }
+  if (b.dataset.tab === 'runs') { renderScopeRuns(); renderScopePackages(); rcYenile(); }
   /* Kapsam ozeti 30 sn'den eskiyse tazele — SSE zaten aninda haber veriyor,
      bu yalnizca uzun acik kalmis bir sekmenin bayat kalmamasi icin. */
   scopeRefresh({ maxAgeMs: 30000, quiet: true });
@@ -1520,17 +1636,13 @@ async function load() {
   let openSet;
   try { openSet = new Set(JSON.parse(localStorage.getItem(OPEN_KEY) || 'null') || [Object.keys(groups)[0]]); }
   catch { openSet = new Set([Object.keys(groups)[0]]); }
-  $('#runs').innerHTML = Object.entries(groups).map(([g, list]) => `
-    <details class="rungrp" data-grp="${esc(g)}"${openSet.has(g) ? ' open' : ''}>
-      <summary>${esc(g)}<span class="cnt">${list.length}</span></summary>
-      <div class="body">${list.map(r => `<button data-run-id="${r.id}" onclick="startRun('${r.id}')">${esc(r.label)}</button>`).join('')}</div>
-    </details>`).join('');
-  // NOT: bu panelde $$ helper'i YOK, yalnizca $ var — querySelectorAll dogrudan.
-  const sel = (q) => [...document.querySelectorAll(q)];
-  relabelRuns();
-  sel('#runs details.rungrp').forEach(d => d.addEventListener('toggle', () => {
-    localStorage.setItem(OPEN_KEY, JSON.stringify(sel('#runs details.rungrp[open]').map(x => x.dataset.grp)));
-  }));
+  /*
+   * Kosum listesi ARTIK TABLO (bkz. public/js/runs-console.js): her satirda
+   * kapsam, son sonuc, ortalama sure, risk rozetleri ve son 10 kosumun noktalari.
+   * Eski `<details>` gruplari ve acik/kapali hatirlamasi kalkti — tablo zaten
+   * gruplu ve filtreli.
+   */
+  rcYenile();
 
   if (m.proxyUrl) {
     PROXY = m.proxyUrl;
@@ -1605,6 +1717,7 @@ es.addEventListener('run-start', e => {
   const t = $('#ovLiveTitle'); if (t) t.textContent = `Canli kosum · ${d.label}`;
   $('#ovSpin')?.classList.add('on');
   renderOverviewHistory();
+  rcRunStart(d);
 });
 /*
  * FLOWSCOPE → PANEL CANLI BAGI. Agac hangi yoldan degisirse degissin (drawer'da
@@ -1635,11 +1748,13 @@ es.addEventListener('run-queued', e => {
   const n = d.pending?.length ?? 0;
   const pill = $('#activePill');
   if (pill) pill.title = n ? `sırada ${n} koşum: ${d.pending.map(x => x.label).join(', ')}` : '';
+  rcRenderQueue();
 });
 es.addEventListener('log', e => {
   const d = JSON.parse(e.data);
   appendLog(d.line, d.stream === 'err');
   ovPushLog(d.line);
+  rcRunLog(d.line);
 });
 es.addEventListener('run-end', e => {
   const d = JSON.parse(e.data);
@@ -1650,6 +1765,7 @@ es.addEventListener('run-end', e => {
   $('#ovSpin')?.classList.remove('on');
   const t2 = $('#ovLiveTitle'); if (t2) t2.textContent = 'Canli kosum';
   renderOverview();
+  rcRunEnd(d);
 });
 
 const badge = (r) => r.status === 'passed' ? '<span class="b ok">GECTI</span>'
@@ -2428,7 +2544,7 @@ async function matchRoute(path) {
     btn.dataset.runId = r.runId;
     /*
      * Kartlarin NEREDEN geldigi yaziliyor: kapsam agacindan mi (dugume bagli
-     * Jira gorevleri) yoksa profildeki sabit listeden mi. "MAC-7037 nereden
+     * Jira gorevleri) yoksa profildeki sabit listeden mi. "bu kart nereden
      * geliyor" sorusu tam olarak bu ayrimin gorunmemesinden cikti.
      */
     const kaynak = r.source === 'scope'
@@ -3351,7 +3467,7 @@ load();
 onScopeChange(() => {
   renderSiteShortcuts();
   renderScopeKpis();
-  if (!$('#tab-runs').hidden) { renderScopeRuns(); renderScopePackages(); }
+  if (!$('#tab-runs').hidden) { renderScopeRuns(); renderScopePackages(); rcRenderTablo(); }
   if (!$('#tab-perf').hidden) markPerfScope();
   /* Sonuclar ve Jira listeleri kapsam rozetlerini icinde tasiyor; acikken
      yeniden cizilmezse rozet bayat kalirdi. Kapali sekme cizilmez (bos is). */
@@ -3391,11 +3507,18 @@ function toggleHeadless() {
  * Kosum butonlarindaki "(headed)" etiketi anahtar acikken YALAN soyluyordu.
  * Etiketi anahtara gore yaziyoruz; orijinali data-label'da duruyor.
  */
+/**
+ * Headless anahtari etiketleri degistiriyor. Kosum tablosu artik etiketi kendi
+ * cizdigi icin (runs-console.js → rcSatir) tabloyu yeniden cizmek yeterli;
+ * tablonun disinda kalan `data-run-id` dugmeleri (kapsam grubu, paketler) icin
+ * eski dogrudan yazma korunuyor.
+ */
 function relabelRuns() {
-  for (const b of document.querySelectorAll('#runs button[data-run-id]')) {
+  for (const b of document.querySelectorAll('#scopeRuns button[data-run-id], #scopePackages button[data-run-id]')) {
     if (!b.dataset.label) b.dataset.label = b.textContent;
     b.textContent = HEADLESS ? b.dataset.label.replace(/\(headed\)/i, '(headless)') : b.dataset.label;
   }
+  if (typeof rcRenderTablo === 'function') rcRenderTablo();
 }
 
 // ---------------- iframe kaydedici ----------------
