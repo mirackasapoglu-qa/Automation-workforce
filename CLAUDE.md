@@ -2862,10 +2862,22 @@ adsız rol. Onarılamayan bozuk ad için koda `// TODO` satırı düşüyor.
 **Sonuç ölçümü:** aynı kayıt, düzeltmelerden sonra gerçek siteye karşı **2,3
 sn'de yeşil** (öncesi: 20 sn timeout).
 
-⚠️ **Kalan iki sınır, bilinçli:**
-- **Tek seferlik pop-up'lar.** Kayıt sırasında çıkan bir modalın "KAPAT"
-  düğmesine tıklanmışsa o adım dosyaya girer ve temiz koşumda 20 sn bekler.
-  Kaydedici bunu bilemez — dosya elle düzenlenebilir (başlığı bunu söylüyor).
+**5. SAYFANIN KENDİ TIKLAMASI kayda giriyordu** (2026-09-16, ikinci tur).
+Kullanıcı "ben KAPAT'a hiç basmadım" dedi — haklıydı. Kaydedicide
+`e.isTrusted` kontrolü YOKTU: modern arayüzler kendi elemanlarına programatik
+`click()` atıyor (rota değişince açık bir modalı/drawer'ı kapatmak için) ve
+tarayıcı bunu normal bir click olayı olarak yayıyor. Kaydedici onu KULLANICI
+ADIMI sanıp dosyaya yazıyordu; bir daha koşulduğunda o modal hiç açılmadığı
+için adım **20 sn bekleyip düşüyordu**. `isTrusted` yalnız gerçek girdi
+aygıtından gelen olaylarda true'dur — click/change/keydown dinleyicilerinin
+üçünde de soruluyor. Ölçüm (gerçek proxy sayfası, gerçek tarayıcı): gerçek
+tıklama kaydedildi, `el.click()` ile atılan tıklama kaydedilmedi.
+
+⚠️ **Kalan sınır, bilinçli:**
+- Kayıt sırasında **gerçekten** çıkan ve kullanıcının kapattığı bir pop-up
+  (çerez bandı gibi) adım olarak girer; temiz koşumda o banner çıkmazsa
+  bekler. Bunu kaydedici bilemez — dosya elle düzenlenebilir ya da yeniden
+  kaydedilir.
 - **Kayıt tek başına TEST DEĞİL.** Yukarıdaki koşum YANLIŞ parolayla da yeşil
   geçti: adımların hepsi çalıştı ama "giriş yapıldı mı" diye soran bir iddia
   yok. Kaydederken **İDDİA MODU** ile en az bir doğrulama bırakılmalı.

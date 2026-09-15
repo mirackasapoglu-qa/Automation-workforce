@@ -364,8 +364,24 @@ export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCooki
     if (el && el !== document.documentElement) el.setAttribute("data-qa-assert-hover", "1");
   }, true);
 
+  /*
+   * ⚠️ YALNIZ GERCEK KULLANICI HAREKETI KAYDEDILIR (e.isTrusted).
+   *
+   * Olculdu 2026-09-16: kayitta kullanicinin HIC basmadigi iki "KAPAT"
+   * tiklamasi vardi ve uretilen test her kosumda 20 sn timeout'a dusuyordu.
+   * Sebep: modern arayuzler kendi elemanlarina programatik click atiyor
+   * (rota degisince acik bir modali/drawer'i kapatmak icin
+   * closeButton.click() gibi). Tarayici bunu gercek bir click olayi olarak
+   * yayiyor; isTrusted kontrolu olmadan kaydedici onu KULLANICI ADIMI
+   * saniyordu. Bir daha kosuldugunda o modal hic acilmadigi icin adim
+   * sonsuza kadar bekliyor.
+   *
+   * isTrusted yalnizca gercek girdi aygitindan gelen olaylarda true'dur;
+   * script'in urettigi olaylarda daima false. Ayni kontrol change ve keydown
+   * dinleyicilerinde de var.
+   */
   document.addEventListener("click", function(e){
-    if (!REC) return;
+    if (!REC || !e.isTrusted) return;
     var el = target(e.target);
     if (!el || el === document.documentElement) return;
     if (ASSERT) {
@@ -380,7 +396,7 @@ export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCooki
   }, true);
 
   document.addEventListener("change", function(e){
-    if (!REC || ASSERT) return;
+    if (!REC || ASSERT || !e.isTrusted) return;
     var el = e.target;
     if (!el || !/^(input|select|textarea)$/i.test(el.tagName)) return;
     var ty = (el.type || "").toLowerCase();
@@ -403,7 +419,7 @@ export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCooki
   }, true);
 
   document.addEventListener("keydown", function(e){
-    if (!REC || ASSERT) return;
+    if (!REC || ASSERT || !e.isTrusted) return;
     if (e.key === "Enter") step({ action: "press", key: "Enter", loc: locator(target(e.target)), at: Date.now() });
   }, true);
 })();</script></head>`,
