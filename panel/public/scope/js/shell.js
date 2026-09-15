@@ -21,7 +21,7 @@ import { renderTestCasesView } from './testcases.js';
 import { genStatus, onGenStatus, genSeen } from './gen-status.js';
 
 let indicatorEl, toolsIndicatorEl, switchButtons = {}, selectBtnEl, attentionBadgeEl;
-let genBadgeEl; // "Test Case'ler" öğesindeki üretim rozeti (bkz. gen-status.js)
+let genBadgeEl; // "Test Repository" öğesindeki üretim rozeti (bkz. gen-status.js)
 let sidebarStatusEl, topbarFacetsEl, topbarSearchWrapEl, fileInputEl;
 
 // "Dikkat" ve "Paketler" ağacın bir GÖRÜNÜMÜ değil, kendi kendine yeten ayrı
@@ -213,7 +213,7 @@ function buildSidebar() {
 
   const TOOLS = [
     { key: 'packages', label: 'Paketler', icon: ICON.package },
-    { key: 'testcases', label: "Test Case'ler", icon: ICON.typeStep },
+    { key: 'testcases', label: "Test Repository", icon: ICON.typeStep },
   ];
   TOOLS.forEach((t) => {
     const btn = document.createElement('button');
@@ -343,10 +343,10 @@ export function refreshAttentionBadge() {
 }
 
 /**
- * Üretim rozeti (sidebar → "Test Case'ler"):
+ * Üretim rozeti (sidebar → "Test Repository"):
  *   sürüyor  → nabız atan nokta, "N üretim sürüyor"
  *   bitti    → yeşil onay + yazılan case sayısı; görünüme girilince söner
- * Kullanıcı zaten Test Case'ler sayfasındayken biten üretim rozet bırakmaz —
+ * Kullanıcı zaten Test Repository sayfasındayken biten üretim rozet bırakmaz —
  * liste gözünün önünde tazelendi, ayrıca "bak" demek gürültü olurdu.
  */
 function renderGenBadge(st) {

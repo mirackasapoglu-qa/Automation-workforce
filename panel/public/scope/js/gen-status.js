@@ -1,10 +1,10 @@
-// Test case ÜRETİM DURUMU — sidebar'daki "Test Case'ler" rozetinin tek kaynağı.
+// Test case ÜRETİM DURUMU — sidebar'daki "Test Repository" rozetinin tek kaynağı.
 //
 // NEDEN: üretim (~15-40 sn) arka planda sürüyor; kullanıcı bu arada Test
-// Case'ler sayfasına ya da başka görünüme geçiyor ve "bitti mi?" sorusunun
+// Repository sayfasına ya da başka görünüme geçiyor ve "bitti mi?" sorusunun
 // cevabı yalnızca sağ alttaki toast'taydı — kapatılınca iz kalmıyordu.
 // Şimdi: sürerken sidebar öğesinde nabız, bitince yeşil "üretildi" rozeti;
-// rozet Test Case'ler görünümüne girildiğinde söner (bildirim deseni).
+// rozet Test Repository görünümüne girildiğinde söner (bildirim deseni).
 //
 // Yayıncı: testcase-request.js (tek tık + elle yol). Abone: shell.js.
 // shell.js ↔ testcase-request.js zaten birbirine bağlı; durum ayrı modülde
@@ -35,7 +35,7 @@ export function genProduced(written = 0) {
   yay();
 }
 
-/** Kullanıcı Test Case'ler görünümüne baktı — rozet söner. */
+/** Kullanıcı Test Repository görünümüne baktı — rozet söner. */
 export function genSeen() {
   if (!genStatus.unseen && !genStatus.unseenRuns) return;
   genStatus.unseen = 0; genStatus.unseenRuns = 0;

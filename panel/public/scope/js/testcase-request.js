@@ -134,7 +134,7 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
     }
     if (onay) {
       const bildirim = uiToast('Model çalışıyor… bu pencereyi kapatabilirsin, sonuç toast olarak gelir.', { title: 'Üretiliyor', ms: 0 });
-      genStarted();   // sidebar "Test Case'ler" nabzı — toast kapatılsa da iz kalır
+      genStarted();   // sidebar "Test Repository" nabzı — toast kapatılsa da iz kalır
       let status, data;
       try { ({ status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit, account })); }
       finally { genEnded(); bildirim.remove(); }

@@ -2344,9 +2344,11 @@ yeniden seçmek** zorunda olmaktı. Paket = o kombinasyonun bir ismi.
   aynı asenkron tuzak: `await` şart, vazgeçince `null` döner — boş string ile
   karıştırma).
 
-## Test Case'ler sayfası + panelden paket koşumu (2026-09-15)
+## Test Repository sayfası + panelden paket koşumu (2026-09-15)
 
-**Test Case'ler** (`scope/js/testcases.js`) artık dolu: ağaçtaki BÜTÜN case'ler
+**Test Repository** (`scope/js/testcases.js`, eski adıyla "Test Case'ler" —
+2026-09-16'da yeniden adlandırıldı, Xray'deki aynı isimli kavrama daha yakın
+duruyor) artık dolu: ağaçtaki BÜTÜN case'ler
 tek listede — hangi düğüme bağlı, kaç adım, son koşumu, hangi paket(ler)de.
 Süzgeçler: arama · durum · **pakette değil** · hiç koşulmamış · otomatik/elle.
 Satıra tıklamak case'in düğümünün drawer'ını açar.

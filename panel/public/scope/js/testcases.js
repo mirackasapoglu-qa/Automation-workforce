@@ -1,4 +1,4 @@
-// Test Case'ler — Xray'in "Test Repository"sine benzeyen tek liste: ağaçtaki
+// Test Repository — Xray'deki aynı isimli kavrama benzeyen tek liste: ağaçtaki
 // BÜTÜN test case'ler, hangi sayfaya bağlı olursa olsun ve hangi pakette olursa
 // olsun burada görünür.
 //
@@ -72,7 +72,7 @@ export function renderTestCasesView() {
   const header = document.createElement('div');
   header.className = 'pkg-page-header';
   const h2 = document.createElement('h2');
-  h2.textContent = "Test Case'ler";
+  h2.textContent = "Test Repository";
   const p = document.createElement('p');
   const kosulmus = hepsi.filter((x) => (x.testCase.runs ?? []).length).length;
   const paketsiz = hepsi.filter((x) => !x.paketler.length).length;

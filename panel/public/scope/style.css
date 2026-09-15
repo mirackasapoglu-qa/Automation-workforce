@@ -90,7 +90,7 @@ html, body { background: var(--bg); margin: 0; }
    sol seritli hafif ton — ikisi ilk bakista tek bir buton gibi karismasin diye. */
 .fw-sb-nav button.active { color: var(--accent); background: var(--accent-dim); }
 .fw-sb-nav button .vs-badge { margin-left: auto; }
-/* Üretim rozeti — "Test Case'ler" öğesi (gen-status.js). Sürerken nabız,
+/* Üretim rozeti — "Test Repository" öğesi (gen-status.js). Sürerken nabız,
    bitince yeşil onay + sayı; görünüme girilince söner. */
 .fw-sb-nav button .fw-gen-badge {
   margin-left: auto; display: inline-flex; align-items: center; gap: 4px;
@@ -1430,7 +1430,7 @@ html, body { background: var(--bg); margin: 0; }
 .pkg-run-entry-fail { color: var(--fail); }
 .pkg-run-entry-skipped { color: var(--text-faint); font-style: italic; }
 
-/* Test Case'ler sayfasi (js/testcases.js) — agactaki TUM case'lerin tek listesi.
+/* Test Repository sayfasi (js/testcases.js) — agactaki TUM case'lerin tek listesi.
    Gorsel dil paket sayfasindan miras (pkg-item-row, facet-pill); yeni bir
    liste stili icat edilmedi. */
 .tc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
