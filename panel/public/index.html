@@ -134,6 +134,15 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* Vekil adresi ulasilamazken iframe yerine cikan aciklama kutusu. */
+  .proxy-warn{border:1px solid var(--line);border-left:3px solid var(--sk);border-radius:8px;
+    padding:18px 20px;background:var(--card);max-width:760px}
+  .proxy-warn .pw-h{font-weight:600;margin-bottom:10px}
+  .proxy-warn p{margin:0 0 10px;font-size:13px;line-height:1.55;color:var(--mut)}
+  .proxy-warn .pw-fix{color:var(--fg)}
+  .proxy-warn code{font-size:12px;background:var(--line);padding:1px 5px;border-radius:4px}
+  .proxy-warn .pw-act{display:flex;align-items:center;gap:12px;margin-top:14px}
+  .proxy-warn .mut{font-size:12px;color:var(--mut)}
   /* Kapsam (Flowscope) gostergeleri — rota butonu, satir rozeti, dugum baglantisi.
      Renk tokenlari panelin kendi durum renkleri: yeni renk icat edilmedi. */
   .sc-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--line);
@@ -891,6 +900,8 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
           <button id="siteRecBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleIframeRec()">Kaydet (iframe)</button>
         </span>
       </div>
+      <!-- Proxy adresi ulasilamaz oldugunda iframe yerine bu kutu cikar (bkz. proxyUsable). -->
+      <div id="siteProxyWarn" hidden class="proxy-warn"></div>
       <div id="siteSplit" style="display:flex;gap:10px;align-items:stretch">
         <iframe id="siteFrame" title="Site (canli)"
           style="flex:1;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
@@ -1456,7 +1467,10 @@ async function load() {
     PROXY = m.proxyUrl;
     $('#proxyInfo').textContent = m.proxyUrl + ' → ' + m.baseURL;
     renderSiteShortcuts();
-    if (!$('#siteFrame').src) goSite('/');
+    // Proxy adresi bu tarayicidan ulasilabilir mi — degilse iframe HIC yuklenmez
+    // (bkz. proxyUsable: "localhost refused to connect" yerine sebep gosterilir).
+    if (proxyUsable(m.proxyUrl)) { if (!$('#siteFrame').src) goSite('/'); }
+    else showProxyWarning(m.proxyUrl);
   } else {
     $('#siteNow').textContent = 'Proxy kapali (BASE_URL tanimsiz)';
   }
@@ -1809,6 +1823,56 @@ async function runCustom() {
 // ---------------- Site (iframe) ----------------
 let PROXY = '';
 let CURRENT_PATH = null;   // '/' ile baslatilirsa ilk ping atlanir
+
+/**
+ * Proxy adresi BU TARAYICIDAN ulasilabilir mi?
+ *
+ * Proxy, panelin yanindaki ayri bir portta calisir ve adresini kendisi soyler.
+ * Panel bir domain arkasindayken o adres hala `http://localhost:<port>` ise,
+ * tarayici onu KULLANICININ KENDI makinesinde arar: iframe "localhost refused
+ * to connect" der ve sebebi hicbir yerde yazmaz (olculdu 2026-09-15, canlida).
+ * Panel https ise ayrica karisik icerik olarak da engellenir.
+ *
+ * Bu yuzden yuklemeden ONCE soruyoruz; cevap hayirsa cerceve hic acilmaz,
+ * yerine ne yapilmasi gerektigini yazan bir kutu cikar.
+ */
+function proxyUsable(url) {
+  try {
+    const u = new URL(url, location.href);
+    const yerel = ['localhost', '127.0.0.1', '[::1]', '::1'];
+    const proxyYerel = yerel.includes(u.hostname);
+    const panelYerel = yerel.includes(location.hostname);
+    // Panel de proxy de yereldeyse sorun yok (gelistirici makinesi).
+    if (proxyYerel && !panelYerel) return false;
+    // https panelde http bir cerceve: tarayici karisik icerik olarak engeller.
+    if (location.protocol === 'https:' && u.protocol === 'http:') return false;
+    return true;
+  } catch { return false; }
+}
+
+/** Neden bos oldugunu ve iki cozumu yazar; siteyi yeni sekmede acmayi da verir. */
+function showProxyWarning(url) {
+  const kutu = $('#siteProxyWarn'), split = $('#siteSplit');
+  if (!kutu) return;
+  split.hidden = true;
+  kutu.hidden = false;
+  // Ust satir "iframe yukleniyor ..." diye asili kalmasin — yuklenmeyecek.
+  $('#siteNow').textContent = 'gomulu goruntu kapali — vekil adresi bu tarayicidan ulasilamiyor';
+  const hedef = (META?.baseURL || '').replace(/\/$/, '');
+  kutu.innerHTML = `
+    <div class="pw-h">Gomulu site bu ortamda acilamiyor</div>
+    <p>Panel <b>${esc(location.origin)}</b> adresinde, ama site vekili kendini
+       <b>${esc(url)}</b> olarak bildiriyor. Bu adres senin kendi makineni gosteriyor,
+       sunucudaki vekili degil — cerceve bu yuzden bos.</p>
+    <p class="pw-fix"><b>Cozum (sunucu yoneticisi):</b> vekil portuna (container ici
+       <code>PANEL_PORT + 1</code>) ikinci bir domain baglayin ve panele
+       <code>PANEL_PROXY_PUBLIC_URL=https://&lt;o-domain&gt;</code> ortam degiskenini verin.
+       Panel yeniden basladiginda cerceve kendiliginden acilir.</p>
+    <div class="pw-act">
+      ${hedef ? `<button style="width:auto" onclick="window.open('${esc(hedef)}','_blank','noreferrer,noopener')">Siteyi yeni sekmede ac</button>` : ''}
+      <span class="mut">Kapsam, kosum ve tasarim diff sekmeleri bundan etkilenmez.</span>
+    </div>`;
+}
 
 function goSite(path) {
   const p = path ?? ($('#siteUrl').value.trim() || '/');

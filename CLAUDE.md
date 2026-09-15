@@ -2247,6 +2247,14 @@ sayfa yarım render olur. Ayrı origin'de hiçbir yeniden yazma gerekmiyor.
 Panelin `message` dinleyicileri origin doğrulamadığı için (`qa-nav`, `qa-scroll`,
 `qa-rec-*`) yeni domain ek değişiklik istemiyor.
 
+⚠️ **Değişken verilmemişse iframe HİÇ yüklenmiyor artık** (`proxyUsable()` →
+`showProxyWarning()`): eskiden çerçeve "localhost refused to connect" diyordu ve
+sebebi hiçbir yerde yazmıyordu (canlıda görüldü 2026-09-15). Şimdi yüklemeden
+önce soruluyor — proxy `localhost` derken panel localhost DEĞİLSE, ya da https
+panelde http çerçeve varsa (karışık içerik) — ve yerine ne yapılması gerektiğini
+yazan bir kutu + "siteyi yeni sekmede aç" çıkıyor. Panel de proxy de yereldeyse
+davranış aynen eskisi gibi (ölçüldü: iframe `localhost:4700`'ü yüklüyor).
+
 ## İKİ AYRI "paket" var — karıştırma (2026-09-14)
 
 Aynı gün, iki ayrı oturumda iki farklı özellik "paket" adını aldı. İkisi de
