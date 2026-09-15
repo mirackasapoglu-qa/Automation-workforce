@@ -4,7 +4,7 @@
 // durum atamanın anlamı yok.
 import { state } from './state.js';
 import { ICON, STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
-import { findNode, setNodeStatus, persist } from './data.js';
+import { findNode, setNodeStatus, persist, computeSearchVisibleIds } from './data.js';
 import { renderContent } from './shell.js';
 import { applyGenerateLabel } from './testcase-request.js';
 import { openBulkGenerateModal } from './bulk-generate.js';
@@ -54,6 +54,37 @@ export function buildBulkBar() {
   label.className = 'bulk-bar-label';
   label.textContent = count ? `${count} öğe seçili` : 'Durumunu değiştirmek istediğin öğeleri işaretle';
   bar.appendChild(label);
+
+  /*
+   * TÜMÜNÜ SEÇ. 101 düğümlük bir ağaçta tek tek işaretlemek pratikte
+   * imkânsızdı (kullanıcı bildirdi) — toplu işlemin varlık sebebi zaten bu.
+   *
+   * ⚠️ "Tümü" = SÜZGEÇTEN GEÇEN düğümler, ağacın tamamı değil. Arama ya da
+   * facet açıkken ekranda 6 öğe görünüp 101'inin seçilmesi, kullanıcının
+   * gördüğüyle yaptığının ayrışması demekti. `computeSearchVisibleIds` zaten
+   * ağacın kendi görünürlük kuralını (eşleşen + ataları + eşleşen dalın altı)
+   * hesaplıyor; aynı kural burada da geçerli.
+   */
+  const secilebilir = computeSearchVisibleIds(state.tree, state.searchQuery.trim().toLowerCase(), state.activeFacets);
+  const hepsiSecili = secilebilir.size > 0 && [...secilebilir].every(id => state.selectedIds.has(id));
+  const suzgecVar = Boolean(state.searchQuery.trim() || state.activeFacets.size);
+
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button';
+  allBtn.className = 'btn';
+  allBtn.textContent = hepsiSecili
+    ? 'Seçimi kaldır'
+    : `Tümünü seç (${secilebilir.size})`;
+  allBtn.title = suzgecVar
+    ? 'Süzgeçten geçen öğelerin tamamını seçer — ekranda görünmeyen öğe seçilmez.'
+    : 'Ağaçtaki tüm öğeleri seçer.';
+  allBtn.disabled = secilebilir.size === 0;
+  allBtn.onclick = () => {
+    if (hepsiSecili) secilebilir.forEach(id => state.selectedIds.delete(id));
+    else secilebilir.forEach(id => state.selectedIds.add(id));
+    renderContent();
+  };
+  bar.appendChild(allBtn);
 
   if (count) {
     const actions = document.createElement('div');

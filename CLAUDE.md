@@ -2628,6 +2628,22 @@ kodda, düğüme `runRef.specs` ile bağlandı.
 `up.mjs → buildGerekli()` artık `site/` altındaki en yeni dosyayı `dist` ile
 karşılaştırıp gerekiyorsa build alıyor (`dist/` ve `node_modules/` taranmaz).
 
+## Toplu seçimde "Tümünü seç" (2026-09-15)
+
+Seçim çubuğunda yalnızca "Seçimi temizle" vardı; 101 düğümlük bir ağaçta tek tek
+işaretlemek pratikte imkânsızdı (kullanıcı bildirdi) — oysa toplu işlemin varlık
+sebebi tam da bu.
+
+⚠️ **"Tümü" = SÜZGEÇTEN GEÇEN düğümler**, ağacın tamamı değil. Arama ya da facet
+açıkken ekranda 17 öğe görünüp 101'inin seçilmesi, kullanıcının gördüğüyle
+yaptığının ayrışması olurdu. Ağacın kendi görünürlük kuralı yeniden yazılmadı:
+`data.js → computeSearchVisibleIds` (eşleşen + ataları + eşleşen dalın altı)
+kullanılıyor, düğme sayıyı da yazıyor ve tooltip sınırı söylüyor.
+
+Hepsi seçiliyken düğme "Seçimi kaldır"a döner (aynı kümeyi geri alır).
+Ölçüm: süzgeçsiz `Tümünü seç (101)` → 101 seçili; arama "red teaming" →
+`Tümünü seç (17)` → 17 seçili.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |
