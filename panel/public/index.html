@@ -281,7 +281,12 @@
   .rc-gen{width:auto;margin:0;padding:5px 10px;font-size:11.5px;border-color:var(--acc);color:var(--acc)}
   .rc-manual:hover:not(:disabled){border-style:solid;color:var(--fg);border-color:var(--acc)}
   /* Paket satiri: ad · ozet · son kosum · gecmis noktalari · aksiyon */
-  .rc-prow{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) 96px 68px 250px}
+  /* Paket satirinda dort dugme var (kos · specler · elle kos · yeniden uret);
+     250px'lik kolona sigmayip gecmis noktalarinin uzerine tasiyorlardi
+     (olculdu 2026-09-16, ~1400px ekran). Kolon genisletildi ve dugmeler dar
+     ekranda alt satira SARABILIYOR. */
+  .rc-prow{grid-template-columns:minmax(0,1.3fr) minmax(0,.85fr) 92px 60px 368px}
+  .rc-prow .rc-c-act{flex-wrap:wrap;row-gap:6px}
   .rc-empty{border:1px dashed var(--line);border-radius:10px;padding:16px 18px;color:var(--mut);
     font-size:13px;line-height:1.6;margin-bottom:16px}
   .rc-empty b{color:var(--fg)}
@@ -381,6 +386,10 @@
   .pkg-manual{width:auto;margin:0;padding:5px 10px;font-size:11.5px;
     border-style:dashed;color:var(--mut)}
   .pkg-manual:hover{border-style:solid;color:var(--fg);border-color:var(--acc)}
+  /* ⚠️ KATMAN SIRASI: modal < onay kutusu < toast. Modal 10000 iken onay
+     kutusu 9999'daydı — "sil" deyince onay modalin ARKASINDA açılıyordu ve
+     kullanıcı modali kapatmadan onaylayamıyordu (bildirildi 2026-09-16).
+     Onay ve bildirim, üzerinde durdukları modali HER ZAMAN örtmeli. */
   .mr-wrap{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
     align-items:center;justify-content:center;z-index:10000}
   .mr-box{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:12px;
@@ -5139,7 +5148,7 @@ html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4
    Tarayicinin alert/confirm kutulari panelin dilini konusmuyordu (beyaz kutu,
    "localhost:4646 web sitesinin mesaji" basligi, tema yok). Ayni gorsel dille
    yeniden yazildi: toast'lar sag altta yigin, onay diyalogu ortada. */
-#uiToasts{position:fixed;right:22px;bottom:22px;z-index:9998;display:flex;flex-direction:column;gap:10px;
+#uiToasts{position:fixed;right:22px;bottom:22px;z-index:10070;display:flex;flex-direction:column;gap:10px;
   max-width:360px;pointer-events:none}
 .ui-toast{pointer-events:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r);
   box-shadow:var(--sh);padding:12px 14px;font-size:13px;animation:ncPopIn .22s ease}
@@ -5150,7 +5159,7 @@ html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4
 .ui-toast .bd{color:var(--mut);margin-top:7px;line-height:1.5;white-space:pre-line;word-break:break-word}
 .ui-toast.err{border-color:color-mix(in srgb,var(--no) 45%,var(--line))}
 .ui-toast.ok{border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
-#uiAsk{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:rgba(0,0,0,.55);
+#uiAsk{position:fixed;inset:0;z-index:10050;display:grid;place-items:center;background:rgba(0,0,0,.55);
   backdrop-filter:blur(3px);animation:ncPopIn .18s ease}
 #uiAsk .box{width:min(520px,calc(100vw - 40px));background:var(--card);border:1px solid var(--line);
   border-radius:var(--r);box-shadow:var(--sh);padding:18px 20px}

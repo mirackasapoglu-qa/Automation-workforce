@@ -2967,7 +2967,22 @@ silinebilir olması kabul edilemez (birim testli).
 
 Ölçüm: uçtan uca tarayıcıda — modal iki dosyayı türü ve bağlı düğümüyle
 listeledi, "bağı kaldır" sonrası uç bir dosya döndü, ağaç güncellendi, **dosya
-diskte durdu**. 270 birim testi (`spec-unlink.test.mjs` + `removeSpecFile`).
+diskte durdu**; "sil" ise iki dosyayı (tests/ + depo) gerçekten kaldırdı.
+270 birim testi (`spec-unlink.test.mjs` + `removeSpecFile`).
+
+⚠️ **KATMAN SIRASI: modal < onay kutusu < toast.** `.mr-wrap` 10000'deyken
+`#uiAsk` 9999'daydı — "sil" deyince onay kutusu modalin ARKASINDA açılıyor,
+kullanıcı modali kapatmadan onaylayamıyordu (bildirildi 2026-09-16). Onay
+10050, toast 10070. Yeni bir tam ekran katman eklerken bu sırayı koru: onayı
+ve bildirimi örten bir modal, kullanıcıyı kilitler.
+
+⚠️ **Paket satırı dört düğmeli oldu** (kos · specler · elle kos · yeniden üret)
+ve 250px'lik aksiyon kolonuna sığmayıp geçmiş noktalarının üstüne biniyordu
+(ölçüldü ~1400px ekranda). Kolon 368px'e çıktı, `.rc-c-act` dar ekranda alt
+satıra sarıyor. ⚠️ Bu satır **sabit genişlikli grid** — yeni bir düğme
+eklerken kolon genişliğini de büyüt, yoksa komşu kolonun üstüne taşar
+(`auto` kolon kullanılamaz: satır başına genişlik değişir ve kolonlar
+satırlar arasında kayar).
 
 ## Agent'lar (`.claude/agents/`)
 
