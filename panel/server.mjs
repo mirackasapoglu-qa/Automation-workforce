@@ -655,7 +655,17 @@ function buildCustomArgs(params = {}) {
   const available = new Set(listSpecs().map((s) => s.file));
   const specs = Array.isArray(params.specs) ? params.specs : [];
   for (const sp of specs) {
-    if (!available.has(sp)) errors.push(`Bilinmeyen spec: ${sp}`);
+    if (!available.has(sp)) {
+      /*
+       * "Bilinmeyen spec" tek basina sebebi soylemiyordu. Uretilmis bir dosya
+       * icin en olasi sebep, deploy'un `tests/` dizinini yeniden kurup dosyayi
+       * silmesi (bkz. CLAUDE.md → "Uretilen spec'ler deploy'da ucuyordu").
+       * Kurtarma artik otomatik; kurtarilamayanin ne yapilacagini yaz.
+       */
+      errors.push(/^gen-/.test(sp)
+        ? `Uretilmis spec dosyasi yok: ${sp} — kaynagi kalmamis. Paketteki case'lerden "otomatige cevir" ile yeniden uret.`
+        : `Bilinmeyen spec: ${sp}`);
+    }
   }
   if (!specs.length) errors.push("En az bir spec secilmeli");
   args.push(...specs.map((sp) => `tests/${sp}`));
