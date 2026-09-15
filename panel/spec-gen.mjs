@@ -320,3 +320,25 @@ export function restoreGenerated() {
 
   return { restored, adopted, skipped };
 }
+
+/**
+ * Üretilmiş bir spec dosyasını KALICI olarak siler (hem `tests/` hem depo).
+ *
+ * ⚠️ YALNIZ ÜRETİLMİŞ DOSYA. `gen-` önekiyle başlamayan hiçbir şey silinmez:
+ * repo'nun kendi suite'i (`01-homepage.spec.ts` gibi) git'te izlenen gerçek
+ * kaynak kod, panelden silinebilir olması kabul edilemez. Yol ayracı taşıyan
+ * ad da reddedilir (dizin dışına çıkma).
+ */
+export function removeSpecFile(filename) {
+  const ad = String(filename ?? "").trim();
+  if (!/^gen-[\w.-]+\.spec\.ts$/.test(ad)) {
+    throw new Error(`Yalnız üretilmiş spec silinebilir: ${ad || "(boş)"}`);
+  }
+  const silinen = [];
+  for (const dir of [TESTS, STORE]) {
+    const yol = path.join(dir, ad);
+    try { if (fs.existsSync(yol)) { fs.unlinkSync(yol); silinen.push(path.relative(ROOT, yol)); } }
+    catch { /* silinemeyen dosya cagriyi dusurmesin — bagi zaten kaldiriliyor */ }
+  }
+  return { file: ad, removed: silinen };
+}
