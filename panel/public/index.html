@@ -134,6 +134,50 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* Sonuclar sekmesindeki KAPSAM sonuclari (agactaki case'ler + kosum kayitlari).
+     Asagidaki spec listesinden ayri bir populasyon; gorsel olarak da ayrik. */
+  .cs-box{border:1px solid var(--line);border-radius:10px;background:var(--card);
+    padding:12px 14px;margin:0 0 16px}
+  .cs-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:9px;font-size:12px;font-weight:600;
+    text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px}
+  .cs-m{font-size:11px;font-weight:400;color:var(--mut);text-transform:none;letter-spacing:0;
+    font-family:ui-monospace,monospace}
+  .cs-n{margin-left:auto;font-size:11.5px;font-weight:400;color:var(--mut);text-transform:none;letter-spacing:0}
+  .cs-bos{font-size:12.5px;color:var(--mut);padding:6px 0}
+  .cs-grp{border-top:1px solid var(--line);padding:8px 0 4px}
+  .cs-grp:first-of-type{border-top:0}
+  .cs-node{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);
+    text-decoration:none;margin-bottom:5px}
+  .cs-node:hover{color:var(--acc)}
+  .cs-c{font-size:10px;border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .cs-row{display:grid;grid-template-columns:10px minmax(0,1.5fr) minmax(0,1fr) 92px;
+    align-items:center;gap:9px;padding:3px 0 3px 4px}
+  .cs-t{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cs-tag{font-size:9.5px;color:var(--mut);border:1px solid var(--line);border-radius:4px;
+    padding:0 5px;margin-left:6px}
+  .cs-not{font-size:11px;color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .cs-when{font-size:11px;color:var(--mut);text-align:right}
+  /* Aktif urun seridi — agacin her koku bir urun (bkz. panel/active-product.mjs) */
+  #productBar{padding:10px 30px 0;max-width:1280px;margin:0 auto}
+  .pb{display:flex;flex-wrap:wrap;align-items:center;gap:8px;border:1px solid var(--line);
+    border-radius:10px;padding:8px 12px;background:var(--card)}
+  .pb-l{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--mut)}
+  .pb-i{width:auto;margin:0;padding:4px 11px;font-size:12px;border-radius:999px;
+    display:inline-flex;align-items:center;gap:6px}
+  .pb-i.on{border-color:var(--acc);color:var(--acc);opacity:1}
+  .pb-i:disabled{opacity:1;cursor:default}
+  .pb-n{font-size:10px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .pb-u{font-size:11px;color:var(--mut);font-family:ui-monospace,monospace;margin-left:auto}
+  .pb-w{font-size:10.5px;color:var(--sk);border:1px solid var(--sk);border-radius:5px;padding:1px 7px}
+  /* Baska urun seciliyken repo suite'inin sahibini soyleyen not */
+  .suite-owner{font-size:11.5px;color:var(--sk);border:1px dashed var(--sk);border-radius:8px;
+    padding:7px 11px;margin:0 0 10px}
+  .suite-fold{border:1px dashed var(--sk);border-radius:8px;margin:0 0 12px}
+  .suite-fold>summary{cursor:pointer;padding:8px 12px;font-size:11.5px;color:var(--sk);list-style:none}
+  .suite-fold>summary::-webkit-details-marker{display:none}
+  .suite-fold>summary::before{content:"▸ ";}
+  .suite-fold[open]>summary::before{content:"▾ ";}
+  .suite-fold>*:not(summary){padding:0 12px 12px}
   /* ---- Kosum konsolu (public/js/runs-console.js) ---- */
   .rc-filter{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 12px}
   .rc-q{flex:1 1 260px;min-width:0;font:inherit;font-size:13px;padding:7px 11px;border-radius:8px;
@@ -193,9 +237,32 @@
   .rc-c-act2{gap:6px}
   .rc-c-act button{white-space:nowrap}
   .rc-manual{border-style:dashed;color:var(--mut)}
+  .rc-gen{width:auto;margin:0;padding:5px 10px;font-size:11.5px;border-color:var(--acc);color:var(--acc)}
   .rc-manual:hover:not(:disabled){border-style:solid;color:var(--fg);border-color:var(--acc)}
-  /* Paket satiri: ad · ozet · aksiyon (kosum tablosundan farkli kolon sayisi) */
-  .rc-prow{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) 188px}
+  /* Paket satiri: ad · ozet · son kosum · gecmis noktalari · aksiyon */
+  .rc-prow{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) 96px 68px 250px}
+  .rc-empty{border:1px dashed var(--line);border-radius:10px;padding:16px 18px;color:var(--mut);
+    font-size:13px;line-height:1.6;margin-bottom:16px}
+  .rc-empty b{color:var(--fg)}
+  /* Sonuclar: paket kosum defteri */
+  .pr{border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:8px}
+  .pr>summary{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;list-style:none;font-size:12.5px}
+  .pr>summary::-webkit-details-marker{display:none}
+  .pr-dot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}
+  .pr-dot.ok{background:var(--ok)} .pr-dot.no{background:var(--no)}
+  .pr-name{font-weight:600}
+  .pr-mode{font-size:10px;color:var(--mut);border:1px solid var(--line);border-radius:4px;padding:0 5px}
+  .pr-counts{color:var(--mut)}
+  .pr-when{margin-left:auto;font-size:11px;color:var(--mut);white-space:nowrap}
+  .pr-body{border-top:1px solid var(--line);padding:6px 12px 10px}
+  .pr-row{display:grid;grid-template-columns:78px minmax(0,1fr) 150px 52px 92px;gap:9px;align-items:center;
+    padding:5px 0;border-bottom:1px dashed var(--line)}
+  .pr-row:last-of-type{border-bottom:0}
+  .pr-t{font-size:12.5px;min-width:0}
+  .pr-ms{font-size:11px;color:var(--mut);text-align:right}
+  .pr-foot{font-size:10.5px;color:var(--mut);margin-top:8px}
+  .b.mut{color:var(--mut)}
+  #siteRecBtn.live{border-color:var(--no);color:var(--no)}
   .rc-c-ozet{font-size:11.5px;color:var(--mut)}
   .rc-grp-l{margin-left:auto;font-size:11px;font-weight:400;color:var(--mut);text-decoration:none;
     text-transform:none;letter-spacing:0}
@@ -951,7 +1018,6 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <button data-tab="perf" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20V10M6 20v-5M18 20V5"/></svg></span>Performans<span class="tc" id="tcPerf">–</span></button>
       <button data-tab="site" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 3 2.5 15 0 18M12 3c-2.5 3-2.5 15 0 18"/></svg></span>Site (canli)</button>
       <button data-tab="log" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h10M4 18h13"/></svg></span>Canli log</button>
-      <button data-tab="results" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 13l4 4L19 7"/></svg></span>Son sonuclar</button>
       <button data-tab="verdict" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M5 8l7-5 7 5"/><path d="M3 12l4-4 4 4a4 4 0 0 1-8 0zM13 12l4-4 4 4a4 4 0 0 1-8 0z"/></svg></span>Verdict</button>
       <button data-tab="diff" aria-selected="false" role="tab" type="button"><span class="nav-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="8" height="16" rx="1.5"/><rect x="13" y="4" width="8" height="16" rx="1.5"/></svg></span>Tasarim diff</button>
     </div>
@@ -966,6 +1032,10 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
   </aside>
 
   <section>
+    <!-- AKTIF URUN: agacin her koku bir urun; panelin siteye bakan her yuzeyi
+         (Site canli, perf, rota eslesmesi, kapsam sayaclari) secilene gore
+         calisir. Tek urun varsa serit HIC basilmaz. -->
+    <div id="productBar" hidden></div>
 
     <div id="tab-overview">
       <div class="ov-grid">
@@ -996,88 +1066,32 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
     <div id="tab-runs" hidden>
     <h2>Kosumlar</h2>
-    <!-- Kapsam agacindaki `runRef`lerden turetilen kosumlar + Test Suite paketleri
-         (Flowscope → panel). Whitelist guvenligi degismedi: buradan cikan her
-         kosum panel/runs.json ya da parametreli kosum dogrulamasindan gecer. -->
+    <!-- KOSUM = PAKET (2026-09-15). Reponun whitelist tablosu, parametreli kosum ve
+         bilinen hatalar buradan KALKTI: hepsi profilin kendi suite'ine aitti.
+         Akis: Home'da adres tara → Flowscope'ta case uret → pakete ekle → burada kos.
+         Whitelist guvenligi degismedi: paket spec'leri sunucuda tests/ altindaki
+         dosyalarla dogrulanir (buildCustomArgs). -->
     <!-- 1) suren kosum  2) biten kosumun sonucu — ikisi de bos iken gizli -->
     <div id="runLive" hidden></div>
     <div id="runResult" hidden></div>
     <div id="scopePackages"></div>
     <div id="scopeRuns"></div>
-    <!-- 5) sayfa ici filtre (uzun listede ⌘K'dan hizli) -->
-    <div id="runFilter" class="rc-filter"></div>
     <label id="hlWrap" title="Headed kosum TEST BASINA bir tarayici penceresi acar. Bu anahtar --headed'i kaldirir.">
       <input type="checkbox" id="hlChk" onchange="toggleHeadless()">
       <span id="hlLabel">headless kos (pencere acilmaz)</span>
     </label>
-    <div id="runs"></div>
     <div class="row">
       <button id="stopBtn" class="danger" style="width:auto">Durdur</button>
-      <button onclick="load()" style="width:auto">Yenile</button>
+      <button onclick="renderScopePackages()" style="width:auto">Yenile</button>
     </div>
-    <details class="rungrp" id="sideParam">
-      <summary>Parametreli kosum</summary>
-      <div class="body" id="customRun">
-      <select id="cSpec" multiple size="6" style="margin-bottom:6px"></select>
-      <input id="cGrep" placeholder='Baslik filtresi (-g), örn: silinir' style="margin-bottom:6px">
-      <div class="row" style="gap:6px">
-        <label class="mono" style="font-size:11px">tekrar
-          <input id="cRepeat" type="number" min="1" max="10" value="1" style="width:56px;margin:0 0 0 4px"></label>
-        <label class="mono" style="font-size:11px">
-          <input id="cHeaded" type="checkbox" style="width:auto;margin:0 4px 0 0">headed</label>
-      </div>
-      <p class="mono" id="cPreview" style="background:var(--card);border:1px solid var(--line);
-         border-radius:6px;padding:6px 8px;word-break:break-all;margin:0 0 6px">komut...</p>
-      <button id="cRunBtn" onclick="runCustom()">Parametreli kosum baslat</button>
-      </div>
-    </details>
-
-    <details class="rungrp" id="sideIssues">
-      <summary>Bilinen hatalar<span class="cnt" id="issuesCnt"></span></summary>
-      <div class="body" id="issues"></div>
-    </details>
     </div>
 
     <div id="tab-site" hidden>
-      <details id="recWrap">
-        <summary>
-          <svg style="width:16px;height:16px;color:var(--ok);flex:0 0 auto" viewBox="0 0 24 24" fill="none"
-               stroke="currentColor" stroke-width="1.9" aria-hidden="true">
-            <circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5" fill="currentColor" stroke="none"/>
-          </svg>
-          <span class="sg-name">Kaydet</span>
-          <span class="sg-sub">gezinmeyi test koduna cevirir — oturum yuklu baslar</span>
-          <span class="caret"></span>
-        </summary>
-        <div id="recBody">
-          <p class="sg-hint">
-            Tarayici acilir, sen gezinirsin. <b>Kaydi bitirmek icin tarayici penceresini kapat</b> —
-            kod o an <b>tests/.recorded/</b> altina yazilir. Buradaki iptal butonu sureci oldurur ve
-            <b>kod kaydedilmez</b>. Codegen ham locator uretir; repo POM konvansiyonuna elle cevrilmeli.
-          </p>
-          <div class="row" style="margin-bottom:0;align-items:center">
-            <button id="recBtn" onclick="toggleRecord()">Kaydi baslat</button>
-            <label class="mono" style="font-size:11px;color:var(--mut)">rota
-              <input id="recRoute" value="/" style="width:150px;margin:0 0 0 5px"></label>
-            <label class="mono" style="font-size:11px;color:var(--mut)">oturum
-              <select id="recState" style="width:auto;margin:0 0 0 5px">
-                <option value="guest">misafir (kapi)</option>
-                <option value="member">uye</option>
-              </select></label>
-            <label class="mono" style="font-size:11px;color:var(--mut)">cihaz
-              <select id="recDevice" style="width:auto;margin:0 0 0 5px">
-                <option value="">masaustu</option>
-                <option>iPhone 11</option><option>iPhone 13</option>
-                <option>Pixel 5</option><option>iPad Mini</option>
-              </select></label>
-            <span class="mono" id="recState2"></span>
-          </div>
-          <div class="rec-list" id="recList"></div>
-          <pre id="recCode"></pre>
-        </div>
-      </details>
+      <!-- Codegen tabanli "Kaydet" blogu KALKTI (2026-09-15): misafir/uye oturumu
+           profilin kavramiydi. Kayit artik asagidaki iframe kaydedicisiyle:
+           Kaydet → gez → Bitir → ad ver → test case + spec kapsam agacina yazilir. -->
       <div class="row">
-        <input id="siteUrl" placeholder="/tum-urunler" style="width:260px;margin:0">
+        <input id="siteUrl" placeholder="/" style="width:260px;margin:0">
         <button style="width:auto" onclick="goSite()">Git</button>
         <button style="width:auto" onclick="$('#siteFrame').src = $('#siteFrame').src">Yenile</button>
         <button style="width:auto" onclick="window.open($('#siteFrame').src,'_blank')">Yeni sekmede</button>
@@ -1090,7 +1104,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
           <button id="siteRunBtn" style="width:auto;margin:0 0 0 8px" disabled onclick="runForCurrent()">Bu sayfayi test et</button>
           <button id="siteDesignBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleDesign()">Yan yana tasarim</button>
           <button id="siteDiffBtn" style="width:auto;margin:0 0 0 6px" onclick="diffForCurrent()">Tasarim diff</button>
-          <button id="siteRecBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleIframeRec()">Kaydet (iframe)</button>
+          <button id="siteRecBtn" style="width:auto;margin:0 0 0 6px" onclick="toggleIframeRec()">Kaydet</button>
         </span>
       </div>
       <!-- Proxy adresi ulasilamaz oldugunda iframe yerine bu kutu cikar (bkz. proxyUsable). -->
@@ -1112,9 +1126,9 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
               yoksa <code>toBeVisible</code> uretilir. Tiklama yutulur — sayfa degismez.
             </p>
             <span style="display:flex;gap:7px;flex-wrap:wrap">
-              <button id="recGen" onclick="generateSpec()">Spec uret</button>
+              <button id="recFinish" onclick="finishIframeRec()" title="Adimlari kapsam agacina test case olarak yazar; Playwright spec'i de uretilir">Bitir</button>
               <button onclick="clearSteps()">Temizle</button>
-              <button onclick="toggleIframeRec()">Bitir</button>
+              <button onclick="cancelIframeRec()">Vazgec</button>
             </span>
           </div>
         </div>
@@ -1208,7 +1222,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
         <button style="width:auto;margin:0" onclick="loadPerf();loadPerfHistory()"
                 title="Diskteki son olcumu ve gecmisi yeniden okur (olcum yapmaz)">Yenile</button>
         <button id="perfRunBtn" style="width:auto;margin:0" onclick="runPerfSweep()"
-                title="33 rotayi bastan olcer (~6-8 dk). Kapi oturumunu kullanir, veri degistirmez.">Yeniden olc</button>
+                title="Kapsam agacindaki urunun rotalarini bastan olcer; her sayfanin tum istekleri kaydedilir. Veri degistirmez.">Yeniden olc</button>
         <button id="paOneBtn" data-ai-oneclick hidden onclick="perfGenerate()"
                 title="Tek tikla: panel modeli cagirir, bulgular kapidan gecip burada listelenir">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
@@ -1251,102 +1265,29 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
     <div id="tab-cases" hidden>
       <div class="strip" id="caseStrip"></div>
-      <details id="sgWrap" open>
-        <summary>
-          <svg class="sg-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3v3M12 18v3M4.2 7.5l2.1 2.1M17.7 14.4l2.1 2.1M3 12h3M18 12h3M4.2 16.5l2.1-2.1M17.7 9.6l2.1-2.1"/>
-            <circle cx="12" cy="12" r="3.2"/>
-          </svg>
-          <span class="sg-name">Senaryo öner</span>
-          <span class="sg-sub">dayanağı olmayan öneri kabul edilmez</span>
-          <span class="caret"></span>
-        </summary>
-        <div id="sgBody">
-          <div id="sgCtx"></div>
-          <p class="sg-hint">
-            Panel modeli kendisi çağırmaz — <b>API anahtarı gerekmez</b>: aşağıdaki istem
-            <b>Claude Code'a</b> verilir, dönen JSON aynı yere yapıştırılır.
-            Model yalnızca <b>bağlamda listelenen dayanak kaynaklarına</b> yaslanan senaryo önerebilir;
-            dayanağı olmayanlar — yapıştırılmış olsalar bile — kapıda elenir ve gerekçesiyle aşağıda gösterilir.
-          </p>
-          <textarea id="sgReq" rows="3" placeholder="Ne için senaryo önerilsin?&#10;Örn: Mağazalar sayfasındaki tasarım açıklarını kapatan senaryolar"></textarea>
-          <div class="sg-presets" id="sgPresets"></div>
-          <div class="row" style="margin-bottom:0;align-items:center">
-            <button id="sgOneBtn" data-ai-oneclick hidden onclick="scenarioGenerate()"
-                    title="Tek tikla: panel modeli cagirir, senaryolar 3 katmanli kapidan gecip burada listelenir">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M5 12h14M13 6l6 6-6 6"/>
-              </svg>Tek tıkla öner
-            </button>
-            <button id="sgBtn" onclick="scenarioPrompt()"
-                    title="Claude Code icin istem uretir — kopyala, yapistir, JSON'u geri yapistir (anahtar istemez)">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M5 12h14M13 6l6 6-6 6"/>
-              </svg>İstem üret
-            </button>
-            <label class="mono" style="font-size:11px;color:var(--mut)">en fazla
-              <select id="sgLimit" style="width:auto;margin:0 0 0 5px">
-                <option>3</option><option selected>5</option><option>8</option><option>10</option>
-              </select>
-            </label>
-            <span id="sgState"></span>
-          </div>
-          <div id="sgFlow"></div>
-          <div id="sgOut"></div>
-        </div>
-      </details>
-      <details id="kiWrap">
-        <summary>
-          <span class="sg-name">Bilinen hatalar — hâlâ tekrarlıyor mu?</span>
-          <span class="sg-sub" id="kiSub"></span>
-          <span class="caret"></span>
-        </summary>
-        <div id="kiBody">
-          <p class="sg-hint">
-            <b>Tek koşum kanıt değil.</b> Bir bulgunun kapatılabilmesi için birden fazla koşumda
-            tekrarlamadığını görmek gerekir. Aşağıdaki oran son koşumlardan birikir — <code>N×</code>
-            düğmesi aynı case'i üst üste koşup kaydı büyütür.
-          </p>
-          <div class="scroll"><table id="kiTable"></table></div>
-        </div>
-      </details>
-      <details id="dfWrap">
-        <summary>
-          <span class="sg-name">Taslaklar</span>
-          <span class="sg-sub" id="dfSub"></span>
-          <span class="caret"></span>
-        </summary>
-        <div id="dfBody">
-          <p class="sg-hint">
-            Kaydedicinin ürettiği dosyalar <code>panel-data/recorded/</code> altında —
-            <b>gerçek suite'in dışında</b>. Buradan koşabilirsin; sonuç
-            <code>test-results/draft-results.json</code>'a yazılır, Case'ler sekmesinin
-            oran defterine karışmaz. Konvansiyona çevirip <code>tests/NN-*.spec.ts</code>
-            olarak taşıdığında yukarıdaki listeye kendiliğinden düşer.
-          </p>
-          <div class="scroll"><table id="dfTable"></table></div>
-          <pre id="dfCode" hidden></pre>
-        </div>
-      </details>
-      <div class="row">
-        <input id="qCase" placeholder="Case ara (baslik, spec, dayanak)" style="width:280px;margin:0">
-        <select id="qFilter" style="width:auto;margin:0">
-          <option value="">tum durumlar</option>
-          <option value="failed">basarisiz</option>
-          <option value="known">bilinen hata</option>
-          <option value="passed">gecti</option>
-          <option value="none">hic kosulmadi</option>
-          <option value="flaky">kararsiz (bazen gecer)</option>
-          <option value="repeat">1'den fazla kosum var</option>
-          <option value="mutates">veri degistiren</option>
+      <!-- PAKET KOSUM DEFTERI (2026-09-15): her paket kosumu kendi case satirlariyla
+           KALICI (panel-data/package-runs.json). results.json her kosumda ezilir; bu
+           liste ezilmez — yeniden kosunca eski kosumlar durur. Reponun spec listesi,
+           senaryo onerisi, bilinen hatalar ve taslaklar buradan kalkti (profil suite'i). -->
+      <div class="row" style="align-items:center">
+        <select id="prPackage" style="width:auto;min-width:220px;margin:0" onchange="renderPackageRuns()"><option value="">tum paketler</option></select>
+        <select id="prMode" style="width:auto;margin:0" onchange="renderPackageRuns()">
+          <option value="">otomatik + elle</option>
+          <option value="auto">yalniz otomatik</option>
+          <option value="manual">yalniz elle</option>
         </select>
-        <button style="width:auto" onclick="loadCases()">Yenile</button>
-        <button style="width:auto" onclick="toggleAllCases(true)">Hepsini ac</button>
-        <button style="width:auto" onclick="toggleAllCases(false)">Hepsini kapat</button>
-        <span class="mono" id="caseMeta"></span>
+        <button style="width:auto" onclick="loadPackageRuns()">Yenile</button>
+        <span class="mono" id="prMeta"></span>
       </div>
-      <div id="caseList"></div>
+      <div id="packageRuns"></div>
+      <details id="csWrap">
+        <summary>
+          <span class="sg-name">Kapsamdaki tum case'ler</span>
+          <span class="sg-sub" id="csSub">agactaki case'ler ve son kosumlari — paketten bagimsiz</span>
+          <span class="caret"></span>
+        </summary>
+        <div id="caseScope"></div>
+      </details>
     </div>
 
     <div id="tab-diff" hidden>
@@ -1487,7 +1428,7 @@ const TIPS = {
   '#stopBtn': 'Calisan kosumu durdurur (SIGTERM) ve siradaki kosumlari iptal eder. Tarayici kapanir, o kosumun sonucu yazilmaz.',
   '#paOneBtn': 'Tek tikla perf yorumu: panel son olcumu modele verir (sunucuda API anahtari, yerelde Claude Code CLI). Uydurma rota iceren bulgu kapida elenir. ~15-40 sn, ucretli.',
   '#sgOneBtn': 'Tek tikla senaryo onerisi: istek + repo baglami modele gider, donen senaryolar 3 katmanli kapidan gecer (dayanaksiz olan elenir). ~15-40 sn, ucretli.',
-  '#siteRunBtn': "iframe'de acik olan rotanin testini baslatir. Yalnizca whitelist'teki kosum calisir; serbest komut calistirilamaz.",
+  '#siteRunBtn': "iframe'de acik rotanin kapsam dugumune bagli spec'leri kosar. Spec adlari sunucuda tests/ ile dogrulanir; serbest komut calistirilamaz.",
   '#siteDesignBtn': 'Sagda o rotanin Figma frame\'ini acar. Kaydirma senkronludur; rota degisince tasarim da degisir. Render onbellekten gelir, Figma\'ya cagri yapmaz.',
   '#siteDiffBtn': 'Acik rota icin tasarim diff\'i kosar (~45 sn) ve Tasarim diff sekmesine gecer.',
   'Git': 'URL cubugundaki yolu iframe\'de acar (panelin proxy\'si uzerinden, x-frame-options sokulur).',
@@ -1497,15 +1438,6 @@ const TIPS = {
   'Kaydet': "Verdict'i panel-data/verdicts/<anahtar>.json dosyasina yazar. Jira'ya GONDERMEZ.",
   "Jira'ya gonder": "Yazdigin yorumu karta ekler. Onay ister; gonderildikten sonra geri alinamaz.",
   'Statuyu degistir': 'Kartin statusunu degistirir. Onay ister ve ekibin sprint akisini dogrudan etkiler.',
-  'Anasayfa': 'Bu rotayi iframe\'de acar.',
-  'Tum urunler': 'Bu rotayi iframe\'de acar.',
-  'Urun': 'SAP test urununu iframe\'de acar.',
-  'Arama': '"koltuk" aramasini iframe\'de acar.',
-  'Sepet': 'Sepet sayfasini iframe\'de acar.',
-  'Giris': 'Giris sayfasini iframe\'de acar.',
-  'Hesabim': 'Hesabim sayfasini acar; oturum yoksa /giris\'e yonlenir.',
-  'Magazalar': 'Magazalar sayfasini iframe\'de acar.',
-  'Iletisim': 'Iletisim sayfasini iframe\'de acar.',
   'ac': 'Kartin detayini, yorumlarini, sprint bilgisini ve mevcut statu gecislerini getirir.',
 };
 
@@ -1583,7 +1515,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.tab === 'verdict') loadVerdicts();
   if (b.dataset.tab === 'jira') loadSorters().then(loadCards);
   if (b.dataset.tab === 'perf') loadPerfHistory();
-  if (b.dataset.tab === 'cases') loadCases();
+  if (b.dataset.tab === 'cases') { loadPackageRuns(); renderScopeCases(); }
   if (b.dataset.tab === 'perf') loadPerf();
   if (b.dataset.tab === 'overview') renderOverview();
   if (b.dataset.tab === 'runs') { renderScopeRuns(); renderScopePackages(); rcYenile(); }
@@ -1620,8 +1552,6 @@ async function load() {
     SG_PRESETS = m.project.scenarioPresets;
     if ($('#sgPresets')) renderPresets();
   }
-  // Sekme sayaclari (tasarim: nav'da sagda sayi durur).
-  const tr = $('#tcRuns'); if (tr) tr.textContent = (m.runs || []).length;
   // Kirilim kokunu proje adiyla yaz; genel bakis acikta ise doldur.
   renderOverview();
   // Dayanak oneki profilden gelir; arama ve verdict ipuclarina yazilir.
@@ -1632,12 +1562,20 @@ async function load() {
     if (q) q.placeholder = `Case ara (baslik, spec, ${pfx}-00X)`;
     if (v) v.placeholder = `Kayit anahtari (orn. ${pfx}-001 veya 06-sepet)`;
   }
-  // Tasarim: sag ustte yalnizca ortam ADI. Tam URL tooltip'te kalir.
-  $('#envPill').textContent = m.env;
-  $('#envPill').title = `${m.env} — ${m.baseURL}`;
-  $('#orderPill').textContent = `siparis tamamlama: ${m.ordersAllowed ? 'ACIK' : 'kapali'}`;
-  // renk tek basina bilgi tasimaz — metin de degisiyor (ACIK/kapali)
-  $('#orderPill').className = 'pill ' + (m.ordersAllowed ? 'warn' : '');
+  // Sag ustte URUNUN adresi (host). "test/staging" ortam adi profilin kavramiydi;
+  // panel artik kapsam agacindaki urune bakiyor, rozet de onu soyluyor.
+  let host = '';
+  try { host = new URL(m.baseURL).hostname.replace(/^www\./, ''); } catch { host = ''; }
+  $('#envPill').textContent = host || (m.baseURL ? m.baseURL : 'urun yok');
+  $('#envPill').title = `${m.activeProduct?.name ?? 'aktif urun yok'} — ${m.baseURL ?? ''}`;
+  // Siparis guard'i reponun kendi suite'ine ait; yalniz o urun aktifken gosterilir.
+  const op = $('#orderPill');
+  if (op) {
+    const goster = !!m.activeProduct?.isProfile;
+    op.style.display = goster ? '' : 'none';
+    op.textContent = `siparis tamamlama: ${m.ordersAllowed ? 'ACIK' : 'kapali'}`;
+    op.className = 'pill ' + (m.ordersAllowed ? 'warn' : '');
+  }
   $('#activePill').textContent = m.active ? `kosuyor: ${m.active.label}` : '';
   $('#activePill').className = 'pill ' + (m.active ? 'good' : '');
 
@@ -1681,12 +1619,8 @@ async function load() {
   }
 
   decorateTips();
-
-  $('#issues').innerHTML = m.knownIssues.length
-    ? m.knownIssues.map(i => `<div class="issue"><div class="id">${esc(i.id)}</div>
-        <div class="w">${esc(i.where)}</div><div style="font-size:12.5px">${esc(i.detail)}</div></div>`).join('')
-    : '<p class="mono">Kayit yok</p>';
-  $('#issuesCnt').textContent = document.querySelectorAll('#issues .issue').length || '';
+  // Kosumlar sekmesinin sayaci paket sayisi — paketler burada okunur.
+  renderScopePackages();
 }
 
 /**
@@ -1759,6 +1693,22 @@ es.addEventListener('scope-run-auto', e => {
     { type: 'ok', title: 'Kapsam guncellendi', ms: 8000 });
 });
 
+/*
+ * PAKET KOSUMU DEFTERE DUSTU (sunucu: run-engine onRunFinished → package-runs.mjs).
+ * Sonuclar kalici; sekme acikken listeyi, Kosumlar acikken paket satirini tazele.
+ */
+es.addEventListener('package-run-end', e => {
+  const d = JSON.parse(e.data);
+  const c = d.counts || {};
+  uiToast(`${d.packageName}: ${c.passed ?? 0} gecti${c.failed ? `, ${c.failed} kaldi` : ''}${c.skipped ? `, ${c.skipped} atlandi` : ''} — Sonuclar sekmesinde kalici.`,
+    { type: c.failed ? 'err' : 'ok', title: 'Paket kosumu bitti', ms: c.failed ? 0 : 9000 });
+  loadPackageRunIndex().then(() => {
+    const t = $('#tcCases'); if (t) t.textContent = PKG_RUNS.length;
+    if (!$('#tab-runs').hidden) renderScopePackages();
+    if (!$('#tab-cases').hidden) loadPackageRuns();
+    if (!$('#tab-overview').hidden) renderOverviewKpis();
+  });
+});
 es.addEventListener('run-queued', e => {
   const d = JSON.parse(e.data);
   const n = d.pending?.length ?? 0;
@@ -1842,114 +1792,14 @@ async function verdictToCard(cardKey) {
   $('#jComment').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-// ---------------- Case'ler (spec basina dropdown) ----------------
-let SPECS = [];
-
-async function loadCases() {
-  SPECS = await (await fetch('/api/specs')).json();
-  renderCases();
-  loadDrafts();
-}
-
-function caseMatches(sp, c, q, f) {
-  const st = c.last?.status || 'none';
-  if (f === 'mutates' && !c.mutates) return false;
-  if (f === 'flaky' && !c.stats?.flaky) return false;
-  if (f === 'repeat' && (c.stats?.runs ?? 0) < 2) return false;
-  if (f && !['mutates', 'flaky', 'repeat'].includes(f) && st !== f) return false;
-  if (!q) return true;
-  const hay = (sp.file + ' ' + sp.describe + ' ' + c.title + ' ' + (c.issue || '') + ' ' + (sp.cards || []).join(' ')).toLocaleLowerCase('tr');
-  return hay.includes(q.toLocaleLowerCase('tr'));
-}
-
-/**
- * Oran kolonunun sinifi. Tek kosumluk kayitta renk YOK — "1/1 basarisiz" ile
- * "10/10 basarisiz" ayni sey degil, ilkine kirmizi demek yaniltir.
+// ---------------- Sonuclar: paket kosum defteri ----------------
+/*
+ * Reponun spec envanteri (`/api/specs`) ARTIK ARAYUZDE LISTELENMIYOR: o liste
+ * profilin Playwright suite'i. Sonuclar sekmesi paket kosum defterini
+ * gosterir (loadPackageRuns). `SPECS` bos dizi olarak duruyor — runs-console.js
+ * risk rozetleri icin ona bakiyor.
  */
-function rateCls(st) {
-  if (!st) return 'rate';
-  if (st.runs < 2) return 'rate';
-  if (st.flaky) return 'rate flaky';
-  if (st.failed === st.runs) return 'rate hard';
-  if (st.failed === 0) return 'rate clean';
-  return 'rate';
-}
-
-function rateTitle(st) {
-  if (!st) return 'Henuz kosum kaydi yok';
-  const span = st.firstAt === st.lastAt
-    ? st.lastAt.slice(5, 16).replace('T', ' ')
-    : `${st.firstAt.slice(5, 10)} → ${st.lastAt.slice(5, 16).replace('T', ' ')}`;
-  const yorum = st.runs < 2
-    ? 'Tek kosum — tekrarlanabilirlik icin --repeat-each ile tekrar kos'
-    : st.flaky
-      ? `KARARSIZ: ${st.passed} gecti, ${st.failed} kaldi. Ya test ya urun kararsiz.`
-      : st.failed === st.runs
-        ? 'Her kosumda tekrarliyor — saglam bulgu'
-        : 'Her kosumda gecti';
-  const dus = st.dropped ? `\n${st.dropped} kayit sayilmadi (kesilen/atlanan kosum)` : '';
-  return `Son ${st.runs} kosumda ${st.failed} basarisiz\n${span}\n${yorum}${dus}`;
-}
-
-function renderCases() {
-  const q = $('#qCase').value.trim();
-  const f = $('#qFilter').value;
-  let shown = 0, total = 0;
-
-  const html = SPECS.map(sp => {
-    total += sp.list.length;
-    const rows = sp.list.filter(c => caseMatches(sp, c, q, f));
-    if (!rows.length) return '';
-    shown += rows.length;
-    const counts = {};
-    for (const c of sp.list) { const k = c.last?.status || 'none'; counts[k] = (counts[k] || 0) + 1; }
-    const badge = Object.entries(counts).map(([k, v]) => `<span class="st ${k}">${v}</span>`).join(' ');
-    return `<details class="spec" ${q || f ? 'open' : ''}>
-      <summary>
-        <span class="fname">${esc(sp.file)}</span>
-        <b>${esc(sp.describe)}</b>
-        <span class="cnt">${sp.list.length} case${sp.member ? ' · uye' : ''}${(sp.cards||[]).length ? ' · ' + sp.cards.join(', ') : ''}</span>
-        ${scopeCellForSpec(sp.file)}
-        ${badge}
-      </summary>
-      <div class="body">
-        ${rows.map(c => {
-          const st = c.last?.status || 'none';
-          const when = c.last?.at ? c.last.at.slice(5, 16).replace('T', ' ') : '';
-          const flags = [
-            c.mutates ? '<span class="tag tm">veri degistirir</span>' : '',
-            c.known ? `<span class="tag ti">${esc(c.issue || 'bilinen hata')}</span>` : '',
-            c.conditional ? '<span class="tag ts">kosullu</span>' : '',
-            c.parametric ? '<span class="tag ts">parametrik</span>' : '',
-          ].filter(Boolean).join(' ');
-          const idx = sp.list.indexOf(c) + 1;
-          return `<div class="caserow">
-            <span class="idx">${idx}</span>
-            <span class="st ${st}" title="${esc(when)}">${st === 'none' ? 'kosulmadi' : st}</span>
-            <span class="ttl">${esc(c.title.replace(/\$\{[^}]+\}/g, '<rota>'))}
-              ${c.last?.error ? `<div class="mono err" style="font-size:11px">${esc(c.last.error.slice(0,120))}</div>` : ''}</span>
-            <span class="flags">${flags}</span>
-            <span class="${rateCls(c.stats)}" title="${esc(rateTitle(c.stats))}">${c.stats ? c.stats.rate : '—'}</span>
-            <button class="run" ${c.parametric ? 'disabled title="parametrik case: -g ile tek tek kosulamaz"' : ''}
-              onclick="runCase('${esc(sp.file)}', this.dataset.t)" data-t="${esc(c.title)}">kos</button>
-            <button class="run rep" ${c.parametric ? 'disabled' : ''}
-              title="Ayni case'i 5 kez ust uste kos — oran kaydini buyutur"
-              onclick="runCase('${esc(sp.file)}', this.dataset.t, 5)" data-t="${esc(c.title)}">5&times;</button>
-          </div>`;
-        }).join('')}
-      </div>
-    </details>`;
-  }).join('');
-
-  $('#caseList').innerHTML = html || '<p class="mono">Eslesen case yok</p>';
-  $('#caseMeta').textContent = `${shown}/${total} case`;
-  renderCaseStrip(total);
-  renderKnownIssues();
-}
-
-function toggleAllCases(open) {
-  document.querySelectorAll('details.spec').forEach(d => { d.open = open; });
-}
+let SPECS = [];
 
 /** Tek case'i parametreli kosumla calistirir: -g "<baslik>" */
 async function runCase(file, title, repeat = 1) {
@@ -1962,12 +1812,10 @@ async function runCase(file, title, repeat = 1) {
   if (!r.ok && r.code !== 'BUSY') appendLog('PANEL: ' + r.error, true);
 }
 
-$('#qCase').addEventListener('input', renderCases);
-$('#qFilter').addEventListener('change', renderCases);
 
 // kosum bitince durumlar guncellenir
 es.addEventListener('run-end', () => {
-  if (!$('#tab-cases').hidden) loadCases();
+  if (!$('#tab-cases').hidden) loadPackageRuns();
   loadGateStatus();
   // Perf olcumu bittiyse tabloyu tazele ve dugmeyi geri ac.
   const pb = $('#perfRunBtn');
@@ -1975,51 +1823,8 @@ es.addEventListener('run-end', () => {
   if (!$('#tab-perf').hidden) loadPerf();
 });
 
-// ---------------- parametreli kosum ----------------
-async function loadSpecs() {
-  const specs = await (await fetch('/api/specs')).json();
-  $('#cSpec').innerHTML = specs.map(s =>
-    `<option value="${esc(s.file)}">${esc(s.file)} (${s.cases}${s.member ? ', uye' : ''})</option>`).join('');
-}
-
-function customParams() {
-  return {
-    specs: [...$('#cSpec').selectedOptions].map(o => o.value),
-    grep: $('#cGrep').value.trim(),
-    repeatEach: Number($('#cRepeat').value || 1),
-    headed: $('#cHeaded').checked,
-  };
-}
-
-/** Calistirmadan once uretilecek komutu gosterir — ne kosacagi gizli kalmasin. */
-async function previewCustom() {
-  const r = await (await fetch('/api/run/preview', {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ params: customParams() }),
-  })).json();
-  const el = $('#cPreview');
-  el.textContent = r.ok ? r.command : (r.errors || []).join(' · ');
-  el.style.color = r.ok ? '' : 'var(--no)';
-  $('#cRunBtn').disabled = !r.ok;
-  const btn = $('#cRunBtn');
-  btn.dataset.tip = r.ok
-    ? 'Secilen spec ve parametrelerle Playwright kosar. Serbest komut DEGIL: spec adlari tests/ altindaki dosyalarla dogrulanir, kabuk devreye girmez (shell:false), workers=1 sabittir.'
-    : 'Parametreler gecersiz — onizlemedeki hatalari duzelt.';
-  btn.dataset.tipCmd = r.ok ? r.command : '';
-}
-
-for (const id of ['#cSpec', '#cGrep', '#cRepeat', '#cHeaded'])
-  document.addEventListener('change', (e) => { if (e.target.closest(id)) previewCustom(); });
-document.addEventListener('input', (e) => { if (e.target.closest('#cGrep') || e.target.closest('#cRepeat')) previewCustom(); });
-
-async function runCustom() {
-  const params = customParams();
-  if (!params.specs.length) return uiToast('En az bir spec seç.', { type: 'err' });
-  document.querySelector('.tabs button[data-tab=log]').click();
-  $('#log').textContent = '';
-  const r = await runRequest({ id: 'custom', params }, { label: 'parametreli koşum' });
-  if (!r.ok && r.code !== 'BUSY') appendLog('PANEL: ' + r.error, true);
-}
+// Parametreli kosum arayuzu KALKTI (2026-09-15): kosum = paket. `id:'custom'`
+// yolu sunucuda duruyor; paket kosumu ve tek case tekrari (runCase) onu kullanir.
 
 // ---------------- Site (iframe) ----------------
 let PROXY = '';
@@ -2115,21 +1920,157 @@ function goSite(path) {
 
 // ---------------- kapsam (Flowscope) bolumleri ----------------
 /**
- * Bir spec dosyasinin kapsam agacindaki karsiligi (Sonuclar sekmesi basligi).
- *
- * Bag YALNIZCA acik `runRef.specs` eslemesiyle kurulur — URL/isim benzerliginden
- * tahmin edilmez (bkz. scope-bridge.mjs → nodesForSpec'teki ayni gerekce).
- * Bagli dugum yoksa bunu SOYLUYORUZ: "bu spec kapsamda hicbir sayfaya bagli
- * degil" gercek bir kapsam bosluguydu ve hicbir yerde gorunmuyordu.
+ * Aktif urun repo'nun urunu degilken Jira sekmesi: kartlar KAPSAM AGACINDAN.
+ * Durum bilgisi Flowscope'taki taramadan gelir (panel burada tracker'a
+ * gitmiyor — yabanci urunun kartlari profilin JQL'ine zaten uymaz).
  */
-function scopeCellForSpec(file) {
-  if (!window.SCOPE) return '';
-  const dugumler = scopeNodesForSpec(file);
-  if (!dugumler.length) return '<span class="sc-none">kapsamda bagli degil</span>';
-  return dugumler.slice(0, 2).map(n =>
-    `<a class="sc-tag" href="${scopeNodeUrl(n.nodeId)}" onclick="event.stopPropagation()" title="Kapsam dugumu: ${esc(n.name)}">
-      <span class="sc-dot ${scopeStatusCls(n.status)}"></span>${esc(n.name.slice(0, 20))}</a>`).join('')
-    + (dugumler.length > 2 ? `<span class="sc-none">+${dugumler.length - 2}</span>` : '');
+function renderScopeCards() {
+  const s = window.SCOPE;
+  const idx = s?.jira ?? {};
+  const anahtarlar = Object.keys(idx);
+  $('#tcJira').textContent = anahtarlar.length;
+  $('#jMeta').textContent = `${anahtarlar.length} kart · kaynak: kapsam agaci (${s?.active?.name ?? ''})`;
+  renderJiraStrip([]);
+
+  if (!anahtarlar.length) {
+    $('#jTable').innerHTML = `<tr><td class="mono">Bu urunun kapsam agacinda bagli Jira karti yok.
+      Flowscope'ta bir dugume Task ID ekleyince burada gorunur.</td></tr>`;
+    return;
+  }
+  $('#jTable').innerHTML = '<tr><th>Kart</th><th>Bagli dugumler</th><th>Rota</th></tr>'
+    + anahtarlar.map(k => {
+      const dugumler = idx[k] ?? [];
+      return `<tr>
+        <td class="mono">${esc(k)}</td>
+        <td>${dugumler.map(n => `<a class="sc-tag" href="${scopeNodeUrl(n.nodeId)}">
+              <span class="sc-dot ${scopeStatusCls(n.status)}"></span>${esc(n.name.slice(0, 26))}</a>`).join(' ')}</td>
+        <td class="mono">${esc(dugumler.map(n => n.path).filter(Boolean).join(', '))}</td>
+      </tr>`;
+    }).join('');
+}
+
+/**
+ * SONUCLAR sekmesindeki KAPSAM SONUCLARI.
+ *
+ * Sekme yalnizca `/api/specs`i gosteriyordu: reponun Playwright spec'leri (17
+ * dosya, 88 case) — yani HER ZAMAN profilin urunu. Kullanici baska bir siteyi
+ * tarayip case'lerini ELLE kosunca sonuclari hicbir yerde gormuyordu; sekme
+ * "5 gecti" derken gosterdigi sey bambaska bir urunun eski kayitlariydi
+ * (olculdu 2026-09-15: aktif urun Promptfoo, kapsamda 5 case 5 ✅, sekmede
+ * profilin spec listesi).
+ *
+ * Iki populasyon BILEREK ayri gosteriliyor: kapsam case'leri (elle + otomatik,
+ * agacta) ve repo suite'i (Playwright). Tek listede toplamak "bu sayi neyin
+ * sayisi" sorusunu cevapsiz birakirdi.
+ */
+function renderScopeCases() {
+  const el = $('#caseScope');
+  if (!el) return;
+  const s = window.SCOPE;
+  const cases = s?.cases ?? [];
+  if (!s) { el.innerHTML = ''; return; }
+
+  const aktifAd = s.active?.name ?? '';
+  if (!cases.length) {
+    el.innerHTML = `<div class="cs-box"><div class="cs-h">Kapsam sonuclari
+      <span class="cs-m">${esc(aktifAd)}</span></div>
+      <div class="cs-bos">Bu urunun kapsam agacinda henuz test case yok —
+      Flowscope'ta bir dugum secip "Test Case Uret" ile baslayabilirsin.</div></div>`;
+    return;
+  }
+
+  // Dugume gore grupla: "hangi sayfada ne durumda" sorusu boyle cevaplaniyor.
+  const gruplar = new Map();
+  for (const c of cases) {
+    if (!gruplar.has(c.nodeId)) gruplar.set(c.nodeId, { ad: c.nodeName, liste: [] });
+    gruplar.get(c.nodeId).liste.push(c);
+  }
+  const kosulan = cases.filter(c => c.runCount > 0).length;
+  const gecti = cases.filter(c => c.lastRun?.status === '\u2705').length;
+  const dusen = cases.filter(c => c.lastRun?.status === '\u274C').length;
+
+  el.innerHTML = `<div class="cs-box">
+    <div class="cs-h">Kapsam sonuclari<span class="cs-m">${esc(aktifAd)}${s.baseUrl ? ' · ' + esc(s.baseUrl) : ''}</span>
+      <span class="cs-n">${cases.length} case · ${kosulan} kosuldu · <span class="ok">${gecti} gecti</span>${dusen ? ` · <span class="no">${dusen} dusen</span>` : ''}</span>
+    </div>
+    ${[...gruplar.entries()].map(([nodeId, g]) => `
+      <div class="cs-grp">
+        <a class="cs-node" href="${scopeNodeUrl(nodeId)}" title="Kapsam agacinda ac">${esc(g.ad || nodeId)}<span class="cs-c">${g.liste.length}</span></a>
+        ${g.liste.map(c => {
+          const lr = c.lastRun;
+          const durum = lr?.status ?? '\u2B1C';
+          const cls = scopeStatusCls(durum);
+          const ne = lr?.at ? ovWhen(lr.at) : '';
+          // Elle kosum notu iki satir: ilki etiket ("Elle kosum · <paket>"),
+          // ikincisi kullanicinin yazdigi. Listede ikincisi daha degerli.
+          const not = (lr?.note || '').split('\n').slice(-1)[0].slice(0, 70);
+          return `<div class="cs-row">
+            <span class="sc-dot ${cls}" title="${esc(durum)}"></span>
+            <span class="cs-t">${esc(c.title)}${c.draft ? '<span class="cs-tag">taslak</span>' : ''}${c.automated ? '<span class="cs-tag">otomatik</span>' : ''}</span>
+            <span class="cs-not">${esc(not)}</span>
+            <span class="cs-when">${esc(c.runCount ? ne : 'hic kosulmadi')}</span>
+          </div>`;
+        }).join('')}
+      </div>`).join('')}
+  </div>`;
+}
+
+/**
+ * AKTIF URUN SERIDI.
+ *
+ * Kapsam agacinda birden fazla kok olabiliyor ve her kok ayri bir urun (ayri
+ * site). Panel eskiden ayrimi bilmiyordu: profilin sitesini acip profilin
+ * kartlarini gosteriyor, kullanici bambaska bir siteyi taramis olsa bile ayni
+ * seyi yapiyordu — "her sey ic ice girmis" sikayetinin kaynagi buydu.
+ *
+ * ⚠️ Tek urun varsa serit BASILMAZ: secilecek bir sey yokken ekranda yer
+ * kaplamasi gereksiz.
+ */
+function renderProductBar() {
+  const el = $('#productBar');
+  if (!el) return;
+  const s = window.SCOPE;
+  const urunler = s?.products ?? [];
+  const aktif = s?.active ?? null;
+  /*
+   * ⚠️ TEK URUN VARSA DA GOSTERILIR — eger o urun REPO'NUN urunu DEGILSE.
+   * Kullanicinin gercek durumu buydu: agacta yalnizca kendi taradigi site var,
+   * panel ise reponun suite'ini tasiyor. Serit gizlenince "panel neye bakiyor"
+   * sorusu yine cevapsiz kaliyordu. Tek urun VE o urun reponun kendi urunuyse
+   * soylenecek bir sey yok, serit basilmaz.
+   */
+  // Tek urun varsa secilecek bir sey yok — serit basilmaz. Panelin baktigi
+  // adres zaten sag ustteki rozette (host) yaziyor.
+  if (!aktif || urunler.length < 2) { el.hidden = true; el.innerHTML = ''; return; }
+
+  el.hidden = false;
+  el.innerHTML = `<div class="pb">
+    <span class="pb-l">Aktif urun</span>
+    ${urunler.map(u => `
+      <button class="pb-i${u.nodeId === aktif.nodeId ? ' on' : ''}"
+        title="${esc(u.baseUrl || 'adres yok')} · ${u.nodes} dugum"
+        ${u.nodeId === aktif.nodeId ? 'disabled' : `onclick="setActiveProduct('${esc(u.nodeId)}')"`}>
+        ${esc(u.name.slice(0, 38))}<span class="pb-n">${u.nodes}</span>
+      </button>`).join('')}
+    <span class="pb-u">${esc(aktif.baseUrl || '')}</span>
+  </div>`;
+}
+
+/** Aktif urunu degistirir — sunucuda kalici, panelin tamami yeniden beslenir. */
+async function setActiveProduct(nodeId) {
+  const r = await post('/api/scope/products/active', { nodeId });
+  if (!r.ok) { uiToast(r.error || 'Urun degistirilemedi.', { type: 'err' }); return; }
+  /*
+   * ⚠️ GOMULU CERCEVE SIFIRLANMALI: proxy artik yeni urune bakiyor ama iframe
+   * eski sayfada kaliyor ve ESKI sitenin varliklarini yeni hedeften istiyor —
+   * konsol 404 yagiyor (olculdu). src'yi bosaltmak load()'un cerceveyi yeni
+   * urunun kokune goturmesini saglar.
+   */
+  const f = $('#siteFrame');
+  if (f) { f.removeAttribute('src'); CURRENT_PATH = null; }
+  await scopeRefresh();
+  await load();            // baseURL, proxy hedefi ve sekme sayaclari da degisiyor
+  uiToast(`Aktif urun: ${r.active?.name ?? nodeId}`, { type: 'ok' });
 }
 
 /**
@@ -2182,58 +2123,82 @@ function renderScopeKpis() {
 }
 
 /**
- * KOSUMLAR sekmesindeki "Test Suite paketleri" grubu.
+ * KOSUMLAR sekmesi = PAKETLER (2026-09-15).
  *
- * Paket = uretilen test case'lerden kurulu, isimlendirilmis bir koleksiyon
- * (Flowscope → Test Suite → Paketler). Panel paketi TEK bir parametreli
- * kosumla calistirir: sunucu paketin case'lerini spec'lere cozuyor
- * (`/api/scope/packages/runnable`), panel o spec'leri kosuyor.
+ * Paket = Flowscope'ta case'lerden kurulan, isimlendirilmis koleksiyon. Panel
+ * paketi TEK parametreli kosumla calistirir: sunucu case'leri spec'lere cozer
+ * (`/api/scope/packages/runnable`), spec'ler `tests/` altindaki dosyalarla
+ * dogrulanir (whitelist guvenligi yerinde). Kosum bitince sonuc paketin
+ * case'lerine eslenip DEFTERE yazilir (`/api/scope/package-runs`) — satirdaki
+ * "son kosum" ve noktalar oradan.
  *
- * ⚠️ Flowscope'taki paket kosumu SIRALI (dugum dugum, her biri ayri kosum);
- * buradaki TEK kosum. Ikisi de ayni sonuc dosyasini uretiyor ve sonuc ayni
- * sekilde agaca yaziliyor — fark hiz ve tek `results.json`.
- *
- * ⚠️ Otomatik karsiligi olmayan (elle) case'ler kosulmaz; sayisi satirda
- * YAZILIR. "10 case'lik paketi kostum" deyip 3'unun kosmasi sessiz kalmamali.
+ * ⚠️ Otomatik karsiligi olmayan case'ler kosulmaz ve sayisi satirda YAZILIR
+ * ("10 case · 3 spec · 7 elle"): paketin yarisinin sessizce atlanmasi
+ * "paketi kostum" diyen kullaniciyi yaniltirdi.
  */
+let PKG_RUNS = [];   // paket kosum defteri (satirsiz, yeniden eskiye) — Kosumlar + Genel bakis
+
+async function loadPackageRunIndex() {
+  try { PKG_RUNS = (await (await fetch('/api/scope/package-runs?cases=0&limit=300')).json()).runs || []; }
+  catch { PKG_RUNS = []; }
+  return PKG_RUNS;
+}
+
 async function renderScopePackages() {
   const el = $('#scopePackages');
   if (!el) return;
   let liste = [];
   try { liste = (await (await fetch('/api/scope/packages/runnable')).json()).packages || []; }
-  catch { el.innerHTML = ''; return; }
-  if (!liste.length) { el.innerHTML = ''; return; }
+  catch { el.innerHTML = '<p class="mono err">Paket listesi okunamadi.</p>'; return; }
+  await loadPackageRunIndex();
+  const tr = $('#tcRuns'); if (tr) tr.textContent = liste.length;
 
-  /*
-   * Paketler kosum tablosuyla AYNI dilde: satir, ozet, aksiyon. Once cip
-   * yigini halindeydi ve "elle kos" dugmesi iki satira kiriliyordu.
-   *
-   * Iki aksiyon, iki farkli kosum turu:
-   *   otomatik — spec'i olan case'ler tek parametreli kosumla
-   *   elle     — adimlardan olusan case'ler insan tarafindan yurutulur
-   * Paketin icinde ikisi karisik olabilir; ikisi de gosterilir, olmayani kapali.
-   */
+  if (!liste.length) {
+    const urun = window.SCOPE?.active?.name;
+    el.innerHTML = `<div class="rc-empty">
+      <b>Henuz paket yok${urun ? ` (${esc(urun)})` : ''}.</b>
+      Akis: Home'da adresi tara → Flowscope'ta dugum secip test case uret → case'leri bir pakete ekle → burada kos.
+      <div style="margin-top:8px"><a class="sc-tag" href="/scope/#view=packages">Flowscope'ta paket olustur</a>
+      <a class="sc-tag" href="/scope/#import" style="margin-left:6px">siteyi tara</a></div></div>`;
+    return;
+  }
+
+  const byPkg = new Map();
+  for (const r of PKG_RUNS) { if (!byPkg.has(r.packageId)) byPkg.set(r.packageId, []); byPkg.get(r.packageId).push(r); }
+
   el.innerHTML = `<div class="rc-grp">
-    <div class="rc-grp-h">Test Suite paketleri<span class="cnt">${liste.length}</span>
+    <div class="rc-grp-h">Paketler<span class="cnt">${liste.length}</span>
       <a class="rc-grp-l" href="/scope/#view=packages">Flowscope'ta yonet</a></div>
     <div class="rc-tbl">${liste.map(p => {
+      const kayitlar = byPkg.get(p.id) ?? [];
+      const son = kayitlar[0];
+      const kosuyor = !!(RC.canli && String(RC.canli.label || '') === `Paket: ${p.name}`);
       const parcalar = [
         `${p.cases} case`,
         p.specs.length ? `${p.specs.length} spec otomatik` : null,
         p.manualCases ? `${p.manualCases} elle` : null,
         p.missingRefs ? `${p.missingRefs} kayip referans` : null,
+        !p.specs.length ? 'otomatik karsiligi yok — elle kosulur' : null,
       ].filter(Boolean);
-      return `<div class="rc-row rc-prow">
+      const c = son?.counts;
+      const sonuc = kosuyor ? '<span class="rc-now">kosuyor</span>'
+        : !son ? '<span class="rc-none">hic kosulmadi</span>'
+          : `<span class="${c?.failed ? 'no' : 'ok'}">${c?.passed ?? 0}/${c?.total ?? 0}</span>`;
+      return `<div class="rc-row rc-prow${kosuyor ? ' kosuyor' : ''}">
         <div class="rc-c-ad">
           <span class="rc-ad">${esc(p.name)}</span>
           <span class="rc-specs">${esc(p.specs.join(', ') || 'otomatik kosum yok')}</span>
         </div>
         <div class="rc-c-ozet">${esc(parcalar.join(' · '))}</div>
+        <div class="rc-c-sonuc">${sonuc}<span class="rc-ne">${esc(son ? `${son.mode === 'manual' ? 'elle · ' : ''}${rcNeZaman(son.startedAt)}` : '')}</span></div>
+        <div class="rc-c-gecmis">${rcNoktalar(kayitlar)}</div>
         <div class="rc-c-act rc-c-act2">
-          <button ${p.specs.length ? `onclick="runPackage('${esc(p.id)}')"` : 'disabled'}
-            title="${p.specs.length ? esc(p.specs.join(', ')) : 'Bu pakette otomatik karsiligi olan case yok'}">otomatik</button>
+          <button ${p.specs.length && !kosuyor ? `onclick="runPackage('${esc(p.id)}')"` : 'disabled'}
+            title="${p.specs.length ? esc(p.specs.join(', ')) : 'Bu paketteki case\'lerin Playwright karsiligi yok: adimlardan olusan elle case\'ler. Elle kos ya da otomatige cevir.'}">${kosuyor ? '...' : 'kos'}</button>
           <button class="rc-manual" ${p.cases ? `onclick="runPackageManual('${esc(p.id)}')"` : 'disabled'}
-            title="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina yazilir.">elle kos</button>
+            title="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina ve deftere yazilir.">elle kos</button>
+          ${p.manualCases ? `<button class="rc-gen" onclick="packageToSpec('${esc(p.id)}')"
+            title="Adimlardan Playwright spec'i uretir (tests/gen-*.spec.ts), dugume baglar; sonra 'kos' ile calisir.">otomatige cevir</button>` : ''}
         </div>
       </div>`;
     }).join('')}</div>
@@ -2264,7 +2229,7 @@ async function runPackageManual(id) {
   const kosulabilir = (d.cases || []).filter(c => !c.missing);
   if (!kosulabilir.length) { uiToast('Bu pakette yurutulebilir case yok.', { type: 'err' }); return; }
 
-  MANUAL = { pkg: { id: d.id, name: d.name }, cases: kosulabilir, i: 0, sonuclar: [] };
+  MANUAL = { pkg: { id: d.id, name: d.name }, cases: kosulabilir, i: 0, sonuclar: [], startedAt: new Date().toISOString() };
   renderManual();
 }
 
@@ -2337,10 +2302,15 @@ async function manualIptal() {
 
 async function manualBitir() {
   const { pkg, sonuclar } = MANUAL;
+  const MANUAL_START = MANUAL.startedAt;
   MANUAL = null;
   if (!sonuclar.length) { uiToast('Hicbir case isaretlenmedi — kayit yazilmadi.', { type: 'info' }); return; }
 
-  const r = await post('/api/scope/testcases/run', { entries: sonuclar, label: pkg.name });
+  const r = await post('/api/scope/testcases/run', {
+    entries: sonuclar, label: pkg.name,
+    // Deftere de duser: elle kosum, otomatik kosumla ayni listede ve kalici.
+    packageId: pkg.id, startedAt: MANUAL_START || null, durationMs: MANUAL_START ? Date.now() - Date.parse(MANUAL_START) : null,
+  });
   if (!r.ok) { uiToast(r.error || 'Kayit yazilamadi.', { type: 'err', title: 'Elle kosum' }); return; }
   const hatali = (r.results || []).filter(x => x.error);
   const sayim = sonuclar.reduce((a, x) => { a[x.status] = (a[x.status] || 0) + 1; return a; }, {});
@@ -2350,6 +2320,63 @@ async function manualBitir() {
     + (hatali.length ? `\nYazilamayan: ${hatali.length}` : ''),
     { type: hatali.length ? 'err' : 'ok', title: 'Elle kosum bitti', ms: 10000 });
   renderScopePackages();
+  if (!$('#tab-cases').hidden) loadPackageRuns();
+}
+
+/**
+ * ELLE CASE'LERI OTOMATIGE CEVIR.
+ *
+ * Flowscope'taki "Test Case'leri Kostur (Claude Code)" dugmesi ISTEM uretip
+ * kullaniciyi kendi terminaline gonderiyordu; sonuc panele hic donmuyordu.
+ * Burada sunucu uretiyor: adimlar → Playwright spec'i → `tests/gen-*.spec.ts`
+ * → dugume baglanir. Kosum ayri adim ("otomatik" dugmesi), cunku uretilen kodu
+ * once GORMEK isteyebilirsin.
+ *
+ * ⚠️ Paket birden cok dugume yayilabilir; her dugum icin AYRI dosya uretilir
+ * (bir spec dosyasi tek sayfaya odaklansin).
+ */
+async function packageToSpec(id) {
+  let d;
+  try { d = await (await fetch('/api/scope/package-cases?id=' + encodeURIComponent(id))).json(); }
+  catch (e) { uiToast('Paket okunamadi: ' + e.message, { type: 'err' }); return; }
+  if (!d.ok) { uiToast(d.error || 'Paket okunamadi.', { type: 'err' }); return; }
+
+  // Otomatik karsiligi OLMAYAN case'lerin dugumleri
+  const dugumler = [...new Set((d.cases || []).filter(c => !c.missing && !c.automated && !c.spec).map(c => c.nodeId))];
+  if (!dugumler.length) { uiToast('Bu pakette cevrilecek elle case yok.', { type: 'info' }); return; }
+
+  const ai = await (await fetch('/api/ai/status')).json().catch(() => ({}));
+  if (!ai.oneClick) {
+    uiToast('Tek tik uretim kapali: sunucuda Claude hesabi ya da API anahtari yok.', { type: 'err', title: 'Uretilemedi' });
+    return;
+  }
+  if (!await uiConfirm(
+    `${dugumler.length} dugum icin Playwright spec'i uretilecek.\n\n`
+    + `• Dosyalar tests/gen-*.spec.ts olarak YAZILACAK\n`
+    + `• Uretilen kod kapidan gecer (Playwright testi mi, istenen case'ler var mi, tehlikeli kalip var mi)\n`
+    + `• Kosum AYRI adim — once dosyayi gorebilirsin\n\nYol: ${esc(ai.detail || ai.mode)}`,
+    { title: 'Otomatige cevir', ok: 'Uret', danger: false })) return;
+
+  const bildirim = uiToast('Model calisiyor...', { title: 'Spec uretiliyor', ms: 0 });
+  const sonuclar = [];
+  for (const nodeId of dugumler) {
+    const r = await post('/api/scope/testcases/spec', { nodeId });
+    sonuclar.push({ nodeId, ...r });
+  }
+  bildirim.remove();
+
+  const olan = sonuclar.filter(x => x.ok);
+  const olmayan = sonuclar.filter(x => !x.ok);
+  await scopeRefresh();
+  renderScopePackages();
+  rcYenile();
+
+  uiToast([
+    olan.length ? `${olan.length} dosya uretildi: ${olan.map(x => x.path).join(', ')}` : '',
+    olan.some(x => (x.missing || []).length) ? `Eksik kalan case: ${olan.flatMap(x => x.missing || []).join(', ')}` : '',
+    olmayan.length ? `Uretilemeyen: ${olmayan.map(x => x.error).join(' · ')}` : '',
+    olan.length ? 'Artik "otomatik" dugmesiyle kosabilirsin.' : '',
+  ].filter(Boolean).join('\n'), { type: olmayan.length ? 'err' : 'ok', title: 'Otomatige cevir', ms: 14000 });
 }
 
 /** Paketi tek parametreli kosumla calistirir (spec'ler sunucudan cozulur). */
@@ -2370,10 +2397,15 @@ async function runPackage(id) {
 
   // Parametreli kosum yolu: id 'custom', spec'ler `params` icinde — sunucu
   // bunlari tests/ altindaki dosyalarla DOGRULUYOR (bkz. buildCustomArgs).
+  // `params.package` sunucuda etiketi ("Paket: X") ve kosum sonu DEFTER kaydini tetikler.
   $('#log').textContent = '';
-  const r = await runRequest({ id: 'custom', params: { specs: paket.specs } }, { label: `paket: ${paket.name}` });
+  const r = await runRequest(
+    { id: 'custom', params: { specs: paket.specs, package: { id: paket.id, name: paket.name } }, headless: HEADLESS },
+    { label: `paket: ${paket.name}` });
   if (!r.ok && r.code !== 'BUSY') { uiToast(r.error || 'Baslatilamadi.', { type: 'err' }); return; }
-  if (r.ok && !r.queued) document.querySelector('.tabs button[data-tab=log]').click();
+  if (r.queued) uiToast(`"${paket.name}" siraya alindi (${r.position}.)`, { type: 'info' });
+  // Sekmede kal: canli kosum karti ve sonuc burada (bkz. runs-console.js).
+  renderScopePackages();
 }
 
 /**
@@ -2451,15 +2483,14 @@ function renderSiteShortcuts() {
   /* Kapsam henuz okunmadiysa (ilk cizim) profil listesini goster — bir an icin
      tek "Anasayfa" butonu gostermek gorsel gerileme olurdu. Kapsam gelince
      onScopeChange bu fonksiyonu yeniden cagiriyor. */
-  const profil = (META?.project?.quickRoutes ?? []).map(([name, path]) => ({ name, path, nodeId: null, status: '⬜' }));
-  const rotalar = s?.routes?.length ? s.routes
-    : (profil.length ? profil : [{ name: 'Anasayfa', path: '/', nodeId: null, status: '⬜' }]);
+  // Profilin sabit rota listesi (quickRoutes) KALKTI: rotalar yalniz kapsam agacindan.
+  const rotalar = s?.routes?.length ? s.routes : [{ name: 'Anasayfa', path: '/', nodeId: null, status: '⬜' }];
 
   el.innerHTML = rotalar.map(r => {
     const cls = scopeStatusCls(r.status);
     const nokta = r.nodeId ? `<span class="sc-dot ${cls}" title="kapsam durumu: ${esc(r.status || '⬜')}"></span>` : '';
     const yol = esc(r.path).replace(/'/g, "\\'");
-    return `<button style="width:auto" data-tip="${esc(r.path)}${r.nodeId ? ` · kapsam: ${esc(r.name)}` : ' · profil listesinden (kapsamda yok)'}"
+    return `<button style="width:auto" data-tip="${esc(r.path)}${r.nodeId ? ` · kapsam: ${esc(r.name)}` : ' · kapsam agacinda rota yok'}"
       onclick="goSite('${yol}')">${nokta}${esc(r.name)}</button>`;
   }).join('')
     + (s && s.routeSource === 'profile'
@@ -2527,6 +2558,30 @@ async function loadDesign(path) {
   catch (e) { info.textContent = path; designState('Tasarim alinamadi: ' + e.message, 'err'); return; }
 
   if (r.error) {
+    /*
+     * SEBEP AYRISTIRILIR (2026-09-15): "bu rota icin Figma eslesmesi yok" tek
+     * basina yaniltiyordu — Figma hic BAGLI DEGILKEN de ayni metin cikiyordu.
+     *   NO_CREDS → Baglantilar'a yonlendir (token gir)
+     *   NO_MAP   → dugume Figma linki ekle (Flowscope) ya da once siteyi tara
+     * Kalan hatalar (429, render) eski yoldan gosterilir.
+     */
+    if (r.code === 'NO_CREDS') {
+      info.textContent = `${path} · Figma bagli degil`;
+      designState('Figma bagli degil', 'err');
+      $('#designState').innerHTML = `<div><b>Figma bagli degil.</b><br>Tasarim kolonu icin Figma token'i gerekiyor.</div>
+        <button style="width:auto;margin-top:12px" onclick="openConnector('figma')">Baglantilar'i ac</button>`;
+      return;
+    }
+    if (r.code === 'NO_MAP') {
+      info.textContent = `${path} · eslesme yok`;
+      designState('Eslesme yok', 'err');
+      $('#designState').innerHTML = `<div>Bu rota icin Figma eslesmesi yok: <code>${esc(path)}</code></div>
+        <div style="margin-top:8px;font-size:12px;color:var(--mut)">${r.nodeId
+          ? "Flowscope'ta bu dugumun <b>Kaynaklar</b> bolumune node-id'li bir Figma frame linki ekle; kolon onu render eder."
+          : 'Bu rota kapsam agacinda yok — once Home\'dan siteyi tara.'}</div>
+        ${r.nodeId ? `<a class="sc-tag" style="margin-top:12px" href="${scopeNodeUrl(r.nodeId)}">dugumu Flowscope'ta ac</a>` : ''}`;
+      return;
+    }
     // Rate limit / onbellek eksigi: hangi rotalarin hazir oldugunu SOYLE —
     // "bulunamadi" tek basina kullaniciyi kotanin dolu oldugunu sanmaya itiyor.
     let ready = '';
@@ -2576,31 +2631,40 @@ addEventListener('message', async (e) => {
 async function matchRoute(path) {
   const r = await (await fetch('/api/site/match?path=' + encodeURIComponent(path))).json();
   const btn = $('#siteRunBtn');
-  if (r && r.runId) {
+  const specs = Array.isArray(r?.specs) ? r.specs : [];
+  const kaynak = r?.source === 'scope'
+    ? `<a class="sc-tag" href="${scopeNodeUrl(r.nodeId)}" title="Kapsam agacindaki dugum"><span class="sc-dot ${scopeStatusCls(r.status)}"></span>kapsam</a>`
+    : r?.source === 'profile' ? `<span class="sc-none" title="Profildeki sabit kural">profil</span>` : '';
+  /*
+   * "Bu sayfayi test et": dugumun bagli spec'leri (kayittan/uretimden gelen
+   * gen-*.spec.ts dahil) ya da profil kosumu. Whitelist runId yoksa spec'ler
+   * `custom` yoluyla kosar — sunucu dosyalari yine dogrular.
+   */
+  if (r && (r.runId || specs.length)) {
     btn.disabled = false;
-    btn.dataset.runId = r.runId;
-    /*
-     * Kartlarin NEREDEN geldigi yaziliyor: kapsam agacindan mi (dugume bagli
-     * Jira gorevleri) yoksa profildeki sabit listeden mi. "bu kart nereden
-     * geliyor" sorusu tam olarak bu ayrimin gorunmemesinden cikti.
-     */
-    const kaynak = r.source === 'scope'
-      ? `<a class="sc-tag" href="${scopeNodeUrl(r.nodeId)}" title="Kapsam agacindaki dugum — kartlar buraya bagli"><span class="sc-dot ${scopeStatusCls(r.status)}"></span>kapsam</a>`
-      : `<span class="sc-none" title="Kapsam agacinda bu rotayi temsil eden dugum yok; profildeki sabit kural kullanildi">profil</span>`;
-    $('#siteMatch').innerHTML = `${esc(r.label)}  ·  ${esc((r.cards||[]).join(', '))} ${kaynak}`;
+    btn.dataset.runId = r.runId || '';
+    btn.dataset.specs = JSON.stringify(specs);
+    btn.dataset.label = r.label || path;
+    $('#siteMatch').innerHTML = `${esc(r.label)}${(r.cards||[]).length ? '  ·  ' + esc(r.cards.join(', ')) : ''} ${kaynak}`;
+  } else if (r && r.source === 'scope') {
+    btn.disabled = true; delete btn.dataset.runId; delete btn.dataset.specs;
+    $('#siteMatch').innerHTML = `${esc(r.label)} ${kaynak} <span class="sc-none">· bu sayfada otomatik case yok — Kaydet ile olustur</span>`;
   } else {
-    btn.disabled = true;
-    delete btn.dataset.runId;
-    $('#siteMatch').textContent = 'bu rota icin eslesen test yok';
+    btn.disabled = true; delete btn.dataset.runId; delete btn.dataset.specs;
+    $('#siteMatch').innerHTML = '<span class="sc-none">bu rota kapsam agacinda yok — Kaydet ile case olustur, urun kokune baglanir</span>';
   }
 }
 
-function runForCurrent() {
-  const id = $('#siteRunBtn').dataset.runId;
-  if (!id) return;
-  startRun(id);
+async function runForCurrent() {
+  const b = $('#siteRunBtn');
+  if (b.dataset.runId) return startRun(b.dataset.runId);
+  let specs = [];
+  try { specs = JSON.parse(b.dataset.specs || '[]'); } catch { specs = []; }
+  if (!specs.length) return;
+  const r = await runRequest({ id: 'custom', params: { specs }, headless: HEADLESS }, { label: `sayfa: ${b.dataset.label || ''}` });
+  if (!r.ok && r.code !== 'BUSY') { uiToast(r.error || 'Baslatilamadi.', { type: 'err' }); return; }
+  if (r.ok && !r.queued) document.querySelector('.tabs button[data-tab=runs]').click();
 }
-
 
 /**
  * Tasarim/canli panellerinde ES ZAMANLI KAYDIRMA.
@@ -2654,7 +2718,15 @@ async function runDiff(path) {
   const p = path ?? ($('#dPath').value.trim() || '/');
   $('#dPath').value = p;
   const m = await matchFigma(p);
-  if (!m || !m.node) return uiToast('Bu rota için Figma frame eşleşmesi yok.', { type: 'err' });
+  if (!m || !m.node) {
+    // Sebep: baglanti mi yok, eslesme mi? (bkz. loadDesign)
+    let fr = null;
+    try { fr = await (await fetch('/api/figma/frame?path=' + encodeURIComponent(p))).json(); } catch { /* asagida genel mesaj */ }
+    if (fr?.code === 'NO_CREDS') { uiToast("Figma bagli degil — once Baglantilar'dan token gir.", { type: 'err', title: 'Tasarim diff' }); openConnector('figma'); return; }
+    return uiToast(fr?.nodeId
+      ? "Bu rota icin Figma eslesmesi yok. Flowscope'ta dugume Figma frame linki ekle."
+      : 'Bu rota için Figma frame eşleşmesi yok.', { type: 'err', title: 'Tasarim diff' });
+  }
   document.querySelector('.tabs button[data-tab=diff]').click();
   $('#dLog').textContent = '';
   $('#dFrame').hidden = true;
@@ -2667,6 +2739,23 @@ async function runDiff(path) {
 }
 
 function diffForCurrent() { runDiff(CURRENT_PATH || '/'); }
+
+/**
+ * BAGLANTI GEREKEN OZELLIK → BAGLANTILAR PANELI (2026-09-15).
+ * Ozellik (tasarim kolonu, tasarim diff...) baglanti yokken ne yapilacagini
+ * kendisi soyler: paneli acar ve o saglayicinin "Baglan…" kutusunu gosterir.
+ * Panel (connectors.js) henuz preflight okumadiysa once okur.
+ */
+async function openConnector(key) {
+  if (typeof pfPanelOpen !== 'function') { uiToast('Baglantilar paneli yuklenmedi.', { type: 'err' }); return; }
+  pfPanelOpen();
+  if ($('#cxPanel')?.hidden && typeof loadPreflight === 'function') { await loadPreflight(true); }
+  setTimeout(() => {
+    try { cxConnectOpen(key); } catch { /* kart yoksa panel acik kalir */ }
+    const kart = document.querySelector(`.cx-card[data-cx="${CSS.escape(key)}"]`);
+    if (kart) { kart.classList.add('cx-flash'); kart.scrollIntoView({ block: 'nearest' }); }
+  }, 60);
+}
 
 function appendDiffLog(line, isErr) {
   const el = $('#dLog');
@@ -2761,6 +2850,17 @@ es.addEventListener('diff-end', e => {
 const statusColor = (st) => /Failed|Blocked/i.test(st) ? 'no' : /Tamam|Release|Deploy/i.test(st) ? 'ok' : 'sk';
 
 async function loadCards() {
+  /*
+   * ⚠️ YABANCI URUNDE KART KAYNAGI KAPSAM AGACI.
+   *
+   * Jira sekmesi profilin JQL'ini kosuyor (proje MAC) — o kartlar reponun kendi
+   * urunune ait. Baska bir site aktifken onlari listelemek, kullanicinin
+   * "girdigim URL'den gelmiyor" dedigi seyin Jira'daki karsiligiydi. Aktif urun
+   * repo'nun urunu DEGILSE kartlar agactaki `jiraTasks` baglarindan gelir.
+   */
+  const s = window.SCOPE;
+  if (s?.active && s.active.isProfile === false) { renderScopeCards(); return; }
+
   const view = $('#jSorter').value || 'all';
   $('#jTable').innerHTML = '<tr><td class="mono">yükleniyor...</td></tr>';
   try {
@@ -3490,7 +3590,6 @@ async function deleteSelectedSorter() {
 
 $('#jSorter').onchange = () => { syncSorterButtons(); loadCards(); };
 
-loadSpecs().then(previewCustom);
 load();
 
 /*
@@ -3502,13 +3601,15 @@ load();
  * o durumda profil/eski veriyle devam ederler, sessizce sifir gostermezler.
  */
 onScopeChange(() => {
+  renderProductBar();
+  renderScopeCases();
+  if (!$('#tab-overview').hidden) { renderOverviewFindings(); renderOverviewKpis(); }
   renderSiteShortcuts();
   renderScopeKpis();
   if (!$('#tab-runs').hidden) { renderScopeRuns(); renderScopePackages(); rcRenderTablo(); }
   if (!$('#tab-perf').hidden) markPerfScope();
   /* Sonuclar ve Jira listeleri kapsam rozetlerini icinde tasiyor; acikken
      yeniden cizilmezse rozet bayat kalirdi. Kapali sekme cizilmez (bos is). */
-  if (!$('#tab-cases').hidden && typeof SPECS !== 'undefined' && SPECS?.length) renderCases();
   if (!$('#tab-jira').hidden) loadCards();
 });
 scopeRefresh();
@@ -3611,19 +3712,63 @@ function assertCount() {
 function dropStep(i) { REC_STEPS.splice(i, 1); renderSteps(); }
 function clearSteps() { REC_STEPS = []; renderSteps(); }
 
-function toggleIframeRec() {
-  IFRAME_REC = !IFRAME_REC;
-  $('#recCol').hidden = !IFRAME_REC;
-  $('#siteRecBtn').textContent = IFRAME_REC ? 'Kaydi bitir' : 'Kaydet (iframe)';
-  if (IFRAME_REC) {
-    $('#designCol').hidden = true;              // sag kolon paylasimli
-    const path = ($('#siteNow').textContent || '/').trim();
+/**
+ * KAYIT → TEST CASE (2026-09-15). Eskiden "Spec uret" modelden taslak dosya
+ * uretiyordu (panel-data/recorded/, suite disinda). Artik "Bitir" ad ister ve
+ * sunucu modelsiz olarak (1) adimlari kapsam agacina test case yazar, (2)
+ * deterministik Playwright spec'ini tests/gen-rec-*.spec.ts olarak uretip
+ * case'e baglar — paket kosumunda otomatik calisir, elle kosumda adimlar okunur.
+ * Case, iframe'de acik rotanin dugumune duser; dugum yoksa urunun kokune.
+ */
+function setIframeRec(on) {
+  IFRAME_REC = on;
+  $('#recCol').hidden = !on;
+  $('#siteRecBtn').textContent = on ? 'Kaydi bitir' : 'Kaydet';
+  $('#siteRecBtn').classList.toggle('live', on);
+  if (on) {
+    // sag kolon paylasimli: tasarim kolonu kapanir
+    if (DESIGN_ON) { DESIGN_ON = false; $('#designCol').hidden = true; $('#siteDesignBtn').textContent = 'Yan yana tasarim'; }
+    const path = CURRENT_PATH || '/';
     if (!REC_STEPS.length) REC_STEPS.push({ action: 'goto', value: path.startsWith('/') ? path : '/' });
     renderSteps();
+  } else {
+    $('#asrChk').checked = false; $('#asrHint').hidden = true;
   }
-  if (!IFRAME_REC) { $('#asrChk').checked = false; $('#asrHint').hidden = true; }
-  // iframe'e ac/kapat bildir
-  $('#siteFrame').contentWindow?.postMessage({ type: 'qa-rec', on: IFRAME_REC }, '*');
+  $('#siteFrame').contentWindow?.postMessage({ type: 'qa-rec', on }, '*');
+  requestAnimationFrame(fitSiteFrame);
+}
+
+function toggleIframeRec() { if (IFRAME_REC) finishIframeRec(); else setIframeRec(true); }
+
+async function cancelIframeRec() {
+  const eylem = REC_STEPS.filter(s => s.action !== 'goto').length;
+  if (eylem && !await uiConfirm(`${eylem} adim kaydedilmeden silinecek.`, { title: 'Kaydi birak', ok: 'Birak', danger: true })) return;
+  REC_STEPS = []; renderSteps(); setIframeRec(false);
+}
+
+async function finishIframeRec() {
+  const eylem = REC_STEPS.filter(s => s.action !== 'goto');
+  if (!eylem.length) {
+    if (await uiConfirm('Hic adim kaydedilmedi. Kayit kapatilsin mi?', { title: 'Kaydi bitir', ok: 'Kapat' })) { REC_STEPS = []; renderSteps(); setIframeRec(false); }
+    return;
+  }
+  if (!assertCount() && !await uiConfirm(
+    'Kaydedilen adimlarda hic iddia (dogrulama) yok — case yalnizca gezinir, sayfanin yuklendigi disinda bir sey kanitlamaz.\n\nIddia modu ile bir dogrulama ekleyebilirsin.',
+    { title: 'Iddiasiz case', ok: 'Yine de kaydet' })) return;
+  const path = REC_STEPS.find(s => s.action === 'goto')?.value || CURRENT_PATH || '/';
+  const title = await uiPrompt('Test case adi:', `${path} akisi`, { title: 'Kaydi bitir', ok: 'Kaydet' });
+  if (title === null || !title.trim()) return;
+  const btn = $('#recFinish'); btn.disabled = true;
+  try {
+    const d = await post('/api/scope/testcases/record', { title: title.trim(), steps: REC_STEPS, path });
+    if (!d.ok) { uiToast(d.error || 'Kaydedilemedi.', { type: 'err', title: 'Case olusturulamadi' }); return; }
+    REC_STEPS = []; renderSteps(); setIframeRec(false);
+    uiToast(`"${d.title}" → ${d.nodeName} (${d.steps} adim, ${d.asserts} iddia)`
+      + (d.spec ? `\nSpec: ${d.spec}` : '\nSpec yazilamadi — case elle kosulabilir.')
+      + '\nFlowscope\'ta bir pakete ekle, Kosumlar\'dan kos.', { type: 'ok', title: 'Test case olustu', ms: 12000 });
+    await scopeRefresh();
+    renderScopePackages();
+  } finally { btn.disabled = false; }
 }
 
 // proxy'den gelen adimlar
@@ -3650,28 +3795,6 @@ addEventListener('message', (e) => {
   $('#siteFrame').contentWindow?.postMessage({ type: 'qa-rec', on: true }, '*');
 });
 
-async function generateSpec() {
-  if (!REC_STEPS.length) return;
-  // Uretim aninda uyar: iddiasiz dosya case olarak EKLENEMEZ (kapi sunucuda).
-  if (!assertCount() && !await uiConfirm(
-    'Kaydedilen adımlarda hiç iddia (assertion) yok. Üretilen spec sadece gezinir, hiçbir şeyi doğrulamaz.',
-    { title: 'İddiasız spec', ok: 'Yine de üret' })) return;
-  const title = await uiPrompt('Spec başlığı (test.describe adı olur):', 'kaydedilen akis', { title: 'Spec üret', ok: 'Üret' });
-  if (title === null || !title.trim()) return;
-  const btn = $('#recGen');
-  btn.disabled = true;
-  try {
-    const d = await post('/api/record/steps', {
-      steps: REC_STEPS, title,
-      route: REC_STEPS[0]?.value || '/',
-      state: $('#recState')?.value || 'guest',
-    });
-    if (d.error) { uiToast(d.error, { type: 'err', title: 'Üretilemedi' }); return; }
-    uiToast(`${d.file} yazıldı (${d.lines} satır). Site sekmesindeki Kaydet bloğundan "gör" ile okuyabilirsin.`, { type: 'ok' });
-    loadRecordings();
-  } finally { btn.disabled = false; }
-}
-
 // ---------------- kayit (codegen) ----------------
 /**
  * Playwright codegen'i panelden baslatir. Oturum dosyasi yuklendigi icin kapiyi
@@ -3681,6 +3804,7 @@ async function generateSpec() {
 let RECORDING_ON = false;
 
 async function loadRecordings() {
+  if (!$('#recBtn')) return;   // codegen blogu kalkti (2026-09-15); uc ve fonksiyon sunucuda duruyor
   try {
     const d = await (await fetch('/api/record/list')).json();
     RECORDING_ON = d.recording;
@@ -3778,7 +3902,8 @@ async function renderBugQueue() {
   // "Bilinen hata" = test.fail() ile isaretli, BEKLENEN basarisizlik. Gercek
   // basarisizlikla karistirmak raporu bozar (bkz. CLAUDE.md).
   const gercek = rows.filter(r => (r.status === 'failed' || r.status === 'timedOut') && r.expected !== 'failed');
-  const bilinen = META?.knownIssues ?? [];
+  // Insanin ❌ isaretledigi kapsam dugumleri (tests/known-issues.ts profilin kaydiydi, kalkti).
+  const bilinen = (window.SCOPE?.findings ?? []).filter(k => k.kind === 'node');
 
   if (!gercek.length && !bilinen.length) { el.innerHTML = ''; return; }
 
@@ -3791,18 +3916,17 @@ async function renderBugQueue() {
 
   el.innerHTML = `<div class="bq">
     <div class="bq-h">Kart açılmayı bekleyenler
-      <span class="bq-c">${gercek.length} başarısız · ${bilinen.length} bilinen hata</span></div>
+      <span class="bq-c">${gercek.length} başarısız · ${bilinen.length} işaretli düğüm</span></div>
     ${gercek.map(r => satir('fail', r.title, `${r.file}${r.error ? ' · ' + r.error.split('\n')[0].slice(0, 70) : ''}`,
         'Bu başarısızlıkla bug formunu doldur', {
           summary: `${r.file}: ${r.title}`.slice(0, 120),
           detail: [r.error || '', r.file ? `Spec: ${r.file}` : ''].filter(Boolean).join('\n'),
         })).join('')}
-    ${bilinen.map(k => satir('known', `${k.id} · ${(k.where || '').slice(0, 60)}`, (k.detail || '').slice(0, 90),
-        'Bu bilinen hatayla bug formunu doldur', {
-          summary: `${k.id}: ${(k.where || '').slice(0, 90)}`,
-          detail: k.detail || '',
+    ${bilinen.map(k => satir('known', `${(k.nodeName || '').slice(0, 60)}`, (k.note || (k.jiraKeys || []).join(', ') || 'kapsam agacinda ❌ isaretli').slice(0, 90),
+        'Bu isaretli dugumle bug formunu doldur', {
+          summary: `${(k.nodeName || '').slice(0, 90)}`,
+          detail: k.note || '',
           nodeId: k.nodeId || null,
-          issue: k.id,
         })).join('')}
   </div>`;
 }
@@ -4111,11 +4235,15 @@ async function runPerfSweep() {
   /* Rota sayisi ARTIK KAPSAM AGACINDAN: sabit "33" yaziyordu, agac degisince
      yalan oluyordu. Kapsam okunamadiysa sayi vermeyip "taban liste" diyoruz. */
   const rotaSayisi = window.SCOPE?.routes?.length || 0;
-  const kaynak = window.SCOPE?.routeSource === 'scope'
-    ? `${rotaSayisi} kapsam rotasi`
-    : 'taban rota listesi';
-  if (!await uiConfirm(`${kaynak} bastan olculecek (~6-8 dk). Bu sirada baska kosum baslatilamaz.\n\n`
-    + 'Kapi oturumunu kullanir, veri degistirmez.', { title: 'Perf sweep', ok: 'Ölç', danger: false })) return;
+  // Statik taban listesi YOK (2026-09-15): olcum yalniz kapsam agacindaki urunun rotalari.
+  if (!rotaSayisi || window.SCOPE?.routeSource !== 'scope') {
+    uiToast("Kapsam agacinda olculecek rota yok — once Home'dan siteyi tara.", { type: 'err', title: 'Perf' });
+    return;
+  }
+  const urun = window.SCOPE?.active?.name || '';
+  if (!await uiConfirm(`${urun ? urun + ' · ' : ''}${rotaSayisi} rota bastan olculecek (rota basina ~10 sn).\n`
+    + 'Her rotada sayfanin yaptigi TUM istekler (API, varlik, 3. parti) ve LCP/load/TTFB olculur.\n\n'
+    + 'Bu sirada baska kosum baslatilamaz; veri degistirmez.', { title: 'Performans olcumu', ok: 'Ölç', danger: false })) return;
   b.disabled = true;
   const eski = b.textContent;
   b.textContent = 'olculuyor...';
@@ -4218,8 +4346,8 @@ async function loadPerf() {
     const d = await (await fetch('/api/perf')).json();
     $('#tcPerf').textContent = d.totals.routes;
     $('#perfMeta').textContent = d.measuredAt
-      ? `son ölçüm: ${new Date(d.measuredAt).toLocaleString('tr-TR')}`
-      : 'ölçüm yok — scripts/perf-sweep.mjs koşulmalı';
+      ? `${d.product ? d.product + ' · ' : ''}son ölçüm: ${new Date(d.measuredAt).toLocaleString('tr-TR')}`
+      : `${d.product ? d.product + ' · ' : ''}bu ürün için ölçüm yok — "Yeniden ölç" ile başlat`;
     $('#perfStrip').innerHTML = [
       ['ROTA', d.totals.routes, ''],
       ['ISTEK', d.totals.requests, ''],
@@ -4373,121 +4501,6 @@ async function refreshGate() {
  * "Kapatilabilir mi?" sorusunun cevabi burada: >=2 kosumda hic tekrarlamayan
  * satirlar aday, kararsiz olanlar once kararliliga kavusturulmali.
  */
-let DRAFTS = [];
-
-async function loadDrafts() {
-  try {
-    const r = await (await fetch('/api/record/list')).json();
-    DRAFTS = r.files || [];
-  } catch { DRAFTS = []; }
-  renderDrafts();
-}
-
-function renderDrafts() {
-  const uye = DRAFTS.filter(d => d.member).length;
-  $('#dfSub').textContent = DRAFTS.length
-    ? `${DRAFTS.length} taslak · ${uye} uye oturumu · gercek suite disinda`
-    : 'kayit yok';
-  if (!DRAFTS.length) {
-    $('#dfTable').innerHTML = '<tr><td class="mono">Henuz taslak yok — Site (canli) sekmesinden kaydet</td></tr>';
-    return;
-  }
-  $('#dfTable').innerHTML =
-    '<tr><th>Taslak</th><th>Adim</th><th>Iddia</th><th>Oturum</th><th>Kaydedildi</th><th></th></tr>' +
-    DRAFTS.map(d => `<tr>
-      <td>${esc(d.title || '(baslik yok)')}
-          <span class="mono" style="display:block;color:var(--mut);font-size:10px">${esc(d.name)}</span></td>
-      <td class="mono num">${d.steps}</td>
-      <td class="mono num" style="color:${d.asserts ? 'var(--ok)' : 'var(--no)'}">${d.asserts ?? 0}</td>
-      <td><span class="st ${d.member ? 'skipped' : 'none'}">${d.member ? 'uye' : 'misafir'}</span></td>
-      <td class="mono" style="font-size:11px;color:var(--mut)">${esc(d.at.slice(5, 16).replace('T', ' '))}</td>
-      <td><span class="df-act">
-        <button onclick="showDraft(this.dataset.n)" data-n="${esc(d.name)}">kodu gor</button>
-        <button onclick="runDraft(this.dataset.n)" data-n="${esc(d.name)}">kos</button>
-        <button onclick="promoteDraft(this.dataset.n)" data-n="${esc(d.name)}"
-          ${d.asserts ? '' : 'disabled title="Iddia yok — eklenemez. Kaydederken Iddia modunu kullan."'}>case ekle</button>
-      </span></td>
-    </tr>`).join('');
-}
-
-async function showDraft(name) {
-  const box = $('#dfCode');
-  try {
-    // Uc ham metin degil JSON donuyor: { name, code }
-    const r = await (await fetch('/api/record/file/' + encodeURIComponent(name))).json();
-    if (r.error) throw new Error(r.error);
-    box.textContent = r.code ?? '(bos)';
-    box.hidden = false;
-    box.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  } catch (e) {
-    box.textContent = 'okunamadi: ' + e.message;
-    box.hidden = false;
-  }
-}
-
-/**
- * Taslagi kosar. Proje secimi UI'da yok: kaydedici mobil viewport'ta calisiyor,
- * ama taslagi masaustu chromium'da kosmak daha hizli dogrulama veriyor — mobil
- * dogrulama icin dosyayi tests/ altina tasidiktan sonra normal akis var.
- */
-async function runDraft(name) {
-  document.querySelector('.tabs button[data-tab=log]').click();
-  $('#log').textContent = '';
-  const r = await post('/api/record/run', { name, project: 'chromium', headed: false });
-  if (!r.ok) appendLog('PANEL: ' + r.error, true);
-}
-
-/** Taslagi tests/NN-*.spec.ts'e yukseltir. Kapi sunucuda; buradaki disabled sadece kolaylik. */
-async function promoteDraft(name) {
-  const r = await post('/api/record/promote', { name });
-  if (!r.ok) { uiToast(r.error || 'Eklenemedi.', { type: 'err' }); return; }
-  uiToast(`tests/${r.file} olarak eklendi (${r.asserts} iddia). Locator'lar ham — POM'a taşınmalı.`, { type: 'ok' });
-  loadCases();
-}
-
-function renderKnownIssues() {
-  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
-  const rows = specs.flatMap(sp => (sp.list || [])
-    .filter(c => c.known || c.issue)
-    .map(c => ({ file: sp.file, ...c })));
-
-  const kapanabilir = rows.filter(r => (r.stats?.runs ?? 0) >= 2 && r.stats.failed === 0).length;
-  const kararsiz = rows.filter(r => r.stats?.flaky).length;
-  const tekKosum = rows.filter(r => (r.stats?.runs ?? 0) < 2).length;
-  $('#kiSub').textContent =
-    `${rows.length} kayit · ${kapanabilir} kapatma adayi · ${kararsiz} kararsiz · ${tekKosum} tek kosum`;
-
-  if (!rows.length) { $('#kiTable').innerHTML = '<tr><td class="mono">test.fail() ile isaretli case yok</td></tr>'; return; }
-
-  $('#kiTable').innerHTML =
-    '<tr><th>Dayanak</th><th>Case</th><th>Oran</th><th>Durum</th><th></th></tr>' +
-    rows.map(r => {
-      const st = r.stats;
-      // ONEMLI AYRIM: r.known = test.fail() ile "bu hata var" diye isaretli.
-      // r.known yoksa case yalnizca dayanaga ATIF yapiyor (aralikli bir hata
-      // test.fail almaz) — orada 0/N "kapatma adayi" DEMEK DEGIL,
-      // sadece "bu kosumlarda sorun gorulmedi" demek.
-      const [karar, cls] =
-        !st || !st.runs ? [st?.dropped ? 'olcum gecersiz' : 'kosulmadi', 'mut']
-        : st.runs < 2 ? ['tek kosum — yetersiz', 'mut']
-        : st.flaky ? ['kararsiz — araliklı', 'sk']
-        : st.failed === st.runs ? [r.known ? 'tekrarliyor' : 'her kosumda fail', 'no']
-        : [r.known ? 'kapatma adayi' : 'sorun gorulmedi', 'ok'];
-      return `<tr>
-        <td class="mono">${esc(r.issue || 'bilinen hata')}</td>
-        <td>${esc(r.title.replace(/\$\{[^}]+\}/g, '<rota>').slice(0, 68))}
-            <span class="mono" style="color:var(--mut);font-size:10px">${esc(r.file)}</span></td>
-        <td class="mono num">${st ? st.rate : '—'}</td>
-        <td><span class="st ${cls === 'ok' ? 'passed' : cls === 'no' ? 'failed' : cls === 'sk' ? 'skipped' : 'none'}">${karar}</span></td>
-        <td><button class="run rep" ${r.parametric ? 'disabled' : ''}
-              onclick="runCase('${esc(r.file)}', this.dataset.t, 5)" data-t="${esc(r.title)}">5&times; kos</button></td>
-      </tr>`;
-    }).join('');
-}
-
-
-
-
 // ---------------- yan panel daraltma ----------------
 /**
  * Yan paneli ikon seridine indirir. Tercih localStorage'da tutulur; sayfa
@@ -4575,33 +4588,32 @@ function ovNum(n, cls, label, barPct) {
 }
 
 function renderOverviewKpis() {
-  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
-  const all = specs.flatMap(sp => sp.list || []);
-  const c = { passed: 0, failed: 0, known: 0, skipped: 0, none: 0 };
-  for (const x of all) c[x.last?.status || 'none'] = (c[x.last?.status || 'none'] || 0) + 1;
-  const flaky = all.filter(x => x.stats?.flaky).length;
-  const kosan = all.length - c.none;
-  const pct = kosan ? Math.round((c.passed / kosan) * 100) : 0;
-  const bulgu = (META?.knownIssues || []).length;
-
   /*
-   * ⚠️ "0/88" YANILTICIYDI: hic kosum kaydi olmayan bir kurulumda (taze sunucu,
-   * yeni klon) bu sayi "88 case'in hepsi kaldi" gibi okunuyordu — oysa anlami
-   * "bu makinede hic kosum kaydi yok". Kullanici bunu "panel bozuk, varsa da
-   * yoksa da 88 yaziyor" diye bildirdi (2026-09-15). Kayit yoksa sayi degil
-   * DURUM yaziyoruz; suite'in buyuklugu aciklamaya dusuyor.
+   * KPI'LAR KAPSAM AGACINDAN (2026-09-15). Eskiden `/api/specs` (reponun 88
+   * Playwright case'i) sayiliyordu — Home'dan taranan urunle ilgisi yoktu.
+   * Simdi: agactaki case'ler, son kosum durumlari, paket kosumu sayisi, bulgular.
    */
+  const s = window.SCOPE;
+  const su = s?.summary;
+  if (!su) { $('#ovKpis').innerHTML = ovNum('&ndash;', 'mut', 'kapsam okunamadi'); return; }
+  const kosan = su.cases.run;
+  const gecti = su.cases.byLastStatus['\u2705'] || 0;
+  const dusen = su.cases.byLastStatus['\u274c'] || 0;
+  const pct = kosan ? Math.round((gecti / kosan) * 100) : 0;
+  const bulgu = s?.findings?.length ?? 0;
+  const sonPaket = PKG_RUNS[0];
+
   $('#ovKpis').innerHTML =
     (kosan
-      ? ovNum(`${c.passed}<span class="of">/${kosan}</span>`, '', 'son kosum gecti', pct)
-      : ovNum('&ndash;', 'mut', `kosum kaydi yok · ${all.length} otomatik case`)) +
-    ovNum(c.failed, 'no', 'gercek basarisiz') +
-    ovNum(c.known, '', 'bilinen hata') +
-    ovNum(flaky, 'sk', 'kararsiz') +
-    ovNum(bulgu, '', 'acik bulgu') +
+      ? ovNum(`${gecti}<span class="of">/${kosan}</span>`, '', 'son kosumu gecen case', pct)
+      : ovNum('&ndash;', 'mut', su.cases.total ? `kosum kaydi yok · ${su.cases.total} case` : 'henuz case yok')) +
+    ovNum(dusen, dusen ? 'no' : '', 'dusen case') +
+    ovNum(su.cases.total, '', `case · ${su.cases.automated} otomatik`) +
+    ovNum(PKG_RUNS.length, '', sonPaket ? `paket kosumu · son: ${sonPaket.packageName.slice(0, 18)}` : 'paket kosumu') +
+    ovNum(bulgu, bulgu ? 'sk' : '', 'acik bulgu') +
     `<div class="ov-kpi-act">
-       <button class="primary" onclick="startRun('guest-all')">Misafir seti</button>
-       <button onclick="startRun('member-all')">Uye seti</button>
+       <button class="primary" onclick="document.querySelector('.tabs button[data-tab=runs]').click()">Paketleri kos</button>
+       <button onclick="location.href='/scope/#import'">Siteyi tara</button>
      </div>`;
 }
 
@@ -4644,29 +4656,61 @@ async function renderOverviewHistory() {
   }).join('');
 }
 
+/**
+ * ACIK BULGULAR — AKTIF URUNUN kendi bulgulari.
+ *
+ * Once yalnizca `tests/known-issues.ts` kayitlari listeleniyordu: reponun
+ * Playwright suite'ine ait elle yazilmis kayitlar. Baska bir siteyi tarayip
+ * case'lerini kosan kullanici kendi bulgularini hicbir yerde goremiyordu
+ * ("bulgular girdigim URL'den ve kosulan testlerden gelmiyor", 2026-09-15).
+ *
+ * Simdi kaynak sirasi:
+ *   - kapsam bulgulari (kosumun dusurdugu case'ler + insanin ❌ isaretledigi
+ *     dugumler) — HER urun icin, agactan
+ *   - known-issues kayitlari — YALNIZCA repo'nun kendi urunu aktifken
+ */
 function renderOverviewFindings() {
-  const list = META?.knownIssues || [];
-  $('#ovFindings').innerHTML = list.length
-    ? list.map((k, i) => `<button class="ov-chip ${i === 0 ? 'hot' : ''}" title="${esc(k.detail || '')}"
-        onclick="document.querySelector('.tabs button[data-tab=cases]').click()">${esc(k.id)} <span class="m">· ${esc((k.where || '').slice(0, 34))}</span></button>`).join('')
-    : `<span class="mt">Acik bulgu yok.</span>`;
+  const s = window.SCOPE;
+  const kapsam = s?.findings ?? [];
+
+  const cip = (k, i) => {
+    if (k.kind) {
+      const ip = [k.nodeName, k.note].filter(Boolean).join(' — ');
+      const etiket = k.kind === 'case' ? (k.by === 'manual' ? 'elle kosum' : 'kosum') : 'isaretli';
+      return `<button class="ov-chip ${i === 0 ? 'hot' : ''}" title="${esc(ip)}"
+        onclick="location.href='${scopeNodeUrl(k.nodeId)}'">${esc(k.title.slice(0, 40))}
+        <span class="m">· ${esc(etiket)}</span></button>`;
+    }
+    return `<button class="ov-chip ${i === 0 ? 'hot' : ''}" title="${esc(k.detail || '')}"
+      onclick="document.querySelector('.tabs button[data-tab=cases]').click()">${esc(k.id)}
+      <span class="m">· ${esc((k.where || '').slice(0, 34))}</span></button>`;
+  };
+
+  $('#ovFindings').innerHTML = kapsam.length
+    ? kapsam.map(cip).join('')
+    : `<span class="mt">Bu urunde acik bulgu yok${s?.active ? ` (${esc(s.active.name)})` : ''}.</span>`;
 }
 
 /** Sol menudeki "BUGUN" listesi — gercek durumdan turer, sabit metin degil. */
 function renderToday(gate) {
-  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
-  const all = specs.flatMap(sp => sp.list || []);
-  const flaky = all.filter(x => x.stats?.flaky).length;
-  const ilk = (META?.knownIssues || [])[0];
+  const s = window.SCOPE, su = s?.summary;
   const isler = [];
-  if (gate && gate.hoursLeft != null) {
+  // Kapi (gecici erisim oturumu) profilin kavrami — yalniz o urun aktifken.
+  if (gate && gate.hoursLeft != null && s?.active?.isProfile) {
     const acil = gate.hoursLeft < 4;
     isler.push({ on: acil, t: 'Kapiyi yenile', m: `${gate.hoursLeft.toFixed(1)}sa` });
   }
-  if (ilk) isler.push({ on: false, t: `${ilk.id} dogrula`, m: '' });
-  if (flaky) isler.push({ on: false, t: `${flaky} kararsizi ayristir`, m: '' });
-  $('#todayList').innerHTML = isler.map(i =>
-    `<li><span class="d ${i.on ? 'on' : ''}"></span><span>${esc(i.t)}</span>${i.m ? `<span class="m">· ${esc(i.m)}</span>` : ''}</li>`).join('');
+  if (su) {
+    const dusen = su.cases.byLastStatus['\u274c'] || 0;
+    if (!su.nodes.total) isler.push({ on: true, t: 'Siteyi tara', m: 'Home' });
+    else if (!su.cases.total) isler.push({ on: true, t: 'Test case uret', m: 'Flowscope' });
+    if (dusen) isler.push({ on: true, t: `${dusen} dusen case'i incele`, m: '' });
+    if (su.cases.total && !su.cases.run) isler.push({ on: false, t: 'Ilk paketi kos', m: '' });
+    if (su.coverage.leaves && su.coverage.pct < 50) isler.push({ on: false, t: `Kapsam %${su.coverage.pct}`, m: `${su.coverage.leaves - su.coverage.withCase} sayfa case'siz` });
+  }
+  $('#todayList').innerHTML = isler.length
+    ? isler.map(i => `<li><span class="d ${i.on ? 'on' : ''}"></span><span>${esc(i.t)}</span>${i.m ? `<span class="m">· ${esc(i.m)}</span>` : ''}</li>`).join('')
+    : '<li><span class="d"></span><span>Bekleyen is yok</span></li>';
 }
 
 /** Sag sutun: SSE'den gelen satirlar. Playwright'in ✓/✗ isaretlerini renklendirir. */
@@ -4686,34 +4730,102 @@ function ovPushLog(line) {
 
 async function renderOverview() {
   if ($('#tab-overview').hidden) return;
-  // Varsayilan sekme artik burasi; case listesi henuz cekilmemis olabilir.
-  if (!(Array.isArray(SPECS) ? SPECS.length : SPECS?.specs?.length)) {
-    try { SPECS = await (await fetch('/api/specs')).json(); } catch { /* ag hatasi */ }
-  }
+  if (!window.SCOPE) await scopeRefresh({ quiet: true });
+  await loadPackageRunIndex();
   renderOverviewKpis();
   renderOverviewFindings();
   await renderOverviewHistory();
   try { renderToday(await (await fetch('/api/gate/status')).json()); } catch { /* kapi okunamadi */ }
 }
 
-function renderCaseStrip(total) {
-  // /api/specs DIZI donuyor (SPECS.specs degil) — her ogede `list` case dizisi var.
-  const specs = Array.isArray(SPECS) ? SPECS : (SPECS?.specs || []);
-  const all = specs.flatMap(sp => sp.list || []);
-  const c = { passed: 0, failed: 0, known: 0, skipped: 0, none: 0 };
-  for (const x of all) c[x.last?.status || 'none'] = (c[x.last?.status || 'none'] || 0) + 1;
-  const mut = all.filter(x => x.mutates).length;
-  $('#tcCases').textContent = total ?? all.length;
+function renderCaseStrip() {
+  const su = window.SCOPE?.summary;
+  const runs = PKG_RUNS;
+  const son = runs[0];
+  const dusenKosum = runs.filter(r => r.counts?.failed).length;
+  const dusenCase = su?.cases?.byLastStatus?.['\u274c'] ?? 0;
+  $('#tcCases').textContent = runs.length;
   $('#caseStrip').innerHTML = [
-    ['SPEC', specs.length, 'mut'],
-    ['CASE', all.length, ''],
-    ['GECTI', c.passed, 'ok'],
-    ['BASARISIZ', c.failed, 'no'],
-    ['BILINEN HATA', c.known, 'no'],
-    ['KOSULMADI', c.none, 'mut'],
-    ['KARARSIZ', all.filter(x => x.stats?.flaky).length, 'sk'],
-    ['VERI DEGISTIREN', mut, 'sk'],
+    ['PAKET KOSUMU', runs.length, ''],
+    ['DUSEN KOSUM', dusenKosum, dusenKosum ? 'no' : 'ok'],
+    ['CASE', su?.cases?.total ?? '—', ''],
+    ['KOSULMUS', su?.cases?.run ?? '—', ''],
+    ['GECTI', su?.cases?.byLastStatus?.['\u2705'] ?? 0, 'ok'],
+    ['DUSEN', dusenCase, dusenCase ? 'no' : 'mut'],
+    ['SON KOSUM', son ? ovWhen(son.startedAt) : '—', 'mut'],
   ].map(([k, v, cls]) => `<span class="cell"><span class="k">${k}</span><span class="v ${cls}">${v}</span></span>`).join('');
+}
+
+/**
+ * SONUCLAR = PAKET KOSUM DEFTERI (2026-09-15).
+ * Her satir bir paket kosumu (otomatik ya da elle); acilinca case'ler, hata
+ * metinleri ve dugum linkleri. Kayitlar KALICI: yeniden kosmak eskiyi silmez.
+ */
+let PKG_RUNS_FULL = [];
+
+async function loadPackageRuns() {
+  const el = $('#packageRuns');
+  if (!el) return;
+  if (!PKG_RUNS_FULL.length) el.innerHTML = '<p class="mono">yukleniyor...</p>';
+  try {
+    const [d, p] = await Promise.all([
+      (await fetch('/api/scope/package-runs?limit=200')).json(),
+      (await fetch('/api/scope/packages')).json(),
+    ]);
+    PKG_RUNS_FULL = d.runs || [];
+    PKG_RUNS = PKG_RUNS_FULL.map(({ cases, ...r }) => ({ ...r, caseCount: (cases || []).length }));
+    const sel = $('#prPackage');
+    const onceki = sel.value;
+    const adlar = new Map((p.packages || []).map(x => [x.id, x.name]));
+    for (const r of PKG_RUNS_FULL) if (!adlar.has(r.packageId)) adlar.set(r.packageId, `${r.packageName} (silinmis paket)`);
+    sel.innerHTML = '<option value="">tum paketler</option>'
+      + [...adlar].map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+    if (adlar.has(onceki)) sel.value = onceki;
+  } catch (e) { el.innerHTML = `<p class="mono err">${esc(e.message)}</p>`; return; }
+  renderCaseStrip();
+  renderPackageRuns();
+}
+
+function renderPackageRuns() {
+  const el = $('#packageRuns');
+  if (!el) return;
+  const pid = $('#prPackage').value, mode = $('#prMode').value;
+  const liste = PKG_RUNS_FULL.filter(r => (!pid || r.packageId === pid) && (!mode || r.mode === mode));
+  $('#prMeta').textContent = `${liste.length}/${PKG_RUNS_FULL.length} kosum`;
+  if (!liste.length) {
+    el.innerHTML = `<div class="cs-box"><div class="cs-bos">${PKG_RUNS_FULL.length
+      ? 'Suzgece uyan kosum yok.'
+      : "Henuz paket kosumu yok — Kosumlar sekmesinden bir paket kos; sonuclar burada KALICI olarak birikir."}</div></div>`;
+    return;
+  }
+  const durum = (st) => st === '\u2705' ? 'ok' : st === '\u274c' ? 'no' : st === '\u23ed\ufe0f' ? 'mut' : 'sk';
+  const etiket = (st) => st === '\u2705' ? 'GECTI' : st === '\u274c' ? 'KALDI' : st === '\u23ed\ufe0f' ? 'ATLANDI' : 'UYARI';
+  el.innerHTML = liste.map((r, i) => {
+    const c = r.counts || {};
+    const iyi = !c.failed && (r.code === 0 || r.code == null);
+    return `<details class="pr ${iyi ? 'ok' : 'no'}" ${i === 0 ? 'open' : ''}>
+      <summary>
+        <span class="pr-dot ${iyi ? 'ok' : 'no'}"></span>
+        <span class="pr-name">${esc(r.packageName)}</span>
+        <span class="pr-mode">${r.mode === 'manual' ? 'elle' : 'otomatik'}</span>
+        <span class="pr-counts"><span class="ok">${c.passed ?? 0}</span> gecti${c.failed ? ` · <span class="no">${c.failed}</span> kaldi` : ''}${c.skipped ? ` · ${c.skipped} atlandi` : ''}${c.warn ? ` · ${c.warn} uyari` : ''} · ${c.total ?? 0} case</span>
+        <span class="pr-when" title="${esc(r.startedAt || '')}">${esc(ovWhen(r.startedAt))}${r.durationMs ? ' · ' + esc(rcSure(r.durationMs)) : ''}</span>
+      </summary>
+      <div class="pr-body">
+        ${(r.errors || []).length ? `<div class="mono err" style="margin:4px 0 8px">${esc(r.errors[0])}</div>` : ''}
+        ${(r.cases || []).map(k => `<div class="pr-row">
+          <span class="b ${durum(k.status)}">${etiket(k.status)}</span>
+          <span class="pr-t">${esc(k.title)}${k.error ? `<div class="mono err" style="font-size:11px">${esc(k.error)}</div>` : ''}${k.note ? `<div class="mono" style="font-size:11px;color:var(--mut)">${esc(k.note)}</div>` : ''}</span>
+          ${k.nodeId ? `<a class="sc-tag" href="${scopeNodeUrl(k.nodeId)}" title="${esc(k.nodeName)}">${esc((k.nodeName || k.nodeId).slice(0, 24))}</a>` : '<span></span>'}
+          <span class="mono pr-ms">${k.durationMs ? (k.durationMs / 1000).toFixed(1) + 's' : ''}</span>
+          ${k.spec && k.status === '\u274c'
+            ? `<button class="run" onclick="runCase('${esc(k.spec)}', this.dataset.t)" data-t="${esc(k.title)}" title="Yalniz bu case'i yeniden kos (-g)">tekrar kos</button>`
+            : '<span></span>'}
+        </div>`).join('')}
+        <div class="pr-foot mono">${esc(r.product || '')}${(r.specs || []).length ? ' · ' + esc(r.specs.join(', ')) : ''} · kayit ${esc(r.id)}</div>
+      </div>
+    </details>`;
+  }).join('');
 }
 
 function renderJiraStrip(cards) {
@@ -4744,6 +4856,7 @@ let SG_PRESETS = [
 ];
 
 function renderPresets() {
+  if (!$('#sgPresets')) return;   // senaryo onerisi blogu Sonuclar'dan kalkti (2026-09-15)
   $('#sgPresets').innerHTML = SG_PRESETS
     .map(([label], i) => `<button type="button" onclick="fillPreset(${i})">${esc(label)}</button>`).join('');
 }
@@ -4753,6 +4866,7 @@ function fillPreset(i) {
 }
 
 async function loadScenarioContext() {
+  if (!$('#sgCtx')) return;   // senaryo onerisi blogu kalkti; uc sunucuda duruyor
   renderPresets();
   try {
     const d = await (await fetch('/api/scenarios/context')).json();
@@ -4892,9 +5006,8 @@ loadAiStatus();
 loadGateStatus();
 setInterval(loadGateStatus, 5 * 60 * 1000);
 loadScenarioContext();
-// Varsayilan sekme artik Case'ler; sekme tiklamasi olmadigi icin ilk yuklemeyi
-// burada tetikliyoruz (yoksa serit ve sayac bos kaliyor).
-loadCases();
+// Sonuclar sekmesinin sayaci acilista da dolsun (sekme tiklanmadan).
+loadPackageRunIndex().then(() => { const t = $('#tcCases'); if (t) t.textContent = PKG_RUNS.length; });
 
 </script>
 <style id="nc-motion-2">
@@ -5010,13 +5123,13 @@ html.theme-anim, html.theme-anim *{transition:background-color .4s ease,color .4
     t.innerHTML =
       '<div class="hd"><span class="dot" style="background:var(' + (ok ? '--ok' : '--no') + ')"></span>' +
       'Koşum bitti — ' + title + '<button class="x" title="Kapat">×</button></div>' +
-      '<div class="bd">' + (ok ? 'Tüm case\'ler temiz. Ayrıntılar Son sonuçlar sekmesinde.'
-        : 'Başarısız case\'ler Son sonuçlar sekmesinde işaretli — oradan bug kartı açabilirsin.') + '</div>' +
+      '<div class="bd">' + (ok ? 'Tüm case\'ler temiz. Ayrıntılar Sonuçlar sekmesinde.'
+        : 'Başarısız case\'ler Sonuçlar sekmesinde işaretli — oradan bug kartı açabilirsin.') + '</div>' +
       '<div class="row2"><button id="ncToastGo">Sonuçları gör</button></div>';
     document.body.appendChild(t);
     t.querySelector('.x').onclick = () => t.remove();
     t.querySelector('#ncToastGo').onclick = () => {
-      document.querySelector('.tabs button[data-tab=results]')?.click();
+      document.querySelector('.tabs button[data-tab=cases]')?.click();
       t.remove();
     };
     setTimeout(() => { if (document.getElementById('ncToast') === t) t.remove(); }, 15000);

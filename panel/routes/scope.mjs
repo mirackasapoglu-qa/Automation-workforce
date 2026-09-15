@@ -16,51 +16,95 @@
  * ⚠️ Bu uçlar ağacı DEĞİŞTİRMEZ. Yazma yolları (koşum sonucu, perf, Jira
  * bağlama, sweep'ler) kendi uçlarında ve hepsi token ister.
  */
-import { readTree, backfillRoutes, applyManualRuns } from "../scope.mjs";
+import { readTree, backfillRoutes, applyManualRuns, addRecordedCase } from "../scope.mjs";
+import { recordPackageRun, listPackageRuns, getPackageRun } from "../package-runs.mjs";
+import * as recSpec from "../recorded-spec.mjs";
+import { slugify, pickFilename } from "../spec-gen.mjs";
+import fs from "node:fs";
+import path from "node:path";
 import {
-  deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases,
+  deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases, deriveFindings,
 } from "../scope-bridge.mjs";
 import { PROJECT } from "../project.mjs";
+import { resolveActive, activeSubtree, writeActiveId } from "../active-product.mjs";
 import { listPackages, savePackage, deletePackage } from "../type-packages.mjs";
-import { readPackages, resolvePackageItems } from "../packages.mjs";
+import { readPackages, resolvePackageItems, resolvePackageCases } from "../packages.mjs";
 import { findNode } from "../scope.mjs";
 
 export function registerScopeRoutes(router, ctx) {
   const { send, BASE_URL, RUNS } = ctx;
 
   /** Ağacı okurken hata ÇIKARSA panel tamamen körleşmesin — boş ağaçla devam. */
-  const tree = () => {
+  const tamAgac = () => {
     try { return readTree().tree; } catch { return []; }
   };
 
-  const rotalar = (t) => routesWithFallback(t, {
-    baseUrl: BASE_URL,
-    quickRoutes: PROJECT.quickRoutes,
+  /**
+   * ⚠️ PANELİN SİTEYE BAKAN HER TÜRETMESİ AKTİF ÜRÜNÜN ALT AĞACINDAN.
+   *
+   * Ağaçta birden fazla kök (= ürün) olabiliyor; tamamını birlikte türetmek
+   * "başka sitenin rotaları bu panelde" gibi bir çorba üretiyordu
+   * (ölçüldü: tek ağaçta iki ürün, 151 düğüm). Adres de profilin `.env`
+   * değerinden değil, aktif ürünün taranmış adresinden geliyor.
+   */
+  const aktif = () => {
+    const t = tamAgac();
+    const { active, products } = resolveActive(t, { profileBaseUrl: BASE_URL });
+    return { tree: activeSubtree(t, active), active, products, baseUrl: active?.baseUrl ?? BASE_URL };
+  };
+
+  const rotalar = (t, baseUrl) => routesWithFallback(t, {
+    baseUrl,
+    // Profil yedeği YALNIZCA repo'nun kendi ürünü aktifken anlamlı — başka bir
+    // ürün seçiliyken profilin rotalarını göstermek çorbanın ta kendisiydi.
+    quickRoutes: (baseUrl === BASE_URL) ? PROJECT.quickRoutes : [],
   });
 
+  /** Ürün listesi + aktif seçim. */
+  router.get("/api/scope/products", ({ res }) => {
+    const { active, products } = resolveActive(tamAgac(), { profileBaseUrl: BASE_URL });
+    return send(res, 200, { ok: true, active, products, profileBaseUrl: BASE_URL ?? null });
+  });
+
+  router.post("/api/scope/products/active", ({ res, body, audit }) => {
+    const id = String(body?.nodeId ?? "").trim();
+    if (!id) return send(res, 400, { ok: false, error: "nodeId zorunlu" });
+    const { products } = resolveActive(tamAgac(), { profileBaseUrl: BASE_URL });
+    if (!products.some((x) => x.nodeId === id)) return send(res, 404, { ok: false, error: `Ürün bulunamadı: ${id}` });
+    writeActiveId(id);
+    audit({ event: "scope-active-product", nodeId: id });
+    const { active } = resolveActive(tamAgac(), { profileBaseUrl: BASE_URL });
+    return send(res, 200, { ok: true, active, products });
+  }, { auth: true, body: true });
+
   router.get("/api/scope/summary", ({ res }) => {
-    const t = tree();
-    const r = rotalar(t);
+    const { tree: t, active, products, baseUrl } = aktif();
+    const r = rotalar(t, baseUrl);
     return send(res, 200, {
       ok: true,
-      baseUrl: BASE_URL ?? null,
-      summary: deriveSummary(t, { baseUrl: BASE_URL }),
+      baseUrl: baseUrl ?? null,
+      active,
+      products,
+      profileBaseUrl: BASE_URL ?? null,
+      summary: deriveSummary(t, { baseUrl }),
       routeSource: r.source,
       routes: r.routes,
       runs: deriveRuns(t, Object.keys(RUNS ?? {})),
-      jira: deriveJiraIndex(t, { baseUrl: BASE_URL }),
+      jira: deriveJiraIndex(t, { baseUrl }),
       cases: deriveCases(t),
+      findings: deriveFindings(t),
     });
   });
 
   router.get("/api/scope/routes", ({ res }) => {
-    const r = rotalar(tree());
-    return send(res, 200, { ok: true, source: r.source, baseUrl: BASE_URL ?? null, routes: r.routes });
+    const { tree: t, baseUrl, active } = aktif();
+    const r = rotalar(t, baseUrl);
+    return send(res, 200, { ok: true, source: r.source, baseUrl: baseUrl ?? null, active, routes: r.routes });
   });
 
   router.get("/api/scope/jira", ({ res }) => {
-    const t = tree();
-    const idx = deriveJiraIndex(t, { baseUrl: BASE_URL });
+    const { tree: t, baseUrl } = aktif();
+    const idx = deriveJiraIndex(t, { baseUrl });
     return send(res, 200, {
       ok: true,
       keys: Object.keys(idx),
@@ -85,26 +129,79 @@ export function registerScopeRoutes(router, ctx) {
     const paketler = readPackages();
     const pkg = paketler.find((x) => x.id === id);
     if (!pkg) return send(res, 404, { ok: false, error: `Paket bulunamadı: ${id}` });
-
-    const cases = [];
-    for (const it of resolvePackageItems(paketler, id)) {
-      const node = findNode(tree, it.nodeId);
-      const tc = node ? (node.testCases ?? []).find((t) => t.id === it.testCaseId) : null;
-      // Kaynağı silinmiş referans SESSİZCE atlanmaz: ekranda "kayıp" olarak görünür.
-      if (!node || !tc) { cases.push({ nodeId: it.nodeId, testCaseId: it.testCaseId, missing: true }); continue; }
-      cases.push({
-        nodeId: node.id,
-        nodeName: node.name ?? "",
-        testCaseId: tc.id,
-        title: tc.title ?? "",
-        automated: !!tc.automated,
-        spec: tc.spec ?? null,
-        steps: (tc.steps ?? []).map((st) => ({ action: st.action ?? "", expected: st.expected ?? "" })),
-        lastRun: (tc.runs ?? []).at(-1) ?? null,
-      });
-    }
-    return send(res, 200, { ok: true, id: pkg.id, name: pkg.name, cases });
+    // Kaynağı silinmiş referans SESSİZCE atlanmaz: ekranda "kayıp" olarak görünür.
+    return send(res, 200, { ok: true, id: pkg.id, name: pkg.name, cases: resolvePackageCases(tree, paketler, id, findNode) });
   });
+
+  /**
+   * PAKET KOŞUM DEFTERİ (bkz. package-runs.mjs). Sonuçlar sekmesinin kaynağı:
+   * her paket koşumu kendi case satırlarıyla KALICI — `results.json` ezilse de
+   * eski koşumlar burada durur. `?packageId=` süzer, `?cases=0` satırları atar.
+   */
+  router.get("/api/scope/package-runs", ({ res, url }) => {
+    const packageId = url.searchParams.get("packageId") || null;
+    const limit = Number(url.searchParams.get("limit")) || 50;
+    const withCases = url.searchParams.get("cases") !== "0";
+    return send(res, 200, { ok: true, runs: listPackageRuns({ packageId, limit, withCases }) });
+  });
+
+  router.get("/api/scope/package-run", ({ res, url }) => {
+    const id = String(url.searchParams.get("id") ?? "").trim();
+    const run = id ? getPackageRun(id) : null;
+    return run ? send(res, 200, { ok: true, run }) : send(res, 404, { ok: false, error: "Koşum kaydı bulunamadı" });
+  });
+
+  /**
+   * KAYITTAN TEST CASE — Site (canlı) kaydedicisinin "Bitir" çıkışı.
+   *
+   * Gövde: `{ title, steps: [kaydedici adımları], path, nodeId? }`.
+   * Düğüm: verilmişse o; yoksa aktif ürünün ağacında rotası `path` olan
+   * düğüm; o da yoksa ürünün kökü (case kaybolmasın, kullanıcı Flowscope'ta
+   * taşıyabilir). Adımlar insan-okunur case adımlarına çevrilir, ayrıca
+   * deterministik bir Playwright spec'i `tests/gen-rec-<slug>.spec.ts` olarak
+   * yazılıp case'e bağlanır — paket koşumunda otomatik çalışır, elle koşumda
+   * adımlar ekranda görünür. Model çağrısı YOK.
+   */
+  router.post("/api/scope/testcases/record", ({ res, body, audit }) => {
+    const title = String(body?.title ?? "").trim();
+    const steps = Array.isArray(body?.steps) ? body.steps : [];
+    if (!title) return send(res, 400, { ok: false, error: "Case adı zorunlu" });
+    if (!steps.length) return send(res, 400, { ok: false, error: "Kaydedilmiş adım yok" });
+    const rota = String(body?.path || steps.find((s) => s?.action === "goto")?.value || "/");
+
+    const { tree: t, active, baseUrl } = aktif();
+    let nodeId = String(body?.nodeId ?? "").trim() || null;
+    if (!nodeId) {
+      const temiz = (rota.split("#")[0] || "/").replace(/\/+$/, "") || "/";
+      const r = deriveRoutes(t, { baseUrl }).find((x) => x.path === rota || x.path === temiz || String(x.path).split("?")[0] === temiz);
+      nodeId = r?.nodeId ?? t[0]?.id ?? null;
+    }
+    if (!nodeId) return send(res, 400, { ok: false, error: "Kapsam ağacı boş — önce Home'dan bir adres tara." });
+    const node = findNode(t, nodeId);
+    if (!node) return send(res, 404, { ok: false, error: `Düğüm bulunamadı: ${nodeId}` });
+
+    let dosya = null;
+    try {
+      dosya = pickFilename(`rec-${slugify(title)}`);
+      const kod = recSpec.renderSpec({ title, steps, product: active?.name ?? "", node: { name: node.name, nodeId: node.id }, path: rota });
+      // renderSpec kendi basligini tasiyor; spec-gen.writeSpec'in basligi ikinci kez eklenmesin.
+      const testsDir = path.join(process.cwd(), "tests");
+      fs.mkdirSync(testsDir, { recursive: true });
+      fs.writeFileSync(path.join(testsDir, dosya), kod);
+    } catch (e) {
+      // Spec yazılamazsa case YİNE açılır (elle koşulabilir); sebep yanıtta.
+      dosya = null;
+      audit({ event: "scope-record-spec-error", message: String(e.message).slice(0, 160) });
+    }
+
+    try {
+      const out = addRecordedCase({ nodeId, title, steps: recSpec.toCaseSteps(steps), recorded: steps, spec: dosya, path: rota });
+      audit({ event: "scope-record-case", nodeId, testCaseId: out.testCaseId, steps: steps.length, asserts: recSpec.assertCount(steps), spec: dosya });
+      return send(res, 200, { ok: true, ...out, spec: dosya, asserts: recSpec.assertCount(steps), steps: steps.length, path: rota });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
 
   /**
    * ELLE KOŞUM KAYDI. Panelin "elle koş" akışı (paketteki case'leri sırayla
@@ -119,7 +216,34 @@ export function registerScopeRoutes(router, ctx) {
     try {
       const out = applyManualRuns({ entries: body?.entries, label: body?.label });
       audit({ event: "scope-manual-run", written: out.written, label: String(body?.label ?? "").slice(0, 60) });
-      return send(res, 200, { ok: true, ...out });
+      /*
+       * Paketten geldiyse (packageId) DEFTERE de düşer — Sonuçlar sekmesi elle
+       * koşumu da otomatik koşumla aynı listede, kalıcı görsün. Deftere yazma
+       * hatası kayıt yazımını (ağaç) DÜŞÜRMEZ; sebep yanıtta.
+       */
+      let packageRun = null;
+      if (body?.packageId) {
+        try {
+          const durumMap = { "✅": "✅", "❌": "❌", "⚠️": "⚠️" };
+          packageRun = recordPackageRun({
+            packageId: String(body.packageId),
+            packageName: String(body.label ?? body.packageId),
+            mode: "manual",
+            product: aktif().active?.name ?? null,
+            startedAt: body.startedAt ?? undefined,
+            durationMs: Number(body.durationMs) || null,
+            code: 0,
+            cases: (out.results ?? []).map((r) => ({
+              nodeId: r.nodeId, testCaseId: r.testCaseId, title: r.title ?? "",
+              nodeName: (() => { try { return findNode(readTree().tree, r.nodeId)?.name ?? ""; } catch { return ""; } })(),
+              status: r.error ? "⚠️" : (durumMap[r.status] ?? "⚠️"),
+              error: r.error ?? "",
+              note: (body.entries ?? []).find((e) => e.testCaseId === r.testCaseId)?.note ?? "",
+            })),
+          }).id;
+        } catch (e) { out.packageRunError = e.message; }
+      }
+      return send(res, 200, { ok: true, ...out, packageRun });
     } catch (e) {
       return send(res, 400, { ok: false, error: e.message });
     }
@@ -222,7 +346,8 @@ export function registerScopeRoutes(router, ctx) {
    */
   router.get("/api/scope/perf-targets", ({ res, url }) => {
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit")) || 25, 1), 100);
-    const r = deriveRoutes(tree(), { baseUrl: BASE_URL });
+    const { tree: t, baseUrl } = aktif();
+    const r = deriveRoutes(t, { baseUrl });
     // Sorgu dizeli rotalar ölçümde tekrara düşüyor (aynı sayfa, farklı parametre);
     // ölçüm hedefi olarak yol yeterli.
     const yollar = [...new Set(r.map((x) => String(x.path).split("?")[0] || "/"))].slice(0, limit);

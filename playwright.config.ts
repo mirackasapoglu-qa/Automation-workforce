@@ -53,7 +53,12 @@ export default defineConfig({
     baseURL,
     // Varsayılan: MİSAFİR oturumu (sadece "Geçici Erişim" kapısı geçilmiş).
     // Üye testleri (20+) kendi içinde member state'e geçer — bkz. pages/authState.ts
-    storageState: `playwright/.auth/${env}-gate.json`,
+    /*
+     * PW_PRODUCT=1 (panelin ürün koşumu): baseURL kapsam ağacındaki ürünün
+     * adresi, kapı/oturum dosyası YOK — o dosya profilin sitesine ait ve
+     * yabancı siteye taşınması anlamsız. global-setup da bu bayrakla girişleri atlar.
+     */
+    storageState: process.env.PW_PRODUCT ? undefined : `playwright/.auth/${env}-gate.json`,
     /*
      * KAYIT: video ve trace ortamdan ayarlanabilir.
      *

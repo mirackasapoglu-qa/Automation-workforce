@@ -245,10 +245,10 @@ async function rcRenderSonuc() {
           <button onclick="rcTekrarKos('${rcEsc(r.file)}', this.dataset.t)" data-t="${rcEsc(r.title)}"
                   title="Yalnızca bu case'i yeniden koş (-g)">tekrar koş</button>
         </div>`).join('')}
-        ${gercek.length > 8 ? `<div class="rc-res-more">+${gercek.length - 8} başarısız daha — Son sonuçlar sekmesinde</div>` : ''}
+        ${gercek.length > 8 ? `<div class="rc-res-more">+${gercek.length - 8} başarısız daha — Sonuçlar sekmesinde</div>` : ''}
       </div>` : ''}
       <div class="rc-res-act">
-        <button onclick="document.querySelector('.tabs button[data-tab=results]').click()">Son sonuçlar</button>
+        <button onclick="document.querySelector('.tabs button[data-tab=cases]').click()">Sonuçlar</button>
         <button onclick="loadArtifacts()" title="Bu koşumun video/trace kayıtları">kayıtlar</button>
       </div>
     </div>`;
@@ -432,4 +432,6 @@ function rcRunEnd(d) {
   RC.sonuc = { label, code: d.code, durationMs: d.durationMs };
   rcRenderSonuc();
   rcYenile();
+  // Kosumlar sekmesi = paketler; satirdaki "son kosum" ve noktalar tazelensin.
+  if (typeof renderScopePackages === 'function') renderScopePackages();
 }

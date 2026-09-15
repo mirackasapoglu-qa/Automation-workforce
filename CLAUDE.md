@@ -2536,6 +2536,98 @@ tabloda hiç görünmez). Normal kurulumda hiç basılmaz.
 Paketler de aynı tablo dilinde (`.rc-prow`: ad · özet · iki aksiyon). Önce çip
 yığınıydı ve "elle koş" düğmesi iki satıra kırılıyordu.
 
+## AKTİF ÜRÜN — panel hangi siteye bakıyor (2026-09-15)
+
+**Şikâyet:** "panel çorba — ben Flowscope'ta bir URL tarıyorum, panel hâlâ
+profilin sitesine bakıyor". Ölçüldü: kapsam ağacında 151 düğüm ve **iki ayrı
+kök** (Promptfoo + Tepe Home), panel ise üçüncü bir gerçeğe (proje profili)
+bakıyordu.
+
+**Model: ağacın her KÖKÜ bir üründür.** Biri aktif seçilir; panelin siteye bakan
+bütün yüzeyleri yalnız o kökün alt ağacından ve o ürünün **taranmış adresinden**
+beslenir. `.env`'deki `BASE_URL_<ENV>` artık yalnızca **varsayılan**.
+
+```
+panel/active-product.mjs   listProducts · resolveActive · activeSubtree · productSlug
+panel-data/scope/active-product.json   seçim (ağaca YAZILMAZ — görüntüleme tercihi)
+GET/POST /api/scope/products[/active]
+```
+
+Ürünün adresi alt ağaçtaki **en çok geçen origin**den çıkar (dış linkler
+azınlıkta kalır); Figma/Jira/Confluence linkleri elenir. Hiç adres yoksa
+(profilden tohumlanmış ağaç) profilin adresi kullanılır.
+
+| Yüzey | Aktif ürüne göre ne değişir |
+|---|---|
+| Site (canlı) | rota kısayolları, iframe hedefi, proxy (hedef HER İSTEKTE çözülür — ürün değişince panel yeniden başlamaz) |
+| Performans | ölçüm `panel-data/perf/<ürün>/`; sweep hedefleri aktif alt ağaçtan |
+| Sonuçlar | "Kapsam sonuçları" bloğu (ağaçtaki case'ler + koşum kayıtları) |
+| Jira | yabancı üründe kartlar **kapsam ağacından** (profilin JQL'i değil) |
+| Genel bakış | açık bulgular ağaçtan türer (`deriveFindings`) |
+| Koşumlar | repo suite'i **katlanır** ve sahibi yazılır |
+
+⚠️ **Repo'nun Playwright suite'i ürüne göre değişmez** — o testler bu repoda ve
+profilin sitesini test ediyor. Yabancı ürün seçiliyken gizlenmiyor, **işaretli**
+(kullanıcı kararı): koşturmak serbest, ama neyin ne olduğu görünür.
+
+⚠️ **Profil yedeği yalnız repo'nun kendi ürünü aktifken.** `/api/site/match`
+eşleşmeyi bulamazsa profilin rota kuralına düşüyordu; yabancı bir sitenin
+sayfasında profilin Jira kartları görünüyordu (ölçüldü). Aynı kural
+`routesWithFallback`'ta da var (quickRoutes yedeği).
+
+⚠️ **Perf'te "eski düz dizine düş" yalnız profil ürünü için** (`legacyFallback`).
+Yabancı ürün için de düşülünce panel, hiç ölçülmemiş bir sitenin perf sekmesinde
+BAŞKA ÜRÜNÜN rotalarını gösteriyordu.
+
+⚠️ **Tek ürün varsa şerit yine gösterilir** — o ürün repo'nun ürünü DEĞİLSE.
+Kullanıcının gerçek durumu buydu: ağaçta yalnız kendi taradığı site var, panel
+ise repo'nun suite'ini taşıyor.
+
+## Elle case → Playwright spec'i (`panel/spec-gen.mjs`, 2026-09-15)
+
+Flowscope'taki "Test Case'leri Koştur (Claude Code)" düğmesi bir **istem**
+üretip kullanıcıyı kendi terminaline gönderiyordu; sonuç panele hiç dönmüyordu.
+Artık sunucu üretiyor: adımlar → Playwright kodu → `tests/gen-*.spec.ts` →
+düğüme bağlanır → panelin whitelist'li koşum yolundan çalışır → sonuç ağaca düşer.
+
+Uç: `POST /api/scope/testcases/spec {nodeId}`. Panelde Koşumlar → paket satırı →
+**"otomatiğe çevir"** (yalnız elle case'i olan pakette görünür).
+
+⚠️ **Dosya `tests/` KÖKÜNE yazılır.** Playwright'ın `testDir`i ve panelin spec
+doğrulaması (`listSpecs` → `buildCustomArgs`) yalnız kökü tarıyor; alt klasördeki
+dosya "Bilinmeyen spec" diye reddedilirdi. `gen-` öneki elle yazılmış suite'ten
+ayırır, dosya başlığı nereden geldiğini söyler, yeniden üretim **yeni dosya**
+açar (mevcut ezilmez).
+
+⚠️ **Kapı VERİ yolunda** (`gate`): Playwright import'u var mı, `test()` var mı,
+istenen case başlıklarının en az biri geçiyor mu, tehlikeli kalıp (require,
+child_process, fs yazma/silme, dinamik env) var mı. Geçmeyen kod **diske
+yazılmaz**. 11 birim testi.
+
+⚠️ **Model biçimi ARALIKLI sapıyor** (CLI yolu): aynı istem bir kez
+`{file, code}`, bir kez `{file, language, code}` döndürdü, bir denemede `code`
+hiç gelmedi ve üretim düştü (0.39 $ boşa gitti). `pickCode()` önce `code`a
+bakar, yoksa Playwright import'u içeren ilk uzun metni alır — kapı onu yine
+doğruladığı için gevşeklik güvenliği azaltmıyor.
+
+⚠️ **ÜRETİLEN SPEC KENDİ ÜRÜNÜNE KOŞAR.** `playwright.config.ts` baseURL'ü
+`.env`den okuyor, yani profilin sitesinden; yabancı ürün için üretilen test
+göreli `page.goto("/")` ile **sessizce tepehome'a** giderdi. Koşum motoruna
+`productEnv` eklendi: **yalnızca** bütün spec'ler `gen-` önekliyse VE aktif ürün
+repo'nun ürünü değilse `BASE_URL_<ENV>` override edilir. Whitelist koşumları
+(repo'nun kendi testleri) etkilenmez.
+
+Ölçüm: 9 elle case → 43 sn, 0.31 $, 9885 karakterlik spec, 9 case'in hepsi
+kodda, düğüme `runRef.specs` ile bağlandı.
+
+## `npm run up` landing'i artık kendisi build ediyor (2026-09-15)
+
+`vite preview` `site/dist`i servis ediyor, kaynağı değil. Önceden yalnızca
+"dist hiç yok mu" diye bakılıyordu; kaynağı değiştirip `npm run up` diyen kişi
+**7 gün önceki sayfayı** görüyordu (ölçüldü: dist 8 Eylül, kaynak 15 Eylül).
+`up.mjs → buildGerekli()` artık `site/` altındaki en yeni dosyayı `dist` ile
+karşılaştırıp gerekiyorsa build alıyor (`dist/` ve `node_modules/` taranmaz).
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |
@@ -2579,3 +2671,95 @@ Panel Jira uçları: `/api/jira/cards?view=all|<sorter-id>` (bkz. "Jira: Sorter"
 
 Agent dosyaları repo bilgisini prompt'a gömer — keşifle zaman harcamasınlar diye.
 Yeni bir konvansiyon eklersen ilgili agent'ı da güncelle.
+
+## Panel ürün-merkezli: profil suite'i arayüzden kalktı (2026-09-15, akşam)
+
+**İstek:** "Homee QA muhabbeti sistemden tamamen kalksın; her şey girilen
+kapsam URL'sinden ilerlesin. Parametreli koşum ve HOMEE_ENV'den gelenler
+kalkacak, paketleri koşacağız; sonuçlar kalıcı olacak; perf flow'daki tüm
+istekleri ölçecek; Site (canlı) kaydı bitince ad verilip test case olacak;
+connector gereken yer bağlı değilse Bağlantılar'a yönlendirsin." Push YOK,
+önce lokalde test.
+
+**Arayüzden kalkanlar** (kod yolları sunucuda duruyor, yalnız UI):
+Koşumlar'daki whitelist tablosu + "Parametreli koşum" + "Bilinen hatalar";
+Sonuçlar'daki repo spec listesi, "Senaryo öner", "Bilinen hatalar tablosu",
+"Taslaklar"; "Son sonuçlar" sekmesi; Site'deki codegen "Kaydet" bloğu
+(misafir/üye oturumu profil kavramıydı); TIPS'teki Homee rota adları.
+`/api/specs`, `/api/results`, `/api/record/*`, `custom` koşum yolu sunucuda
+aynen duruyor — `runCase` (tek case tekrarı) ve paket koşumu `custom`'ı kullanır.
+
+**Yeni model, sekme sekme:**
+- **Başlık/rozet**: `/api/meta → project.title` artık aktif ürünün adı
+  (≤32 kr) yoksa host'u (`productTitle`): kırılım "promptfoo.dev". Sağ üst
+  rozet ortam adı değil ürün host'u; sipariş guard rozeti yalnız profil
+  ürünü aktifken (`display:none`, `hidden` DEĞİL — `.pill` display'i ezer).
+- **Koşumlar = paketler** (`renderScopePackages`): satırda son koşum
+  (`x/y`), zaman, son 10 koşumun noktaları, `kos`/`elle kos`/`otomatige
+  cevir`. Paket koşumu `runRequest({id:'custom', params:{specs, package:{id,name}}})`
+  — `params.package` motorda etiketi "Paket: X" yapar ve koşum sonunda defteri
+  tetikler. Boş listede akış anlatan kutu + Flowscope linki.
+- **Sonuçlar = paket koşum defteri** (`panel/package-runs.mjs`,
+  `panel-data/package-runs.json`, en yeni 300): her kayıt paket + mod
+  (auto/manual) + sayımlar + **case satırları gömülü** (results.json ezilse de
+  durur). Uçlar `GET /api/scope/package-runs[?packageId=&cases=0]`,
+  `/api/scope/package-run?id=`. Yazma iki yerden: motor `onRunFinished`
+  (otomatik) ve `POST /api/scope/testcases/run` gövdesinde `packageId` varsa
+  (elle). Sonuç → case eşlemesi `mapResultsToCases`: case'in `spec`i (yoksa
+  düğümün `runRef.specs`i) içindeki satırlardan **başlığı birebir** (ilk 60
+  kr) eşleşen; yoksa spec özeti (düşen varsa ❌); spec yoksa ⏭️ "elle";
+  satır yokken koşum düştüyse ⚠️ sebep. Ölçüm: Tümü paketi 5 case → 4 ❌ 1 ✅
+  başlıkla eşleşti, 76 sn. Hata metni ANSI'den arındırılır.
+- **Genel bakış**: KPI'lar `SCOPE.summary`den (geçen/koşulan, düşen, case,
+  paket koşumu, bulgu); "Misafir/Üye seti" düğmeleri → "Paketleri koş" /
+  "Siteyi tara"; BUGÜN listesi ağaçtan (kapı satırı yalnız profil ürününde).
+- **Site (canlı) → Kaydet → Bitir**: `finishIframeRec()` ad ister (uiPrompt),
+  `POST /api/scope/testcases/record {title, steps, path}` → sunucu MODELSİZ
+  (a) adımları insan-okunur case adımlarına çevirir (`recorded-spec.mjs →
+  toCaseSteps`: iddialar önceki adımın `expected`ine yazılır), (b)
+  deterministik spec'i `tests/gen-rec-<slug>.spec.ts` olarak yazar, (c)
+  case'i rotanın düğümüne (yoksa ürün köküne) `spec` + ham `recorded[]` ile
+  ekler ve `runRef.specs`e bağlar (`scope.mjs → addRecordedCase`). Test
+  başlığı = case başlığı (defter eşlemesi buna dayanır). Eski
+  `/api/record/steps` de aynı kod üreticiyi kullanıyor. Ölçüm: kayıt →
+  paket → koşum 7,6 sn, `PW_PRODUCT` ile promptfoo'ya gitti, ❌ deftere düştü.
+- **Tasarım kolonu / diff**: `/api/figma/frame|render` önce aktif ürünün
+  ağacındaki düğümün **Figma kaynak linkinden** (`figmaOverrideForPath`,
+  node-id'li link) çözer; yabancı üründe profil haritasına DÜŞÜLMEZ ("/"
+  profilin Home frame'iyle eşleşirdi). Hata `code` taşır: `NO_CREDS` →
+  kolon "Figma bağlı değil" + **Bağlantılar'ı aç** (`openConnector('figma')`
+  → `pfPanelOpen` + `cxConnectOpen`), `NO_MAP` → "düğüme Figma linki ekle"
+  + Flowscope linki. `figma-render.mjs` artık `fileKey` parametreli.
+- **Perf**: `scripts/perf-sweep.mjs` adresi **aktif üründen** alır
+  (`resolveActive` + en çok geçen origin), rotalar yalnız o alt ağaçtan,
+  **`tests/routes.ts` taban listesi KALKTI** (rota yoksa açık hata), kapı
+  oturumu yalnız profil sitesinde yüklenir, çıktı `perf/<urun>/`. Sebep:
+  Promptfoo aktifken "Yeniden ölç" Tepe Home'un 33 statik rotasını
+  ölçüyordu (ölçüldü 15:41). `apiHostRe` yabancı üründe null.
+- **RAG/zemin yalnız profil ürünü için** (`routes/ai.mjs → profilUrunu`):
+  promptfoo case'leri "HOMEE_ENV ile ortam seç", "BasePage.isNotFound()"
+  diyordu — tests/pages/CLAUDE.md parçaları yabancı ürünün istemine
+  giriyordu. Test case ve spec üretiminde `repoContext`/`useStable` kapalı.
+- **Koşum ortamı**: `productEnv` yabancı ürün + hepsi `gen-` spec ise
+  `BASE_URL_<ENV>` override + **`PW_PRODUCT=1`**: `playwright.config.ts`
+  storageState vermez, `global-setup.ts` kapı/üye girişini atlar. ⚠️ Bunsuz
+  global-setup yabancı sitede kapıyı arayıp `test-gate.json`'ı **o sitenin
+  çerezleriyle EZİYOR** ve üye girişi `/giris` bulamayıp koşumu düşürüyordu.
+- **Bug kuyruğu**: bilinen hata kayıtları yerine ağaçtaki ❌ işaretli
+  düğümler (`findings.kind === 'node'`).
+
+**Ölçüm**: 237 birim testi yeşil (+8 yeni: `package-runs.test.mjs`,
+`recorded-spec.test.mjs`), `panel:check` temiz, 4699'da headless Chrome
+probu: 9 sekme, whitelist/param/known-issue DOM'da yok, paket satırları,
+kayıt→case→spec→paket→koşum→defter zinciri, tasarım kolonu NO_MAP metni, sıfır
+panel JS hatası (konsoldaki 404/ERR_NAME_NOT_RESOLVED iframe'deki sitenin
+varlıkları).
+
+**Bilinçli borç / açık**: kaydedicide iframe'deki bir bağlantıya tıklama
+probda adım olarak düşmedi (iddia tıklaması düştü) — mevcut kaydedici
+mekaniği, bu turda dokunulmadı; `tests/routes.ts`, `known-issues.ts`, repo
+suite'i ve `panel/runs.json` whitelist'i duruyor ama arayüzde görünmüyor
+(perf-sweep/gate-refresh gibi motor koşumları whitelist'ten); `/api/jira/cards`
+kimliksiz ortamda 500 (önceden de böyle, yabancı üründe çağrılmıyor);
+`writeRunIntoNode` notlarındaki ANSI kodları temizlenmedi (yalnız defterde
+temiz); kayıt spec'inin locator kalitesi kaydedicinin verdiği kadar.

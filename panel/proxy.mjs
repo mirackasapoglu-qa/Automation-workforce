@@ -92,7 +92,15 @@ async function readBody(req) {
  * @returns {(req, res, upstreamPath?: string) => Promise<void>}
  */
 export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCookie = "temporary_auth_verified=true" }) {
-  const target = new URL(baseURL);
+  /*
+   * ⚠️ HEDEF HER İSTEKTE ÇÖZÜLÜR (fonksiyon da kabul edilir).
+   *
+   * Önce başlangıçta bir kez sabitleniyordu. Panel artık "aktif ürüne" bakıyor
+   * (bkz. panel/active-product.mjs) ve kullanıcı ürünü değiştirdiğinde iframe'in
+   * de o siteyi açması gerekiyor — sabit hedefle panelin yeniden başlatılması
+   * şart olurdu.
+   */
+  const hedef = () => new URL(typeof baseURL === "function" ? baseURL() : baseURL);
   /** Tarayıcıya görünen kök: kendi portunda origin, panelde origin + önek. */
   const publicBase = selfOrigin + prefix;
   /*
@@ -120,6 +128,7 @@ export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCooki
        * Çağıran öneki soyup verir (`upstreamPath`); vermezse `req.url` aynen kullanılır.
        */
       const istekYolu = upstreamPath ?? req.url;
+      const target = hedef();
       const upstream = new URL(istekYolu, target.origin);
 
       const headers = {};

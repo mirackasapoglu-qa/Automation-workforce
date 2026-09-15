@@ -18,8 +18,21 @@ import path from "node:path";
  * @param {{dataDir: string, apiHostRe?: RegExp|null}} p
  * @returns {{measuredAt: string|null, routes: object[], endpoints: object[], totals: object}}
  */
-export function readPerfData({ dataDir, apiHostRe = null }) {
-  const dir = path.join(dataDir, "perf");
+export function readPerfData({ dataDir, apiHostRe = null, sub = "", legacyFallback = true }) {
+  /*
+   * ⚠️ ÖLÇÜM ÜRÜNE AİT: `sub` verilirse `panel-data/perf/<urun>/` okunur.
+   *
+   * ⚠️ DÜZ DİZİNE DÜŞME YALNIZCA REPO'NUN KENDİ ÜRÜNÜ İÇİN (`legacyFallback`).
+   * Eski ölçümler o dizinde duruyor ve profilin ürününe ait. Yabancı bir ürün
+   * için de düşülseydi panel, hiç ölçülmemiş bir sitenin perf sekmesinde BAŞKA
+   * BİR ÜRÜNÜN rotalarını gösterirdi — ölçüldü 2026-09-15: aktif ürün Promptfoo
+   * iken `/tum-urunler`, `/bahce`, `/banyo` listeleniyordu. Ölçüm yoksa BOŞ
+   * dönmek doğrudur; panel "bu ürün için ölçüm yok" der.
+   */
+  const urunDir = sub ? path.join(dataDir, "perf", sub) : null;
+  const dir = urunDir
+    ? (fs.existsSync(urunDir) ? urunDir : (legacyFallback ? path.join(dataDir, "perf") : urunDir))
+    : path.join(dataDir, "perf");
   const empty = { measuredAt: null, routes: [], endpoints: [], totals: { routes: 0, requests: 0, api: 0, endpoints: 0, dupEndpoints: 0 } };
   if (!fs.existsSync(dir)) return empty;
 

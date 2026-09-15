@@ -90,3 +90,36 @@ export function resolvePackageItems(packages, id, guard = new Set()) {
   }
   return out;
 }
+
+/**
+ * Paketin case'lerini AĞAÇLA çözer: `{nodeId, nodeName, testCaseId, title,
+ * automated, spec, nodeSpecs, steps, lastRun}` — ya da kaynağı silinmişse
+ * `{missing:true}`. `GET /api/scope/package-cases` ve koşum sonu defter
+ * yazımı (server → recordPackageRun) aynı listeyi kullanır; iki kopya
+ * kaçınılmaz olarak sapardı.
+ *
+ * @param {object[]} tree
+ * @param {object[]} packages
+ * @param {string} id
+ * @param {(tree: object[], id: string) => object|null} findNode
+ */
+export function resolvePackageCases(tree, packages, id, findNode) {
+  const out = [];
+  for (const it of resolvePackageItems(packages, id)) {
+    const node = findNode(tree, it.nodeId);
+    const tc = node ? (node.testCases ?? []).find((t) => t.id === it.testCaseId) : null;
+    if (!node || !tc) { out.push({ nodeId: it.nodeId, nodeName: node?.name ?? "", testCaseId: it.testCaseId, missing: true }); continue; }
+    out.push({
+      nodeId: node.id,
+      nodeName: node.name ?? "",
+      testCaseId: tc.id,
+      title: tc.title ?? "",
+      automated: !!tc.automated,
+      spec: tc.spec ?? null,
+      nodeSpecs: node.runRef?.specs ?? [],
+      steps: (tc.steps ?? []).map((st) => ({ action: st.action ?? "", expected: st.expected ?? "" })),
+      lastRun: (tc.runs ?? []).at(-1) ?? null,
+    });
+  }
+  return out;
+}

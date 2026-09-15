@@ -14,13 +14,33 @@ import { chromium } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { deriveRoutes } from "../panel/scope-bridge.mjs";
+import { resolveActive, activeSubtree, productSlug } from "../panel/active-product.mjs";
 import { loadEnv } from "../env.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : d; };
 const SCROLL = process.argv.includes("--scroll");
 const SETTLE = Number(arg("--settle", 6)) * 1000;
-const OUT = path.join("panel-data", "perf");
-
+/**
+ * AKTİF ÜRÜN — ölçümün hedefi, çıktı klasörü ve rota listesi HEPSİ buradan.
+ *
+ * ⚠️ 2026-09-15'e kadar hedef adres `.env`deki `BASE_URL_<ENV>`den (profilin
+ * sitesi) geliyor, rota listesi ise ağaçtan türetilmeye çalışılıp o adresle
+ * eşleşmeyince `tests/routes.ts` taban listesine düşüyordu. Sonuç: panelde
+ * Promptfoo aktifken "Yeniden ölç" TEPE HOME'un 33 statik rotasını ölçüyordu
+ * (ölçüldü: panel-data/perf/Tepe-Home-Bahce.json vb., 15:41). Artık:
+ *   - adres = aktif ürünün taranmış origin'i (panelin gördüğüyle aynı)
+ *   - rotalar = yalnız o ürünün alt ağacı; statik taban listesi YOK
+ *   - kapı oturumu yalnız adres profilin sitesiyse yüklenir
+ */
+function aktifUrun() {
+  try {
+    const t = JSON.parse(fs.readFileSync(path.join("panel-data", "scope", "tree.json"), "utf8"));
+    const tree = Array.isArray(t) ? t : t?.tree;
+    if (!Array.isArray(tree) || !tree.length) return { tree: [], active: null };
+    const { active } = resolveActive(tree, { profileBaseUrl: process.env[`BASE_URL_${(process.env.PANEL_ENV || process.env.HOMEE_ENV || "test").toUpperCase()}`] ?? null });
+    return { tree: activeSubtree(tree, active), active };
+  } catch { return { tree: [], active: null }; }
+}
 /*
  * ⚠️ ORTAM: `.env` DOSYASI DOĞRUDAN OKUNMAZ.
  *
@@ -33,55 +53,46 @@ const OUT = path.join("panel-data", "perf");
  */
 loadEnv();
 const env = (process.env.PANEL_ENV || process.env.HOMEE_ENV || "test").toLowerCase();
-const BASE = process.env[`BASE_URL_${env.toUpperCase()}`];
-if (!BASE) throw new Error(`BASE_URL_${env.toUpperCase()} tanimli degil — .env ya da ortam degiskeni ver`);
+const PROFIL_BASE = process.env[`BASE_URL_${env.toUpperCase()}`] ?? null;
+const URUN = aktifUrun();
+/** Hedef: aktif ürünün adresi; ağaç boşsa profilin adresi (tek yedek). */
+const BASE = (URUN.active?.baseUrl ?? PROFIL_BASE ?? "").replace(/\/+$/, "");
+if (!BASE) throw new Error("Olculecek adres yok: kapsam agacinda urun yok ve BASE_URL_<ENV> tanimli degil");
+const sameHost = (a, b) => { try { return new URL(a).hostname.replace(/^www\./, "") === new URL(b).hostname.replace(/^www\./, ""); } catch { return false; } };
+const PROFIL_URUNU = PROFIL_BASE ? sameHost(BASE, PROFIL_BASE) : false;
+/** Ürün varsa `perf/<urun>/`; ağaç boşsa eski düz dizin (panel de oradan okur). */
+const OUT = URUN.active ? path.join("panel-data", "perf", productSlug(URUN.active)) : path.join("panel-data", "perf");
 
 /*
- * Kapı oturumu da imajda yok (playwright/.auth `.dockerignore`'da). Dosya yoksa
- * ölçüm oturumsuz koşar: kapı arkasındaki sayfalarda kapı ekranı ölçülür, ama
- * ölçümün tamamen düşmesinden iyidir ve sebebi log'a yazılır.
+ * Kapı oturumu YALNIZ profilin sitesi ölçülürken: o çerez o siteye ait. İmajda
+ * dosya yoksa (playwright/.auth `.dockerignore`'da) ölçüm oturumsuz koşar ve
+ * sebebi log'a yazılır — ölçümün tamamen düşmesinden iyidir.
  */
 const STATE_PATH = `playwright/.auth/${env}-gate.json`;
-const STATE = fs.existsSync(STATE_PATH) ? STATE_PATH : null;
-if (!STATE) console.log(`[perf] uyari: kapi oturumu yok (${STATE_PATH}) — olcum oturumsuz kosuyor`);
+const STATE = PROFIL_URUNU && fs.existsSync(STATE_PATH) ? STATE_PATH : null;
+if (PROFIL_URUNU && !STATE) console.log(`[perf] uyari: kapi oturumu yok (${STATE_PATH}) — olcum oturumsuz kosuyor`);
 
 /**
- * Olculecek rotalar. Sira:
+ * Ölçülecek rotalar. Sıra:
  *   1. `--routes` ile elle verilen liste
- *   2. KAPSAM AGACI (Flowscope) — panelin gordugu sayfalar neyse olculen de o
- *   3. `tests/routes.ts` taban listesi (agac bos ya da okunamazsa)
+ *   2. KAPSAM AĞACI (aktif ürünün alt ağacı) — panelin gördüğü sayfalar neyse ölçülen de o
  *
- * (2) neden eklendi: agaca yeni bir sayfa eklemek ya da siteyi taramak, perf
- * olcumunu HIC etkilemiyordu — panel "33 rota" derken agac bambaska bir kumeyi
- * gosteriyordu. Okuma burada yapiliyor (panelde degil) ki olcumu kim tetiklerse
- * tetiklesin (panel, CLI, ileride cron) ayni hedef listesi kullanilsin.
+ * Statik `tests/routes.ts` taban listesi KALDIRILDI: o liste profilin sitesine
+ * ait ve yabancı ürün için yanlış siteyi ölçüyordu. Ağaçta rota yoksa ölçüm
+ * açık bir mesajla durur — sessizce başka bir listeye düşmez.
  */
 function scopeRoutes() {
   try {
-    const raw = fs.readFileSync(path.join("panel-data", "scope", "tree.json"), "utf8");
-    const parsed = JSON.parse(raw);
-    const tree = Array.isArray(parsed) ? parsed : parsed?.tree;
-    if (!Array.isArray(tree)) return [];
-    // Sorgu dizesi olcumde tekrara dusuyor (ayni sayfa, farkli parametre) — yol yeterli.
-    const yollar = deriveRoutes(tree, { baseUrl: BASE }).map((r) => String(r.path).split("?")[0] || "/");
+    const yollar = deriveRoutes(URUN.tree, { baseUrl: BASE }).map((r) => String(r.path).split("?")[0] || "/");
     return [...new Set(yollar)];
   } catch { return []; }
 }
-
-function baselineRoutes() {
-  const src = fs.readFileSync(path.join("tests", "routes.ts"), "utf8");
-  const found = new Set(["/"]);
-  for (const m of src.matchAll(/["'](\/[A-Za-z0-9\-_/]*)["']/g)) {
-    const p = m[1];
-    if (p.includes("-p-") || p.length > 60) continue;   // urun detaylari ayri
-    found.add(p.replace(/\/$/, "") || "/");
-  }
-  return [...found];
-}
 const ROUTES = (arg("--routes", "") || "").split(",").map((s) => s.trim()).filter(Boolean);
-const kapsam = ROUTES.length ? [] : scopeRoutes();
-const routes = ROUTES.length ? ROUTES : (kapsam.length ? kapsam : baselineRoutes());
-console.log(`[perf] ${routes.length} rota · kaynak: ${ROUTES.length ? "--routes" : kapsam.length ? "kapsam agaci" : "tests/routes.ts"}`);
+const routes = ROUTES.length ? ROUTES : scopeRoutes();
+if (!routes.length) {
+  throw new Error(`Olculecek rota yok: kapsam agacinda ${URUN.active?.name ?? "aktif urun"} icin rota tasiyan dugum bulunamadi. Once Home'dan adresi tara ya da --routes ver.`);
+}
+console.log(`[perf] ${routes.length} rota · urun: ${URUN.active?.name ?? "(profil)"} · adres: ${BASE} · kaynak: ${ROUTES.length ? "--routes" : "kapsam agaci"} · cikti: ${OUT}`);
 
 const slug = (p) => (p === "/" ? "anasayfa" : p.replace(/^\//, "").replace(/\//g, "-"));
 const NOISE = /personaclick|gtag|googletagmanager|google-analytics|clarity|mobildev|hotjar|facebook|doubleclick/i;

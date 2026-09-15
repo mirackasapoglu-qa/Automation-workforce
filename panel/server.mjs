@@ -60,6 +60,10 @@ import { tracker, capability } from "./connectors/index.mjs";
 import { isCut } from "./connectors/cuts.mjs";
 import { readTree, writeTree, countNodes, findNode as findScopeNode, applyRunResults, applyRunResultsBySpecs, applyPerfToTree, onTreeChange, attachJiraTask, collectJiraTaskIds, sweepJiraStatuses, collectVerifiedResourceLinks, sweepResourceDrift, findNodesByJiraTask } from "./scope.mjs";
 import { deriveRoutes as scopeDeriveRoutes, matchPerfRoutes } from "./scope-bridge.mjs";
+import { resolveActive, activeSubtree, productSlug } from "./active-product.mjs";
+import { recordPackageRun, mapResultsToCases } from "./package-runs.mjs";
+import { readPackages, resolvePackageCases } from "./packages.mjs";
+import * as recSpec from "./recorded-spec.mjs";
 import { extractFigmaFileKey, lastModifiedByKey as figmaLastModifiedByKey } from "./design-drift.mjs";
 import { extractConfluencePageId, lastModifiedByKey as confluenceLastModifiedByKey } from "./confluence.mjs";
 import * as crawler from "./crawler.mjs";
@@ -712,7 +716,7 @@ let PROXY_URL = "";
  */
 const SITE_PREFIX = "/__site";
 const siteProxy = BASE_URL
-  ? createProxyHandler({ baseURL: BASE_URL, selfOrigin: "", prefix: SITE_PREFIX })
+  ? createProxyHandler({ baseURL: () => aktifBaseUrl(), selfOrigin: "", prefix: SITE_PREFIX })
   : null;
 
 /**
@@ -858,8 +862,113 @@ function startDiff({ path: routePath }) {
 const sse = createSseHub();
 const broadcast = (event, data) => sse.broadcast(event, data);
 
+/**
+ * AKTIF URUN — panelin hangi siteye baktigi (bkz. panel/active-product.mjs).
+ *
+ * Agacta birden fazla kok (= urun) olabiliyor; siteye bakan her sey yalniz
+ * aktif kokun alt agacindan ve onun TARANMIS adresinden beslenir. Adres
+ * profilin `.env` degerinden gelmiyor artik — o yalnizca varsayilan.
+ */
+function aktifUrun() {
+  let tree = [];
+  try { tree = readTree().tree; } catch { /* agac okunamadi */ }
+  const { active, products } = resolveActive(tree, { profileBaseUrl: BASE_URL });
+  return { tree: activeSubtree(tree, active), active, products, baseUrl: active?.baseUrl ?? BASE_URL };
+}
+
+/** Panelin iframe'inin ve proxy'nin hedefi — aktif urunun adresi. */
+const aktifBaseUrl = () => aktifUrun().baseUrl || BASE_URL;
+
+/**
+ * Kirilim koku / sekme basligi: aktif urunun adi. Tarayici (crawler) koku
+ * sayfa basligiyla adlandiriyor ("Build Secure AI Applications | Promptfoo");
+ * uzunsa host'a duser (promptfoo.dev). Urun yoksa notr "QA Paneli".
+ */
+/**
+ * ROTA → FIGMA ESLEMESI, KAPSAM AGACINDAN (2026-09-15).
+ *
+ * Profilin sabit haritasi (`panel/projects/<proje>.mjs → figma.routes`) yalniz
+ * repo'nun urunune ait. Home'dan taranan yabanci bir urunde "Bu rota icin Figma
+ * eslesmesi yok" disinda hicbir sey gorunmuyordu. Simdi: aktif urunun agacinda
+ * rotaya denk dugumun `resourceLinks`inde bir Figma linki varsa (node-id'li)
+ * o frame render edilir. Yabanci urunde link yoksa `map:null` doner — arayuz
+ * "Flowscope'ta dugume Figma linki ekle" der; profil urununde profil haritasina
+ * dusulur (renderForRoute'un varsayilani).
+ *
+ * @returns {{map: object|null, nodeId: string|null, profile: boolean, product: string|null}}
+ */
+function figmaOverrideForPath(yol) {
+  const u = aktifUrun();
+  const profil = u.active?.isProfile !== false;
+  const temiz = (String(yol ?? "/").split("#")[0] || "/").replace(/\/+$/, "") || "/";
+  let dugum = null;
+  try {
+    const r = scopeDeriveRoutes(u.tree, { baseUrl: u.baseUrl }).find(
+      (x) => x.path === yol || x.path === temiz || String(x.path).split("?")[0] === temiz,
+    );
+    if (r) dugum = findScopeNode(u.tree, r.nodeId);
+  } catch { /* agac okunamadi */ }
+  // Yabanci urunde profil haritasina DUSULMEZ: "/" gibi bir rota profilin
+  // anasayfa frame'iyle eslesir ve baska sitenin tasarimi gosterilirdi.
+  const yok = profil ? null : { __none: true };
+  if (!dugum) return { map: yok, nodeId: null, profile: profil, product: u.active?.name ?? null };
+
+  for (const rl of dugum.resourceLinks ?? []) {
+    const adres = String(rl?.url ?? "");
+    if (!/figma\.com/i.test(adres)) continue;
+    const dosya = extractFigmaFileKey(adres);
+    let nodeId = null;
+    try { nodeId = new URL(adres).searchParams.get("node-id"); } catch { /* gecersiz adres */ }
+    if (!dosya || !nodeId) continue;
+    return {
+      map: {
+        node: nodeId.replace(/-/g, ":"),
+        page: dugum.name ?? temiz,
+        frame: null,
+        frameId: null,
+        cards: (dugum.jiraTasks ?? []).map((t) => t.taskId).filter(Boolean),
+        file: dosya,
+        source: "scope",
+        matched: temiz,
+      },
+      nodeId: dugum.id,
+      profile: profil,
+      product: u.active?.name ?? null,
+    };
+  }
+  // Dugum var ama Figma linki yok. Profil urununde profil haritasi denenir;
+  // yabanci urunde eslesme YOK — sebep arayuzde dugum linkiyle gosterilir.
+  return { map: yok, nodeId: dugum.id, profile: profil, product: u.active?.name ?? null };
+}
+
+/** `__none` isaretli override = eslesme yok; renderForRoute'a hic gitme. */
+async function renderForPath(yol) {
+  const ov = figmaOverrideForPath(yol);
+  if (ov.map?.__none) return { ov, r: { error: `Bu rota icin Figma eslesmesi yok: ${yol}`, code: "NO_MAP" } };
+  return { ov, r: await renderForRoute(yol, ov.map) };
+}
+
+function productTitle(active) {
+  if (!active) return "QA Paneli";
+  const ad = String(active.name ?? "").trim();
+  let host = "";
+  try { host = new URL(active.baseUrl).hostname.replace(/^www\./, ""); } catch { /* adres yok */ }
+  if (ad && ad.length <= 32) return ad;
+  return host || ad.slice(0, 32) || "QA Paneli";
+}
+
+/**
+ * Perf olcumunun yazildigi/okundugu ALT KLASOR — urun basina.
+ * Tek klasore yazinca aktif urun degisse bile onceki urunun olcumu
+ * gosteriliyordu (olculdu: yabanci bir urun aktifken perf sekmesinde profilin
+ * rotalari listeleniyordu). Eski duz dizin geriye donuk okunuyor (bkz. perf-read.mjs).
+ */
+const perfSub = () => productSlug(aktifUrun().active);
+/** Eski duz `panel-data/perf/` dizini REPO'NUN urunune ait — yalnizca ona acik. */
+const perfLegacy = () => aktifUrun().active?.isProfile !== false;
+
 /** `applyPerfToTree` icin rota indeksi — ayni turetme, tek yerden. */
-const scopeRoutes = (tree) => scopeDeriveRoutes(tree, { baseUrl: BASE_URL });
+const scopeRoutes = (tree) => scopeDeriveRoutes(tree, { baseUrl: aktifBaseUrl() });
 
 /*
  * FLOWSCOPE → PANEL CANLI BAGI. Agac hangi yoldan degisirse degissin (drawer
@@ -889,6 +998,55 @@ const engine = createRunEngine({
   lastResults,
   applyRunResults,
   applyRunResultsBySpecs,
+  /*
+   * URETILEN spec'ler aktif urune kosar. Kural DAR tutuldu: yalnizca butun
+   * spec'ler `gen-` onekliyse ve aktif urun reponun urunu DEGILSE baseURL
+   * override edilir. Whitelist kosumlari (reponun kendi testleri) her zaman
+   * profilin sitesine gider — aksi halde yabanci urun seciliyken reponun
+   * kendi testleri o yabanci siteye kosardi.
+   */
+  productEnv: ({ specs }) => {
+    const u = aktifUrun();
+    if (!u.active || u.active.isProfile !== false || !u.baseUrl) return {};
+    const liste = Array.isArray(specs) ? specs : [];
+    if (!liste.length || !liste.every((sp) => String(sp).startsWith("gen-"))) return {};
+    /*
+     * PW_PRODUCT=1: playwright.config storageState vermez, global-setup kapı/üye
+     * girişini ATLAR. Aksi hâlde yabancı ürün için global-setup profilin
+     * kapısını o sitede arayıp üye girişine kalkışıyor ve koşum daha test
+     * başlamadan düşüyordu (ölçüldü 2026-09-15: promptfoo'da /giris yok).
+     */
+    return { [`BASE_URL_${ENV.toUpperCase()}`]: u.baseUrl, PW_PRODUCT: "1" };
+  },
+  /*
+   * PAKET KOŞUMU → DEFTER. Paketten başlatılan koşum (`params.package`) bitince
+   * sonuç satırları paketin case'lerine eşlenir ve `panel-data/package-runs.json`e
+   * KALICI yazılır — `results.json` bir sonraki koşumda ezilse de bu kayıt durur.
+   */
+  onRunFinished: ({ params, results, durationMs, code, startedAt }) => {
+    const paket = params?.package;
+    if (!paket?.id) return;
+    const paketler = readPackages();
+    const tanim = paketler.find((x) => x.id === paket.id);
+    const u = aktifUrun();
+    let tamAgac = [];
+    try { tamAgac = readTree().tree; } catch { /* agac okunamadi: case'ler kayip referans olarak yazilir */ }
+    const cases = resolvePackageCases(tamAgac, paketler, paket.id, findScopeNode);
+    const kayit = recordPackageRun({
+      packageId: paket.id,
+      packageName: tanim?.name ?? paket.name ?? paket.id,
+      mode: "auto",
+      product: u.active?.name ?? null,
+      startedAt,
+      durationMs,
+      code,
+      specs: params?.specs ?? [],
+      errors: results?.errors ?? [],
+      cases: mapResultsToCases(cases, results?.rows ?? [], { code, errors: results?.errors ?? [] }),
+    });
+    audit({ event: "package-run-record", packageId: paket.id, id: kayit.id, counts: kayit.counts });
+    broadcast("package-run-end", { id: kayit.id, packageId: paket.id, packageName: kayit.packageName, counts: kayit.counts, code });
+  },
 });
 
 // ---------------- verdict ----------------
@@ -1030,7 +1188,7 @@ const CTX = {
   send, readBody, requireAuth, audit, broadcast, sse, engine,
   RUNS, ROOT, DATA_DIR, ENV, BASE_URL,
   buildCustomArgs, journal: runJournal, readTree, findScopeNode, getCard,
-  readPerf: () => readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE }),
+  readPerf: () => readPerfData({ dataDir: DATA_DIR, apiHostRe: perfLegacy() ? API_HOST_RE : null, sub: perfSub(), legacyFallback: perfLegacy() }),
   /* Baglanti rotalari: OAuth /start token'i query'de karsilastirir, geri donus
    * adresi istegin genel adresinden turer (publicOriginFor). */
   panelToken: PANEL_TOKEN,
@@ -1556,9 +1714,14 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === "/api/meta") {
+      const urun = aktifUrun();
       return send(res, 200, {
         env: ENV,
-        baseURL: BASE_URL,
+        // ⚠️ Panelin baktigi adres AKTIF URUNUN adresi; profilinki ayri alanda.
+        baseURL: urun.baseUrl ?? BASE_URL,
+        profileBaseURL: BASE_URL,
+        activeProduct: urun.active,
+        products: urun.products,
         proxyUrl: proxyUrlFor(req),
         jira: {
           available: JIRA.available,
@@ -1571,7 +1734,13 @@ const server = http.createServer(async (req, res) => {
         },
         project: {
           id: PROJECT.id,
-          title: PROJECT.title,
+          /*
+           * BAŞLIK AKTİF ÜRÜNDEN (2026-09-15): profilin adı ("<Proje> QA Paneli")
+           * her sayfada duruyor ve panelin baktığı site başka olsa bile
+           * kırılım o adı gösteriyordu. Ürün yoksa nötr "QA Paneli".
+           */
+          title: productTitle(urun.active),
+          profileTitle: PROJECT.title,
           issuePrefixes: PROJECT.issuePrefixes,
           quickRoutes: PROJECT.quickRoutes,
           scenarioPresets: PROJECT.scenarioPresets,
@@ -1601,9 +1770,10 @@ const server = http.createServer(async (req, res) => {
 
     // Rota icin tasarim render'i (yan yana gorunum) — onbellekten, aninda
     if (p === "/api/figma/render") {
-      const r = await renderForRoute(url.searchParams.get("path") ?? "/");
+      const yol = url.searchParams.get("path") ?? "/";
+      const { ov, r } = await renderForPath(yol);
       if (r.error)
-        return send(res, 404, { error: r.error, map: r.map ?? null });
+        return send(res, 404, { error: r.error, code: r.code ?? null, map: r.map ?? null, nodeId: ov.nodeId ?? null });
       res.writeHead(200, {
         "content-type": "image/png",
         "cache-control": "public, max-age=600",
@@ -1616,17 +1786,20 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/figma/cache") return send(res, 200, cachedRoutes());
 
     if (p === "/api/figma/frame") {
-      const r = await renderForRoute(url.searchParams.get("path") ?? "/");
+      const yol = url.searchParams.get("path") ?? "/";
+      const { ov, r } = await renderForPath(yol);
       return send(
         res,
         r.error ? 404 : 200,
         r.error
-          ? { error: r.error }
+          ? { error: r.error, code: r.code ?? null, nodeId: ov.nodeId ?? null, product: ov.product ?? null, profile: ov.profile, source: ov.map && !ov.map.__none ? "scope" : (ov.profile ? "profile" : "none") }
           : {
               frame: r.frame,
               page: r.map.page,
               cards: r.map.cards,
               cached: r.cached,
+              source: r.map.source ?? "profile",
+              nodeId: ov.nodeId ?? null,
             },
       );
     }
@@ -1692,9 +1865,19 @@ const server = http.createServer(async (req, res) => {
        * tamamlanır: aksi halde taranarak eklenmiş bir düğümde "Bu sayfayı test
        * et" sessizce kapanırdı.
        */
+      /*
+       * ⚠️ PROFIL YEDEGI YALNIZCA REPO'NUN KENDI URUNU AKTIFKEN.
+       *
+       * Profil kurali (rota → kosum + Jira kartlari) REPO'NUN urunune ait. Aktif urun
+       * baska bir siteyken o kartlari ve kosumu gostermek, kullanicinin
+       * "her sey ic ice girmis" dedigi seyin ta kendisiydi (olculdu: promptfoo
+       * yabanci bir sitenin sayfasinda profilin kart anahtarlari yaziyordu).
+       */
+      const urun = aktifUrun();
+      const profilUrunu = urun.active?.isProfile !== false;
       let dugum = null;
       try {
-        const { tree } = readTree();
+        const { tree } = urun;
         const temiz = (yol.split("#")[0] || "/").replace(/\/+$/, "") || "/";
         dugum = scopeRoutes(tree).find(
           (r) => r.path === yol || r.path === temiz || String(r.path).split("?")[0] === temiz,
@@ -1708,12 +1891,14 @@ const server = http.createServer(async (req, res) => {
           nodeId: dugum.nodeId,
           label: dugum.name,
           status: dugum.status,
-          cards: dugum.jiraKeys.length ? dugum.jiraKeys : (rule?.cards ?? []),
-          runId: dugum.runId ?? rule?.runId ?? null,
-          specs: dugum.specs?.length ? dugum.specs : (rule?.specs ?? []),
+          product: urun.active?.name ?? null,
+          cards: dugum.jiraKeys.length ? dugum.jiraKeys : (profilUrunu ? (rule?.cards ?? []) : []),
+          runId: dugum.runId ?? (profilUrunu ? (rule?.runId ?? null) : null),
+          specs: dugum.specs?.length ? dugum.specs : (profilUrunu ? (rule?.specs ?? []) : []),
         });
       }
-      return send(res, 200, rule ? { ...rule, source: "profile" } : { matched: yol, runId: null, source: "none" });
+      if (rule && profilUrunu) return send(res, 200, { ...rule, source: "profile" });
+      return send(res, 200, { matched: yol, runId: null, source: "none", product: urun.active?.name ?? null });
     }
 
     // ---------------- Jira: OKUMA ----------------
@@ -1946,9 +2131,11 @@ const server = http.createServer(async (req, res) => {
       // Okuma perf-read.mjs'te (AI uclari da ayni fonksiyonu cagirir, kendine
       // HTTP atmaz). Yakalama burada: panel-data/perf her sweep'te ezildigi
       // icin bu uc okundugunda olcum gecmise dusmeli; hata olcumu golgelemez.
-      const payload = readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE });
+      const alt = perfSub();
+      // apiHostMatch profilin API host'u — yabanci urunde filtre YOK (hepsi sayilir).
+      const payload = readPerfData({ dataDir: DATA_DIR, apiHostRe: perfLegacy() ? API_HOST_RE : null, sub: alt, legacyFallback: perfLegacy() });
       if (payload.measuredAt) {
-        try { perfCapture(payload); }
+        try { perfCapture(payload, alt); }
         catch (e) { audit({ event: "perf-history-capture-error", message: e.message.slice(0, 160) }); }
         /*
          * ÇİFT YÖN: ölçüm rota→düğüm eşlenip ağaca yazılır (`node.perf`, üzerine
@@ -1962,9 +2149,10 @@ const server = http.createServer(async (req, res) => {
       // Ölçüm satırları hangi kapsam düğümüne düşüyor — panel rota yanında gösterir.
       // Ağaç okunamazsa ölçüm YİNE döner: kapsam kolonu boş kalır, perf sekmesi çalışır.
       let eslesme = [];
-      try { eslesme = matchPerfRoutes(readTree().tree, payload.routes, { baseUrl: BASE_URL }); }
+      try { const u = aktifUrun(); eslesme = matchPerfRoutes(u.tree, payload.routes, { baseUrl: u.baseUrl }); }
       catch { /* kapsam okunamadi: eslesme yok */ }
-      return send(res, 200, { ...payload, scope: eslesme });
+      const u2 = aktifUrun();
+      return send(res, 200, { ...payload, scope: eslesme, product: u2.active?.name ?? null, baseUrl: u2.baseUrl ?? null });
     }
 
     /**
@@ -1974,10 +2162,10 @@ const server = http.createServer(async (req, res) => {
     if (p === "/api/perf/history") {
       // Mevcut olcumu gecmise dusur — dogrudan okuma, kendine HTTP yok.
       try {
-        const cur = readPerfData({ dataDir: DATA_DIR, apiHostRe: API_HOST_RE });
-        if (cur.measuredAt) perfCapture(cur);
+        const cur = readPerfData({ dataDir: DATA_DIR, apiHostRe: perfLegacy() ? API_HOST_RE : null, sub: perfSub(), legacyFallback: perfLegacy() });
+        if (cur.measuredAt) perfCapture(cur, perfSub());
       } catch { /* olcum okunamadiysa gecmis yine donsun */ }
-      const rows = perfHistory(Number(url.searchParams.get("limit")) || 40);
+      const rows = perfHistory(Number(url.searchParams.get("limit")) || 40, perfSub());
       return send(res, 200, {
         ok: true,
         rows,
@@ -2343,63 +2531,9 @@ const server = http.createServer(async (req, res) => {
       if (!Array.isArray(steps) || !steps.length)
         return send(res, 400, { error: "steps bos" });
 
-      /*
-       * Uretilen kodun tek tirnakli dizgi bogazı. Satir sonunu KACIRMAK sart:
-       * 2026-08-21'de bir iddia metni ham satir sonu icerdi ve uretilen dosya
-       * gecersiz JS oldu — tests/ altina girdigi an tum suite "0 tests in 0 files"
-       * verdi. Girdinin temiz oldugunu varsaymak yerine burada normalize ediyoruz.
-       */
-      const q = (v) =>
-        "'" +
-        String(v)
-          .replace(/\\/g, "\\\\")
-          .replace(/'/g, "\\'")
-          .replace(/\r?\n/g, " ")
-          .replace(/\t/g, " ")
-          .replace(/\s{2,}/g, " ")
-          // eslint-disable-next-line no-control-regex
-          .replace(/[\u0000-\u001f]/g, "")
-          .trim() +
-        "'";
-      const asLocator = (l) => {
-        if (!l) return "page.locator('body')";
-        if (l.kind === "testid") return `page.getByTestId(${q(l.value)})`;
-        if (l.kind === "role")
-          return `page.getByRole(${q(l.role)}, { name: ${q(l.name)} })`;
-        if (l.kind === "placeholder")
-          return `page.getByPlaceholder(${q(l.value)})`;
-        if (l.kind === "text") return `page.getByText(${q(l.value)})`;
-        return `page.locator(${q(l.value)})`;
-      };
-      const lines = [];
-      for (const st of steps.slice(0, 200)) {
-        const loc = asLocator(st.loc);
-        if (st.action === "goto")
-          lines.push(`  await page.goto(${q(st.value ?? "/")});`);
-        else if (st.action === "click") lines.push(`  await ${loc}.click();`);
-        else if (st.action === "fill")
-          lines.push(`  await ${loc}.fill(${q(st.value ?? "")});`);
-        else if (st.action === "check") lines.push(`  await ${loc}.check();`);
-        else if (st.action === "uncheck")
-          lines.push(`  await ${loc}.uncheck();`);
-        else if (st.action === "press")
-          lines.push(`  await ${loc}.press(${q(st.key ?? "Enter")});`);
-        // IDDIA: metin varsa icerik, yoksa gorunurluk. Testi test yapan satir bu.
-        else if (st.action === "assert") {
-          lines.push(
-            st.value
-              ? `  await expect(${loc}).toContainText(${q(st.value)});`
-              : `  await expect(${loc}).toBeVisible();`,
-          );
-        } else if (st.action === "assertUrl") {
-          lines.push(
-            `  await expect(page).toHaveURL(new RegExp(${q(escapeRe(st.value ?? "/"))}));`,
-          );
-        }
-      }
-      const assertCount = steps.filter(
-        (x) => x.action === "assert" || x.action === "assertUrl",
-      ).length;
+      // Kod uretimi panel/recorded-spec.mjs'te (kayit → case akisiyla ORTAK).
+      const lines = recSpec.toCodeLines(steps);
+      const assertCount = recSpec.assertCount(steps);
       const env = activeEnv();
       const fixture = state === "member" ? "memberPage" : "page";
       const code = `import { test, expect } from "${state === "member" ? "./fixtures" : "@playwright/test"}";
@@ -2791,7 +2925,7 @@ ${testBlock}
 });
 
 if (BASE_URL) {
-  const { url } = await startProxy({ baseURL: BASE_URL, port: PROXY_PORT, publicUrl: PROXY_PUBLIC_URL });
+  const { url } = await startProxy({ baseURL: () => aktifBaseUrl(), port: PROXY_PORT, publicUrl: PROXY_PUBLIC_URL });
   PROXY_URL = url;
 }
 

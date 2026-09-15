@@ -121,6 +121,18 @@ async function globalSetup(_config: FullConfig) {
     throw new Error(`BASE_URL_${env.toUpperCase()} .env içinde yok (env=${env})`);
   }
 
+  /*
+   * ÜRÜN KOŞUMU (PW_PRODUCT=1): panel, kapsam ağacındaki yabancı bir ürün için
+   * üretilmiş spec'leri koşuyor. Kapı ve üye girişi PROFİLİN sitesine ait —
+   * burada denemek hem anlamsız hem yıkıcı: kapı state'i yabancı sitenin
+   * çerezleriyle EZİLİYOR, üye girişi /giris bulamayıp koşumu daha test
+   * başlamadan düşürüyordu (ölçüldü 2026-09-15). Hiç dokunma, çık.
+   */
+  if (process.env.PW_PRODUCT) {
+    console.log(`\n🌐 Ürün koşumu → ${baseURL} (kapı/üye girişi atlandı)`);
+    return;
+  }
+
   // --- Sipariş guard'ı: gerçek sipariş açan spec'ler açıkça izin istemeli
   if (!process.env.ALLOW_HOMEE_ORDERS || process.env.ALLOW_HOMEE_ORDERS !== "1") {
     const argv = process.argv.join(" ");

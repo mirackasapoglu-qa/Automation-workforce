@@ -43,26 +43,28 @@ function findNode(node, id, depth = 0) {
  * rate-limit bakımından `/nodes`'tan farklı kovada; `/nodes` tam ağaç için 429 verip
  * günler süren retry-after döndürüyor). Bir kez çekilir, sonra önbellekten okunur.
  */
-async function fetchTree(nodeId) {
+async function fetchTree(nodeId, fileKey = FIGMA_FILE) {
   // Once tam agac onbellegi (diff kosmussa oradan), sonra sig sorgu onbellegi
-  for (const key of [`filetree_${FIGMA_FILE}_${nodeId}`, `shallow_${FIGMA_FILE}_${nodeId}`]) {
+  for (const key of [`filetree_${fileKey}_${nodeId}`, `shallow_${fileKey}_${nodeId}`]) {
     const f = keyPath(key, "json");
     if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, "utf8"));
   }
-  const f = keyPath(`shallow_${FIGMA_FILE}_${nodeId}`, "json");
+  const f = keyPath(`shallow_${fileKey}_${nodeId}`, "json");
 
   const t = token();
-  if (!t) throw new Error(CRED_HINT);
+  if (!t) { const e = new Error(CRED_HINT); e.code = "NO_CREDS"; throw e; }
   // SIG sorgu: frame id/ad/boyut icin yeterli, tam agactan cok daha ucuz
-  const url = `https://api.figma.com/v1/files/${FIGMA_FILE}?ids=${encodeURIComponent(nodeId)}&depth=2`;
+  const url = `https://api.figma.com/v1/files/${fileKey}?ids=${encodeURIComponent(nodeId)}&depth=2`;
   const res = await fetch(url, { headers: { "X-Figma-Token": t } });
   noteResponse(url, res, `figma-render ${nodeId}`);
   if (res.status === 429) {
     const ra = res.headers.get("retry-after");
-    throw new Error(
+    const e = new Error(
       `Figma rate limit (429)${ra ? ` — ${Math.round(Number(ra) / 3600)} saat sonra` : ""}. ` +
         `Onbellekte olan rotalar calisiyor.`,
     );
+    e.code = "RATE_LIMIT";
+    throw e;
   }
   if (!res.ok) throw new Error(`Figma files ${res.status}`);
   const tree = await res.json();
@@ -72,8 +74,8 @@ async function fetchTree(nodeId) {
 }
 
 /** Ağaçtan hedef frame'i çözer: {id, name, w, h} */
-async function resolveFrame(nodeId, frameName) {
-  const tree = await fetchTree(nodeId);
+async function resolveFrame(nodeId, frameName, fileKey = FIGMA_FILE) {
+  const tree = await fetchTree(nodeId, fileKey);
   const canvas = findNode(tree.document, nodeId);
   if (!canvas) return null;
   let target = canvas;
@@ -95,10 +97,23 @@ async function resolveFrame(nodeId, frameName) {
   };
 }
 
-/** Rota için render PNG'sini döner: { buf, frame, cached } — yoksa null. */
-export async function renderForRoute(routePath) {
-  const map = figmaForRoute(routePath ?? "/");
-  if (!map) return { error: `Bu rota icin Figma eslesmesi yok: ${routePath}` };
+/**
+ * Rota için render PNG'sini döner: { buf, frame, cached } — yoksa { error, code }.
+ *
+ * `override` (2026-09-15): eşleme profilin sabit haritasından DEĞİL, kapsam
+ * ağacındaki düğümün Figma kaynak linkinden gelebilir — `{ node, file, page,
+ * cards, source:"scope" }`. Yabancı ürün (Home'dan taranan site) için profilde
+ * harita yok; kullanıcı Flowscope'ta düğüme Figma linki ekleyince tasarım
+ * kolonu onu kullanır. `file` verilmezse profilin dosyası.
+ *
+ * `code`: NO_MAP (eşleme yok) · NO_CREDS (Figma bağlı değil) · RATE_LIMIT ·
+ * NO_FRAME · RENDER — arayüz buna göre "Bağlantılar'a git" ya da "düğüme link
+ * ekle" der; düz metin hata bunu ayırt ettirmiyordu.
+ */
+export async function renderForRoute(routePath, override = null) {
+  const map = override ?? figmaForRoute(routePath ?? "/");
+  if (!map) return { error: `Bu rota icin Figma eslesmesi yok: ${routePath}`, code: "NO_MAP" };
+  const fileKey = map.file || FIGMA_FILE;
 
   // Elle export edilmis PNG varsa API'ye hic gitme (bütce tükendiginde tek yol)
   const manualPng = keyPath(`manual_${map.node}`, "png");
@@ -120,28 +135,30 @@ export async function renderForRoute(routePath) {
     ? { id: map.frameId, name: map.frame ?? map.page, w: map.w ?? 0, h: map.h ?? 0 }
     : null;
   if (!frame) {
+    // Kimlik yoksa agac cagrisina hic gitme: sebep "baglanti yok", "eslesme yok" degil.
+    if (!token()) return { error: CRED_HINT, code: "NO_CREDS", map };
     try {
-      frame = await resolveFrame(map.node, map.frame);
+      frame = await resolveFrame(map.node, map.frame, fileKey);
     } catch (e) {
-      return { error: `${map.page}: ${e.message}`, map };
+      return { error: `${map.page}: ${e.message}`, code: e.code ?? "RENDER", map };
     }
   }
-  if (!frame) return { error: `${map.page}: CANVAS altinda FRAME bulunamadi`, map };
+  if (!frame) return { error: `${map.page}: CANVAS altinda FRAME bulunamadi`, code: "NO_FRAME", map };
 
-  const pngPath = keyPath(`render_${FIGMA_FILE}_${frame.id}`, "png");
+  const pngPath = keyPath(`render_${fileKey}_${frame.id}`, "png");
   if (fs.existsSync(pngPath)) {
     return { buf: fs.readFileSync(pngPath), frame, map, cached: true };
   }
 
   const t = token();
-  if (!t) return { error: CRED_HINT, map };
-  const imgUrl = `https://api.figma.com/v1/images/${FIGMA_FILE}` +
+  if (!t) return { error: CRED_HINT, code: "NO_CREDS", map };
+  const imgUrl = `https://api.figma.com/v1/images/${fileKey}` +
     `?ids=${encodeURIComponent(frame.id)}&format=png&scale=1`;
   const res = await fetch(imgUrl, { headers: { "X-Figma-Token": t } });
   noteResponse(imgUrl, res, `figma-render ${frame.id}`);
-  if (!res.ok) return { error: `Figma images ${res.status}`, map };
+  if (!res.ok) return { error: `Figma images ${res.status}`, code: res.status === 429 ? "RATE_LIMIT" : "RENDER", map };
   const url = Object.values((await res.json()).images ?? {})[0];
-  if (!url) return { error: "render URL alinamadi", map };
+  if (!url) return { error: "render URL alinamadi", code: "RENDER", map };
   const buf = Buffer.from(await (await fetch(url)).arrayBuffer());
   fs.mkdirSync(CACHE_DIR, { recursive: true });
   fs.writeFileSync(pngPath, buf);

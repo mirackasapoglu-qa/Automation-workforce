@@ -43,6 +43,9 @@ export function createRunEngine({
   lastResults = () => null,
   applyRunResults = null,
   applyRunResultsBySpecs = null,
+  productEnv = null,
+  /** Koşum bitince (sonuçlar diske düştükten sonra) çağrılır — paket defteri vb. */
+  onRunFinished = null,
   spawn = nodeSpawn,
   env = () => process.env,
   dedupeMs,
@@ -71,7 +74,11 @@ export function createRunEngine({
     if (runId === "custom") {
       const built = buildCustomArgs?.(params) ?? { args: [], errors: ["parametreli kosum tanimli degil"] };
       if (built.errors.length) return { error: built.errors.join(" · ") };
-      const label = `Parametreli: ${(params.specs ?? []).join(", ")}${params.grep ? ` -g "${params.grep}"` : ""}${
+      // Paket koşumu (params.package) etiketi paket adıyla taşır — günlükte ve
+      // canlı kartta "Parametreli: gen-x.spec.ts" yerine "Paket: Regresyon" okunsun.
+      const label = params?.package?.name
+        ? `Paket: ${params.package.name}${params.headed ? " (headed)" : ""}`
+        : `Parametreli: ${(params.specs ?? []).join(", ")}${params.grep ? ` -g "${params.grep}"` : ""}${
         params.repeatEach > 1 ? ` ×${params.repeatEach}` : ""}${params.headed ? " (headed)" : ""}`;
       return { cmd: "npx", args: built.args, label };
     }
@@ -97,7 +104,8 @@ export function createRunEngine({
 
     if (active) {
       if (meta.queue) {
-        const q = gate.enqueue({ runId, params, headless, record, label: runs[runId]?.label ?? runId, requestId: meta.requestId ?? null });
+        const etiket = params?.package?.name ? `Paket: ${params.package.name}` : (runs[runId]?.label ?? runId);
+        const q = gate.enqueue({ runId, params, headless, record, label: etiket, requestId: meta.requestId ?? null });
         if (q.ok) {
           gate.remember(meta.requestId, q);
           audit({ event: "run-queued", id: runId, position: q.position, params });
@@ -117,13 +125,25 @@ export function createRunEngine({
 
     let child;
     try {
-      child = spawn(cmd, args, { cwd: root, env: { ...env(), FORCE_COLOR: "0", ...recordEnv(record) }, shell: false });
+      /*
+       * ⚠️ KOSUM HANGI SITEYE GIDIYOR — `productEnv` karar veriyor.
+       *
+       * playwright.config.ts baseURL'u `.env`deki BASE_URL_<ENV>'den okuyor,
+       * yani PROFILIN sitesinden. Kapsam agacindan URETILEN bir spec (gen-*.spec.ts)
+       * baska bir urune ait olabiliyor ve gorelı `page.goto("/")` sessizce YANLIS
+       * siteye giderdi (olculdu: yabanci urun icin uretilen test profilin sitesine
+       * koşacakti).
+       * Cagiran taraf bu durumda baseURL'u override eder; whitelist kosumlari
+       * (reponun kendi suite'i) ETKILENMEZ.
+       */
+      const urunEnv = productEnv ? productEnv({ runId, specs: params?.specs ?? [] }) : {};
+      child = spawn(cmd, args, { cwd: root, env: { ...env(), FORCE_COLOR: "0", ...recordEnv(record), ...urunEnv }, shell: false });
     } catch (e) {
       return { ok: false, code: "SPAWN", error: `Kosum baslatilamadi: ${e.message}` };
     }
 
     audit({ event: "run", id: runId, label, argv: [cmd, ...args], params, record: record || undefined });
-    active = { id: runId, label, child, startedAt: Date.now(), lines: [] };
+    active = { id: runId, label, child, startedAt: Date.now(), lines: [], params: params ?? null };
     active.journalId = journal.start({ runId, label, argv: [cmd, ...args].join(" ") });
     broadcast("run-start", { id: runId, label, startedAt: active.startedAt, argv: [cmd, ...args].join(" ") });
 
@@ -185,6 +205,17 @@ export function createRunEngine({
         } catch (e) {
           // Ağaca yazamamak koşumu düşürmez — koşum sonucu zaten diskte.
           broadcast("log", { stream: "err", line: `[kapsam] otomatik yazim basarisiz: ${e.message}` });
+        }
+      }
+      /*
+       * Koşum sonu kancası (paket defteri): sonuçlar ağaca yazıldıktan SONRA,
+       * `active` sıfırlanmadan önce. Hata koşumu düşürmez, log'a düşer.
+       */
+      if (onRunFinished) {
+        try {
+          onRunFinished({ runId, label, params: active.params, results: lastResults(), durationMs, code, startedAt: new Date(active.startedAt).toISOString() });
+        } catch (e) {
+          broadcast("log", { stream: "err", line: `[defter] kosum kaydi yazilamadi: ${e.message}` });
         }
       }
       active = null;

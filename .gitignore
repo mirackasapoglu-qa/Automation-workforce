@@ -51,3 +51,11 @@ graphify-out/
 
 # Playwright MCP tarayici oturumu artiklari (snapshot/console log)
 .playwright-mcp/
+
+# Kapsam agacindaki case adimlarindan URETILEN Playwright spec'leri
+# (bkz. panel/spec-gen.mjs). Uretilen dosya `tests/` KOKUNE yaziliyor cunku
+# Playwright testDir'i ve panelin spec dogrulamasi yalniz kokU tariyor.
+# Varsayilan olarak izlenmiyor: bunlar cogu zaman baska bir urune ait ve
+# gozden gecirilmeden repoya girmemeli. Kalici hale getirmek istedigin bir
+# dosyayi `git add -f` ile ekleyip adini `gen-` onekinden cikarabilirsin.
+tests/gen-*.spec.ts

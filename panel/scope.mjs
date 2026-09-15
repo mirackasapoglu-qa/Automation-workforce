@@ -732,3 +732,52 @@ export function applyManualRuns({ entries, label = "" } = {}) {
   if (written) writeTree(tree, { reason: "manual-run" });
   return { written, results };
 }
+
+/**
+ * KAYITTAN TEST CASE — Site (canlı) kaydedicisinin "Bitir" çıkışı.
+ *
+ * Kaydedilen adımlar hem insan-okunur `steps[]` olarak hem de ham hâliyle
+ * (`recorded[]`, yeniden üretim için) case'e yazılır; `spec` verilmişse case
+ * ona bağlanır VE düğümün `runRef.specs`ine eklenir — böylece paket koşumu
+ * spec'i bulur, sonuç `applyRunResultsBySpecs` ile bu düğüme düşer.
+ *
+ * Aynı başlıkla ikinci kayıt yeni case açar (ilk kayıt ezilmez; kullanıcı
+ * ikisini karşılaştırıp istemediğini siler — Flowscope'ta silme var).
+ *
+ * @returns {{nodeId: string, nodeName: string, testCaseId: string, title: string}}
+ */
+export function addRecordedCase({ nodeId, title, steps = [], recorded = [], spec = null, path: rota = null }) {
+  const { tree } = readTree();
+  const node = findNode(tree, nodeId);
+  if (!node) throw new Error(`Düğüm bulunamadı: ${nodeId}`);
+  const baslik = String(title ?? "").trim();
+  if (!baslik) throw new Error("Case başlığı boş olamaz");
+
+  const at = nowIso();
+  const tc = {
+    id: nextId(tree, "tc"),
+    title: baslik,
+    source: "recorder",
+    spec: spec || undefined,
+    steps: (steps ?? []).map((s) => ({ id: nextId(tree, "tcs"), action: String(s.action ?? ""), expected: String(s.expected ?? "") })),
+    recorded: Array.isArray(recorded) ? recorded.slice(0, 200) : [],
+    recordedPath: rota ?? null,
+    runs: [],
+    status: "⬜",
+    createdAt: at,
+    updatedAt: at,
+  };
+  // nextId aynı öneki her çağrıda ağaçtan sayıyor; adımlara id verirken case
+  // henüz ağaçta olmadığından art arda aynı numara üretirdi — sırayla numarala.
+  let n = Number(String(nextId(tree, "tcs")).replace(/^tcs/, "")) || 1;
+  for (const s of tc.steps) s.id = `tcs${n++}`;
+
+  node.testCases = node.testCases ?? [];
+  node.testCases.push(tc);
+  if (spec) {
+    node.runRef = node.runRef ?? { runId: null, specs: [] };
+    node.runRef.specs = [...new Set([...(node.runRef.specs ?? []), spec])];
+  }
+  writeTree(tree, { reason: "record" });
+  return { nodeId: node.id, nodeName: node.name ?? "", testCaseId: tc.id, title: tc.title };
+}

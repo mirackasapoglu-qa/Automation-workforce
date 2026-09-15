@@ -354,3 +354,56 @@ export function matchPerfRoutes(tree, perfRoutes = [], { baseUrl = null } = {}) 
     };
   });
 }
+
+/**
+ * AĞAÇ → AÇIK BULGULAR (aktif ürünün kendi bulguları).
+ *
+ * Panelin "Açık bulgular" listesi `tests/known-issues.ts`ten geliyordu: repo'nun
+ * Playwright suite'ine ait, elle yazılmış kayıtlar. Kullanıcı başka bir siteyi
+ * tarayıp case'lerini koştuğunda kendi bulgularını hiçbir yerde göremiyordu —
+ * "bulgular girdiğim URL'den ve koşulan testlerden gelmiyor" (2026-09-15).
+ *
+ * Bu fonksiyon ürünün KENDİ verisinden türetir, iki kaynak:
+ *   1. son koşumu ❌ olan test case'ler (koşumun bulduğu gerçek başarısızlık)
+ *   2. insanın ❌ işaretlediği yaprak düğümler (koşum olmadan tespit edilmiş)
+ *
+ * ⚠️ İkisi AYRI `kind` ile dönüyor: biri ölçümün sonucu, diğeri insan kararı.
+ * Tek listede eritmek "bunu kim buldu" sorusunu cevapsız bırakırdı.
+ */
+export function deriveFindings(tree) {
+  const out = [];
+
+  walk(tree, (n) => {
+    // 1) koşumun bulduğu: son koşumu düşen case'ler
+    for (const tc of n.testCases ?? []) {
+      const son = (tc.runs ?? []).at(-1);
+      if (!son || son.status !== "❌") continue;
+      out.push({
+        kind: "case",
+        nodeId: n.id,
+        nodeName: n.name ?? "",
+        title: tc.title ?? "",
+        at: son.at ?? null,
+        // Elle koşum notu iki satır: etiket + kullanıcının yazdığı. Son satır daha değerli.
+        note: String(son.note ?? "").split("\n").slice(-1)[0],
+        by: son.by ?? "auto",
+      });
+    }
+
+    // 2) insanın işaretlediği: ❌ yaprak düğümler
+    if (!(n.children ?? []).length && n.status === "❌") {
+      const sonNot = (n.notes ?? []).at(-1);
+      out.push({
+        kind: "node",
+        nodeId: n.id,
+        nodeName: n.name ?? "",
+        title: n.name ?? "",
+        at: n.lastVerifiedAt ?? null,
+        note: String(sonNot?.text ?? sonNot?.note ?? "").split("\n")[0],
+        jiraKeys: nodeJiraKeys(n),
+      });
+    }
+  });
+
+  return out;
+}

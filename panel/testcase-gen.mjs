@@ -257,7 +257,7 @@ export function applyCases(tree, node, cases, { jiraKey = null } = {}) {
  * Seçili düğümler için Claude Code'a verilecek prompt'u kurar.
  * Model çağrısı YOK — panel yalnızca bağlamı toplar.
  */
-export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4 }) {
+export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4, repoContext = true }) {
   const { tree } = readTree();
   const secilen = normalizeTypes(types);
   if (!secilen.length) throw new Error("En az bir test türü seçilmeli.");
@@ -275,7 +275,11 @@ export function buildPrompt({ nodeIds, types = ["happy", "negative"], limit = 4 
   }
   if (!bloklar.length) throw new Error("Geçerli düğüm yok.");
 
-  const retrieval = retrievalFor(sorgu.filter(Boolean).join(" "), { k: 6, maxChars: 6000 });
+  // Repo parçaları (tests/, pages/, CLAUDE.md) profilin ürününe ait — yabancı
+  // ürün için istenmez (bkz. routes/ai.mjs → profilUrunu).
+  const retrieval = repoContext
+    ? retrievalFor(sorgu.filter(Boolean).join(" "), { k: 6, maxChars: 6000 })
+    : { block: "", meta: { chunks: 0, builtAt: null, skipped: "urun repo'nun urunu degil" } };
   const user = [
     "Aşağıda bir veya daha fazla düğüm var. HER BİRİ için ayrı test case'ler yaz.",
     "",

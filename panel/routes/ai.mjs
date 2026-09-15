@@ -26,6 +26,10 @@ import {
 } from "../scenario-suggest.mjs";
 import { buildPrompt as buildPerfPrompt, applyFromModel as applyPerfFindings, SCHEMA as PERF_SCHEMA } from "../perf-analyze.mjs";
 import { stableDigest } from "../rag/digest.mjs";
+import * as specGen from "../spec-gen.mjs";
+import { readTree, writeTree, findNode } from "../scope.mjs";
+import { resolveActive, activeSubtree } from "../active-product.mjs";
+import { deriveRoutes } from "../scope-bridge.mjs";
 
 const clampLimit = (v, def, max) => Math.min(Math.max(Number(v) || def, 1), max);
 
@@ -36,6 +40,23 @@ function stable() {
 
 export function registerAiRoutes(router, ctx) {
   const { send, audit, getCard, readPerf } = ctx;
+
+  /**
+   * REPO BAĞLAMI YALNIZ REPO'NUN KENDİ ÜRÜNÜ İÇİN (2026-09-15).
+   *
+   * Sabit zemin (CLAUDE.md tuzakları) ve RAG parçaları (tests/, pages/) profilin
+   * sitesine ait. Yabancı bir ürün (Home'dan taranan URL) için üretimde de
+   * istemlere giriyordu: yabancı bir site için üretilen case'ler "<ENV_VAR> ile
+   * ortamı seç", "BasePage.isNotFound()", "loadLazyContent() çağır" diyordu
+   * (ölçüldü — panel-data/scope/tree.json'daki tc1). Ürün profilinki değilse
+   * ne zemin ne parça gider; model yalnız düğümün kendi bağlamını görür.
+   */
+  const profilUrunu = () => {
+    try {
+      const { active } = resolveActive(readTree().tree, { profileBaseUrl: ctx.BASE_URL });
+      return !active || active.isProfile !== false;
+    } catch { return true; }
+  };
 
   async function generateAndApply({ purpose, built, schema, apply, res, useStable = true, account = null }) {
     const t0 = Date.now();
@@ -72,7 +93,7 @@ export function registerAiRoutes(router, ctx) {
   // ---- test case: kapsam ağacı
   router.post("/api/scope/testcases/prompt", ({ res, body }) => {
     try {
-      const out = buildPrompt({ nodeIds: body.nodeIds, types: body.types, limit: body.limit });
+      const out = buildPrompt({ nodeIds: body.nodeIds, types: body.types, limit: body.limit, repoContext: profilUrunu() });
       audit({ event: "testcase-prompt", nodes: out.nodes.length });
       return send(res, 200, { ok: true, ...out });
     } catch (e) {
@@ -94,13 +115,87 @@ export function registerAiRoutes(router, ctx) {
   router.post("/api/scope/testcases/generate", ({ res, body }) => {
     const { nodeIds, types, limit, account } = body;
     let built;
-    try { built = buildPrompt({ nodeIds, types, limit: clampLimit(limit, 4, 12) }); }
+    const repo = profilUrunu();
+    try { built = buildPrompt({ nodeIds, types, limit: clampLimit(limit, 4, 12), repoContext: repo }); }
     catch (e) { return send(res, 400, { ok: false, error: e.message }); }
     return generateAndApply({
-      purpose: "scope-testcase-generate", built, schema: TESTCASE_SCHEMA, res, account,
+      purpose: "scope-testcase-generate", built, schema: TESTCASE_SCHEMA, res, account, useStable: repo,
       apply: (json) => {
         const out = applyFromModel({ items: json?.items, card: null, allowedNodeIds: nodeIds });
         return { body: out, audit: { nodes: (nodeIds ?? []).length, written: out.written } };
+      },
+    });
+  }, { auth: true, body: true });
+
+  /**
+   * ELLE CASE'LERI OTOMATIGE CEVIR — adimlardan Playwright spec'i uretir.
+   *
+   * Flowscope'taki "Test Case'leri Kostur (Claude Code)" dugmesi yalnizca ISTEM
+   * uretiyordu; kullanici onu kendi terminaline yapistiriyor, sonuc panele hic
+   * donmuyordu. Bu uc ayni isi sunucuda yapar: uretir → KAPIDAN gecirir →
+   * `tests/gen-*.spec.ts` olarak yazar → dugume baglar. Kosum ayri adim:
+   * panel dosyayi kendi whitelist'li parametreli kosum yolundan calistirir.
+   *
+   * Govde: `{ nodeId, account? }`
+   */
+  router.post("/api/scope/testcases/spec", async ({ res, body }) => {
+    const nodeId = String(body?.nodeId ?? "").trim();
+    if (!nodeId) return send(res, 400, { ok: false, error: "nodeId zorunlu" });
+
+    let tree = [];
+    try { tree = readTree().tree; } catch { /* agac okunamadi */ }
+    const { active } = resolveActive(tree, { profileBaseUrl: ctx.BASE_URL });
+    const node = findNode(tree, nodeId);
+    if (!node) return send(res, 404, { ok: false, error: `Dugum bulunamadi: ${nodeId}` });
+
+    // Yalniz ELLE case'ler cevrilir; otomatik olanlarin zaten spec'i var.
+    const cases = (node.testCases ?? []).filter((tc) => !tc.automated && !tc.spec);
+    if (!cases.length) return send(res, 400, { ok: false, error: "Bu dugumde cevrilecek elle case yok" });
+
+    const rota = deriveRoutes(activeSubtree(tree, active), { baseUrl: active?.baseUrl })
+      .find((r) => r.nodeId === node.id);
+
+    const built = {
+      system: specGen.SYSTEM,
+      user: specGen.renderUser({
+        product: active?.name ?? PROJECT.title,
+        baseUrl: active?.baseUrl ?? ctx.BASE_URL,
+        node: { name: node.name, path: rota?.path ?? null, nodeId: node.id },
+        cases: cases.map((c) => ({ title: c.title, steps: c.steps ?? [] })),
+      }),
+      retrieval: null,
+    };
+
+    return generateAndApply({
+      purpose: "scope-spec-generate", built, schema: specGen.SCHEMA, res, account: body?.account ?? null,
+      useStable: !active || active.isProfile !== false,
+      apply: (json) => {
+        const k = specGen.gate(json, { titles: cases.map((c) => c.title) });
+        if (!k.ok) throw new Error(k.error);
+
+        const dosya = specGen.pickFilename(specGen.slugify(node.name));
+        const yazildi = specGen.writeSpec(dosya, specGen.pickCode(json), {
+          product: active?.name ?? PROJECT.title,
+          node: { name: node.name, nodeId: node.id },
+        });
+
+        /*
+         * Dugume BAGLA: kosum sonucu bu spec'ten geldiginde `applyRunResultsBySpecs`
+         * onu bu dugume yazsin diye. Bag olmadan test kosar ama sonuc agacta
+         * hicbir yere dusmezdi.
+         */
+        const t2 = readTree().tree;
+        const n2 = findNode(t2, nodeId);
+        if (n2) {
+          n2.runRef = n2.runRef ?? { runId: null, specs: [] };
+          n2.runRef.specs = [...new Set([...(n2.runRef.specs ?? []), dosya])];
+          writeTree(t2, { reason: "spec-gen" });
+        }
+
+        return {
+          body: { ...yazildi, cases: cases.length, missing: k.missing ?? [], notes: json.notes ?? "" },
+          audit: { nodeId, file: dosya, cases: cases.length },
+        };
       },
     });
   }, { auth: true, body: true });

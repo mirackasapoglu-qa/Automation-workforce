@@ -19,7 +19,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { BUDGET } from "./perf-analyze.mjs";
 
-const FILE = path.join(process.cwd(), "panel-data", "perf", "history.jsonl");
+/** Ürün başına ayrı geçmiş — bkz. perf-read.mjs'teki aynı gerekçe. */
+const dosya = (sub) => (sub
+  ? path.join(process.cwd(), "panel-data", "perf", sub, "history.jsonl")
+  : path.join(process.cwd(), "panel-data", "perf", "history.jsonl"));
+const FILE = dosya("");
 /** Dosya sınırsız büyümesin: en yeni 200 kayıt tutuluyor (≈ 600 KB üst sınır). */
 const MAX = 200;
 
@@ -50,10 +54,10 @@ function butce(routes) {
   };
 }
 
-export function readHistory() {
+export function readHistory(sub = "") {
   try {
     return fs
-      .readFileSync(FILE, "utf8")
+      .readFileSync(dosya(sub), "utf8")
       .split("\n")
       .filter(Boolean)
       .map((l) => {
@@ -74,11 +78,11 @@ export function readHistory() {
  * @param {{measuredAt: string|null, routes: object[], totals: object}} perf
  * @returns {{added: boolean, reason?: string}}
  */
-export function capture(perf) {
+export function capture(perf, sub = "") {
   if (!perf?.measuredAt || !Array.isArray(perf.routes) || !perf.routes.length)
     return { added: false, reason: "ölçüm yok" };
 
-  const gecmis = readHistory();
+  const gecmis = readHistory(sub);
   if (gecmis.some((k) => k.measuredAt === perf.measuredAt))
     return { added: false, reason: "bu ölçüm zaten kayıtlı" };
 
@@ -113,21 +117,22 @@ export function capture(perf) {
     })),
   };
 
-  fs.mkdirSync(path.dirname(FILE), { recursive: true });
-  fs.appendFileSync(FILE, JSON.stringify(kayit) + "\n");
+  const f = dosya(sub);
+  fs.mkdirSync(path.dirname(f), { recursive: true });
+  fs.appendFileSync(f, JSON.stringify(kayit) + "\n");
 
   // Kırpma: sınır aşıldıysa en yeni MAX kaydı bırak.
-  const tum = readHistory();
+  const tum = readHistory(sub);
   if (tum.length > MAX) {
     const kalan = tum.slice(tum.length - MAX);
-    fs.writeFileSync(FILE, kalan.map((k) => JSON.stringify(k)).join("\n") + "\n");
+    fs.writeFileSync(f, kalan.map((k) => JSON.stringify(k)).join("\n") + "\n");
   }
   return { added: true };
 }
 
 /** Geçmiş, yeniden eskiye. */
-export function list(limit = 40) {
-  return readHistory()
+export function list(limit = 40, sub = "") {
+  return readHistory(sub)
     .sort((a, b) => String(b.measuredAt).localeCompare(String(a.measuredAt)))
     .slice(0, Math.max(1, limit));
 }
