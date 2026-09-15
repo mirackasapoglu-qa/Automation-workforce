@@ -34,7 +34,7 @@ import {
   assignableUsers,
 } from "./jira.mjs";
 import { listSorters, saveSorter, deleteSorter } from "./jira-sorters.mjs";
-import { startProxy } from "./proxy.mjs";
+import { startProxy, createProxyHandler } from "./proxy.mjs";
 import { matchRoute, runsForCard, CARD_SPECS } from "./route-map.mjs";
 import { PROJECT, activeEnv, ordersAllowed, issueRe } from "./project.mjs";
 
@@ -672,6 +672,85 @@ const PROXY_PORT = Number(process.env.PANEL_PROXY_PORT || PORT + 1);
 const PROXY_PUBLIC_URL = process.env.PANEL_PROXY_PUBLIC_URL || "";
 let PROXY_URL = "";
 
+/**
+ * TEK DOMAIN MODU — proxy panelin KENDİ origin'inde, `/__site/` öneğinden.
+ *
+ * Proxy ayrı bir portta da çalışıyor (lokalde öyle kullanılıyor), ama o portun
+ * adresi bir domain arkasında işe yaramıyor: tarayıcıya `localhost:<port>`
+ * deniyor ve o, kullanıcının kendi makinesi (ölçüldü 2026-09-15, canlıda iframe
+ * "localhost refused to connect"). İkinci bir domain bağlamak istemeyen kurulum
+ * için aynı işleyici burada, panelin origin'inde monte ediliyor.
+ *
+ * ⚠️ AYNI ORIGIN'İN BEDELİ: iframe artık panelle aynı origin'de, yani hedef
+ * sitenin JS'i teorik olarak panelin DOM'una (ve oradaki panel token'ına)
+ * erişebilir. Hedef site bizim test ortamımız olduğu için kabul edilen bir
+ * risk; yabancı bir siteyi gömerken AYRI DOMAIN (`PANEL_PROXY_PUBLIC_URL`)
+ * kullanılmalı — o modda tarayıcı izolasyonu korunur.
+ */
+const SITE_PREFIX = "/__site";
+const siteProxy = BASE_URL
+  ? createProxyHandler({ baseURL: BASE_URL, selfOrigin: "", prefix: SITE_PREFIX })
+  : null;
+
+/**
+ * İstek proxy'lenen sayfadan mı geliyor? (Referer panelin `/__site/` altında.)
+ *
+ * Gerekçe: işaretlemedeki mutlak yollar yeniden yazılıyor, ama JS'in ÇALIŞMA
+ * ANINDA kurduğu adresler (chunk yükleme, fetch, CSS içindeki `url()`) yazıya
+ * girmiyor ve panelin köküne düşüyor. Referer bu istekleri ayırt ediyor: aynı
+ * origin olduğu için tarayıcı tam adresi gönderiyor. Panelin KENDİ sayfasından
+ * gelen istekler farklı bir Referer taşır, o yüzden panel uçları etkilenmez.
+ */
+/**
+ * Panelin iframe'e vereceği proxy adresi — İSTEK BAŞINA.
+ *
+ * Sıra:
+ *  1. `PANEL_PROXY_PUBLIC_URL` (açıkça verilmiş ikinci domain) — her yerde kazanır
+ *  2. istek yerelden geliyorsa proxy'nin KENDİ portu (lokal davranış değişmedi)
+ *  3. aksi halde tek domain modu: isteğin kendi origin'i + `/__site`
+ *
+ * (3) olmadan panel bir domain arkasındayken iframe HİÇ açılmıyordu; karar
+ * isteğin `Host` başlığına bakıyor, ortam değişkenine değil (aynı gerekçe
+ * `landingUrlFor` içinde de var: sunucuda o değişken de verilmemiş oluyor).
+ */
+function proxyUrlFor(req) {
+  if (PROXY_PUBLIC_URL) return PROXY_PUBLIC_URL;
+  if (!BASE_URL) return "";
+  const host = String(req.headers["x-forwarded-host"] || req.headers.host || "").split(",")[0].trim();
+  const ad = host.split(":")[0].replace(/^\[|\]$/g, "");
+  if (["localhost", "127.0.0.1", "::1"].includes(ad)) return PROXY_URL;
+  // Adres kurma işi TEK yerde: `publicOriginFor` protokolü ters vekil başlığından
+  // ya da soketin kendisinden çıkarıyor ("https" varsaymak düz HTTP kurulumu bozar).
+  return publicOriginFor(req) + SITE_PREFIX;
+}
+
+function fromProxiedPage(req) {
+  const ref = req.headers.referer || "";
+  if (ref) {
+    try { if (new URL(ref).pathname.startsWith(SITE_PREFIX + "/")) return true; } catch { /* bozuk referer */ }
+  }
+  return false;
+}
+
+/**
+ * Adres onegi SILINDIKTEN sonra gelen site istekleri.
+ *
+ * Onek, sitenin kendi yonlendiricisi dogru rotayi bulsun diye tarayicida
+ * replaceState ile siliniyor (bkz. proxy.mjs). Bedeli: sonraki istekler panelin
+ * KOKUNE dusuyor — `/images/...`, `/_next/...`, hatta sitenin kendi
+ * `/api/auth/get-token`i.
+ *
+ * ⚠️ REFERER ILE AYIRT EDILEMIYOR: ana sayfa acikken onek silindiginde iframe'in
+ * adresi de "/" oluyor, yani panelin kendi sayfasiyla AYNI (olculdu: 22 gorsel
+ * 404 dondu). Bu yuzden karar EN SONDA veriliyor — panel yolu taniyorsa panel
+ * cevaplar, TANIMIYORSA (404 verecekse) istek siteye devredilir. Boylece panelin
+ * "Bilinmeyen uc" teshisi de korunuyor: o mesaj yalnizca isaret cerezi YOKKEN,
+ * yani gercekten panele ait bir cagride cikar.
+ */
+function siteMarked(req) {
+  return String(req.headers.cookie || "").includes("qa_site_proxy=1");
+}
+
 // ---------------- tasarim diff ----------------
 const FIGMA_OUT_DIR = path.join(DATA_DIR, "figma");
 fs.mkdirSync(FIGMA_OUT_DIR, { recursive: true });
@@ -948,6 +1027,21 @@ const server = http.createServer(async (req, res) => {
   const p = url.pathname;
 
   try {
+    /*
+     * TEK DOMAIN MODU — her seyden ONCE: hem acik onek (`/__site/...`) hem de
+     * proxy'lenen sayfadan gelen (Referer) istekler siteye gider. Router'dan
+     * once olmak ZORUNDA: sitenin kendi `/api/...` yollari panelin API'siyle
+     * ayni isimde olabiliyor (olculdu: FE `/api/auth/get-token` cagiriyor) ve
+     * router once calissaydi o istek panele dusup "Bilinmeyen uc" alirdi.
+     */
+    if (siteProxy && (p === SITE_PREFIX || p.startsWith(SITE_PREFIX + "/"))) {
+      const yol = (p.slice(SITE_PREFIX.length) || "/") + (url.search || "");
+      return await siteProxy(req, res, yol);
+    }
+    if (siteProxy && fromProxiedPage(req)) {
+      return await siteProxy(req, res, p + (url.search || ""));
+    }
+
     // Kayitli uclar (routes/*.mjs) once; eslesmezse eski zincire duser.
     if (await router.dispatch(req, res, { ...CTX, url })) return;
 
@@ -1442,7 +1536,7 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, {
         env: ENV,
         baseURL: BASE_URL,
-        proxyUrl: PROXY_URL,
+        proxyUrl: proxyUrlFor(req),
         jira: {
           available: JIRA.available,
           host: JIRA.host,
@@ -2624,6 +2718,16 @@ ${testBlock}
         fs.readFileSync(f, "utf8"),
         "text/html; charset=utf-8",
       );
+    }
+
+    /*
+     * SON CARE: panel bu yolu tanimiyor. Tarayicida proxy'lenen bir sayfa
+     * acildiysa (isaret cerezi) istek SITEYE aittir — onek silindigi icin
+     * panelin kokune dusmus bir site kaynagi (gorsel, chunk, sitenin kendi
+     * /api yolu). Panel kendi yollarini zaten yukarida cevapladi.
+     */
+    if (siteProxy && siteMarked(req)) {
+      return await siteProxy(req, res, p + (url.search || ""));
     }
 
     return send(res, 404, { error: `Bilinmeyen uc: ${p}` });

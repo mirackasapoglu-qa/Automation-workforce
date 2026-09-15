@@ -2226,7 +2226,59 @@ yavaşlamasın).
 panel:check` ilk turda `scope-bridge.mjs`'teki iki yorum yüzünden kırmızı
 verdi (örnek kart anahtarı + ortam değişkeni adı), ikisi de nötrlendi.
 
-## Site (canlı) iframe'i sunucuda: proxy'nin adresi (2026-09-14)
+## Site (canlı) iframe'i sunucuda: TEK DOMAIN modu (2026-09-15)
+
+Kullanıcı kararı: ikinci domain bağlamak yerine **proxy panelin kendi
+origin'inden** servis edilsin. Proxy artık iki yerde birden çalışıyor:
+
+| Mod | Adres | Ne zaman |
+|---|---|---|
+| kendi portu | `http://localhost:<PANEL_PORT+1>` | istek yerelden geliyorsa (lokal davranış DEĞİŞMEDİ) |
+| ikinci domain | `PANEL_PROXY_PUBLIC_URL` | açıkça verilmişse — her yerde kazanır, tarayıcı izolasyonu korunur |
+| **tek domain** | `<isteğin origin'i>/__site` | ikisi de yoksa ve istek yerel değilse |
+
+Seçim İSTEK BAŞINA (`proxyUrlFor(req)`), `Host` başlığına bakarak — ortam
+değişkenine değil (aynı gerekçe `landingUrlFor`'da da var).
+
+**Nasıl çalışıyor (dördü de gerekli, biri eksikse sayfa bozuk gelir):**
+1. `createProxyHandler` — proxy gövdesi kendi sunucusundan ayrıldı; aynı işleyici
+   hem kendi portunda hem panelin `/__site/` öneğinde koşuyor (iki kopya
+   kaçınılmaz olarak birbirinden saparadı).
+2. **HTML yeniden yazımı** (`rewriteAbsolutePaths`, 8 birim testi) — `src/href/
+   action/poster`, `srcset` ve CSS `url()` içindeki mutlak yollar öneğe taşınır;
+   `//host/...` ve zaten taşınmış yollar ellenmez. `<base href="/__site/">` de
+   eklenir (göreli adresler için).
+3. ⚠️ **ÖNEK TARAYICIDA HEMEN SİLİNİR** (`history.replaceState`, enjekte edilen
+   script `<head>`te, uygulama paketlerinden önce). Sebebi ölçüldü: Next.js
+   hidrasyonda `location.pathname` okuyup rota eşliyor; `/__site/sepet` hiçbir
+   rotaya uymuyor ve **"Sayfa Bulunamadı"** basıyor (aynı sayfa port modunda
+   "Sepetim" gösterirken). Kontrol ölçümü olmasa bu "proxy bozuk" diye
+   okunurdu.
+4. **Önek silindiği için sonraki istekler panelin köküne düşer** — `/images/...`,
+   `/_next/...`, hatta sitenin kendi `/api/auth/get-token`i (ölçüldü: 22 görsel
+   + 3 API çağrısı 404). Çözüm: proxy HTML yanıtına bir **işaret çerezi**
+   (`qa_site_proxy=1`) koyuyor ve panel, **tanımadığı** bir yolda 404 vermeden
+   önce isteği siteye devrediyor (dispatcher'ın EN SONUNDA).
+
+⚠️ **Referer ile ayırt EDİLEMİYOR**: ana sayfada önek silinince iframe'in adresi
+de `/` oluyor, yani panelin kendi sayfasıyla aynı. Bu yüzden karar "panel bu yolu
+tanıyor mu" sorusuna dayanıyor, isteğin nereden geldiğine değil.
+
+⚠️ **Panelin "Bilinmeyen uc" teşhisi**: işaret çerezi olan bir tarayıcıda artık
+o mesaj yerine sitenin 404'ü gelir. Panel kendi yollarını (`/api/*` dahil) her
+zaman önce cevapladığı için gerçek panel çağrıları etkilenmiyor.
+
+⚠️ **AYNI ORIGIN'İN BEDELİ**: iframe panelle aynı origin'de, yani hedef sitenin
+JS'i teorik olarak panelin DOM'una (ve oradaki panel token'ına) erişebilir.
+Hedef site bizim test ortamımız olduğu için kabul edilen risk. Yabancı bir siteyi
+gömerken `PANEL_PROXY_PUBLIC_URL` ile AYRI DOMAIN kullanılmalı — tarayıcı
+izolasyonu ancak orada var.
+
+⚠️ Enjekte edilen script bir **template literal'in içinde**: yorumlarda bile
+backtick KULLANMA. Literal'i kapatır ve içeriği koda çevirir (ölçüldü:
+`Proxy hatasi: __site is not defined`).
+
+## Proxy'nin adresi: ikinci domain yolu (2026-09-14)
 
 ⚠️ **`panel/proxy.mjs` tarayıcıya sabit `http://localhost:<port>` diyordu** —
 yani iframe **bir domain arkasında hiç çalışmadı**. Ölçüm (canlı):

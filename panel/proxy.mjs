@@ -37,16 +37,66 @@ function mergeCookie(existing, extra) {
   return parts.join("; ");
 }
 
+/**
+ * Önek modunda HTML'deki MUTLAK yolları öneke taşır (`/x` → `/__site/x`).
+ *
+ * Neden gerekli: `<base>` yalnızca GÖRELİ adresleri etkiler; `src="/assets/x.js"`
+ * gibi mutlak yollar panelin köküne düşer ve sayfa yarım render olur. Burada
+ * işaretlemede GÖRÜNEN adresler taşınıyor; çalışma anında JS'in kurduğu adresler
+ * için sunucu tarafında Referer'a bakan bir yedek var (bkz. server.mjs → `/__site/`).
+ *
+ * ⚠️ `//host/...` (protokol-göreli) ve `/__site/...` (zaten taşınmış) ELLENMEZ.
+ */
+export function rewriteAbsolutePaths(html, prefix) {
+  if (!prefix) return html;
+  const atla = (v) => v.startsWith("//") || v.startsWith(prefix + "/") || v === prefix;
+  return html
+    // src/href/action/poster/data-src="/..."
+    .replace(/\b(src|href|action|poster|data-src)=("|')(\/[^"']*)\2/gi,
+      (m, attr, q, val) => (atla(val) ? m : `${attr}=${q}${prefix}${val}${q}`))
+    // srcset="/a 1x, /b 2x"
+    .replace(/\bsrcset=("|')([^"']+)\1/gi, (m, q, val) => {
+      // Adaylar normalize edilip ", " ile birlestirilir — parcanin kendi
+      // bosluklarini korumaya calismak ilk adayin basina bosluk birakiyordu.
+      const yeni = val.split(",").map((parca) => {
+        const t = parca.trim();
+        return !t.startsWith("/") || atla(t) ? t : prefix + t;
+      }).filter(Boolean).join(", ");
+      return `srcset=${q}${yeni}${q}`;
+    })
+    // CSS: url(/...)
+    .replace(/url\(\s*(["']?)(\/[^)"']*)\1\s*\)/gi,
+      (m, q, val) => (atla(val) ? m : `url(${q}${prefix}${val}${q})`));
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const c of req) chunks.push(c);
   return chunks.length ? Buffer.concat(chunks) : undefined;
 }
 
-export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "temporary_auth_verified=true" }) {
+/**
+ * Proxy isteklerini karşılayan SAF işleyici — kendi sunucusu yok.
+ *
+ * NEDEN AYRILDI: proxy ayrı bir portta çalışıyordu ve tarayıcıya kendi adresini
+ * söylüyordu. Panel bir domain arkasındayken o adres ikinci bir domain gerektiriyor;
+ * kullanıcı "tek domain olsun" dediğinde tek yol, aynı işleyiciyi PANELİN kendi
+ * origin'inde bir yol öneğinden (`/__site/`) servis etmekti. Gövde ikisinde de aynı
+ * olsun diye buraya alındı — iki kopya kaçınılmaz olarak birbirinden saparadı.
+ *
+ * @param {object} o
+ * @param {string} o.baseURL     hedef site
+ * @param {string} o.selfOrigin  tarayıcıya söylenecek origin (yönlendirme yeniden yazımı)
+ * @param {string} o.prefix      panelin origin'inde monte edildiği yol öneki ("" = kendi portu)
+ * @param {string} o.gateCookie  enjekte edilen kapı cookie'si
+ * @returns {(req, res, upstreamPath?: string) => Promise<void>}
+ */
+export function createProxyHandler({ baseURL, selfOrigin, prefix = "", gateCookie = "temporary_auth_verified=true" }) {
   const target = new URL(baseURL);
+  /** Tarayıcıya görünen kök: kendi portunda origin, panelde origin + önek. */
+  const publicBase = selfOrigin + prefix;
   /*
-   * Proxy'nin TARAYICIYA söylediği adres.
+   * (Aşağıdaki not `startProxy` için geçerli — adres oradan geliyor.)
    *
    * ⚠️ Sabit `http://localhost:<port>` idi ve bu, panel bir domain arkasına
    * konduğunda iframe'in HİÇ açılmaması demekti (ölçüldü 2026-09-14, canlıda
@@ -63,11 +113,14 @@ export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "tempor
    * adresler) alt yolda panelin köküne düşer ve sayfa yarım render olur.
    * Ayrı origin'de hiçbir yeniden yazma gerekmiyor.
    */
-  const selfOrigin = String(publicUrl || "").replace(/\/+$/, "") || `http://localhost:${port}`;
-
-  const server = http.createServer(async (req, res) => {
+  return async function handleProxy(req, res, upstreamPath) {
     try {
-      const upstream = new URL(req.url, target.origin);
+      /*
+       * Önek modunda gelen yol `/__site/sepet?x=1`; hedefe `/sepet?x=1` gitmeli.
+       * Çağıran öneki soyup verir (`upstreamPath`); vermezse `req.url` aynen kullanılır.
+       */
+      const istekYolu = upstreamPath ?? req.url;
+      const upstream = new URL(istekYolu, target.origin);
 
       const headers = {};
       for (const [k, v] of Object.entries(req.headers)) {
@@ -76,7 +129,7 @@ export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "tempor
       }
       headers.host = target.host;
       headers.origin = target.origin;
-      headers.referer = target.origin + req.url;
+      headers.referer = target.origin + istekYolu;
       headers.cookie = mergeCookie(req.headers.cookie, gateCookie);
 
       const body = ["GET", "HEAD"].includes(req.method) ? undefined : await readBody(req);
@@ -93,9 +146,10 @@ export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "tempor
         if (STRIP.has(key.toLowerCase())) return;
         if (key.toLowerCase() === "set-cookie") return; // ayrıca ele alınıyor
         if (key.toLowerCase() === "location") {
+          // Yönlendirme iframe içinde kalsın: hedef origin → panelin gördüğü kök.
           out.location = value.startsWith(target.origin)
-            ? value.replace(target.origin, selfOrigin)
-            : value;
+            ? value.replace(target.origin, publicBase)
+            : value.startsWith("/") ? prefix + value : value;
           return;
         }
         out[key] = value;
@@ -108,16 +162,54 @@ export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "tempor
           .filter((part) => !/^\s*(domain|secure)\s*(=|$)/i.test(part))
           .join(";"),
       );
+      /*
+       * Onek modunda bir ISARET cerezi: adres onegi yukarida replaceState ile
+       * siliniyor, dolayisiyla sonraki isteklerin Referer'i artik onek tasimiyor.
+       * Sunucu "bu panelin bilmedigi bir yol + isaret cerezi" gorunce istegi
+       * siteye yonlendiriyor. Cerez tek basina yetmiyor (panelin kendi sayfasi
+       * da ayni origin'de) — server.mjs Referer'i da olcuyor.
+       */
+      if (prefix) cookies.push("qa_site_proxy=1; Path=/; SameSite=Lax");
       if (cookies.length) out["set-cookie"] = cookies;
 
       // HTML ise: gövdeyi tampona al ve navigasyon bildirim script'ini enjekte et
       const ctype = String(out["content-type"] ?? "");
       if (ctype.includes("text/html")) {
-        const html = await upstreamRes.text();
+        let html = await upstreamRes.text();
+        if (prefix) {
+          html = rewriteAbsolutePaths(html, prefix);
+          // Göreli adresler için kök: `<base>` ilk `<head>`ten hemen sonra.
+          html = html.replace(/<head([^>]*)>/i, `<head$1><base href="${prefix}/">`);
+        }
         const injected = html.replace(
           /<\/head>/i,
           `<script>(function(){
-  function ping(){ try { parent.postMessage({ type:"qa-nav", href: location.href, path: location.pathname + location.search, title: document.title }, "*"); } catch(e){} }
+  /* Tek domain modunda adres "/__site/sepet" seklinde; panele SITENIN yolu
+     bildirilmeli ("/sepet"), yoksa rota eslemesi ("Bu sayfayi test et", tasarim
+     diff, kart eslemesi) hicbir kurala uymaz ve sessizce bos doner.
+     NOT: bu blok bir template literal'in ICINDE — backtick KULLANMA, literal'i
+     kapatir ve icerigi koda cevirir (olculdu: "Proxy hatasi: __site is not defined"). */
+  var QAP = ${JSON.stringify(prefix || "")};
+  /* ONEMLI — ONEK ADRESTEN HEMEN SILINIR.
+     Sitenin kendi istemci yonlendiricisi (Next.js) hidrasyonda
+     location.pathname'i okuyup rotayi eslestiriyor; "/__site/sepet" hicbir
+     rotaya uymuyor ve sayfa 404 basiyor (olculdu 2026-09-15: port modunda ayni
+     sayfa "Sepetim" basarken onek modunda "Sayfa Bulunamadi"). Bu script
+     <head> icinde, uygulama paketlerinden ONCE calisiyor; replaceState adresi
+     "/sepet" yapinca yonlendirici dogru rotayi buluyor.
+     Adres onekini kaybettigi icin sonraki istekler panelin kokune duser —
+     sunucu tarafi onlari cerez + Referer ile yakaliyor (bkz. server.mjs). */
+  try {
+    if (QAP && location.pathname.indexOf(QAP) === 0) {
+      history.replaceState(history.state, "", (location.pathname.slice(QAP.length) || "/") + location.search + location.hash);
+    }
+  } catch (e) {}
+  function qpath(){
+    var y = location.pathname;
+    if (QAP && y.indexOf(QAP) === 0) y = y.slice(QAP.length) || "/";
+    return y + location.search;
+  }
+  function ping(){ try { parent.postMessage({ type:"qa-nav", href: location.href, path: qpath(), title: document.title }, "*"); } catch(e){} }
   ping();
   addEventListener("load", ping);
   addEventListener("popstate", ping);
@@ -286,8 +378,18 @@ export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "tempor
       res.writeHead(502, { "content-type": "text/plain; charset=utf-8" });
       res.end(`Proxy hatasi: ${e?.message ?? e}`);
     }
-  });
+  };
+}
 
+/**
+ * Proxy'yi KENDİ portunda ayağa kaldırır (lokal geliştirme ve "ikinci domain"
+ * kurulumu). Panelin kendi origin'inden servis edildiği mod için bkz.
+ * `createProxyHandler` + server.mjs → `/__site/`.
+ */
+export function startProxy({ baseURL, port, publicUrl = "", gateCookie = "temporary_auth_verified=true" }) {
+  const selfOrigin = String(publicUrl || "").replace(/\/+$/, "") || `http://localhost:${port}`;
+  const handler = createProxyHandler({ baseURL, selfOrigin, prefix: "", gateCookie });
+  const server = http.createServer((req, res) => handler(req, res));
   return new Promise((resolve) => {
     server.listen(port, () => resolve({ server, url: selfOrigin }));
   });
