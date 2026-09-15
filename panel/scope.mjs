@@ -680,3 +680,55 @@ export function findNodesByJiraTask(tree, taskId) {
   })(tree, []);
   return out;
 }
+
+/**
+ * ELLE KOŞUM KAYDI — insanın adım adım yürüttüğü test case'in sonucu.
+ *
+ * NEDEN: AI'ın ürettiği case'ler ADIMLARDAN oluşuyor, Playwright spec'i yok;
+ * paket koşumu onları çalıştıramıyordu ("paketi koşamıyorum", 2026-09-15).
+ * Xray/TestRail deseni: insan adımları yürütür, sonucu işaretler, kayıt case'in
+ * `runs[]`ine düşer. Böylece Flowscope'un R13/R14 kuralı (koşum kaydı olmadan
+ * "geçti" seçilemez) elle case'ler için de doğal olarak sağlanır.
+ *
+ * ⚠️ Düğümün KENDİ durumu yine değiştirilmez (R19) — otomatik koşumda olduğu
+ * gibi, kararı insan drawer'dan verir.
+ *
+ * ⚠️ Kayıt "elle" olduğunu TAŞIR (`by: "manual"` + notun başındaki etiket):
+ * otomatik koşumla karıştırılırsa "bu case gerçekten koştu mu" sorusu
+ * cevapsız kalır.
+ *
+ * @param {{entries: {nodeId,testCaseId,status,note?}[], label?: string}} p
+ * @returns {{written: number, results: object[]}}
+ */
+export function applyManualRuns({ entries, label = "" } = {}) {
+  const liste = Array.isArray(entries) ? entries : [];
+  if (!liste.length) return { written: 0, results: [] };
+
+  const gecerli = new Set(["✅", "❌", "⚠️"]);
+  const { tree } = readTree();
+  const at = nowIso();
+  const results = [];
+  let written = 0;
+
+  for (const e of liste) {
+    const node = findNode(tree, e?.nodeId);
+    if (!node) { results.push({ ...e, error: "düğüm bulunamadı" }); continue; }
+    const tc = (node.testCases ?? []).find((t) => t.id === e?.testCaseId);
+    if (!tc) { results.push({ ...e, error: "test case bulunamadı" }); continue; }
+    if (!gecerli.has(e?.status)) { results.push({ ...e, error: `geçersiz durum: ${e?.status}` }); continue; }
+
+    const notSatirlari = [
+      `Elle koşum${label ? ` · ${label}` : ""}`,
+      String(e.note ?? "").trim(),
+    ].filter(Boolean);
+
+    tc.runs = tc.runs ?? [];
+    tc.runs.push({ id: nextId(tree, "tcr"), at, status: e.status, note: notSatirlari.join("\n"), by: "manual" });
+    tc.updatedAt = at;
+    written++;
+    results.push({ nodeId: node.id, testCaseId: tc.id, title: tc.title ?? "", status: e.status });
+  }
+
+  if (written) writeTree(tree, { reason: "manual-run" });
+  return { written, results };
+}

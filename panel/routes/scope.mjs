@@ -16,7 +16,7 @@
  * ⚠️ Bu uçlar ağacı DEĞİŞTİRMEZ. Yazma yolları (koşum sonucu, perf, Jira
  * bağlama, sweep'ler) kendi uçlarında ve hepsi token ister.
  */
-import { readTree, backfillRoutes } from "../scope.mjs";
+import { readTree, backfillRoutes, applyManualRuns } from "../scope.mjs";
 import {
   deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases,
 } from "../scope-bridge.mjs";
@@ -69,6 +69,61 @@ export function registerScopeRoutes(router, ctx) {
       unlinkedHint: "Bu dizinde olmayan kart hiçbir kapsam düğümüne bağlı değildir.",
     });
   });
+
+  /**
+   * Bir paketin case'leri — ADIMLARIYLA birlikte (elle koşum ekranı için).
+   *
+   * `/api/scope/packages/runnable` yalnız "kaç case, hangi spec" özetini
+   * veriyor; elle koşum ekranı adımları da göstermek zorunda, yoksa insan neyi
+   * yürüteceğini bilemez. Ayrı uç, çünkü adımlar liste ekranında gereksiz
+   * yükten başka bir şey değil.
+   */
+  router.get("/api/scope/package-cases", ({ res, url }) => {
+    const id = String(url.searchParams.get("id") ?? "").trim();
+    if (!id) return send(res, 400, { ok: false, error: "id zorunlu" });
+    const { tree } = (() => { try { return readTree(); } catch { return { tree: [] }; } })();
+    const paketler = readPackages();
+    const pkg = paketler.find((x) => x.id === id);
+    if (!pkg) return send(res, 404, { ok: false, error: `Paket bulunamadı: ${id}` });
+
+    const cases = [];
+    for (const it of resolvePackageItems(paketler, id)) {
+      const node = findNode(tree, it.nodeId);
+      const tc = node ? (node.testCases ?? []).find((t) => t.id === it.testCaseId) : null;
+      // Kaynağı silinmiş referans SESSİZCE atlanmaz: ekranda "kayıp" olarak görünür.
+      if (!node || !tc) { cases.push({ nodeId: it.nodeId, testCaseId: it.testCaseId, missing: true }); continue; }
+      cases.push({
+        nodeId: node.id,
+        nodeName: node.name ?? "",
+        testCaseId: tc.id,
+        title: tc.title ?? "",
+        automated: !!tc.automated,
+        spec: tc.spec ?? null,
+        steps: (tc.steps ?? []).map((st) => ({ action: st.action ?? "", expected: st.expected ?? "" })),
+        lastRun: (tc.runs ?? []).at(-1) ?? null,
+      });
+    }
+    return send(res, 200, { ok: true, id: pkg.id, name: pkg.name, cases });
+  });
+
+  /**
+   * ELLE KOŞUM KAYDI. Panelin "elle koş" akışı (paketteki case'leri sırayla
+   * önüne getirip Geçti/Kaldı işaretletir) sonucu buraya yazar.
+   *
+   * Gövde: `{ entries: [{nodeId, testCaseId, status, note}], label }`
+   * Durum yalnız ✅ / ❌ / ⚠️ olabilir; geçersiz satır ATLANIR ve sebebiyle
+   * birlikte döner — tek bozuk satır yüzünden koşumun tamamını reddetmek,
+   * insanın 20 dakikalık işini çöpe atardı.
+   */
+  router.post("/api/scope/testcases/run", ({ res, body, audit }) => {
+    try {
+      const out = applyManualRuns({ entries: body?.entries, label: body?.label });
+      audit({ event: "scope-manual-run", written: out.written, label: String(body?.label ?? "").slice(0, 60) });
+      return send(res, 200, { ok: true, ...out });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
 
   /**
    * Rota taşımayan eski düğümlere göreli rotayı yazar (bkz. scope.mjs →

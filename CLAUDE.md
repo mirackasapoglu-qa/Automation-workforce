@@ -2415,6 +2415,37 @@ yazma tek yerden ve onayla (`createBugCard`) — kural değişmedi.
 durumunu da Jira statüsüne göre değerlendiriyor). Bağlama başarısız olursa kart
 yine açılmıştır; sebep satırda yazar, sessizce yutulmaz.
 
+## Elle koşum: adımlardan oluşan case'ler nasıl "koşulur" (2026-09-15)
+
+AI'ın ürettiği case'ler ADIMLARDAN oluşuyor, Playwright spec'i yok — paket
+koşumu onları çalıştıramıyordu ("oluşturduğum test paketini koşamıyorum").
+Ölçüm: paketin durumu `{cases: 1, specs: [], manualCases: 1}`, yani koşacak
+otomasyon fiziksel olarak mevcut değil.
+
+Xray/TestRail deseni eklendi: **insan adımları yürütür, sonucu işaretler.**
+
+- Panel → Koşumlar → paket satırında **iki** düğme: otomatik koşum (spec'i olan
+  case'ler) ve **"elle koş"**. Paketin içinde ikisi karışık olabilir.
+- Akış: case'ler sırayla önüne gelir (başlık · düğüm · adımlar · beklenenler),
+  Geçti / Uyarılı / Kaldı / Atla + serbest not.
+- Sonuç `scope.mjs → applyManualRuns` ile case'in `runs[]`ine yazılır:
+  `by: "manual"` + notun ilk satırında `Elle koşum · <paket adı>`.
+  Uç: `POST /api/scope/testcases/run` (token).
+- Adımları veren uç ayrı: `GET /api/scope/package-cases?id=` (liste ekranında
+  adımlar gereksiz yük).
+
+⚠️ **Sonuçlar TEK SEFERDE, en sonda yazılır.** Her adımda sunucuya yazmak,
+yarıda bırakılan bir koşumu "kısmen koşmuş" gibi gösterirdi; kullanıcı
+vazgeçerse hiçbir şey yazılmaz (vazgeçmeden önce işaretlenmiş sayısı söylenir).
+
+⚠️ **Geçersiz satır ATLANIR, koşumun tamamı reddedilmez** — tek bozuk referans
+yüzünden insanın 20 dakikalık işini çöpe atmak kabul edilemez; atlananlar
+sebebiyle birlikte döner.
+
+⚠️ Düğümün KENDİ durumu yine değiştirilmez (R19) ve `by:"manual"` işareti
+kayıtta durur: otomatik koşumla karıştırılırsa "bu case gerçekten koştu mu"
+sorusu cevapsız kalır.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

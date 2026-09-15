@@ -22,7 +22,7 @@ function calistir(tree, kod) {
   fs.mkdirSync(path.join(dir, "panel-data", "scope"), { recursive: true });
   fs.writeFileSync(path.join(dir, "panel-data", "scope", "tree.json"), JSON.stringify(tree));
   const script = `
-    const { applyRunResultsBySpecs, applyPerfToTree, readTree } = await import(${JSON.stringify(SCOPE)});
+    const { applyRunResultsBySpecs, applyPerfToTree, applyManualRuns, readTree } = await import(${JSON.stringify(SCOPE)});
     const { deriveRoutes } = await import(${JSON.stringify(BRIDGE)});
     const sonuc = await (async () => { ${kod} })();
     console.log("<<<" + JSON.stringify({ sonuc, tree: readTree().tree }) + ">>>");
@@ -123,4 +123,51 @@ test("ayni perf olcumu ikinci kez yazilmaz (her sekme acilisinda /api/perf okunu
     return applyPerfToTree(p, idx);
   `);
   assert.equal(sonuc.written, 0);
+});
+
+// ---------------- elle kosum kaydi ----------------
+
+const CASELI = [dugum("kok", {
+  type: "module",
+  children: [dugum("n1", { testCases: [{ id: "tc1", title: "Elle case", steps: [], runs: [] }] })],
+})];
+
+test("elle kosum kaydi case'in runs[]'ine yazilir ve 'manual' isaretini tasir", () => {
+  const { sonuc, tree } = calistir(CASELI, `
+    return applyManualRuns({ entries: [{ nodeId: "n1", testCaseId: "tc1", status: "✅", note: "3 sn" }], label: "Regresyon" });
+  `);
+  assert.equal(sonuc.written, 1);
+  const tc = tree[0].children[0].testCases[0];
+  assert.equal(tc.runs.length, 1);
+  assert.equal(tc.runs[0].status, "✅");
+  assert.equal(tc.runs[0].by, "manual");
+  assert.match(tc.runs[0].note, /Elle koşum · Regresyon/);
+  assert.match(tc.runs[0].note, /3 sn/);
+});
+
+test("dugumun KENDI durumu elle kosumda da degismez (R19)", () => {
+  const { tree } = calistir(CASELI, `
+    return applyManualRuns({ entries: [{ nodeId: "n1", testCaseId: "tc1", status: "❌" }] });
+  `);
+  assert.equal(tree[0].children[0].status, "⬜");
+});
+
+test("gecersiz satir ATLANIR, gecerliler yazilir (tek bozuk satir kosumu comp etmez)", () => {
+  const { sonuc, tree } = calistir(CASELI, `
+    return applyManualRuns({ entries: [
+      { nodeId: "yok", testCaseId: "tc1", status: "✅" },
+      { nodeId: "n1", testCaseId: "yok", status: "✅" },
+      { nodeId: "n1", testCaseId: "tc1", status: "gecti" },
+      { nodeId: "n1", testCaseId: "tc1", status: "⚠️" },
+    ] });
+  `);
+  assert.equal(sonuc.written, 1);
+  assert.equal(sonuc.results.filter((r) => r.error).length, 3);
+  assert.equal(tree[0].children[0].testCases[0].runs.length, 1);
+});
+
+test("bos giris agaci HIC yazmaz", () => {
+  const { sonuc, tree } = calistir(CASELI, `return applyManualRuns({ entries: [] });`);
+  assert.equal(sonuc.written, 0);
+  assert.equal(tree[0].children[0].testCases[0].runs.length, 0);
 });

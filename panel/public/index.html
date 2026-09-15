@@ -134,6 +134,40 @@
   .b{display:inline-flex;align-items:center;gap:4px;font:700 10px/1 var(--mono);padding:3px 7px;
      border-radius:var(--r-xs);white-space:nowrap;border:1px solid currentColor}
   .ok{color:var(--ok)}.no{color:var(--no)}.sk{color:var(--sk)}
+  /* Elle kosum ekrani (paketteki case'leri sirayla yurutme). Panelin kendi
+     diyalog dilinden (uiConfirm) miras: ayni ortu, ayni kutu olculeri. */
+  .pkg-line{display:inline-flex;align-items:center;gap:4px}
+  .pkg-manual{width:auto;margin:0;padding:5px 10px;font-size:11.5px;
+    border-style:dashed;color:var(--mut)}
+  .pkg-manual:hover{border-style:solid;color:var(--fg);border-color:var(--acc)}
+  .mr-wrap{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;
+    align-items:center;justify-content:center;z-index:10000}
+  .mr-box{background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:12px;
+    width:min(620px,calc(100vw - 32px));max-height:calc(100vh - 64px);display:flex;flex-direction:column}
+  .mr-h{display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+  .mr-t{font-weight:600;font-size:14px}
+  .mr-c{font-size:11.5px;color:var(--mut);font-variant-numeric:tabular-nums}
+  .mr-x{margin-left:auto;width:auto;background:none;border:0;color:var(--mut);font-size:20px;
+    line-height:1;padding:0 4px;cursor:pointer}
+  .mr-x:hover{color:var(--fg)}
+  .mr-body{padding:16px 18px;overflow:auto}
+  .mr-case{font-size:15px;font-weight:600;margin-bottom:3px}
+  .mr-node{font-size:11.5px;color:var(--mut);margin-bottom:14px}
+  .mr-steps{margin:0 0 14px;padding-left:20px;display:flex;flex-direction:column;gap:9px}
+  .mr-steps li{font-size:13px;line-height:1.5}
+  .mr-steps .a{display:block}
+  .mr-steps .e{display:block;font-size:11.5px;color:var(--mut);margin-top:2px}
+  .mr-nostep{font-size:12.5px;color:var(--mut);margin:0 0 14px}
+  .mr-note-l{display:block;font-size:11px;color:var(--mut);text-transform:uppercase;
+    letter-spacing:.4px;margin-bottom:5px}
+  .mr-note{width:100%;min-height:62px;font:inherit;font-size:13px;padding:8px 10px;
+    border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--fg);resize:vertical}
+  .mr-act{display:flex;gap:8px;padding:13px 18px;border-top:1px solid var(--line)}
+  .mr-act button{width:auto;margin:0;flex:1;padding:9px 0;font-weight:500}
+  .mr-pass{border-color:var(--ok);color:var(--ok)}
+  .mr-warn{border-color:var(--sk);color:var(--sk)}
+  .mr-fail{border-color:var(--no);color:var(--no)}
+  .mr-skip{color:var(--mut);flex:0 0 auto;padding:9px 16px}
   /* Kart acilmayi bekleyenler (Jira sekmesi ustu) — basarisiz case'ler +
      bilinen hatalar. Panelin mevcut satir dilinden (ov-row) miras. */
   .bq{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin:0 0 16px;background:var(--card)}
@@ -2032,12 +2066,132 @@ async function renderScopePackages() {
         p.manualCases ? `${p.manualCases} elle` : '',
         p.missingRefs ? `${p.missingRefs} kayip referans` : '',
       ].filter(Boolean).join(' · ');
+      /*
+       * Iki dugme, iki farkli kosum turu:
+       *  - otomatik: spec'i olan case'ler tek parametreli kosumla calisir
+       *  - elle    : adimlardan olusan case'ler insan tarafindan yurutulur,
+       *              sonuc agaca kosum kaydi olarak yazilir (R13/R14 korunur)
+       * Paketin icinde ikisi karisik olabilir; o yuzden ikisi de gosteriliyor.
+       */
+      const elle = `<button class="pkg-manual" data-tip="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina yazilir." onclick="runPackageManual('${esc(p.id)}')">elle kos</button>`;
       if (!kosulabilir) {
-        return `<button disabled title="Bu paketteki case'lerin hicbirinin otomatik karsiligi yok (dugumlerde runRef tanimli degil)">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>`;
+        return `<span class="pkg-line"><button disabled title="Bu paketteki case'lerin otomatik karsiligi yok — adimlari elle yurutebilirsin">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>${elle}</span>`;
       }
-      return `<button data-tip="${esc(p.specs.join(', '))}" onclick="runPackage('${esc(p.id)}')">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>`;
+      return `<span class="pkg-line"><button data-tip="${esc(p.specs.join(', '))}" onclick="runPackage('${esc(p.id)}')">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>${elle}</span>`;
     }).join('')}</div></details>`;
   decorateTips(el);
+}
+
+/**
+ * ELLE KOSUM — paketteki case'leri sirayla onune getirir.
+ *
+ * AI'in urettigi case'ler ADIMLARDAN olusuyor, Playwright spec'i yok; onlari
+ * "kosmak" demek insanin adimlari yurutup sonucu isaretlemesi demek
+ * (Xray/TestRail deseni). Sonuc case'in kosum kaydina yaziliyor, boylece
+ * Flowscope'un "kosum kaydi yoksa gecti denemez" kurali elle case'ler icin de
+ * dogal olarak saglaniyor.
+ *
+ * ⚠️ Sonuclar TEK SEFERDE, en sonda yaziliyor. Her adimda sunucuya yazmak,
+ * yarida birakilan bir kosumu "kismen kosmus" gibi gosterirdi; kullanici
+ * vazgecerse hicbir sey yazilmaz.
+ */
+let MANUAL = null;   // { pkg, cases, i, sonuclar }
+
+async function runPackageManual(id) {
+  let d;
+  try { d = await (await fetch('/api/scope/package-cases?id=' + encodeURIComponent(id))).json(); }
+  catch (e) { uiToast('Paket okunamadi: ' + e.message, { type: 'err' }); return; }
+  if (!d.ok) { uiToast(d.error || 'Paket okunamadi.', { type: 'err' }); return; }
+
+  const kosulabilir = (d.cases || []).filter(c => !c.missing);
+  if (!kosulabilir.length) { uiToast('Bu pakette yurutulebilir case yok.', { type: 'err' }); return; }
+
+  MANUAL = { pkg: { id: d.id, name: d.name }, cases: kosulabilir, i: 0, sonuclar: [] };
+  renderManual();
+}
+
+function manualKapat(yaz) {
+  const kutu = $('#manualBox');
+  if (kutu) kutu.remove();
+  if (!yaz) MANUAL = null;
+}
+
+function renderManual() {
+  manualKapat(true);
+  if (!MANUAL) return;
+  const { pkg, cases, i } = MANUAL;
+  const c = cases[i];
+
+  const adimlar = c.steps.length
+    ? `<ol class="mr-steps">${c.steps.map(st => `<li><span class="a">${esc(st.action || '(adim yok)')}</span>${st.expected ? `<span class="e">Beklenen: ${esc(st.expected)}</span>` : ''}</li>`).join('')}</ol>`
+    : `<p class="mr-nostep">Bu case'in yazili adimi yok — basligina gore yurut.</p>`;
+
+  const el = document.createElement('div');
+  el.id = 'manualBox';
+  el.className = 'mr-wrap';
+  el.innerHTML = `
+    <div class="mr-box" role="dialog" aria-modal="true">
+      <div class="mr-h">
+        <span class="mr-t">${esc(pkg.name)}</span>
+        <span class="mr-c">${i + 1}/${cases.length}</span>
+        <button class="mr-x" title="Vazgec (hicbir sey yazilmaz)" onclick="manualIptal()">&times;</button>
+      </div>
+      <div class="mr-body">
+        <div class="mr-case">${esc(c.title || '(isimsiz case)')}</div>
+        <div class="mr-node">${esc(c.nodeName)}${c.automated ? ' · otomatik case' : ''}</div>
+        ${adimlar}
+        <label class="mr-note-l" for="mrNote">Not (istege bagli)</label>
+        <textarea id="mrNote" class="mr-note" placeholder="Gorduklerin, ekran goruntusu adi, sapma..."></textarea>
+      </div>
+      <div class="mr-act">
+        <button class="mr-pass" onclick="manualIsaretle('\u2705')">Gecti</button>
+        <button class="mr-warn" onclick="manualIsaretle('\u26A0\uFE0F')">Uyarili</button>
+        <button class="mr-fail" onclick="manualIsaretle('\u274C')">Kaldi</button>
+        <button class="mr-skip" onclick="manualAtla()">Atla</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+  $('#mrNote').focus();
+}
+
+function manualIsaretle(status) {
+  if (!MANUAL) return;
+  const c = MANUAL.cases[MANUAL.i];
+  MANUAL.sonuclar.push({ nodeId: c.nodeId, testCaseId: c.testCaseId, status, note: $('#mrNote').value.trim() });
+  manualIlerle();
+}
+
+function manualAtla() { if (MANUAL) manualIlerle(); }
+
+function manualIlerle() {
+  MANUAL.i++;
+  if (MANUAL.i < MANUAL.cases.length) { renderManual(); return; }
+  manualKapat(true);
+  manualBitir();
+}
+
+async function manualIptal() {
+  if (MANUAL?.sonuclar.length
+    && !await uiConfirm(`${MANUAL.sonuclar.length} isaretlenmis case yazilmadan kapanacak.`,
+      { title: 'Elle kosumu birak', ok: 'Birak', danger: true })) return;
+  manualKapat(false);
+}
+
+async function manualBitir() {
+  const { pkg, sonuclar } = MANUAL;
+  MANUAL = null;
+  if (!sonuclar.length) { uiToast('Hicbir case isaretlenmedi — kayit yazilmadi.', { type: 'info' }); return; }
+
+  const r = await post('/api/scope/testcases/run', { entries: sonuclar, label: pkg.name });
+  if (!r.ok) { uiToast(r.error || 'Kayit yazilamadi.', { type: 'err', title: 'Elle kosum' }); return; }
+  const hatali = (r.results || []).filter(x => x.error);
+  const sayim = sonuclar.reduce((a, x) => { a[x.status] = (a[x.status] || 0) + 1; return a; }, {});
+  uiToast(
+    `${r.written} case icin kosum kaydi yazildi.\n`
+    + Object.entries(sayim).map(([k, v]) => `${k} ${v}`).join(' · ')
+    + (hatali.length ? `\nYazilamayan: ${hatali.length}` : ''),
+    { type: hatali.length ? 'err' : 'ok', title: 'Elle kosum bitti', ms: 10000 });
+  renderScopePackages();
 }
 
 /** Paketi tek parametreli kosumla calistirir (spec'ler sunucudan cozulur). */
