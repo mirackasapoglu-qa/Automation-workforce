@@ -106,6 +106,35 @@ export function addTestCaseToPackage(pkg, nodeId, testCaseId) {
   persistPackages();
 }
 
+/**
+ * TOPLU EKLEME — tek tek eklemek N kez kalıcılık yazması demekti.
+ *
+ * `addTestCaseToPackage` her çağrıda `persistPackages()` çalıştırıyor; 300
+ * case'i tek tek eklemek 300 sunucu yazması olurdu. Burada hepsi belleğe
+ * eklenir, kalıcılık BİR kez çalışır.
+ *
+ * Zaten pakette olan referans SESSİZCE atlanır (tekrar eklemek hata değil,
+ * kullanıcı aynı aramayı iki kez çalıştırmış olabilir) ve sayısı döner.
+ *
+ * @returns {{added: number, skipped: number}}
+ */
+export function addTestCasesToPackage(pkg, list) {
+  let added = 0, skipped = 0;
+  for (const c of list ?? []) {
+    const nodeId = c.nodeId ?? c?.node?.id;
+    const testCaseId = c.testCaseId ?? c?.testCase?.id;
+    if (!nodeId || !testCaseId) { skipped++; continue; }
+    if (pkg.items.some((it) => it.nodeId === nodeId && it.testCaseId === testCaseId)) { skipped++; continue; }
+    pkg.items.push({ nodeId, testCaseId });
+    added++;
+  }
+  if (added) {
+    pkg.updatedAt = nowIso();
+    persistPackages();
+  }
+  return { added, skipped };
+}
+
 export function removeItemFromPackage(pkg, index) {
   pkg.items.splice(index, 1);
   pkg.updatedAt = nowIso();

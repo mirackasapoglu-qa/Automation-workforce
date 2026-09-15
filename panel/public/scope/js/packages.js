@@ -15,7 +15,7 @@ import { renderContent } from './shell.js';
 import { openDrawer } from './drawer.js';
 import {
   nowIso, validatePackageName, createPackage, deletePackage, renamePackage, setPackageDescription,
-  addTestCaseToPackage, removeItemFromPackage, addPackageToPackage, clonePackage,
+  addTestCaseToPackage, addTestCasesToPackage, removeItemFromPackage, addPackageToPackage, clonePackage,
   resolvePackageItem, allTestCases, isPackageRefItem, canNestPackage,
   collectEffectiveTestCaseItems, dedupeTestCaseItems, computePackageStats, recordPackageRun,
 } from './packages-data.js';
@@ -432,6 +432,7 @@ function buildAddPackageSection(pkg) {
   searchInput.placeholder = 'Paket adıyla ara...';
   searchInput.value = state.packageNestSearchQuery;
   searchWrap.appendChild(searchInput);
+
   section.appendChild(searchWrap);
 
   // Aynı gerekçeyle (bkz. renderPackageList → renderResults): aday listesi
@@ -486,6 +487,26 @@ function buildAddTestCaseSection(pkg) {
   searchInput.placeholder = 'Test case veya sayfa adıyla ara...';
   searchInput.value = state.packageSearchQuery;
   searchWrap.appendChild(searchInput);
+
+  /*
+   * TOPLU EKLE. Adaylar tek tek "+" ile ekleniyordu; 125 case'lik bir ağaçta
+   * paketi kurmak onlarca tıklama demekti (kullanıcı bildirdi).
+   *
+   * ⚠️ "Tümü" = ARAMADAN GEÇEN adaylar, ekranda görünen ilk 60 değil. Listede
+   * "+65 sonuç daha" yazarken yalnız 60'ının eklenmesi, kullanıcının okuduğu
+   * sayı ile olanın ayrışması olurdu; düğme gerçek sayıyı yazar, onayda da o
+   * sayı geçer.
+   *
+   * ⚠️ Bu bölümün markup'ı "Paket ekle" bölümüyle BİREBİR AYNI (aynı arama
+   * kutusu, aynı sınıflar). İlk denemede düğme yanlışlıkla ORAYA düştü ve
+   * "Tümünü ekle (2)" diye PAKET sayısını gösterdi (ölçüldü). Bölümü
+   * `placeholder`dan ayırt et; `searchWrap` diye arama yapma.
+   */
+  const bulkBtn = document.createElement('button');
+  bulkBtn.type = 'button';
+  bulkBtn.className = 'btn pkg-bulk-add';
+  searchWrap.appendChild(bulkBtn);
+
   section.appendChild(searchWrap);
 
   // Aynı gerekçeyle (bkz. renderPackageList → renderResults): aday listesi
@@ -502,6 +523,22 @@ function buildAddTestCaseSection(pkg) {
     const filtered = q
       ? candidates.filter((c) => (c.testCase.title || '').toLowerCase().includes(q) || c.nodeName.toLowerCase().includes(q))
       : candidates;
+
+    // Dugme her cizimde guncellenir: sayi aramaya gore degisiyor.
+    bulkBtn.textContent = `Tümünü ekle (${filtered.length})`;
+    bulkBtn.disabled = !filtered.length;
+    bulkBtn.title = filtered.length
+      ? (q ? `Aramaya uyan ${filtered.length} case'in tamamını pakete ekler.` : `Ağaçtaki ${filtered.length} case'in tamamını pakete ekler.`)
+      : 'Eklenecek case yok';
+    bulkBtn.onclick = async () => {
+      // Buyuk eklemede onay: paketin icerigi tek tiklamayla katlanabilir.
+      if (filtered.length > 25 && !await uiConfirm(
+        `${filtered.length} test case "${pkg.name}" paketine eklenecek.` + (q ? `\n\nArama: "${q}"` : ''),
+        { title: 'Tümünü ekle', ok: 'Ekle', danger: false })) return;
+      const r = addTestCasesToPackage(pkg, filtered);
+      renderContent();
+      uiToast(`${r.added} case eklendi${r.skipped ? `, ${r.skipped} zaten vardı` : ''}.`, { type: 'ok' });
+    };
 
     candidateHolder.replaceChildren();
     if (!filtered.length) {

@@ -2644,6 +2644,34 @@ Hepsi seçiliyken düğme "Seçimi kaldır"a döner (aynı kümeyi geri alır).
 Ölçüm: süzgeçsiz `Tümünü seç (101)` → 101 seçili; arama "red teaming" →
 `Tümünü seç (17)` → 17 seçili.
 
+## Pakete toplu test case ekleme (2026-09-15)
+
+Paket detayındaki "Test case ekle" listesi tek tek `+` ile ekleniyordu; 125
+case'lik bir ağaçta paketi kurmak onlarca tıklama demekti. Arama kutusunun
+yanına **"Tümünü ekle (N)"** geldi.
+
+⚠️ **"Tümü" = ARAMADAN GEÇEN adaylar**, ekranda görünen ilk 60 değil
+(`MAX_CANDIDATES_SHOWN`). Liste "+65 sonuç daha" derken yalnız 60'ının
+eklenmesi, kullanıcının okuduğu sayıyla olanın ayrışması olurdu. 25'ten fazlası
+onay ister.
+
+⚠️ **Toplu ekleme AYRI fonksiyon** (`packages-data.js → addTestCasesToPackage`):
+`addTestCaseToPackage` her çağrıda `persistPackages()` çalıştırıyor, 125 case'i
+tek tek eklemek 125 sunucu yazması olurdu. Hepsi belleğe eklenir, kalıcılık BİR
+kez çalışır; zaten pakette olan sessizce atlanır ve sayısı döner.
+
+⚠️ **"Paket ekle" ve "Test case ekle" bölümlerinin markup'ı BİREBİR AYNI**
+(aynı `search-box pkg-search`, aynı `search-input`). Düğme ilk denemede
+yanlışlıkla PAKET bölümüne düştü ve "Tümünü ekle (2)" diye paket sayısını
+gösterdi; tıklayınca paket nesnelerini case sanıp eklemeye çalıştı (veri
+katmanındaki `nodeId`/`testCaseId` kontrolü tuttu, hiçbir şey bozulmadı).
+Bu iki bölümü ayırt etmek için `placeholder`a bak — `searchWrap` ya da sınıf
+adıyla arama yapma. Aynı tuzak testte de tekrarlandı: `.pkg-search .search-input`
+seçicisi ilk kutuyu (paket aramasını) yakalıyor.
+
+Ölçüm: süzgeçsiz `Tümünü ekle (125)` → onay → "125 case eklendi" → düğme (0);
+arama "connect" → `(10)`; eşleşmeyen arama → `(0)` ve düğme kapalı.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

@@ -1409,3 +1409,10 @@ html, body { background: var(--bg); margin: 0; }
 .tc-pkg-chip .icon { width: 11px; height: 11px; flex-shrink: 0; }
 .tc-pkg-more { font-size: 11px; color: var(--text-faint); }
 .tc-pkg-none { font-size: 11px; color: var(--text-faint); font-style: italic; }
+
+/* Paket detayinda "Tumunu ekle" — arama kutusunun sagina oturur (bkz. packages.js).
+   Kutunun kendi yuksekligini bozmasin diye ic dolgusu kucuk. */
+.pkg-search { display: flex; align-items: center; gap: 8px; }
+.pkg-search .search-input { flex: 1; min-width: 0; }
+.pkg-bulk-add { flex: 0 0 auto; margin: 0; padding: 5px 12px; font-size: 12px; white-space: nowrap; }
+.pkg-bulk-add:disabled { opacity: .45; cursor: not-allowed; }
