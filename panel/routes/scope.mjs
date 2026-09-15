@@ -22,6 +22,8 @@ import {
 } from "../scope-bridge.mjs";
 import { PROJECT } from "../project.mjs";
 import { listPackages, savePackage, deletePackage } from "../type-packages.mjs";
+import { readPackages, resolvePackageItems } from "../packages.mjs";
+import { findNode } from "../scope.mjs";
 
 export function registerScopeRoutes(router, ctx) {
   const { send, BASE_URL, RUNS } = ctx;
@@ -109,6 +111,54 @@ export function registerScopeRoutes(router, ctx) {
       return send(res, 400, { ok: false, error: e.message });
     }
   }, { auth: true, body: true });
+
+  /**
+   * PAKET → KOŞULABİLİR SPEC LİSTESİ.
+   *
+   * Panelin "Koşumlar" sekmesi paketi TEK bir parametreli koşumla çalıştırıyor:
+   * paketin case'lerinin bağlı olduğu düğümlerin `runRef.specs`i toplanıyor.
+   * Flowscope'taki sıralı koşumdan (`packages-run.js`, düğüm düğüm) farkı bu —
+   * tek Playwright süreci, tek `results.json`, sonuç yine ağaca yazılıyor.
+   *
+   * ⚠️ Whitelist güvenliği yerinde: dönen spec'ler `/api/run`'ın parametreli
+   * yolundan geçiyor ve orada `tests/` altındaki dosyalarla DOĞRULANIYOR.
+   * Bu uç yalnızca "hangi spec'ler" sorusunu cevaplıyor, komut üretmiyor.
+   *
+   * Otomatik karşılığı olmayan (elle) case'ler ayrıca raporlanır: paketin 10
+   * case'i varken 3'ünün koşulması sessiz kalmamalı.
+   */
+  router.get("/api/scope/packages/runnable", ({ res }) => {
+    const { tree } = (() => { try { return readTree(); } catch { return { tree: [] }; } })();
+    const paketler = readPackages();
+    const out = paketler.map((pkg) => {
+      const items = resolvePackageItems(paketler, pkg.id);
+      const specs = new Set();
+      const nodes = new Set();
+      let elle = 0, eksik = 0;
+      for (const it of items) {
+        const node = findNode(tree, it.nodeId);
+        if (!node) { eksik++; continue; }
+        const tc = (node.testCases ?? []).find((t) => t.id === it.testCaseId);
+        if (!tc) { eksik++; continue; }
+        const nodeSpecs = node.runRef?.specs ?? [];
+        // Case'in kendi spec'i varsa o; yoksa düğümün spec'leri.
+        const aday = tc.spec ? [tc.spec] : nodeSpecs;
+        if (!aday.length) { elle++; continue; }
+        nodes.add(node.id);
+        for (const sp of aday) specs.add(sp);
+      }
+      return {
+        id: pkg.id,
+        name: pkg.name,
+        cases: items.length,
+        specs: [...specs],
+        nodes: [...nodes],
+        manualCases: elle,
+        missingRefs: eksik,
+      };
+    });
+    return send(res, 200, { ok: true, packages: out });
+  });
 
   /**
    * Perf süpürmesinin ölçeceği rotalar — `scripts/perf-sweep.mjs --routes` için

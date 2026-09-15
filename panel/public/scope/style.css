@@ -1378,3 +1378,22 @@ html, body { background: var(--bg); margin: 0; }
 }
 .pkg-run-entry-fail { color: var(--fail); }
 .pkg-run-entry-skipped { color: var(--text-faint); font-style: italic; }
+
+/* Test Case'ler sayfasi (js/testcases.js) — agactaki TUM case'lerin tek listesi.
+   Gorsel dil paket sayfasindan miras (pkg-item-row, facet-pill); yeni bir
+   liste stili icat edilmedi. */
+.tc-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+.tc-search { flex: 1 1 260px; min-width: 0; }
+.tc-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.tc-count { font-size: 11.5px; color: var(--text-muted); margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+.tc-list { display: flex; flex-direction: column; gap: 6px; }
+.tc-row { align-items: center; }
+.tc-packages { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: 10px; }
+.tc-pkg-chip {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted);
+  border: 1px solid var(--border); border-radius: 5px; padding: 2px 7px; max-width: 150px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tc-pkg-chip .icon { width: 11px; height: 11px; flex-shrink: 0; }
+.tc-pkg-more { font-size: 11px; color: var(--text-faint); }
+.tc-pkg-none { font-size: 11px; color: var(--text-faint); font-style: italic; }

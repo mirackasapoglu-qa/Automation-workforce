@@ -810,8 +810,10 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
 
     <div id="tab-runs" hidden>
     <h2>Kosumlar</h2>
-    <!-- Kapsam agacindaki `runRef`lerden turetilen kosumlar (Flowscope → panel).
-         Whitelist guvenligi degismedi: burada uretilen id de panel/runs.json'dan gecer. -->
+    <!-- Kapsam agacindaki `runRef`lerden turetilen kosumlar + Test Suite paketleri
+         (Flowscope → panel). Whitelist guvenligi degismedi: buradan cikan her
+         kosum panel/runs.json ya da parametreli kosum dogrulamasindan gecer. -->
+    <div id="scopePackages"></div>
     <div id="scopeRuns"></div>
     <label id="hlWrap" title="Headed kosum TEST BASINA bir tarayici penceresi acar. Bu anahtar --headed'i kaldirir.">
       <input type="checkbox" id="hlChk" onchange="toggleHeadless()">
@@ -1385,7 +1387,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   if (b.dataset.tab === 'cases') loadCases();
   if (b.dataset.tab === 'perf') loadPerf();
   if (b.dataset.tab === 'overview') renderOverview();
-  if (b.dataset.tab === 'runs') renderScopeRuns();
+  if (b.dataset.tab === 'runs') { renderScopeRuns(); renderScopePackages(); }
   /* Kapsam ozeti 30 sn'den eskiyse tazele — SSE zaten aninda haber veriyor,
      bu yalnizca uzun acik kalmis bir sekmenin bayat kalmamasi icin. */
   scopeRefresh({ maxAgeMs: 30000, quiet: true });
@@ -1946,6 +1948,70 @@ function renderScopeKpis() {
     hucre('DUSEN', su.cases.byLastStatus['\u274c'] || 0, (su.cases.byLastStatus['\u274c'] ? 'no' : 'mut'), 'Son kosumu dusen case'),
     hucre('JIRA BAGI', su.jira.links, '', `${su.jira.keys} kart kapsam dugumlerine bagli`),
   ].join('');
+}
+
+/**
+ * KOSUMLAR sekmesindeki "Test Suite paketleri" grubu.
+ *
+ * Paket = uretilen test case'lerden kurulu, isimlendirilmis bir koleksiyon
+ * (Flowscope → Test Suite → Paketler). Panel paketi TEK bir parametreli
+ * kosumla calistirir: sunucu paketin case'lerini spec'lere cozuyor
+ * (`/api/scope/packages/runnable`), panel o spec'leri kosuyor.
+ *
+ * ⚠️ Flowscope'taki paket kosumu SIRALI (dugum dugum, her biri ayri kosum);
+ * buradaki TEK kosum. Ikisi de ayni sonuc dosyasini uretiyor ve sonuc ayni
+ * sekilde agaca yaziliyor — fark hiz ve tek `results.json`.
+ *
+ * ⚠️ Otomatik karsiligi olmayan (elle) case'ler kosulmaz; sayisi satirda
+ * YAZILIR. "10 case'lik paketi kostum" deyip 3'unun kosmasi sessiz kalmamali.
+ */
+async function renderScopePackages() {
+  const el = $('#scopePackages');
+  if (!el) return;
+  let liste = [];
+  try { liste = (await (await fetch('/api/scope/packages/runnable')).json()).packages || []; }
+  catch { el.innerHTML = ''; return; }
+  if (!liste.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `<details class="rungrp" open><summary>Test Suite paketleri<span class="cnt">${liste.length}</span></summary>
+    <div class="body">${liste.map(p => {
+      const kosulabilir = p.specs.length;
+      const notlar = [
+        `${p.cases} case`,
+        kosulabilir ? `${p.specs.length} spec` : 'otomatik kosum yok',
+        p.manualCases ? `${p.manualCases} elle` : '',
+        p.missingRefs ? `${p.missingRefs} kayip referans` : '',
+      ].filter(Boolean).join(' · ');
+      if (!kosulabilir) {
+        return `<button disabled title="Bu paketteki case'lerin hicbirinin otomatik karsiligi yok (dugumlerde runRef tanimli degil)">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>`;
+      }
+      return `<button data-tip="${esc(p.specs.join(', '))}" onclick="runPackage('${esc(p.id)}')">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>`;
+    }).join('')}</div></details>`;
+  decorateTips(el);
+}
+
+/** Paketi tek parametreli kosumla calistirir (spec'ler sunucudan cozulur). */
+async function runPackage(id) {
+  let paket = null;
+  try {
+    const d = await (await fetch('/api/scope/packages/runnable')).json();
+    paket = (d.packages || []).find(p => p.id === id);
+  } catch { /* asagida raporlanir */ }
+  if (!paket) { uiToast('Paket okunamadi.', { type: 'err' }); return; }
+  if (!paket.specs.length) { uiToast('Bu pakette otomatik kosulabilir case yok.', { type: 'err' }); return; }
+
+  const uyari = paket.manualCases
+    ? `\n\n⚠️ ${paket.manualCases} case elle — bu kosumda calismayacak.` : '';
+  if (!await uiConfirm(
+    `"${paket.name}" paketi kosulacak.\n${paket.specs.length} spec: ${paket.specs.join(', ')}${uyari}`,
+    { title: 'Paketi kostur', ok: 'Kos', danger: false })) return;
+
+  // Parametreli kosum yolu: id 'custom', spec'ler `params` icinde — sunucu
+  // bunlari tests/ altindaki dosyalarla DOGRULUYOR (bkz. buildCustomArgs).
+  $('#log').textContent = '';
+  const r = await runRequest({ id: 'custom', params: { specs: paket.specs } }, { label: `paket: ${paket.name}` });
+  if (!r.ok && r.code !== 'BUSY') { uiToast(r.error || 'Baslatilamadi.', { type: 'err' }); return; }
+  if (r.ok && !r.queued) document.querySelector('.tabs button[data-tab=log]').click();
 }
 
 /**
@@ -3020,7 +3086,7 @@ load();
 onScopeChange(() => {
   renderSiteShortcuts();
   renderScopeKpis();
-  if (!$('#tab-runs').hidden) renderScopeRuns();
+  if (!$('#tab-runs').hidden) { renderScopeRuns(); renderScopePackages(); }
   if (!$('#tab-perf').hidden) markPerfScope();
   /* Sonuclar ve Jira listeleri kapsam rozetlerini icinde tasiyor; acikken
      yeniden cizilmezse rozet bayat kalirdi. Kapali sekme cizilmez (bos is). */
@@ -4007,8 +4073,17 @@ function renderOverviewKpis() {
   const pct = kosan ? Math.round((c.passed / kosan) * 100) : 0;
   const bulgu = (META?.knownIssues || []).length;
 
+  /*
+   * ⚠️ "0/88" YANILTICIYDI: hic kosum kaydi olmayan bir kurulumda (taze sunucu,
+   * yeni klon) bu sayi "88 case'in hepsi kaldi" gibi okunuyordu — oysa anlami
+   * "bu makinede hic kosum kaydi yok". Kullanici bunu "panel bozuk, varsa da
+   * yoksa da 88 yaziyor" diye bildirdi (2026-09-15). Kayit yoksa sayi degil
+   * DURUM yaziyoruz; suite'in buyuklugu aciklamaya dusuyor.
+   */
   $('#ovKpis').innerHTML =
-    ovNum(`${c.passed}<span class="of">/${kosan || all.length}</span>`, '', 'son kosum gecti', pct) +
+    (kosan
+      ? ovNum(`${c.passed}<span class="of">/${kosan}</span>`, '', 'son kosum gecti', pct)
+      : ovNum('&ndash;', 'mut', `kosum kaydi yok · ${all.length} otomatik case`)) +
     ovNum(c.failed, 'no', 'gercek basarisiz') +
     ovNum(c.known, '', 'bilinen hata') +
     ovNum(flaky, 'sk', 'kararsiz') +

@@ -29,6 +29,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { PROJECT } from "../panel/project.mjs";
+import { loadEnv } from "../env.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : d; };
 const CACHE = path.join(process.cwd(), "panel-data", "figma-cache");
@@ -171,9 +172,13 @@ export function diff(frameId, liveText, { ignore = [], limit = 40 } = {}) {
 
 export async function captureLive(route, state) {
   const { chromium } = await import("@playwright/test");
-  const envSrc = fs.readFileSync(".env", "utf8");
-  const env = (envSrc.match(/HOMEE_ENV\s*=\s*(\S+)/) ?? [])[1];
-  const base = (envSrc.match(new RegExp(`BASE_URL_${env.toUpperCase()}\\s*=\\s*(\\S+)`)) ?? [])[1];
+  /* Ortam `.env`den DOĞRUDAN okunmaz — container'da o dosya yok (bkz.
+     scripts/perf-sweep.mjs'teki aynı düzeltme). loadEnv varsa yükler, değer
+     her durumda process.env'den. */
+  loadEnv();
+  const env = (process.env.PANEL_ENV || process.env.HOMEE_ENV || "test").toLowerCase();
+  const base = process.env[`BASE_URL_${env.toUpperCase()}`];
+  if (!base) throw new Error(`BASE_URL_${env.toUpperCase()} tanimli degil — .env ya da ortam degiskeni ver`);
   const st = `playwright/.auth/${env}-${state === "member" ? "user" : "gate"}.json`;
   if (!fs.existsSync(st)) throw new Error(`oturum dosyası yok: ${st}`);
   const b = await chromium.launch({ channel: "chrome" });

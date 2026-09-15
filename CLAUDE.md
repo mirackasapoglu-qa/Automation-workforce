@@ -2344,6 +2344,55 @@ yeniden seçmek** zorunda olmaktı. Paket = o kombinasyonun bir ismi.
   aynı asenkron tuzak: `await` şart, vazgeçince `null` döner — boş string ile
   karıştırma).
 
+## Test Case'ler sayfası + panelden paket koşumu (2026-09-15)
+
+**Test Case'ler** (`scope/js/testcases.js`) artık dolu: ağaçtaki BÜTÜN case'ler
+tek listede — hangi düğüme bağlı, kaç adım, son koşumu, hangi paket(ler)de.
+Süzgeçler: arama · durum · **pakette değil** · hiç koşulmamış · otomatik/elle.
+Satıra tıklamak case'in düğümünün drawer'ını açar.
+
+⚠️ **SIRA**: `openDrawer` sekmeyi `genel`e SIFIRLIYOR — `state.drawerTab`
+ondan SONRA verilip `renderDrawer()` çağrılmalı, yoksa kullanıcı case
+listesinden geldiği hâlde Genel sekmesine düşer (ölçüldü).
+
+⚠️ Paket üyeliği **etkin** içerikten hesaplanır (`collectEffectiveTestCaseItems`):
+paketler iç içe olabildiği için alt pakete eklenmiş bir case üst paketin de
+içindedir; doğrudan `items`e bakmak "pakette değil" diye yanlış rapor verirdi.
+
+**Panelden paket koşumu**: `GET /api/scope/packages/runnable` paketi spec
+listesine çözüyor (`packages.mjs → resolvePackageItems`, iç içe + **çevrim
+korumalı**, 6 birim testi), panel bunu TEK parametreli koşumla çalıştırıyor
+(`id:'custom'`, spec'ler `tests/` altındaki dosyalarla doğrulanıyor — whitelist
+güvenliği yerinde).
+
+⚠️ Flowscope'taki paket koşumu SIRALI (düğüm düğüm, her biri ayrı koşum,
+`packages-run.js`), panelinki TEK koşum. İkisi de aynı `results.json`'ı üretir
+ve sonuç aynı şekilde ağaca yazılır (`applyRunResultsBySpecs`).
+
+⚠️ **Otomatik karşılığı olmayan case'ler koşulmaz** ve sayısı satırda YAZILIR
+("10 case · 3 spec · 7 elle"). Paketin yarısının sessizce atlanması, "paketi
+koştum" diyen kullanıcıyı yanıltırdı.
+
+## Ortam okuma: script'ler `.env`i DOĞRUDAN okumaz (2026-09-15)
+
+`scripts/perf-sweep.mjs` ve `scripts/figma-offline-diff.mjs`
+`fs.readFileSync(".env")` yapıyordu. Container'da `.env` YOK (`.dockerignore`
+onu bilerek dışarıda bırakıyor, kimlikler ortam değişkeniyle geliyor) →
+Performans sekmesindeki "Yeniden ölç" sunucuda **ENOENT ile düşüyordu**
+(kullanıcı "env hatası" olarak bildirdi). İkisi de artık `loadEnv()` + 
+`process.env` kullanıyor (panelin geri kalanıyla aynı kural, bkz. "QA Paneli").
+
+Aynı turda: kapı oturumu (`playwright/.auth/*.json`) da imajda yok — perf
+süpürmesi dosya yoksa **oturumsuz** koşuyor ve sebebi log'a yazıyor (tamamen
+düşmektense kapı ekranını ölçmek yeğdir).
+
+## "0/88" yanılgısı (2026-09-15)
+
+Genel bakıştaki ilk KPI, hiç koşum kaydı olmayan kurulumda `0/88` yazıyordu ve
+bu "88 case'in hepsi kaldı" gibi okunuyordu — oysa anlamı "bu makinede koşum
+kaydı yok" (`panel-data/case-history.json` boş). Kayıt yoksa artık sayı değil
+**durum** yazılıyor: `– · kosum kaydi yok · 88 otomatik case`.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

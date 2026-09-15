@@ -48,3 +48,45 @@ export function writePackages(packages) {
   fs.renameSync(tmp, FILE);
   return { savedAt: new Date().toISOString(), count: packages.length };
 }
+
+/**
+ * Bir paketin ETKİN test case referansları — iç içe paketler dahil, tekrarsız.
+ *
+ * NEDEN SUNUCUDA DA VAR: paket koşumu bugüne kadar yalnızca Flowscope'tan
+ * tetikleniyordu (`packages-run.js`, düğüm düğüm sıralı koşum). Panelin
+ * "Koşumlar" sekmesinden de koşulabilmesi için sunucunun "bu pakette hangi
+ * spec'ler var" sorusunu cevaplaması gerekiyor; istemciye sorup ona güvenmek,
+ * whitelist güvenliğini istemciye devretmek olurdu.
+ *
+ * ⚠️ ÇEVRİM KORUMASI: paket paketi içerebiliyor. İstemci tarafı eklemede
+ * çevrimi baştan engelliyor (`canNestPackage`), ama veri bir şekilde çevrimli
+ * hale gelmişse burası sonsuz özyinelemeye düşmemeli — `guard` bunun için.
+ *
+ * @param {object[]} packages  tüm paketler
+ * @param {string} id          çözülecek paketin id'si
+ * @returns {{nodeId: string, testCaseId: string}[]}
+ */
+export function resolvePackageItems(packages, id, guard = new Set()) {
+  if (guard.has(id)) return [];
+  guard.add(id);
+  const pkg = (packages ?? []).find((p) => p.id === id);
+  if (!pkg) return [];
+
+  const out = [];
+  const gorulen = new Set();
+  const ekle = (it) => {
+    const key = `${it.nodeId}::${it.testCaseId}`;
+    if (gorulen.has(key)) return;
+    gorulen.add(key);
+    out.push({ nodeId: it.nodeId, testCaseId: it.testCaseId });
+  };
+
+  for (const it of pkg.items ?? []) {
+    if (it?.packageId) {
+      for (const alt of resolvePackageItems(packages, it.packageId, guard)) ekle(alt);
+    } else if (it?.nodeId && it?.testCaseId) {
+      ekle(it);
+    }
+  }
+  return out;
+}

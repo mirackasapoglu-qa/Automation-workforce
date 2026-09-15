@@ -14,16 +14,36 @@ import { chromium } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { deriveRoutes } from "../panel/scope-bridge.mjs";
+import { loadEnv } from "../env.mjs";
 
 const arg = (n, d) => { const i = process.argv.indexOf(n); return i > -1 ? process.argv[i + 1] : d; };
 const SCROLL = process.argv.includes("--scroll");
 const SETTLE = Number(arg("--settle", 6)) * 1000;
 const OUT = path.join("panel-data", "perf");
 
-const env = (fs.readFileSync(".env", "utf8").match(/HOMEE_ENV\s*=\s*(\S+)/) ?? [])[1] ?? "test";
-const BASE = (fs.readFileSync(".env", "utf8").match(new RegExp(`BASE_URL_${env.toUpperCase()}\\s*=\\s*(\\S+)`)) ?? [])[1];
-if (!BASE) throw new Error(`BASE_URL_${env.toUpperCase()} .env'de yok`);
-const STATE = `playwright/.auth/${env}-gate.json`;
+/*
+ * ⚠️ ORTAM: `.env` DOSYASI DOĞRUDAN OKUNMAZ.
+ *
+ * Eskiden `fs.readFileSync(".env")` vardı; container'da `.env` yok (`.dockerignore`
+ * onu bilerek dışarıda bırakıyor, kimlikler ortam değişkeniyle geliyor) ve ölçüm
+ * daha ilk satırda ENOENT ile düşüyordu — panelin Performans sekmesinden
+ * "Yeniden ölç" diyen kullanıcı "env hatası" görüyordu (ölçüldü 2026-09-15,
+ * canlıda). `loadEnv()` varsa dosyayı yükler, yoksa sessizce geçer; değer her
+ * durumda `process.env`den okunur (panelin geri kalanıyla aynı kural).
+ */
+loadEnv();
+const env = (process.env.PANEL_ENV || process.env.HOMEE_ENV || "test").toLowerCase();
+const BASE = process.env[`BASE_URL_${env.toUpperCase()}`];
+if (!BASE) throw new Error(`BASE_URL_${env.toUpperCase()} tanimli degil — .env ya da ortam degiskeni ver`);
+
+/*
+ * Kapı oturumu da imajda yok (playwright/.auth `.dockerignore`'da). Dosya yoksa
+ * ölçüm oturumsuz koşar: kapı arkasındaki sayfalarda kapı ekranı ölçülür, ama
+ * ölçümün tamamen düşmesinden iyidir ve sebebi log'a yazılır.
+ */
+const STATE_PATH = `playwright/.auth/${env}-gate.json`;
+const STATE = fs.existsSync(STATE_PATH) ? STATE_PATH : null;
+if (!STATE) console.log(`[perf] uyari: kapi oturumu yok (${STATE_PATH}) — olcum oturumsuz kosuyor`);
 
 /**
  * Olculecek rotalar. Sira:
@@ -71,7 +91,7 @@ const browser = await chromium.launch({ channel: "chrome" });
 const summary = [];
 
 for (const route of routes) {
-  const ctx = await browser.newContext({ storageState: STATE, viewport: { width: 1440, height: 900 } });
+  const ctx = await browser.newContext({ ...(STATE ? { storageState: STATE } : {}), viewport: { width: 1440, height: 900 } });
   const page = await ctx.newPage();
   // LCP getEntriesByType ile gelmiyor; observer'i sayfa yuklenmeden kur
   await page.addInitScript(() => {
