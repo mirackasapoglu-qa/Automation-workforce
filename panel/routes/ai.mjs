@@ -27,6 +27,7 @@ import {
 import { buildPrompt as buildPerfPrompt, applyFromModel as applyPerfFindings, SCHEMA as PERF_SCHEMA } from "../perf-analyze.mjs";
 import { stableDigest } from "../rag/digest.mjs";
 import * as specGen from "../spec-gen.mjs";
+import { probePage, renderProbe, pathsInSteps } from "../dom-probe.mjs";
 import * as productCred from "../product-credentials.mjs";
 import { readTree, writeTree, findNode } from "../scope.mjs";
 import { resolveActive, activeSubtree, productSlug } from "../active-product.mjs";
@@ -191,9 +192,39 @@ export function registerAiRoutes(router, ctx) {
     const rota = deriveRoutes(activeSubtree(tree, active), { baseUrl: active?.baseUrl })
       .find((r) => r.nodeId === node.id);
 
+    /*
+     * ÖNCE SAYFAYI KEŞFET, SONRA ÜRET.
+     *
+     * Model sayfayı görmediğinde seçiciyi case metninden UYDURUYOR ve aynı case
+     * bir makinede geçip diğerinde düşüyordu (ölçüldü 2026-09-16 canlı:
+     * `getByPlaceholder('E-posta')` yazdı, gerçeği `ornek@mail.com`). Keşif
+     * düğümün KENDİ rotasında çalışır — login'e özel değil, her düğüm için.
+     * ~5-6 sn ve üretim başına bir kez; başarısız olursa `null` döner ve üretim
+     * eskisi gibi (tahminle) devam eder, özellik kapanmaz.
+     */
+    const rotaYolu = rota?.path ?? node.route ?? null;
+    /*
+     * Hangi sayfalar keşfedilecek: düğümün kendi rotası + ADIMLARDA GEÇEN
+     * rotalar. İkincisi olmadan, kök düğüme bağlı bir login case'inde keşif
+     * anasayfayı açıyor ve giriş formunu hiç görmüyordu (ölçüldü 2026-09-16).
+     * En fazla üç sayfa: keşif başına ~5 sn, üretimi bekletmesin.
+     */
+    const yollar = [...new Set([rotaYolu || "/", ...pathsInSteps(cases, { limit: 2 })])].slice(0, 3);
+    const kesifler = [];
+    if (active?.baseUrl) {
+      for (const y of yollar) {
+        try {
+          const d = await probePage(new URL(y, active.baseUrl).href);
+          if (d) kesifler.push(d);
+        } catch { /* tek sayfanin kesfi patlarsa digerleri devam etsin */ }
+      }
+    }
+    const kesif = kesifler[0] ?? null;
+
     const built = {
       system: specGen.SYSTEM,
       user: specGen.renderUser({
+        pageProbe: kesifler.map((k) => renderProbe(k)).filter(Boolean).join("\n\n"),
         product: active?.name ?? PROJECT.title,
         baseUrl: active?.baseUrl ?? ctx.BASE_URL,
         node: { name: node.name, path: rota?.path ?? null, nodeId: node.id },
@@ -215,7 +246,12 @@ export function registerAiRoutes(router, ctx) {
       apply: (json) => {
         // Kapıya parolayı VERİYORUZ ki kodda düz metin geçerse yakalasın.
         const gizli = active ? (productCred.readSecret(productSlug(active))?.password ?? null) : null;
-        const k = specGen.gate(json, { titles: cases.map((c) => c.title), secret: gizli });
+        const k = specGen.gate(json, {
+          titles: cases.map((c) => c.title), secret: gizli,
+          // Kapı TÜM keşfedilen sayfaların alanlarını geçerli sayar: case iki
+          // sayfaya birden dokunuyorsa (anasayfa → /giris) ikisi de meşru.
+          probe: kesifler.length ? { alanlar: kesifler.flatMap((k2) => k2.alanlar ?? []) } : null,
+        });
         if (!k.ok) throw new Error(k.error);
 
         const dosya = specGen.pickFilename(specGen.slugify(node.name));
@@ -245,7 +281,7 @@ export function registerAiRoutes(router, ctx) {
 
         return {
           body: { ...yazildi, cases: cases.length, missing: k.missing ?? [], notes: json.notes ?? "" },
-          audit: { nodeId, file: dosya, cases: cases.length },
+          audit: { nodeId, file: dosya, cases: cases.length, probe: kesifler.map((k2) => k2.url) },
         };
       },
     });

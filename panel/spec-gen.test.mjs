@@ -339,3 +339,24 @@ test("removeSpecFile: repo suite'i SILINEMEZ, uretilmis dosya iki yerden birden 
   assert.deepEqual(r.__disk.store, [], "depodan da gitmeli");
   assert.deepEqual(r.__disk.tests, ["01-homepage.spec.ts"], "repo suite yerinde durmali");
 });
+
+test("kapi: sayfada OLMAYAN placeholder reddedilir (kesif varken)", () => {
+  // Canli olcum: model getByPlaceholder('E-posta') yazdi, gercegi
+  // 'ornek@mail.com' — kosum 20 sn timeout'a dusuyordu.
+  const probe = { alanlar: [{ placeholder: "ornek@mail.com" }, { placeholder: "" }] };
+  const kotu = `import { test, expect } from "@playwright/test";
+test("Giris", async ({ page }) => { await page.getByPlaceholder('E-posta').click(); });`;
+  const r = gate({ code: kotu }, { titles: ["Giris"], probe });
+  assert.equal(r.ok, false);
+  assert.match(r.error, /OLMAYAN placeholder/);
+  assert.match(r.error, /ornek@mail\.com/, "hata mesaji GERCEK listeyi vermeli");
+
+  const iyi = kotu.replace("E-posta", "ornek@mail.com");
+  assert.equal(gate({ code: iyi }, { titles: ["Giris"], probe }).ok, true);
+});
+
+test("kapi: kesif YOKKEN placeholder kontrolu yapilmaz (davranis eskisi gibi)", () => {
+  const kod = `import { test, expect } from "@playwright/test";
+test("Giris", async ({ page }) => { await page.getByPlaceholder('E-posta').click(); });`;
+  assert.equal(gate({ code: kod }, { titles: ["Giris"] }).ok, true);
+});

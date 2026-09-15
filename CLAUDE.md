@@ -3016,6 +3016,59 @@ eklerken kolon genişliğini de büyüt, yoksa komşu kolonun üstüne taşar
 (`auto` kolon kullanılamaz: satır başına genişlik değişir ve kolonlar
 satırlar arasında kayar).
 
+## Model artık sayfayı GÖRÜYOR — DOM keşfi (`panel/dom-probe.mjs`, 2026-09-16)
+
+**Belirti:** aynı test case'inden üretilen spec bir makinede geçti, diğerinde
+düştü. "Aynı şeyi yapıyoruz ama" — doğru, ama üretilen KOD aynı değildi: model
+sayfayı hiç görmediği için seçiciyi case metninden **tahmin ediyordu** ve her
+üretimde başka tahmin çıkıyordu.
+
+Ölçülen üç tahmin (hepsi 20 sn timeout):
+
+| Model ne yazdı | Sayfada gerçekte ne var |
+|---|---|
+| `getByPlaceholder('E-posta')` | `placeholder="ornek@mail.com"` |
+| `getByRole('link', {name:'Tüm Ürünler'})` | bağlantının metni **"TÜMÜNÜ GÖR"** |
+| "Salon sayfasında 'Salon' görünür" | `/oturma-odasi` açılıyor, başlık **"Oturma Odası"** |
+
+İstem kuralları (görünür süzgeç, force, Türkçe `İ` …) *nasıl yazacağını*
+söylüyordu; *sayfada ne olduğunu* söylemiyordu. Artık üretimden önce sayfa
+gerçekten açılıp görünür öğeler çıkarılıyor ve isteme giriyor:
+
+```
+SAYFADA GERÇEKTEN OLANLAR (…/giris — otomatik keşif, UYDURMA, buradan seç)
+sekme başlığı: Giriş Yap - Tepe Home
+başlıklar: h1:"Giriş Yap"
+düğmeler: "GİRİŞ YAP" · "SMS İLE GİRİŞ YAP" · "Google" · "Apple"
+bağlantılar: "ŞİFREMİ UNUTTUM"→/sifremi-unuttum · "KAYIT OL"→/kayit
+form alanları:
+  - email: #login-email · placeholder="ornek@mail.com" · READONLY (fill'den önce click şart)
+  - text:  #login-password · READONLY (fill'den önce click şart)
+  - checkbox: #login-remember-me
+```
+
+- **Hangi sayfalar:** düğümün kendi rotası **+ case adımlarında geçen rotalar**
+  (`pathsInSteps`), en fazla 3. İkincisi şart: login case'i ağacın KÖK düğümüne
+  bağlıydı, keşif anasayfayı açıyordu ve giriş formunu hiç görmüyordu.
+- **Kapı sertleşti:** keşif elimizdeyken modelin yazdığı `getByPlaceholder("X")`
+  sayfada yoksa dosya **yazılmadan reddedilir** ve hata mesajı gerçek listeyi
+  verir. Keşif yoksa bu kontrol yapılmaz (davranış eskisi gibi).
+- **Sıfır bağımlılık kuralı korunuyor:** Playwright **dinamik** import edilir;
+  yoksa/başlatılamazsa `null` döner ve üretim eskisi gibi (tahminle) devam eder.
+- Maliyet: sayfa başına ~5-6 sn, üretim başına bir kez, 10 dk önbellek
+  (`DOM_PROBE_TTL_MS`). Koşum hızına etkisi YOK.
+
+**Ölçüm (uçtan uca, aynı case):** keşifsiz üretim `getByPlaceholder('E-posta')`
+yazıp 20 sn'de düşüyordu; keşifli üretim `#login-email` + `click()+fill()` +
+`exact: "GİRİŞ YAP"` yazdı ve testi gerçek bir testi yapan satırı da ekledi
+(giriş sonrası `/giris`'ten ayrılma + header'daki "Giriş yap" bağlantısının
+kaybolması). Sahte parolayla koşum **doğru sebeple** düştü (`/giris`'te kaldı) —
+yani test artık ürünü ölçüyor, locator'ı değil.
+
+⚠️ Keşif **görünür** öğeleri toplar (lazy bölümler için sayfa kaydırılır).
+Menü/drawer arkasındaki öğeler listeye girmez — o akışlar için case adımında o
+sayfanın rotasını yazmak keşfi oraya taşır.
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |
