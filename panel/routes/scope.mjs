@@ -16,10 +16,10 @@
  * ⚠️ Bu uçlar ağacı DEĞİŞTİRMEZ. Yazma yolları (koşum sonucu, perf, Jira
  * bağlama, sweep'ler) kendi uçlarında ve hepsi token ister.
  */
-import { readTree, backfillRoutes, applyManualRuns, addRecordedCase } from "../scope.mjs";
+import { readTree, backfillRoutes, applyManualRuns, addRecordedCase, unlinkSpec, specUsage } from "../scope.mjs";
 import { recordPackageRun, listPackageRuns, getPackageRun } from "../package-runs.mjs";
 import * as recSpec from "../recorded-spec.mjs";
-import { slugify, pickFilename, storeSpec, specExists } from "../spec-gen.mjs";
+import { slugify, pickFilename, storeSpec, specExists, removeSpecFile } from "../spec-gen.mjs";
 import {
   deriveSummary, deriveRoutes, routesWithFallback, deriveJiraIndex, deriveRuns, deriveCases, deriveFindings,
 } from "../scope-bridge.mjs";
@@ -368,6 +368,75 @@ export function registerScopeRoutes(router, ctx) {
    * Otomatik karşılığı olmayan (elle) case'ler ayrıca raporlanır: paketin 10
    * case'i varken 3'ünün koşulması sessiz kalmamalı.
    */
+
+  /**
+   * SPEC YÖNETİMİ — "hangi dosyalar koşuyor, hangisini artık istemiyorum".
+   *
+   * Her yeniden üretim `runRef.specs`e YENİ bir dosya ekliyor, eskisi duruyordu:
+   * canlıda 4 case'lik bir paket 9 test koştu çünkü iki düğümde 5 dosya
+   * birikmişti (ölçüldü 2026-09-16). Kullanıcının bunu görebileceği ve
+   * temizleyebileceği tek yer yoktu.
+   *
+   * `kind` alanı ne yapılabileceğini söylüyor:
+   *   recorded → kayıttan üretildi, ücretsiz yeniden üretilebilir
+   *   ai       → model yazdı, yenilemek çağrı ister
+   *   repo     → reponun kendi suite'i; SİLİNEMEZ (git'te izlenen kaynak)
+   */
+  router.get("/api/scope/specs", ({ res, url }) => {
+    const id = String(url.searchParams.get("packageId") ?? "").trim();
+    const { tree } = (() => { try { return readTree(); } catch { return { tree: [] }; } })();
+    const paketler = readPackages();
+
+    // Pakete bağlı düğümlerin TÜM spec'leri (case'in kendi spec'i + düğümünki).
+    const dosyalar = new Set();
+    if (id) {
+      for (const it of resolvePackageItems(paketler, id)) {
+        const node = findNode(tree, it.nodeId);
+        if (!node) continue;
+        for (const sp of node.runRef?.specs ?? []) dosyalar.add(sp);
+        const tc = (node.testCases ?? []).find((t) => t.id === it.testCaseId);
+        if (tc?.spec) dosyalar.add(tc.spec);
+      }
+    }
+
+    const out = [...dosyalar].sort().map((file) => ({
+      file,
+      exists: specExists(file),
+      kind: /^gen-rec-/.test(file) ? "recorded" : /^gen-/.test(file) ? "ai" : "repo",
+      usage: specUsage(file),
+    }));
+    return send(res, 200, { ok: true, packageId: id || null, specs: out });
+  });
+
+  router.post("/api/scope/specs/unlink", ({ res, body, audit }) => {
+    const file = String(body?.file ?? "").trim();
+    if (!file) return send(res, 400, { ok: false, error: "file zorunlu" });
+    try {
+      const out = unlinkSpec(file, { nodeIds: Array.isArray(body?.nodeIds) ? body.nodeIds : null });
+      audit({ event: "scope-spec-unlink", file, nodes: out.nodes.length, cases: out.cases, dropped: out.dropped });
+      return send(res, 200, { ok: true, file, ...out });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
+
+  /**
+   * Bağı kaldırır VE dosyayı siler. İki adım tek uçta, çünkü yalnız dosyayı
+   * silmek ağaçta ölü referans bırakır ("Bilinmeyen spec"), yalnız bağı
+   * kaldırmak da dosyayı diskte ve depoda bırakır (sonraki deploy geri yükler).
+   */
+  router.post("/api/scope/specs/delete", ({ res, body, audit }) => {
+    const file = String(body?.file ?? "").trim();
+    try {
+      const bag = unlinkSpec(file);
+      const silme = removeSpecFile(file);   // repo suite'ini reddeder
+      audit({ event: "scope-spec-delete", file, removed: silme.removed, nodes: bag.nodes.length });
+      return send(res, 200, { ok: true, file, ...bag, removed: silme.removed });
+    } catch (e) {
+      return send(res, 400, { ok: false, error: e.message });
+    }
+  }, { auth: true, body: true });
+
   router.get("/api/scope/packages/runnable", ({ res }) => {
     const { tree } = (() => { try { return readTree(); } catch { return { tree: [] }; } })();
     const paketler = readPackages();

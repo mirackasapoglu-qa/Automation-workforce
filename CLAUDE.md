@@ -2934,6 +2934,41 @@ sürmez. Gerekçeler ölçülebilir: aynı dosya her koşumda **aynı** adımlar
 görüntüsü** bırakır, dosya git'e girer ve insan **düzeltebilir**. Model bir kez
 yazar, dosya sonsuz kez koşar.
 
+## Spec yönetimi: "hangi dosyalar koşuyor, hangisini artık istemiyorum" (2026-09-16)
+
+Her "yeniden üret" `runRef.specs`e **YENİ** bir dosya ekliyor, eskisi kalıyordu.
+Canlıda ölçüldü: iki düğümde 5 dosya birikti ve **4 case'lik bir paket 9 test
+koştu** — aynı case üç kopyada çalışınca sonuç tablosu "biri geçti ikisi kaldı"
+diye okunamaz hâle geldi. Kullanıcının bunu görebileceği ya da temizleyebileceği
+hiçbir yer yoktu.
+
+Koşumlar → paket satırında **"specler (N)"** düğmesi; modal her dosyayı, türünü
+ve hangi düğüm/case'lere bağlı olduğunu listeliyor.
+
+| Tür | Ne demek | Silinebilir mi |
+|---|---|---|
+| `recorded` (`gen-rec-*`) | kayıttan üretildi | evet — adımlar ağaçta, ücretsiz yeniden üretilir |
+| `ai` (`gen-*`) | model yazdı | evet — yenilemek model çağrısı ister |
+| `repo` (diğer) | reponun kendi suite'i | **HAYIR**, sunucu reddeder |
+
+**İki eylem bilinçli olarak AYRI:**
+- **bağı kaldır** (`POST /api/scope/specs/unlink`) — dosya diskte kalır, ağaç
+  onu koşmaz. Üç yerden birden temizlenir, yoksa dosya bir şekilde geri gelir:
+  `node.runRef.specs`, `testCase.spec` (case "elle"ye döner) ve yalnızca o
+  dosyayı temsil eden çöp case (`"Otomatik: <dosya>"`).
+- **sil** (`POST /api/scope/specs/delete`) — bağı kaldırır **ve** dosyayı hem
+  `tests/` hem kalıcı depodan siler. Yalnız bağı kaldırmak dosyayı bırakırdı ve
+  bir sonraki deploy onu geri yüklerdi; yalnız dosyayı silmek ağaçta ölü
+  referans bırakırdı ("Bilinmeyen spec"). İkisi tek uçta.
+
+⚠️ `removeSpecFile` **yalnız `gen-` önekli** dosyayı siler ve yol ayracı taşıyan
+adı reddeder: repo'nun kendi suite'i git'te izlenen kaynak kod, panelden
+silinebilir olması kabul edilemez (birim testli).
+
+Ölçüm: uçtan uca tarayıcıda — modal iki dosyayı türü ve bağlı düğümüyle
+listeledi, "bağı kaldır" sonrası uç bir dosya döndü, ağaç güncellendi, **dosya
+diskte durdu**. 270 birim testi (`spec-unlink.test.mjs` + `removeSpecFile`).
+
 ## Agent'lar (`.claude/agents/`)
 
 | Agent | Ne zaman |

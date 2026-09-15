@@ -221,6 +221,17 @@
   .rc-cred-ok{border:1px solid var(--bd);color:var(--mut)}
   .rc-cred-warn button,.rc-cred-ok button{width:auto;margin:0 0 0 auto;padding:5px 12px;font-size:12px;border-radius:999px}
   .rc-cred-warn button{border-color:var(--warn,#d9a441);color:var(--warn,#d9a441)}
+  .rc-specs-btn{border-style:dashed}
+  .spl-row{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;
+    padding:9px 0;border-bottom:1px dashed var(--bd)}
+  .spl-row:last-child{border-bottom:0}
+  .spl-ad{font-family:var(--mono,monospace);font-size:12.5px;word-break:break-all}
+  .spl-alt{display:block;color:var(--mut);font-size:11.5px;margin-top:3px}
+  .spl-tur{font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--bd);color:var(--mut);white-space:nowrap}
+  .spl-yok{color:var(--warn,#d9b36a);border-color:var(--warn,#d9b36a)}
+  .spl-act{display:flex;gap:6px}
+  .spl-act button{width:auto;margin:0;padding:4px 10px;font-size:11.5px;border-radius:999px}
+  .spl-act .sil{border-color:var(--bad,#e06c75);color:var(--bad,#e06c75)}
   .rc-bos{color:var(--mut);padding:14px 2px}
 
   .rc-grp{margin-bottom:18px}
@@ -2256,6 +2267,8 @@ async function renderScopePackages() {
         <div class="rc-c-act rc-c-act2">
           <button ${p.specs.length && !kosuyor ? `onclick="runPackage('${esc(p.id)}')"` : 'disabled'}
             title="${p.specs.length ? esc(p.specs.join(', ')) : 'Bu paketteki case\'lerin Playwright karsiligi yok: adimlardan olusan elle case\'ler. Elle kos ya da otomatige cevir.'}">${kosuyor ? '...' : 'kos'}</button>
+          ${(p.specs?.length || p.missingSpecs?.length) ? `<button class="rc-specs-btn" onclick="openSpecList('${esc(p.id)}','${esc(p.name)}')"
+            title="Bu pakette koşan spec dosyaları — artık istemediğini buradan kaldır.">specler (${(p.specs?.length ?? 0) + (p.missingSpecs?.length ?? 0)})</button>` : ''}
           <button class="rc-manual" ${p.cases ? `onclick="runPackageManual('${esc(p.id)}')"` : 'disabled'}
             title="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina ve deftere yazilir.">elle kos</button>
           ${(() => {
@@ -2281,6 +2294,90 @@ async function renderScopePackages() {
       </div>`;
     }).join('')}</div>
   </div>`;
+}
+
+/**
+ * SPEC LISTESI — pakette hangi dosyalar kosuyor, hangisi artik istenmiyor.
+ *
+ * Her "yeniden uret" runRef.specs'e YENI dosya ekliyor, eskisi duruyordu:
+ * 4 case'lik paket 9 test kosuyordu (olculdu canlida). Kullanicinin bunu
+ * gorebilecegi ve temizleyebilecegi yer yoktu.
+ *
+ * Iki ayri eylem, karistirma:
+ *   BAGI KALDIR → dosya diskte kalir, sadece bu paket/dugum onu kosmaz
+ *   SIL         → bag + dosya (tests/ ve kalici depo). Reponun kendi suite'i
+ *                 (gen- ile baslamayan) SILINEMEZ, sunucu reddeder.
+ */
+let SPEC_LIST = null;   // { pkgId, pkgName }
+
+async function openSpecList(pkgId, pkgName) {
+  SPEC_LIST = { pkgId, pkgName };
+  await renderSpecList();
+}
+
+function specListKapat() {
+  SPEC_LIST = null;
+  document.getElementById('specListBox')?.remove();
+}
+
+async function renderSpecList() {
+  document.getElementById('specListBox')?.remove();
+  if (!SPEC_LIST) return;
+  const { pkgId, pkgName } = SPEC_LIST;
+
+  let d;
+  try { d = await (await fetch('/api/scope/specs?packageId=' + encodeURIComponent(pkgId))).json(); }
+  catch (e) { uiToast('Spec listesi okunamadi: ' + e.message, { type: 'err' }); return; }
+
+  const TUR = { recorded: 'kayittan', ai: 'AI uretimi', repo: 'repo suite' };
+  const satirlar = (d.specs || []).map(sp => {
+    const dugumler = (sp.usage || []).map(u => u.nodeName || u.nodeId).filter(Boolean);
+    const caseler = (sp.usage || []).flatMap(u => u.cases || []);
+    return `<div class="spl-row">
+      <div>
+        <span class="spl-ad">${esc(sp.file)}</span>
+        <span class="spl-alt">${dugumler.length ? esc(dugumler.join(' · ')) : 'bagli dugum yok'}${caseler.length ? ` — ${caseler.length} case` : ''}</span>
+      </div>
+      <span class="spl-tur${sp.exists ? '' : ' spl-yok'}">${sp.exists ? esc(TUR[sp.kind] || sp.kind) : 'dosya yok'}</span>
+      <div class="spl-act">
+        <button onclick="specUnlink('${esc(sp.file)}')" title="Dosya diskte kalir, bu paket onu artik kosmaz.">bagi kaldir</button>
+        ${sp.kind === 'repo' ? '' : `<button class="sil" onclick="specDelete('${esc(sp.file)}')" title="Bagi kaldirir VE dosyayi siler (tests/ + kalici depo).">sil</button>`}
+      </div>
+    </div>`;
+  }).join('');
+
+  const el = document.createElement('div');
+  el.id = 'specListBox';
+  el.className = 'mr-wrap';
+  el.innerHTML = `<div class="mr-box" role="dialog" aria-modal="true">
+    <div class="mr-h">
+      <span class="mr-t">${esc(pkgName)} — spec dosyalari</span>
+      <span class="mr-c">${(d.specs || []).length}</span>
+      <button class="mr-x" title="Kapat" onclick="specListKapat()">&times;</button>
+    </div>
+    <div class="mr-body">
+      ${satirlar || '<p class="mr-nostep">Bu pakete bagli spec dosyasi yok.</p>'}
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+}
+
+async function specUnlink(file) {
+  if (!await uiConfirm(`${file}\n\nBagi kaldirilsin mi?\n\n• Dosya DISKTE KALIR\n• Bu paket/dugum onu artik kosmaz\n• Yalniz o dosyayi temsil eden "Otomatik: ..." case'i varsa o da duser`,
+    { title: 'Bagi kaldir', ok: 'Kaldir' })) return;
+  const r = await post('/api/scope/specs/unlink', { file });
+  if (!r.ok) { uiToast(r.error || 'Kaldirilamadi', { type: 'err' }); return; }
+  uiToast(`${file} bagi kaldirildi (${r.nodes.length} dugum${r.dropped ? `, ${r.dropped} case dustu` : ''}).`, { type: 'ok' });
+  await scopeRefresh(); renderScopePackages(); renderSpecList();
+}
+
+async function specDelete(file) {
+  if (!await uiConfirm(`${file}\n\nDOSYA SILINSIN mi?\n\n• Agactaki bagi kaldirilir\n• Dosya tests/ ve kalici depodan SILINIR\n• Geri alinamaz — kayittan uretilenler adimlardan yeniden uretilebilir, AI uretimi olanlar yeni bir model cagrisi ister`,
+    { title: 'Spec dosyasini sil', ok: 'Sil', danger: true })) return;
+  const r = await post('/api/scope/specs/delete', { file });
+  if (!r.ok) { uiToast(r.error || 'Silinemedi', { type: 'err' }); return; }
+  uiToast(`${file} silindi (${(r.removed || []).length} dosya).`, { type: 'ok' });
+  await scopeRefresh(); renderScopePackages(); renderSpecList();
 }
 
 /**

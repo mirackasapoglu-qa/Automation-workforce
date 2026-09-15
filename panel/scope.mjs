@@ -781,3 +781,72 @@ export function addRecordedCase({ nodeId, title, steps = [], recorded = [], spec
   writeTree(tree, { reason: "record" });
   return { nodeId: node.id, nodeName: node.name ?? "", testCaseId: tc.id, title: tc.title };
 }
+
+/**
+ * Bir spec dosyasının AĞAÇTAKİ bağlarını kaldırır (dosyaya dokunmaz).
+ *
+ * Neden gerekli: her yeniden üretim `runRef.specs`e YENİ bir dosya ekliyor,
+ * eskisi duruyordu — canlıda iki düğümde 5 dosya birikti ve 4 case'lik bir
+ * paket 9 test koştu (ölçüldü 2026-09-16). Aynı case üç kopyada koşunca sonuç
+ * tablosu "biri geçti ikisi kaldı" diye okunamaz hâle geliyordu.
+ *
+ * Üç yerden birden temizlenir, yoksa dosya bir şekilde geri geliyor:
+ *   1. `node.runRef.specs`
+ *   2. `testCase.spec` (o dosyayı gösteren case artık "elle" olur)
+ *   3. yalnızca o dosyayı temsil eden çöp case ("Otomatik: <dosya>")
+ *
+ * @returns {{nodes: string[], cases: number, dropped: number}}
+ */
+export function unlinkSpec(file, { nodeIds = null } = {}) {
+  const ad = String(file ?? "").trim();
+  if (!ad) throw new Error("spec adı zorunlu");
+  const { tree } = readTree();
+  const izinli = Array.isArray(nodeIds) && nodeIds.length ? new Set(nodeIds) : null;
+
+  const dokunulan = [];
+  let caseSayisi = 0;
+  let dusen = 0;
+
+  const gez = (list) => {
+    for (const n of list ?? []) {
+      if (!izinli || izinli.has(n.id)) {
+        let degisti = false;
+        const specler = n.runRef?.specs ?? [];
+        if (specler.includes(ad)) {
+          n.runRef.specs = specler.filter((sp) => sp !== ad);
+          degisti = true;
+        }
+        const once = (n.testCases ?? []).length;
+        n.testCases = (n.testCases ?? []).filter((tc) => !(tc.spec === ad && tc.title === `Otomatik: ${ad}`));
+        dusen += once - (n.testCases ?? []).length;
+        if (once !== (n.testCases ?? []).length) degisti = true;
+        for (const tc of n.testCases ?? []) {
+          if (tc.spec === ad) { delete tc.spec; caseSayisi++; degisti = true; }
+        }
+        if (degisti) dokunulan.push(n.id);
+      }
+      gez(n.children);
+    }
+  };
+  gez(tree);
+
+  if (dokunulan.length) writeTree(tree, { reason: "spec-unlink" });
+  return { nodes: dokunulan, cases: caseSayisi, dropped: dusen };
+}
+
+/** Ağaçta bu spec'e bağlı düğüm/case özeti (silmeden ÖNCE ne etkileneceği). */
+export function specUsage(file) {
+  const ad = String(file ?? "").trim();
+  const { tree } = readTree();
+  const out = [];
+  const gez = (list) => {
+    for (const n of list ?? []) {
+      const dugumde = (n.runRef?.specs ?? []).includes(ad);
+      const caseler = (n.testCases ?? []).filter((tc) => tc.spec === ad).map((tc) => tc.title);
+      if (dugumde || caseler.length) out.push({ nodeId: n.id, nodeName: n.name ?? "", onNode: dugumde, cases: caseler });
+      gez(n.children);
+    }
+  };
+  gez(tree);
+  return out;
+}

@@ -320,3 +320,22 @@ test("GUNCEL uretecten cikmis dosyaya DOKUNULMAZ", () => {
   assert.equal(sonuc.refreshed, 0);
   assert.match(icerik, /dokunulmamali/);
 });
+
+test("removeSpecFile: repo suite'i SILINEMEZ, uretilmis dosya iki yerden birden gider", () => {
+  const r = calistir(`
+    g.storeSpec("gen-x.spec.ts", "kod");
+    const fs = (await import("node:fs")).default;
+    fs.writeFileSync("tests/01-homepage.spec.ts", "repo suite");
+    const hata = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
+    return {
+      repo: hata(() => g.removeSpecFile("01-homepage.spec.ts")),
+      kacis: hata(() => g.removeSpecFile("../package.json")),
+      silinen: g.removeSpecFile("gen-x.spec.ts").removed.length,
+    };
+  `);
+  assert.match(r.repo, /Yalnız üretilmiş spec/);
+  assert.match(r.kacis, /Yalnız üretilmiş spec/);
+  assert.equal(r.silinen, 2, "tests/ + kalici depo");
+  assert.deepEqual(r.__disk.store, [], "depodan da gitmeli");
+  assert.deepEqual(r.__disk.tests, ["01-homepage.spec.ts"], "repo suite yerinde durmali");
+});
