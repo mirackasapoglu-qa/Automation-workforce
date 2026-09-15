@@ -2763,3 +2763,34 @@ suite'i ve `panel/runs.json` whitelist'i duruyor ama arayüzde görünmüyor
 kimliksiz ortamda 500 (önceden de böyle, yabancı üründe çağrılmıyor);
 `writeRunIntoNode` notlarındaki ANSI kodları temizlenmedi (yalnız defterde
 temiz); kayıt spec'inin locator kalitesi kaydedicinin verdiği kadar.
+
+## Flowscope: toplu seçimde "Test Case Üret" modalı (2026-09-15)
+
+Toplu seçim çubuğundaki üretim düğmesi seçenek sormadan sabit happy+negative · 4
+ile gidiyordu; drawer'daki QA Analizi ise preset/tür/tür paketi seçtiriyordu.
+İstek: "toplu seçince Case üret'e basınca modal açılsın, aynı üretme seçenekleri
+çıksın." Yapılan:
+
+- `scope/js/testcase-options.js` — `TEST_TYPE_META`, `TEST_TYPE_PRESETS`,
+  `DEFAULT_TYPES` ve **ortak tür seçici** `buildTypeSelector({selected,
+  expanded, onChange, onPackagesLoaded})` (preset pilleri · açılır checkbox
+  listesi · tür paketleri satırı). Drawer'daki satır içi kopya bununla
+  değiştirildi (`drawer.js`), seçim yine drawer'ın module-scope state'inde.
+  Bileşen durumsuz: her değişiklikte `onChange` → çağıran yeniden çizer.
+- `scope/js/bulk-generate.js` — `openBulkGenerateModal({nodeIds})`:
+  ai-assist iskeleti (`.ai-assist-overlay/.ai-assist-modal` + `.bulk-gen-*`),
+  seçili düğüm çipleri (24'ten sonrası "+N"), ortak tür seçici, **düğüm başına
+  en fazla** (2/3/4/5/6/8) + "≈ en fazla N case · türler" satırı, Üret. Seçim
+  modal kapanınca unutulmaz (module-scope). Üretim yine tek yoldan
+  (`openTestCaseRequest` — tek tık/elle, hesap seçimi, `allowedNodeIds`
+  kapısı); yazma bitince seçim temizlenir (aynı düğümlere ikinci kez basmak
+  tekrar atlanır ama ücret öder).
+- `bulk-actions.js` ↔ `bulk-generate.js` döngüsel import (clearSelection /
+  openBulkGenerateModal) — ikisi de yalnız tıklama anında kullanılıyor,
+  modül yüklenirken değil; sorun çıkarmaz.
+
+Ölçüm (4646, headless Chrome): 3 yaprak seçildi → modal 3 çip, presetler,
+"Tümü" → 10 tür seçili, bir tür kaldırılınca aktif preset 0, sınır 6 →
+"≈ en fazla 18 case", Üret → tek tık onayı "en fazla 6'er case", elle yol
+istemi 3 düğüm bloğu + "En fazla 6 case". Drawer'daki QA Analizi aynı
+bileşenle çalışmaya devam ediyor. Sıfır konsol hatası.

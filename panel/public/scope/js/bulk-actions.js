@@ -6,7 +6,8 @@ import { state } from './state.js';
 import { ICON, STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
 import { findNode, setNodeStatus, persist } from './data.js';
 import { renderContent } from './shell.js';
-import { openTestCaseRequest, applyGenerateLabel } from './testcase-request.js';
+import { applyGenerateLabel } from './testcase-request.js';
+import { openBulkGenerateModal } from './bulk-generate.js';
 
 export function toggleSelectMode() {
   state.selectMode = !state.selectMode;
@@ -69,24 +70,20 @@ export function buildBulkBar() {
     bar.appendChild(actions);
 
     /**
-     * TOPLU TEST CASE URETIMI — panel model CAGIRMAZ.
-     *
-     * Taramanin cikardigi baslik yapisi (h1/h2/h3 → bolum/islev) her dugumde
-     * duruyor; prompt bunu baglam olarak kullaniyor. Tek tek basmak 131 dugumde
-     * anlamsiz oldugu icin secili dugumlerin hepsi tek prompt'a giriyor; donen
-     * JSON ayni modalden agaca yaziliyor.
+     * TOPLU TEST CASE URETIMI. Dugme once secenek sormadan sabit
+     * happy+negative · 4 ile gidiyordu; artik drawer'daki QA Analizi ile AYNI
+     * secenekleri (preset · tur · tur paketi · dugum basina sinir) soran bir
+     * modal acilir (bulk-generate.js). Uretimin kendisi yine tek yoldan
+     * (testcase-request.js): secili dugumlerin hepsi tek isteme girer, donen
+     * JSON ayni kapidan (allowedNodeIds) agaca yazilir.
      */
     const genBtn = document.createElement('button');
     genBtn.type = 'button';
     genBtn.className = 'btn btn-primary';
     genBtn.innerHTML = ICON.sparkle + '<span>Test case iste (Claude Code)</span>';
     applyGenerateLabel(genBtn, ICON.sparkle);
-    genBtn.title = 'Secili dugumler icin prompt uretir, donen JSON\'u agaca yazar';
-    genBtn.onclick = () => openTestCaseRequest({
-      nodeIds: [...state.selectedIds],
-      types: ['happy', 'negative'],
-      limit: 4,
-    });
+    genBtn.title = 'Secili dugumler icin tur/sinir secip test case uretir';
+    genBtn.onclick = () => openBulkGenerateModal({ nodeIds: [...state.selectedIds] });
     bar.appendChild(genBtn);
 
     const clearBtn = document.createElement('button');

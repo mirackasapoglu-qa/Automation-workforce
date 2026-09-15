@@ -14,7 +14,7 @@ import { renderDrawerStatusHistory } from './status-history.js';
 import { renderContent } from './shell.js';
 import { openAiAssistModal } from './ai-assist.js';
 import { openTestCaseRequest, applyGenerateLabel } from './testcase-request.js';
-import { loadPackages, renderPackageRow } from './type-packages.js';
+import { buildTypeSelector } from './testcase-options.js';
 
 // "Test Case İste" için kullanıcının seçtiği test TÜRLERİ. Aşağıdaki `instruction`
 // metinleri artık YALNIZCA pill tooltip'i — modele giden talimat sunucudaki
@@ -32,72 +32,8 @@ let selectedTestTypes = new Set(['happy', 'negative']);
 // tıklanınca açılıyor — açıldıktan sonra düğüm değişse bile kapanmıyor
 // (selectedTestTypes ile aynı kalıcılık, module-scope state).
 let testTypesExpanded = false;
-const TEST_TYPE_META = {
-  happy: {
-    label: 'Happy Path',
-    instruction: 'Temel, hatasız, başarıyla tamamlanan senaryo(lar) için case yaz (genelde 1-2 case yeterli).'
-  },
-  negative: {
-    label: 'Negatif / Validasyon',
-    instruction: 'Zorunlu alan eksikliği, format hatası, izin verilmeyen değer, hata mesajı gibi tespit '
-      + 'ettiğin HER validasyon/hata kuralı için ayrı bir case yaz — sayıyı yapay şekilde sınırlama.'
-  },
-  boundary: {
-    label: 'Sınır Değerler',
-    instruction: 'Minimum/maksimum uzunluk, 0, negatif değer, aşırı büyük değer gibi sınır (boundary) '
-      + 'durumları için case yaz (uygulanabilirse).'
-  },
-  emptyFull: {
-    label: 'Boş/Dolu Veri',
-    instruction: 'Hiç veri yokken (boş durum mesajı) ve çok fazla veri varken (kaydırma/sayfalama, performans) '
-      + 'davranışı test eden case\'ler yaz (uygulanabilirse).'
-  },
-  regression: {
-    label: 'Regresyon',
-    instruction: 'Bu bileşene bağlı geçmiş Jira görevlerini (jiraTasks) ve durum geçmişini kontrol et; daha '
-      + 'önce hataya düşmüş bir davranış varsa, bunun tekrar etmediğini doğrulayan bir regresyon case\'i yaz '
-      + '(bkz. tc37/TP-123 örneği) — geçmişte hata yoksa bu türü atla.'
-  },
-  recovery: {
-    label: 'Hata Kurtarma',
-    instruction: 'Ağ hatası/timeout/API hatası gibi durumlarda kullanıcının ne gördüğünü ve toparlanabildiğini '
-      + '(retry, hata mesajı) test eden case yaz (uygulanabilirse).'
-  },
-  ui: {
-    label: 'UI / Görsel Tutarlılık',
-    instruction: 'Responsive davranış, hover/focus/disabled görsel durumları, layout bozulmaları için case '
-      + 'yaz (uygulanabilirse).'
-  },
-  a11y: {
-    label: 'Erişilebilirlik',
-    instruction: 'Klavye ile gezinme, görünür focus durumu, temel okunabilirlik/kontrast için case yaz '
-      + '(uygulanabilirse).'
-  },
-  performance: {
-    label: 'Performans',
-    instruction: 'Büyük veri setinde yükleme/kaydırma/render performansını test eden case yaz (uygulanabilirse).'
-  },
-  security: {
-    label: 'Güvenlik',
-    instruction: 'Yetkisiz erişim, girdi enjeksiyonu (XSS vb.) gibi TEMEL güvenlik kontrollerini test eden case '
-      + 'yaz (uygulanabilirse) — kapsamlı bir pentest değil, temel QA seviyesinde bir kontrol.'
-  }
-};
-
-/**
- * Üç kademeli preset — QA pratiğindeki smoke→standart→tam-regresyon sırasına
- * karşılık gelir. "Temel" bugünkü varsayılan seçimle (happy+negative) birebir
- * aynı, yani ilk açılışta hiçbir şey değişmiş gibi görünmez. Presete tıklamak
- * TÜM seçimi o kombinasyona EŞİTLER (eski "Tümü" pili gibi aç/kapa değil,
- * type-packages.js'teki tür paketi pilleriyle aynı "uygula" davranışı —
- * üç butonun hepsi tutarlı olsun diye).
- */
-const TEST_TYPE_PRESETS = [
-  { key: 'happy', label: 'Happy Path', types: ['happy'] },
-  { key: 'temel', label: 'Temel', types: ['happy', 'negative'] },
-  { key: 'tumu', label: 'Tümü', types: Object.keys(TEST_TYPE_META) },
-];
-
+// TEST_TYPE_META / TEST_TYPE_PRESETS ve tür seçici bileşeni artık
+// testcase-options.js'te — toplu üretim modalıyla (bulk-generate.js) ORTAK.
 // Kökten node'a kadar olan zinciri (node dahil) döner — bir düğümde canlı sayfa linki
 // yoksa en yakın atada arayabilmek için (buildTestRunPrompt burada kullanıyor).
 function findNodeChain(nodes, id, chain) {
@@ -330,79 +266,19 @@ export function renderDrawer() {
     aiLabel.className = 'drawer-section-label';
     aiLabel.innerHTML = ICON.sparkle + '<span>QA Analizi</span>';
     aiSection.appendChild(aiLabel);
-    const scopeLabel = document.createElement('div');
-    scopeLabel.className = 'qa-scope-label';
-    scopeLabel.textContent = 'Test kapsamı';
-    aiSection.appendChild(scopeLabel);
-
-    const presetRow = document.createElement('div');
-    presetRow.className = 'qa-scope-row';
-    TEST_TYPE_PRESETS.forEach((preset) => {
-      const isActive = selectedTestTypes.size === preset.types.length && preset.types.every(t => selectedTestTypes.has(t));
-      const pill = document.createElement('button');
-      pill.type = 'button';
-      pill.className = 'qa-scope-pill qa-scope-preset' + (isActive ? ' active' : '');
-      pill.textContent = preset.label;
-      pill.title = 'Kapsar: ' + preset.types.map(t => TEST_TYPE_META[t].label).join(' · ');
-      pill.onclick = () => {
-        selectedTestTypes = new Set(preset.types);
-        testTypesExpanded = true;
-        renderDrawer();
-      };
-      presetRow.appendChild(pill);
-    });
-    aiSection.appendChild(presetRow);
-
-    // 10 tekil tür checkbox'ı bir preset'e tıklanana kadar HİÇ görünmüyor —
-    // "hangi preset neyi kapsıyor" sorusunun cevabı burada, ama varsayılan
-    // olarak kapalı (bkz. testTypesExpanded tanımı). Açıldıktan sonra kullanıcı
-    // tek tek işaretini kaldırıp/ekleyip preset'ten sapabilir; o an hiçbir
-    // preset pili aktif görünmez (yukarıdaki isActive hesaplaması zaten böyle).
-    if (testTypesExpanded) {
-      const checklistLabel = document.createElement('div');
-      checklistLabel.className = 'qa-scope-checklist-label';
-      checklistLabel.textContent = 'Kapsanan türler — istersen tek tek değiştir';
-      aiSection.appendChild(checklistLabel);
-      const checklist = document.createElement('div');
-      checklist.className = 'qa-scope-checklist';
-      Object.keys(TEST_TYPE_META).forEach(key => {
-        const row = document.createElement('label');
-        row.className = 'qa-scope-check-row';
-        row.title = TEST_TYPE_META[key].instruction;
-        const cb = document.createElement('input');
-        cb.type = 'checkbox';
-        cb.checked = selectedTestTypes.has(key);
-        cb.onchange = () => {
-          if (cb.checked) selectedTestTypes.add(key); else selectedTestTypes.delete(key);
-          renderDrawer();
-        };
-        const span = document.createElement('span');
-        span.textContent = TEST_TYPE_META[key].label;
-        row.append(cb, span);
-        checklist.appendChild(row);
-      });
-      aiSection.appendChild(checklist);
-    }
-
     /*
-     * TUR PAKETLERI: isimlendirilmis tur kombinasyonlari. (Sidebar'daki
-     * "Paketler" case koleksiyonu — baska sey, bkz. js/packages.js.) Ayni uc-bes turu her
-     * dugumde elden secmek kullanicinin en cok tekrar eden isiydi.
-     * Liste sunucudan (paylasilan), onbellekli; ilk okumada satir bos cizilir
-     * ve okuma bitince drawer yeniden cizilir — drawer acilisini ag istegine
-     * bekletmiyoruz.
+     * Tür seçici (presetler · tür checkbox'ları · tür paketleri) ORTAK bileşen:
+     * testcase-options.js → buildTypeSelector. Seçim module-scope
+     * (selectedTestTypes / testTypesExpanded), her değişiklikte drawer yeniden çizilir.
      */
-    aiSection.appendChild(renderPackageRow({
+    aiSection.appendChild(buildTypeSelector({
       selected: selectedTestTypes,
-      meta: TEST_TYPE_META,
-      onApply: (types) => { selectedTestTypes = new Set(types); testTypesExpanded = true; renderDrawer(); },
-      onChange: () => renderDrawer(),
+      expanded: testTypesExpanded,
+      onChange: ({ selected, expanded }) => { selectedTestTypes = selected; testTypesExpanded = expanded; renderDrawer(); },
+      // Yalnız İLK okumada yeniden çiz (liste artık önbellekte) ve drawer hâlâ
+      // aynı düğümde açıksa — arada başka düğüme geçildiyse çizim yapma.
+      onPackagesLoaded: () => { if (!state.packagesLoaded) { state.packagesLoaded = true; if (state.drawerNode === drawerNode) renderDrawer(); } },
     }));
-    loadPackages().then((liste) => {
-      // Yalniz ILK okumada yeniden ciz (liste artik onbellekte) ve drawer hala
-      // ayni dugumde acikas — arada baska dugume gecildiyse cizim yapma.
-      if (liste && !state.packagesLoaded) { state.packagesLoaded = true; if (state.drawerNode === drawerNode) renderDrawer(); }
-    });
 
     const aiActions = document.createElement('div');
     aiActions.className = 'qa-analysis-actions';
