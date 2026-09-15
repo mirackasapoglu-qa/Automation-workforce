@@ -2884,6 +2884,36 @@ tıklama kaydedildi, `el.click()` ile atılan tıklama kaydedilmedi.
   geçti: adımların hepsi çalıştı ama "giriş yapıldı mı" diye soran bir iddia
   yok. Kaydederken **İDDİA MODU** ile en az bir doğrulama bırakılmalı.
 
+### `fill()` readonly alanda düşer — önce `click()` (2026-09-16)
+
+Kullanıcı tek bir login case'i yazdı, üretilen spec **`locator.fill: Timeout
+20000ms`** verdi. Koşum kaydındaki call log kritikti: locator **DOĞRU** öğeye
+çözülmüştü —
+
+```
+waiting for locator('input[type="email"], …')
+  - locator resolved to <input readonly value="" type="email" id="login-email"
+      autocomplete="off" data-lpignore="true" data-1p-ignore="true" …>
+```
+
+Alan `readonly` başlıyor: tarayıcı/parola yöneticisi otomatik doldurmasını
+engellemek için yaygın bir desen (`data-lpignore`/`data-1p-ignore` ile birlikte
+gelir), odaklanınca kaldırılıyor. `fill()` elemanın **düzenlenebilir** olmasını
+bekliyor, `readonly` hiç kalkmayınca 20 sn bekleyip düşüyor.
+
+Ölçüm (canlı `/giris`): `readonly: true` → doğrudan `fill` DÜŞTÜ; `click()`
+sonrası `readonly: false` → `fill` GEÇTİ. Aynı akışı `click()+fill()` ile yazan
+spec gerçek siteye karşı **2,6 sn'de yeşil**.
+
+Kural iki üretim yoluna da girdi: `recorded-spec.mjs` her `fill` adımından önce
+`click()` basıyor (bir input'a tıklamanın yan etkisi yok), `spec-gen.mjs`
+istemine de madde olarak eklendi.
+
+⚠️ Hata mesajı bu durumda **yanıltıcı**: "timeout" seçici bulunamadı sanılıyor,
+oysa seçici doğru ve eleman ekranda. Call log'daki `locator resolved to …`
+satırı bu ikisini ayırt eden şey — düşen bir `fill`/`click` incelenirken önce
+oraya bak.
+
 ### Bu düzeltmeler İKİ üretim yolunda da geçerli
 
 Spec üreten iki yol var ve **ortak kod paylaşmıyorlar** — biri düzeltilince
@@ -2969,7 +2999,22 @@ silinebilir olması kabul edilemez (birim testli).
 
 Ölçüm: uçtan uca tarayıcıda — modal iki dosyayı türü ve bağlı düğümüyle
 listeledi, "bağı kaldır" sonrası uç bir dosya döndü, ağaç güncellendi, **dosya
-diskte durdu**. 270 birim testi (`spec-unlink.test.mjs` + `removeSpecFile`).
+diskte durdu**; "sil" ise iki dosyayı (tests/ + depo) gerçekten kaldırdı.
+270 birim testi (`spec-unlink.test.mjs` + `removeSpecFile`).
+
+⚠️ **KATMAN SIRASI: modal < onay kutusu < toast.** `.mr-wrap` 10000'deyken
+`#uiAsk` 9999'daydı — "sil" deyince onay kutusu modalin ARKASINDA açılıyor,
+kullanıcı modali kapatmadan onaylayamıyordu (bildirildi 2026-09-16). Onay
+10050, toast 10070. Yeni bir tam ekran katman eklerken bu sırayı koru: onayı
+ve bildirimi örten bir modal, kullanıcıyı kilitler.
+
+⚠️ **Paket satırı dört düğmeli oldu** (kos · specler · elle kos · yeniden üret)
+ve 250px'lik aksiyon kolonuna sığmayıp geçmiş noktalarının üstüne biniyordu
+(ölçüldü ~1400px ekranda). Kolon 368px'e çıktı, `.rc-c-act` dar ekranda alt
+satıra sarıyor. ⚠️ Bu satır **sabit genişlikli grid** — yeni bir düğme
+eklerken kolon genişliğini de büyüt, yoksa komşu kolonun üstüne taşar
+(`auto` kolon kullanılamaz: satır başına genişlik değişir ve kolonlar
+satırlar arasında kayar).
 
 ## Agent'lar (`.claude/agents/`)
 

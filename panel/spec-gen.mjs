@@ -125,6 +125,11 @@ SEÇİCİ KURALLARI (hepsi gerçek koşumda ölçülmüş düşme sebepleri — 
    ya da istemde verilen seçiciyi kullan.
 5. Türkçe metinde regex /i bayrağı ÇALIŞMAZ ("İ" küçültülmez). Tam string ver:
    getByRole("button", { name: "GİRİŞ YAP", exact: true }).
+5b. fill()'den ÖNCE alana click() at. Birçok site tarayıcı otomatik doldurmasını
+   engellemek için alanı readonly başlatıp odaklanınca açıyor; fill() elemanın
+   düzenlenebilir olmasını beklediği için readonly alanda 20 sn timeout'a düşer
+   (ölçüldü: input readonly=true → fill düştü; click sonrası readonly kalktı →
+   fill geçti).
 6. data-testid yoksa sıra: aria-label → tam metin → placeholder → #id/[name].
    CSS yolu (div > div:nth-of-type(3)) yazma, ilk render değişikliğinde kırılır.
 7. Durum koduna güvenme (404 sayfası da 200 dönebilir); DOM'dan doğrula.

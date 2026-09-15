@@ -39,14 +39,16 @@ test("kod satirlari: locator turleri, iddia, tek tirnak kacisi ve satir sonu tem
   // Gorunur suzgeci HER locator'a eklenir: ikiz/coklu eslesme strict mode ile
   // patiyordu (olculdu canli /giris: "GİRİŞ YAP" 2 eslesme).
   assert.equal(lines[1], "  await page.getByRole('link', { name: 'Docs' }).filter({ visible: true }).first().click();");
-  assert.match(lines[4], /expect\(page\.getByText\('No results found'\)\.filter\(\{ visible: true \}\)\.first\(\)\)\.toContainText\('No results'\)/);
+  // NOT: fill adimi artik IKI satir uretiyor (once click — readonly tuzagi).
+  const satir = (re) => lines.find((l) => re.test(l));
+  assert.ok(satir(/expect\(page\.getByText\('No results found'\)\.filter\(\{ visible: true \}\)\.first\(\)\)\.toContainText\('No results'\)/), "iddia satiri");
   // escapeRe '/' karakterini KACIRMAZ (RegExp kurucusunda gerekmez)
-  assert.equal(lines[5], "  await expect(page).toHaveURL(new RegExp('/docs'));");
+  assert.ok(satir(/await expect\(page\)\.toHaveURL\(new RegExp\('\/docs'\)\)/), "toHaveURL satiri");
   // Kutular force ile: sr-only checkbox Playwright'in aktiflik kontrolunde
   // 20 sn bekleyip dusuyordu (olculdu canli /giris).
-  assert.equal(lines[6], "  await page.getByTestId('agree').filter({ visible: true }).first().check({ force: true });");
+  assert.ok(satir(/getByTestId\('agree'\)\.filter\(\{ visible: true \}\)\.first\(\)\.check\(\{ force: true \}\)/), "check satiri");
   // tek tirnak kacti, satir sonu/tab bosluga dondu — dosya gecerli JS kalir
-  assert.equal(lines[7], "  await page.locator('input[name=\\'q\\']').filter({ visible: true }).first().fill('it\\'s multi line');");
+  assert.ok(satir(/locator\('input\[name=\\'q\\'\]'\)\.filter\(\{ visible: true \}\)\.first\(\)\.fill\('it\\'s multi line'\)/), "fill satiri (tek tirnak kacisi)");
   assert.equal(q("ab"), "'ab'", "kontrol karakteri atilir");
 });
 
@@ -89,4 +91,21 @@ test("ESKI kayitta maskelenmis deger de parola sayilir", () => {
   const kod = toCodeLines([{ action: "fill", loc: { kind: "css", value: "#login-password" }, value: "•••••••••" }]).join("\n");
   assert.match(kod, /process\.env\.QA_PASSWORD/);
   assert.equal(kod.includes("•"), false, "maskelenmis dize koda yazilmamali");
+});
+
+test("fill'den ONCE click uretilir (readonly baslayan alan tuzagi)", () => {
+  // Olculdu canli /giris: input readonly=true -> fill 20 sn timeout;
+  // click sonrasi readonly kalkiyor ve fill geciyor.
+  const kod = toCodeLines([{ action: "fill", loc: { kind: "placeholder", value: "ornek@mail.com" }, value: "qa@ornek.test" }]);
+  assert.equal(kod.length, 2);
+  assert.match(kod[0], /\.click\(\);$/);
+  // e-posta degeri QA_USERNAME'den okunur, kayittaki deger yedek kalir
+  assert.match(kod[1], /\.fill\(process\.env\.QA_USERNAME \?\? 'qa@ornek\.test'\)/);
+});
+
+test("parola adiminda da once click, sonra env'den fill", () => {
+  const kod = toCodeLines([{ action: "fill", loc: { kind: "css", value: "#login-password" }, secret: true }]);
+  assert.match(kod[0], /\.click\(\);$/);
+  assert.match(kod.join("\n"), /test\.skip\(!process\.env\.QA_PASSWORD/);
+  assert.match(kod.at(-1), /process\.env\.QA_PASSWORD/);
 });
