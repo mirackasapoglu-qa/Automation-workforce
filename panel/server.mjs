@@ -1656,12 +1656,44 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (p === "/api/site/match") {
-      const rule = matchRoute(url.searchParams.get("path") ?? "/");
-      return send(
-        res,
-        200,
-        rule ?? { matched: url.searchParams.get("path"), runId: null },
-      );
+      const yol = url.searchParams.get("path") ?? "/";
+      const rule = matchRoute(yol);
+
+      /*
+       * ⚠️ KAPSAM AĞACI ÖNCE, profil yedek.
+       *
+       * Bu satır ("01 Anasayfa · MAC-7037, MAC-7040, MAC-7041") profildeki ELLE
+       * YAZILMIŞ `routes.rules[].cards` listesinden geliyordu; kullanıcı haklı
+       * olarak "bu nereden geliyor" diye sordu (2026-09-15). Ağaçta o rotayı
+       * temsil eden bir düğüm varsa ad ve kartlar ORADAN gelmeli — kartı
+       * Flowscope'tan bağlamak paneli de değiştirsin.
+       *
+       * Koşum bilgisi (runId/specs) düğümde yoksa profilin kuralından
+       * tamamlanır: aksi halde taranarak eklenmiş bir düğümde "Bu sayfayı test
+       * et" sessizce kapanırdı.
+       */
+      let dugum = null;
+      try {
+        const { tree } = readTree();
+        const temiz = (yol.split("#")[0] || "/").replace(/\/+$/, "") || "/";
+        dugum = scopeRoutes(tree).find(
+          (r) => r.path === yol || r.path === temiz || String(r.path).split("?")[0] === temiz,
+        ) ?? null;
+      } catch { /* agac okunamadi: profil kurali kullanilir */ }
+
+      if (dugum) {
+        return send(res, 200, {
+          matched: yol,
+          source: "scope",
+          nodeId: dugum.nodeId,
+          label: dugum.name,
+          status: dugum.status,
+          cards: dugum.jiraKeys.length ? dugum.jiraKeys : (rule?.cards ?? []),
+          runId: dugum.runId ?? rule?.runId ?? null,
+          specs: dugum.specs?.length ? dugum.specs : (rule?.specs ?? []),
+        });
+      }
+      return send(res, 200, rule ? { ...rule, source: "profile" } : { matched: yol, runId: null, source: "none" });
     }
 
     // ---------------- Jira: OKUMA ----------------

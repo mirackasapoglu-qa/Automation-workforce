@@ -2426,7 +2426,15 @@ async function matchRoute(path) {
   if (r && r.runId) {
     btn.disabled = false;
     btn.dataset.runId = r.runId;
-    $('#siteMatch').textContent = `${r.label}  ·  ${(r.cards||[]).join(', ')}`;
+    /*
+     * Kartlarin NEREDEN geldigi yaziliyor: kapsam agacindan mi (dugume bagli
+     * Jira gorevleri) yoksa profildeki sabit listeden mi. "MAC-7037 nereden
+     * geliyor" sorusu tam olarak bu ayrimin gorunmemesinden cikti.
+     */
+    const kaynak = r.source === 'scope'
+      ? `<a class="sc-tag" href="${scopeNodeUrl(r.nodeId)}" title="Kapsam agacindaki dugum — kartlar buraya bagli"><span class="sc-dot ${scopeStatusCls(r.status)}"></span>kapsam</a>`
+      : `<span class="sc-none" title="Kapsam agacinda bu rotayi temsil eden dugum yok; profildeki sabit kural kullanildi">profil</span>`;
+    $('#siteMatch').innerHTML = `${esc(r.label)}  ·  ${esc((r.cards||[]).join(', '))} ${kaynak}`;
   } else {
     btn.disabled = true;
     delete btn.dataset.runId;

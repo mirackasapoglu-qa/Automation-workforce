@@ -2415,6 +2415,22 @@ yazma tek yerden ve onayla (`createBugCard`) — kural değişmedi.
 durumunu da Jira statüsüne göre değerlendiriyor). Bağlama başarısız olursa kart
 yine açılmıştır; sebep satırda yazar, sessizce yutulmaz.
 
+## "Bu kartlar nereden geliyor" — `/api/site/match` artık ağaç öncelikli (2026-09-15)
+
+Site (canlı) sekmesindeki eşleşme satırı (`01 Anasayfa · MAC-7037, MAC-7040,
+MAC-7041`) profildeki **elle yazılmış** `routes.rules[].cards` listesinden
+geliyordu; kullanıcı haklı olarak "bu neye göre geliyor" diye sordu.
+
+Sıra artık: **kapsam ağacındaki düğüm** → profil kuralı → eşleşme yok.
+Ad ve kartlar düğümden gelir (Flowscope'ta kart bağlamak paneli de değiştirir);
+koşum bilgisi (`runId`/`specs`) düğümde yoksa profilin kuralından tamamlanır —
+aksi halde taranarak eklenmiş bir düğümde "Bu sayfayı test et" sessizce
+kapanırdı. Yanıt `source` alanı taşır ve panel bunu satırda GÖSTERİR
+(`kapsam` rozeti düğüme link, ya da soluk `profil` etiketi).
+
+Ölçüm: `/` → `source: scope, node n2`; Flowscope'tan MAC-9999 bağlanınca panel
+satırı anında dördüncü kartı gösterdi; bilinmeyen rota `source: none`.
+
 ## Yan yana tasarım kolonu: hizalama ve durum (2026-09-15)
 
 İki kusur birlikte kapandı (ikisi de bildirildi):
