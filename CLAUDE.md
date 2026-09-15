@@ -2520,8 +2520,21 @@ SABİT genişlikte; ölçüm: 22 satırın kolon başlangıçları birebir aynı
 kullanan düğme panelin genel `button{width:100%}` kuralına düşüp tam genişlik
 blok oluyor (ölçüldü: 392px). Panelde `.rc-pill` kullanılmalı.
 
-⚠️ `#tab-runs`'ın `max-width`i 760px → **1280px**: düğme listesi için yeterliydi,
-tablo için değil. Sınırsız da bırakılmadı — çok geniş ekranda satır okunmaz olur.
+⚠️ `#tab-runs`'ın `max-width`i 760px → **1280px** ve `margin:0 auto` ile
+ORTALANDI: düğme listesi için 760px yeterliydi, tablo için değil; sınırsız da
+bırakılmadı (çok geniş ekranda satır okunmaz olur) ama sola yapışık kalınca
+2000px'lik ekranda sağda 700px boşluk kalıyordu.
+
+⚠️ **"Kapsam ağacından" çip grubu KALDIRILDI.** Ağaçtaki her koşumu ayrı çip
+olarak listeliyordu; oysa koşum tablosu aynı koşumları ZATEN bağlı oldukları
+kapsam düğümüyle birlikte gösteriyor (ölçüldü: 14 kapsam koşumunun 14'ü de
+whitelist'te, yani satırların birebir tekrarı — sayfanın en üstündeki en büyük
+görsel gürültü buydu). `#scopeRuns` artık yalnızca GERÇEKTEN yeni olan bilgiyi
+basıyor: ağaçta bağlı ama `panel/runs.json` whitelist'inde olmayan koşum (o
+tabloda hiç görünmez). Normal kurulumda hiç basılmaz.
+
+Paketler de aynı tablo dilinde (`.rc-prow`: ad · özet · iki aksiyon). Önce çip
+yığınıydı ve "elle koş" düğmesi iki satıra kırılıyordu.
 
 ## Agent'lar (`.claude/agents/`)
 

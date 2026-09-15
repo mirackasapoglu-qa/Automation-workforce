@@ -190,6 +190,22 @@
   .rc-dots i.run{background:var(--acc)} .rc-dots i.yok{background:var(--line)}
   .rc-dots-bos{color:var(--mut);font-size:11px}
   .rc-c-act{display:flex;justify-content:flex-end}
+  .rc-c-act2{gap:6px}
+  .rc-c-act button{white-space:nowrap}
+  .rc-manual{border-style:dashed;color:var(--mut)}
+  .rc-manual:hover:not(:disabled){border-style:solid;color:var(--fg);border-color:var(--acc)}
+  /* Paket satiri: ad · ozet · aksiyon (kosum tablosundan farkli kolon sayisi) */
+  .rc-prow{grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) 188px}
+  .rc-c-ozet{font-size:11.5px;color:var(--mut)}
+  .rc-grp-l{margin-left:auto;font-size:11px;font-weight:400;color:var(--mut);text-decoration:none;
+    text-transform:none;letter-spacing:0}
+  .rc-grp-l:hover{color:var(--acc)}
+  /* Whitelist disi kapsam kosumu uyarisi (nadir; normalde hic basilmaz) */
+  .rc-warn{border:1px dashed var(--sk);border-radius:9px;padding:9px 13px;margin-bottom:14px;
+    display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:11.5px}
+  .rc-warn-h{font-weight:600;color:var(--sk)}
+  .rc-warn-m{color:var(--mut)}
+  .rc-warn-i{border:1px solid var(--line);border-radius:5px;padding:1px 7px;font-family:ui-monospace,monospace}
   .rc-c-act button{width:auto;margin:0;padding:5px 14px;font-size:12px}
 
   /* Canli kosum karti */
@@ -760,7 +776,7 @@
      (ad · risk · kapsam · sonuc · sure · gecmis) — dar kolonda kolonlar
      birbirine giriyordu. Genis ama sinirsiz degil: cok genis ekranda satirlar
      okunmaz uzunluga cikmasin. */
-  #tab-runs{padding:26px 30px 40px;max-width:1280px}
+  #tab-runs{padding:26px 30px 40px;max-width:1280px;margin:0 auto}
   #tab-runs h2:first-child{margin-top:0}
 
 
@@ -2188,29 +2204,40 @@ async function renderScopePackages() {
   catch { el.innerHTML = ''; return; }
   if (!liste.length) { el.innerHTML = ''; return; }
 
-  el.innerHTML = `<details class="rungrp" open><summary>Test Suite paketleri<span class="cnt">${liste.length}</span></summary>
-    <div class="body">${liste.map(p => {
-      const kosulabilir = p.specs.length;
-      const notlar = [
+  /*
+   * Paketler kosum tablosuyla AYNI dilde: satir, ozet, aksiyon. Once cip
+   * yigini halindeydi ve "elle kos" dugmesi iki satira kiriliyordu.
+   *
+   * Iki aksiyon, iki farkli kosum turu:
+   *   otomatik — spec'i olan case'ler tek parametreli kosumla
+   *   elle     — adimlardan olusan case'ler insan tarafindan yurutulur
+   * Paketin icinde ikisi karisik olabilir; ikisi de gosterilir, olmayani kapali.
+   */
+  el.innerHTML = `<div class="rc-grp">
+    <div class="rc-grp-h">Test Suite paketleri<span class="cnt">${liste.length}</span>
+      <a class="rc-grp-l" href="/scope/#view=packages">Flowscope'ta yonet</a></div>
+    <div class="rc-tbl">${liste.map(p => {
+      const parcalar = [
         `${p.cases} case`,
-        kosulabilir ? `${p.specs.length} spec` : 'otomatik kosum yok',
-        p.manualCases ? `${p.manualCases} elle` : '',
-        p.missingRefs ? `${p.missingRefs} kayip referans` : '',
-      ].filter(Boolean).join(' · ');
-      /*
-       * Iki dugme, iki farkli kosum turu:
-       *  - otomatik: spec'i olan case'ler tek parametreli kosumla calisir
-       *  - elle    : adimlardan olusan case'ler insan tarafindan yurutulur,
-       *              sonuc agaca kosum kaydi olarak yazilir (R13/R14 korunur)
-       * Paketin icinde ikisi karisik olabilir; o yuzden ikisi de gosteriliyor.
-       */
-      const elle = `<button class="pkg-manual" data-tip="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina yazilir." onclick="runPackageManual('${esc(p.id)}')">elle kos</button>`;
-      if (!kosulabilir) {
-        return `<span class="pkg-line"><button disabled title="Bu paketteki case'lerin otomatik karsiligi yok — adimlari elle yurutebilirsin">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>${elle}</span>`;
-      }
-      return `<span class="pkg-line"><button data-tip="${esc(p.specs.join(', '))}" onclick="runPackage('${esc(p.id)}')">${esc(p.name)} <span class="sc-none">${esc(notlar)}</span></button>${elle}</span>`;
-    }).join('')}</div></details>`;
-  decorateTips(el);
+        p.specs.length ? `${p.specs.length} spec otomatik` : null,
+        p.manualCases ? `${p.manualCases} elle` : null,
+        p.missingRefs ? `${p.missingRefs} kayip referans` : null,
+      ].filter(Boolean);
+      return `<div class="rc-row rc-prow">
+        <div class="rc-c-ad">
+          <span class="rc-ad">${esc(p.name)}</span>
+          <span class="rc-specs">${esc(p.specs.join(', ') || 'otomatik kosum yok')}</span>
+        </div>
+        <div class="rc-c-ozet">${esc(parcalar.join(' · '))}</div>
+        <div class="rc-c-act rc-c-act2">
+          <button ${p.specs.length ? `onclick="runPackage('${esc(p.id)}')"` : 'disabled'}
+            title="${p.specs.length ? esc(p.specs.join(', ')) : 'Bu pakette otomatik karsiligi olan case yok'}">otomatik</button>
+          <button class="rc-manual" ${p.cases ? `onclick="runPackageManual('${esc(p.id)}')"` : 'disabled'}
+            title="Adimlari sirayla gosterir, Gecti/Kaldi isaretlersin; sonuc kapsam agacina yazilir.">elle kos</button>
+        </div>
+      </div>`;
+    }).join('')}</div>
+  </div>`;
 }
 
 /**
@@ -2361,18 +2388,28 @@ function renderScopeRuns() {
   const el = $('#scopeRuns');
   if (!el) return;
   const liste = window.SCOPE?.runs ?? [];
-  if (!liste.length) { el.innerHTML = ''; return; }
-  el.innerHTML = `<details class="rungrp" open><summary>Kapsam agacindan<span class="cnt">${liste.length}</span></summary>
-    <div class="body">${liste.map(r => {
-      const ad = r.runId || r.specs.join(', ');
-      const dugumler = r.nodes.map(n => n.name || n.nodeId).join(', ');
-      if (!r.known) {
-        return `<button disabled title="panel/runs.json whitelist'inde yok — kapsam agaci whitelist'i genisletemez">${esc(ad)} (whitelist disi)</button>`;
-      }
-      return `<button data-run-id="${esc(r.runId)}" data-tip="Kapsam: ${esc(dugumler)}" onclick="startRun('${esc(r.runId)}')">
-        ${esc(ad)} <span class="sc-none">${esc(dugumler.slice(0, 40))}</span></button>`;
-    }).join('')}</div></details>`;
-  decorateTips(el);
+
+  /*
+   * ⚠️ BURASI ARTIK SADECE ISTISNAYI GOSTERIYOR.
+   *
+   * Once agactaki her kosum burada ayri bir cip olarak listeleniyordu; ama
+   * kosum tablosu zaten AYNI kosumlari, ustelik bagli olduklari kapsam
+   * dugumuyle birlikte gosteriyor (olculdu: 14 kapsam kosumunun 14'u de
+   * whitelist'te, yani tablodaki satirlarin birebir tekrari). Sayfanin en
+   * ustundeki en buyuk gorsel gurultu buydu.
+   *
+   * Gercekten YENI olan tek bilgi: agacta bagli ama panel/runs.json
+   * whitelist'inde OLMAYAN bir kosum. O tabloda hic gorunmez, bu yuzden
+   * burada uyari olarak durur.
+   */
+  const bilinmeyen = liste.filter(r => !r.known && (r.runId || r.specs?.length));
+  if (!bilinmeyen.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML = `<div class="rc-warn">
+    <span class="rc-warn-h">Kapsam agacinda tanimli ama whitelist'te yok</span>
+    <span class="rc-warn-m">Bu kosumlar panelden baslatilamaz — <code>panel/runs.json</code>'a eklenmeli.</span>
+    ${bilinmeyen.map(r => `<span class="rc-warn-i" title="${esc((r.nodes||[]).map(n=>n.name).join(', '))}">${esc(r.runId || r.specs.join(', '))}</span>`).join('')}
+  </div>`;
 }
 
 /**
