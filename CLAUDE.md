@@ -2882,6 +2882,36 @@ tıklama kaydedildi, `el.click()` ile atılan tıklama kaydedilmedi.
   geçti: adımların hepsi çalıştı ama "giriş yapıldı mı" diye soran bir iddia
   yok. Kaydederken **İDDİA MODU** ile en az bir doğrulama bırakılmalı.
 
+### `fill()` readonly alanda düşer — önce `click()` (2026-09-16)
+
+Kullanıcı tek bir login case'i yazdı, üretilen spec **`locator.fill: Timeout
+20000ms`** verdi. Koşum kaydındaki call log kritikti: locator **DOĞRU** öğeye
+çözülmüştü —
+
+```
+waiting for locator('input[type="email"], …')
+  - locator resolved to <input readonly value="" type="email" id="login-email"
+      autocomplete="off" data-lpignore="true" data-1p-ignore="true" …>
+```
+
+Alan `readonly` başlıyor: tarayıcı/parola yöneticisi otomatik doldurmasını
+engellemek için yaygın bir desen (`data-lpignore`/`data-1p-ignore` ile birlikte
+gelir), odaklanınca kaldırılıyor. `fill()` elemanın **düzenlenebilir** olmasını
+bekliyor, `readonly` hiç kalkmayınca 20 sn bekleyip düşüyor.
+
+Ölçüm (canlı `/giris`): `readonly: true` → doğrudan `fill` DÜŞTÜ; `click()`
+sonrası `readonly: false` → `fill` GEÇTİ. Aynı akışı `click()+fill()` ile yazan
+spec gerçek siteye karşı **2,6 sn'de yeşil**.
+
+Kural iki üretim yoluna da girdi: `recorded-spec.mjs` her `fill` adımından önce
+`click()` basıyor (bir input'a tıklamanın yan etkisi yok), `spec-gen.mjs`
+istemine de madde olarak eklendi.
+
+⚠️ Hata mesajı bu durumda **yanıltıcı**: "timeout" seçici bulunamadı sanılıyor,
+oysa seçici doğru ve eleman ekranda. Call log'daki `locator resolved to …`
+satırı bu ikisini ayırt eden şey — düşen bir `fill`/`click` incelenirken önce
+oraya bak.
+
 ### Bu düzeltmeler İKİ üretim yolunda da geçerli
 
 Spec üreten iki yol var ve **ortak kod paylaşmıyorlar** — biri düzeltilince
