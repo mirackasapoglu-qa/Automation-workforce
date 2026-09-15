@@ -920,7 +920,7 @@ input,textarea,select{transition:border-color var(--t),box-shadow var(--t)}
       <div id="siteProxyWarn" hidden class="proxy-warn"></div>
       <div id="siteSplit" style="display:flex;gap:10px;align-items:stretch">
         <iframe id="siteFrame" title="Site (canli)"
-          style="flex:1;height:640px;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
+          style="flex:1;height:100%;border:1px solid var(--line);border-radius:8px;background:#fff"></iframe>
         <div id="recCol" hidden>
           <div class="hd"><span class="dot"></span>Kaydediliyor<span class="n" id="recCount">0 adim</span></div>
           <div id="recSteps"></div>
@@ -1420,7 +1420,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
     leaf.textContent = kopya.textContent.trim();
   }
   if (b.dataset.tab === 'jira') { loadBugForm(); renderBugQueue(); }
-  if (b.dataset.tab === 'site') loadRecordings();
+  if (b.dataset.tab === 'site') { loadRecordings(); requestAnimationFrame(fitSiteFrame); }
   if (b.dataset.tab === 'diff') loadOfflineFrames();
   if (b.dataset.tab === 'diff') { $('#dPath').value = CURRENT_PATH || '/'; matchFigma($('#dPath').value); loadDiffReports(); }
 });
@@ -1894,6 +1894,38 @@ function showProxyWarning(url) {
     </div>`;
 }
 
+/**
+ * Gomulu site cercevesini KALAN EKRANA yayar.
+ *
+ * Yukseklik `640px` olarak SABIT yazilmisti: genis ekranda sayfanin ucte biri
+ * bos kaliyor, kucuk ekranda ise cerceve tasip iki kaydirma cubugu cikiyordu.
+ * Ustundeki arac cubuklari (kayit seridi, rota butonlari, eslesme satiri) her
+ * rotada farkli sayida satira sariliyor, o yuzden sabit bir CSS degeri ya da
+ * `calc()` dogru sonucu veremez — cercevenin EKRANDAKI gercek konumu olculuyor.
+ */
+function fitSiteFrame() {
+  const split = $('#siteSplit');
+  if (!split || $('#tab-site')?.hidden || split.hidden) return;
+  const ust = split.getBoundingClientRect().top;
+  /*
+   * Alt pay TAHMIN EDILMEZ, OLCULUR: cercevenin altinda kalan kardes ogelerin
+   * (proxy aciklama satiri, ileride eklenecek her sey) gercek yuksekligi.
+   * Sabit bir sayi yazmak, o satir degistigi gun sessizce yanlis olurdu.
+   *
+   * ⚠️ Sayfanin kendi ~8px'lik tasmasi (main/section) BURADAN GELMIYOR ve
+   * duzeltilmeye calisilmaz: panelin her sekmesinde var, cerceveyi kisaltmak
+   * onu gidermez — sadece cerceveden yer calar (olculdu).
+   */
+  let altPay = 12;   // nefes payi
+  for (let k = split.nextElementSibling; k; k = k.nextElementSibling) {
+    if (k.hidden) continue;
+    altPay += Math.round(k.getBoundingClientRect().height);
+  }
+  split.style.height = Math.max(420, Math.round(window.innerHeight - ust - altPay)) + 'px';
+}
+// Pencere boyutu ve yan panel acilip kapanmasi cerceveyi kaydiriyor.
+addEventListener('resize', fitSiteFrame);
+
 function goSite(path) {
   const p = path ?? ($('#siteUrl').value.trim() || '/');
   $('#siteUrl').value = p;
@@ -2113,6 +2145,8 @@ function renderSiteShortcuts() {
            data-tip="Kapsam agacindaki dugumlerde rota bilgisi yok; panel eski profil listesini gosteriyor. Bu dugme dugumlere rotayi yazar.">kapsami panele bagla</button>`
       : '');
   decorateTips(el);
+  // Butonlar satir sayisini degistirdi — cerceve yeniden olculmeli.
+  requestAnimationFrame(fitSiteFrame);
 }
 
 /** Rotasiz kapsam dugumlerine rotayi yazar (sunucu: POST /api/scope/backfill-routes). */
@@ -4105,6 +4139,7 @@ function applySidebar(daralt) {
   }
 }
 
+/** Yan panel genisligi degisince gomulu cerceve yeniden olculmeli. */
 function toggleSidebar() {
   const yeni = !document.body.classList.contains('sb-collapsed');
   try { localStorage.setItem(SB_KEY, yeni ? '1' : '0'); } catch { /* depolama kapali */ }
@@ -4115,6 +4150,7 @@ function toggleSidebar() {
   let daralt = false;
   try { daralt = localStorage.getItem(SB_KEY) === '1'; } catch { /* depolama kapali */ }
   applySidebar(daralt);
+  requestAnimationFrame(fitSiteFrame);
   // `[` kisayolu — yazi alanindayken devre disi.
   document.addEventListener('keydown', e => {
     if (e.key !== '[' || e.metaKey || e.ctrlKey || e.altKey) return;
