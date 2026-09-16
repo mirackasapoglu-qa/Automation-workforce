@@ -1,7 +1,7 @@
 // Ağaç/diyagram/pano satır ve kartlarında ortak kullanılan yapı taşları:
 // tip chip'i, durum chip'i, isim input'u, ekle/sil butonları.
 import { ICON, TYPE_ORDER, TYPE_META, STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
-import { persist, persistDebounced, addChild, removeNode, effectiveStatus, setNodeStatus } from './data.js';
+import { persist, persistDebounced, addChild, removeNode, effectiveStatus, setNodeStatus, readyInfo, isReadyLeaf } from './data.js';
 import { newJiraId } from './state.js';
 import { renderContent } from './shell.js';
 import { openMenu } from './dropdown.js';
@@ -36,22 +36,45 @@ export function buildJiraIndicator(node) {
   return badge;
 }
 
+/**
+ * "Test case hazır" — Bekliyor'un türetilmiş yüzü (bkz. data.js → readyInfo).
+ * Durum değeri ⬜ kalır; yalnız yazı ve renk değişir: yaprakta "Test case hazır · N",
+ * konteynerde "Test case hazır · k/n" (k: case'i olan yaprak, n: yaprak). Menü aynı
+ * durum menüsüdür — kullanıcı yine Devam Ediyor/Tamamlandı seçebilir.
+ */
+function readyLabel(node) {
+  if (!node.children.length) {
+    if (!isReadyLeaf(node)) return null;
+    const n = node.testCases.length;
+    return { text: `Test case hazır · ${n}`, title: `${n} test case yazılmış, henüz koşulmadı. Koşum sonucu girilince durum kendi değişir.` };
+  }
+  if (effectiveStatus(node) !== '⬜') return null;
+  const r = readyInfo(node);
+  if (!r.leavesWithCases) return null;
+  return {
+    text: `Test case hazır · ${r.leavesWithCases}/${r.leaves}`,
+    title: `Alt ağaçta ${r.leaves} yapraktan ${r.leavesWithCases}'inde toplam ${r.cases} test case var; hiçbiri henüz koşulmadı.`,
+  };
+}
+
 export function buildStatusChip(node) {
   const status = effectiveStatus(node);
   const meta = STATUS_META[status];
   const btn = document.createElement('button');
   btn.type = 'button';
+  const hazir = readyLabel(node);
 
   if (node.children.length) {
-    btn.className = 'chip chip-status status-' + statusClass(status) + ' chip-status-auto';
-    btn.innerHTML = meta.icon + `<span>${meta.label}</span>`;
-    btn.title = 'Otomatik: alt öğelerin en kötü durumuna göre hesaplanır';
+    btn.className = 'chip chip-status status-' + statusClass(status) + ' chip-status-auto' + (hazir ? ' chip-status-ready' : '');
+    btn.innerHTML = (hazir ? ICON.check || meta.icon : meta.icon) + `<span>${hazir ? hazir.text : meta.label}</span>`;
+    btn.title = (hazir ? hazir.title + ' ' : '') + 'Otomatik: alt öğelerin en kötü durumuna göre hesaplanır';
     btn.disabled = true;
     return btn;
   }
 
-  btn.className = 'chip chip-status status-' + statusClass(status);
-  btn.innerHTML = meta.icon + `<span>${meta.label}</span>` + ICON.chevronDown;
+  btn.className = 'chip chip-status status-' + statusClass(status) + (hazir ? ' chip-status-ready' : '');
+  btn.innerHTML = (hazir ? ICON.check || meta.icon : meta.icon) + `<span>${hazir ? hazir.text : meta.label}</span>` + ICON.chevronDown;
+  if (hazir) btn.title = hazir.title;
   btn.onclick = (e) => {
     e.stopPropagation();
     openMenu(btn, STATUS_ORDER.map(s => ({ value: s, label: STATUS_META[s].label, icon: STATUS_META[s].icon })), node.status, (val) => {

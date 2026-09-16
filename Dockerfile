@@ -35,7 +35,7 @@
 #     Verilmezse üç özellik "istem üret + yapıştır" ile çalışmaya devam eder.
 #     İsteğe bağlı: AI_MODEL (varsayılan claude-opus-5), AI_EFFORT (high),
 #     AI_DAILY_USD (günlük tavan; aşınca 429), AI_MAX_CONCURRENCY (2),
-#     AI_TIMEOUT_MS (180000). Harcama defteri /app/panel-data/ai-usage.jsonl.
+#     AI_TIMEOUT_MS (API 300000 · CLI 600000). Harcama defteri /app/panel-data/ai-usage.jsonl.
 #     Yerel Claude Code CLI imajda YOK ve olmamalı — sunucu yolu API anahtarı.
 #   - RAG indeksi (panel-data/rag/index.json) ilk istekte ~100 ms'de kurulur;
 #     imaj build'inde kurmanın anlamı yok (panel-data volume, üstüne binerdi).

@@ -69,7 +69,7 @@ export function settings() {
     model,
     effort: (process.env.AI_EFFORT || "high").trim(),
     maxTokens: clampInt(process.env.AI_MAX_TOKENS, 16000, 1024, 64000),
-    timeoutMs: clampInt(process.env.AI_TIMEOUT_MS, 180_000, 10_000, 600_000),
+    timeoutMs: clampInt(process.env.AI_TIMEOUT_MS, 300_000, 10_000, 1_800_000),
     retryMs: clampInt(process.env.AI_RETRY_MS, 2000, 1, 20_000),
     cacheMinTokens: clampInt(process.env.AI_CACHE_MIN_TOKENS, /^claude-haiku/.test(model) ? 2100 : 1100, 256, 10_000),
     baseUrl: (process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com").replace(/\/+$/, ""),

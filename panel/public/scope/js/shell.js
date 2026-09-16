@@ -5,8 +5,7 @@ import { ICON, STATUS_META } from './constants.js';
 import {
   computeStats, addChild, clearAll, findNode, persist,
   migrateTypes, migrateLinks, migrateJira, migrateJiraAnalyses, migrateNotes, migrateResourceLinks, migrateStatusMeta,
-  migrateTestCases, migrateTestCaseSteps, fixIdCounter, dedupeEntityIds, treeHasProgress, computeSearchVisibleIds, FACET_META
-} from './data.js';
+  migrateTestCases, migrateTestCaseSteps, fixIdCounter, dedupeEntityIds, treeHasProgress, computeSearchVisibleIds, FACET_META, countReadyLeaves } from './data.js';
 import { renderAttentionView, attentionBadgeCount } from './attention-view.js';
 import { renderNode } from './tree-view.js';
 import { renderDiagram, applyDiagramZoom } from './diagram-view.js';
@@ -52,6 +51,25 @@ function renderSidebarStatus() {
     row.append(label, num);
     wrap.appendChild(row);
   });
+
+  // Bekliyor'un alt kırılımı: case'i yazılmış ama koşulmamış yapraklar
+  // (bkz. data.js → readyInfo). Ayrı bir durum DEĞİL, o yüzden toplamı etkilemez.
+  const hazir = countReadyLeaves(state.tree);
+  if (hazir) {
+    const row = document.createElement('div');
+    row.className = 'fw-sb-status-row fw-sb-status-sub';
+    row.title = 'Bekliyor içinden: test case yazılmış, henüz koşulmamış öğeler. "Test Case Hazır" süzgeci aynı kümeyi listeler.';
+    const dot = document.createElement('span');
+    dot.className = 'fw-sb-status-dot';
+    dot.style.setProperty('--tile-color', 'var(--accent)');
+    const label = document.createElement('span');
+    label.className = 'fw-sb-status-label';
+    label.append(dot, document.createTextNode('↳ Test case hazır'));
+    const num = document.createElement('b');
+    num.textContent = hazir;
+    row.append(label, num);
+    wrap.appendChild(row);
+  }
 
   const track = document.createElement('div');
   track.className = 'progress-track';

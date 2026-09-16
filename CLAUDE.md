@@ -3235,3 +3235,70 @@ ile gidiyordu; drawer'daki QA Analizi ise preset/tür/tür paketi seçtiriyordu.
 "≈ en fazla 18 case", Üret → tek tık onayı "en fazla 6'er case", elle yol
 istemi 3 düğüm bloğu + "En fazla 6 case". Drawer'daki QA Analizi aynı
 bileşenle çalışmaya devam ediyor. Sıfır konsol hatası.
+
+## Toplu üretim: zaman aşımı, partileme, konteyner seçimi, "Test case hazır" (2026-09-16)
+
+Kullanıcı "Tümünü seç (455)" → "Test Case Üret" dedi; **426 düğüm tek isteme
+girdi**, CLI 240 sn'de düştü, sıfır case yazıldı. Toast "AI_TIMEOUT_MS'i artır"
+diyordu ama CLI yolu o değişkeni **hiç okumuyordu** (yalnız
+`CLAUDE_CLI_TIMEOUT_MS`). Aynı turda iki istek daha vardı: "Bekliyor'da içi
+hazır mı görünmüyor" ve "modülü seçince altındakiler için üretilsin".
+
+- **Zaman aşımı tek anahtardan** (`panel/claude-cli.mjs → cliTimeoutMs()`):
+  `CLAUDE_CLI_TIMEOUT_MS > AI_TIMEOUT_MS > 600 sn`; sınır 10 sn – 30 dk, çağrı
+  anında okunur. API yolu varsayılanı 180 → **300 sn**, tavan 30 dk
+  (`anthropic.mjs`). Değişken panel yeniden başlatılınca etkili.
+- **Partileme istemcide** (`testcase-request.js → BATCH_SIZE = 6`, `partile`,
+  `topla`): tek tık yolu düğümleri 6'şar gönderir, her parti yazılınca ağaç
+  tazelenir, ilerleme toast'ın gövdesinde güncellenir ("Parti 3/71 · 18/426
+  düğüm · 41 case"). **Bir parti düşerse diğerleri sürer**; yalnız
+  `BUDGET/NO_ACCOUNT/AUTH/NO_*` kodlarında kalan partiler atlanır (tekrar
+  denemenin anlamı yok). Sonuç toast'ı "Kısmen yazıldı" + düşen parti sayısı.
+  Sunucu sigortası: `routes/ai.mjs → MAX_NODES_PER_GENERATE = 24`, fazlası
+  400 `BAD_INPUT`. Elle (istem üret) yolu partilenmez — istem tek metin.
+- **İlerleme çubuğu** (`dialog.js → uiProgress`, `uiToast`in çubuklu kardeşi):
+  "Üretiliyor" toast'ında parti bazlı yüzde + "Parti 2/3 · 6/14 düğüm · 6 case ·
+  3 sn" satırı, saniye sayacı 1 sn'de bir tazelenir; tek partide çubuk belirsiz
+  modda kayar. Uzun adımlı başka bir iş çubuk isterse aynı yardımcıyı kullan
+  (`set(done,total,text)` / `remove()`), yeni toast türü açma.
+- ⚠️ Süreyi artırmak partilemenin yerini TUTMAZ: istem büyüdükçe yanıt da
+  büyür ve `AI_MAX_TOKENS`'a çarpar (`TRUNCATED`). 6 düğüm × 4-6 case güvenli.
+- **Konteynerlerde checkbox** (`bulk-actions.js → toggleSubtreeSelected`,
+  `data.js → getLeafIds`): modül/sayfa/bölüm kutusu **alt ağacın yapraklarını**
+  seçer, kutu hepsi seçiliyse dolu, kısmen seçiliyse `indeterminate`. Seçim
+  kümesi hâlâ YAPRAK id'leridir — case'ler ve durum her yaprağın kendi altına
+  yazılır. "Tümünü seç" de yaprak sayar (eskiden konteyner id'leri kümeye
+  giriyor ve modele "düğüm" olarak gidiyordu; 455 sayısı bundan şişkindi).
+- **"Test case hazır" YENİ DURUM DEĞİL** (`data.js → readyInfo/isReadyLeaf`,
+  `chips.js → readyLabel`): durum `⬜` + case var → chip "Test case hazır · N"
+  (konteynerde `k/n` yaprak), vurgu renginde, aynı durum menüsü. Durum değeri
+  `⬜` kalır: KPI, pano kolonu, R13/R14 (üretilmiş case koşulmadan "geçti"
+  olamaz) ve dışa aktarım etkilenmez. Facet **"Test Case Hazır"**, sidebar'da
+  Bekliyor'un altına "↳ Test case hazır N" satırı.
+- Konteyner kutusu `board-view.js`'te de var (kartlar). `diagram-view` seçim
+  modu taşımıyor, dokunulmadı.
+
+## Claude Code'da "koş" demek ne demek (2026-09-16, taslak — kullanıcıyla konuşuluyor)
+
+Panelin doktrini ("model kodu yazar, Playwright koşar", bkz. "Neden modelin
+kendisi koşmuyor") **panel içi tek tık** için; terminalde çalışan Claude Code
+için kural farklı ve aşağıdaki gibi:
+
+1. **"koş" = mevcut spec'i CLI'da hemen çalıştır.** `npx playwright test <spec>
+   --project=chromium --reporter=line` ile koş, sonucu (geçti/kaldı sayısı,
+   düşen testin adı ve hata satırı) yaz. Spec ÜRETME, panelden tetikleme,
+   istem kurma yok — bunlar ayrı istektir ("spec üret", "panelden koş").
+2. **Soru sorma, önerilenle devam et.** Hangi spec olduğu belirsizse en
+   yakın eşleşmeyi seç (dosya adı → `npm run test:*` script adı → case
+   başlığı `-g` ile), varsayımı tek satırda yaz ve koş. Ortam `.env`deki
+   `HOMEE_ENV`; kimlik `playwright/.auth/`. Yalnız guard'lı yıkıcı akışlar
+   (`ALLOW_HOMEE_ORDERS`) ve gerçek veri bozacak işler onay bekler — o da
+   tek soru, koşumdan önce.
+3. **Spec yoksa söyle, uydurma.** "X'i koş" denen şeyin spec'i yoksa tek
+   satırda "spec yok" de ve en yakın mevcut spec'i koş; spec yazmayı ancak
+   kullanıcı "üret/yaz" derse yap.
+4. **Sonucu case defterine işleme kuralı** ("Koşum sonucunu case defterine
+   işlemek" bölümü) koşumdan sonra yine geçerlidir.
+
+Açık soru (kullanıcıyla): 3. maddede spec yokken "en yakınını koş" mu, "dur ve
+söyle" mi? Şimdilik "en yakınını koş + söyle" yazıldı.

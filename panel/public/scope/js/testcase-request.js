@@ -12,7 +12,7 @@
 import { openAiAssistModal } from './ai-assist.js';
 import { loadPersisted } from './data.js';
 import { renderContent } from './shell.js';
-import { uiToast, uiConfirm, uiChoose } from './dialog.js';
+import { uiToast, uiConfirm, uiChoose, uiProgress } from './dialog.js';
 import { genStarted, genEnded, genProduced } from './gen-status.js';
 
 /**
@@ -84,6 +84,45 @@ export async function applyGenerateLabel(btn, icon = '') {
   if (!btn.disabled) btn.title = `${yol} üretilir ve doğrudan ağaca yazılır (~15-40 sn). Kopyala-yapıştır gerekmez.`;
 }
 
+/**
+ * PARTİLEME (2026-09-16). "Tümünü seç" ile 426 düğüm tek isteme girdi → CLI 240
+ * sn'de zaman aşımı, sıfır case, ücret boşa. Tek çağrının istemi de yanıtı da
+ * düğüm sayısıyla büyür; süreyi artırmak yetmez (AI_MAX_TOKENS'a çarpar).
+ * Artık tek tık yolu düğümleri BATCH_SIZE'lık partilere böler, sırayla gönderir
+ * (sunucu zaten en fazla 2 eşzamanlı çağrı kabul ediyor), her parti kendi
+ * düğümlerine yazılır ve ilerleme toast'ta güncellenir. Bir parti düşerse
+ * diğerleri sürer — 400 düğümlük işte tek zaman aşımı yüzünden hepsini
+ * kaybetmek kabul edilemez. Sunucu tarafı sigortası: MAX_NODES_PER_GENERATE (24).
+ */
+export const BATCH_SIZE = 6;
+/** Sağlayıcı düzelmeden tekrar denemenin anlamı olmayan kodlar — kalan partiler atlanır. */
+const DURDURAN_KODLAR = new Set(['BUDGET', 'NO_ACCOUNT', 'AUTH', 'NO_PROVIDER', 'NO_CLI', 'NO_KEY']);
+
+export function partile(arr, n = BATCH_SIZE) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+  return out;
+}
+
+/** Parti sonuçlarını tek `ozet()` girdisine toplar (yazılan, atlanan, ücret, süre). */
+export function topla(acc, data) {
+  acc.written += Number(data.written) || 0;
+  acc.sonuc.push(...(data.sonuc ?? []));
+  if (data.cost != null) acc.cost = (acc.cost ?? 0) + Number(data.cost);
+  if (data.ms != null) acc.ms = (acc.ms ?? 0) + Number(data.ms);
+  if (data.model) acc.model = data.model;
+  if (data.account) acc.account = data.account;
+  if (data.retrieval?.chunks) acc.retrieval = { chunks: (acc.retrieval?.chunks ?? 0) + data.retrieval.chunks };
+  return acc;
+}
+
+/** Onay kutusuna süre/parti notu: tek parti ~15-40 sn, çoklu partide toplam tahmini. */
+function partiNotu(n) {
+  const p = Math.ceil(n / BATCH_SIZE);
+  if (p <= 1) return ' ~15-40 sn.';
+  return ` ${p} parti halinde (${BATCH_SIZE}'şar düğüm), parti başına ~15-40 sn; ilerleme sağ alttaki bildirimde. Bir parti düşerse diğerleri sürer.`;
+}
+
 /** Yazma sonucunu tek satıra indirger (iki yol da bunu gösterir). */
 function ozet(out) {
   const atlanan = (out.sonuc ?? []).reduce((a, x) => a + (x.skipped || 0), 0);
@@ -118,7 +157,7 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
     let onay = false;
     if (ai.mode === 'cli' && hesaplar.length > 1) {
       const secili = await uiChoose(
-        `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\n\nHangi Claude hesabıyla koşulsun? (~15-40 sn)`,
+        `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.${partiNotu(ids.length)}\n\nHangi Claude hesabıyla koşulsun?`,
         hesaplar.map((a) => ({ value: a.id, label: `${a.label}${a.expired ? ' · süresi dolmuş' : ''}` })),
         { title: 'Tek tıkla test case üret', ok: 'Üret', cancel: 'İstemi kendim vereyim', value: account },
       );
@@ -128,30 +167,73 @@ export async function openTestCaseRequest({ nodeIds, types, limit = 4, afterAppl
         ? `${ai.model} (API anahtarı, ücretli)`
         : hesaplar.length === 1 ? `"${hesaplar[0].label}" Claude hesabı` : 'yerel Claude Code CLI';
       onay = await uiConfirm(
-        `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\nYol: ${yol}, ~15-40 sn.`,
+        `${ids.length} düğüm için en fazla ${limit}'er case üretilecek ve doğrudan ağaca yazılacak.\nYol: ${yol}.${partiNotu(ids.length)}`,
         { title: 'Tek tıkla test case üret', ok: 'Üret', cancel: 'İstemi kendim vereyim', danger: false },
       );
     }
     if (onay) {
-      const bildirim = uiToast('Model çalışıyor… bu pencereyi kapatabilirsin, sonuç toast olarak gelir.', { title: 'Üretiliyor', ms: 0 });
+      const partiler = partile(ids);
+      // İlerleme çubuğu (kullanıcı isteği, 2026-09-16): parti bazlı yüzde +
+      // "Parti i/N · x/y düğüm · z case · t sn". Tek partide belirsiz mod (kayar çubuk).
+      const bildirim = uiProgress('Model çalışıyor… bu pencereyi kapatabilirsin, sonuç toast olarak gelir.', { title: 'Üretiliyor' });
       genStarted();   // sidebar "Test Repository" nabzı — toast kapatılsa da iz kalır
-      let status, data;
-      try { ({ status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: ids, types, limit, account })); }
-      finally { genEnded(); bildirim.remove(); }
-      if (data.ok) {
-        await loadPersisted();
-        renderContent();
-        genProduced(data.written);   // yeşil "üretildi" rozeti (görünüme girince söner)
+      const toplam = { written: 0, sonuc: [], cost: null, ms: null, model: null, account: null, retrieval: null };
+      const dusen = [];          // {parti, ids, error, hint, code}
+      let basarili = 0;
+      let saglayiciYok = false;  // 501 → elle yola düş
+      let durduran = null;       // BUDGET vb. → kalan partiler atlandı
+      const t0 = Date.now();
+      const ilerle = () => {
+        const biten = basarili + dusen.length;
+        const dugum = Math.min(biten * BATCH_SIZE, ids.length);
+        const sn = Math.round((Date.now() - t0) / 1000);
+        bildirim.set(biten, partiler.length > 1 ? partiler.length : 0,
+          partiler.length > 1
+            ? `Parti ${Math.min(biten + 1, partiler.length)}/${partiler.length} · ${dugum}/${ids.length} düğüm · ${toplam.written} case · ${sn} sn`
+            : `${ids.length} düğüm · ${sn} sn`);
+      };
+      ilerle();
+      const sayac = setInterval(ilerle, 1000);   // saniye sayacı — çubuk parti arasında da "yaşıyor"
+      try {
+        for (let i = 0; i < partiler.length; i++) {
+          const parti = partiler[i];
+          ilerle();
+          let status, data;
+          try { ({ status, data } = await postJson('/api/scope/testcases/generate', { nodeIds: parti, types, limit, account })); }
+          catch (e) { status = 0; data = { ok: false, error: e.message || 'Ağ hatası' }; }
+          if (data.ok) {
+            basarili++;
+            topla(toplam, data);
+            // Her parti yazıldığı anda ağaç tazelenir: kullanıcı 60 partinin
+            // bitmesini beklemeden sonucu görür; yarıda kesilse yazılan kalır.
+            await loadPersisted();
+            renderContent();
+            genProduced(data.written);
+            continue;
+          }
+          if (status === 501) { saglayiciYok = true; break; }
+          dusen.push({ parti: i + 1, ids: parti, error: data.error || 'Üretilemedi.', hint: data.hint, code: data.code });
+          if (DURDURAN_KODLAR.has(data.code)) { durduran = data; break; }
+        }
+      } finally { clearInterval(sayac); genEnded(); bildirim.remove(); }
+
+      if (basarili) {
         if (afterApply) afterApply();
-        uiToast(ozet(data), { type: 'ok', title: 'Case\'ler yazıldı', ms: 12_000 });
+        const kalan = partiler.length - basarili - dusen.length;
+        const ek = [
+          dusen.length ? `${dusen.length} parti düştü (${dusen.reduce((a, d) => a + d.ids.length, 0)} düğüm): ${dusen[0].error}` : '',
+          kalan > 0 ? `${kalan} parti hiç denenmedi (${durduran?.hint || 'sağlayıcı düzelince aynı seçimle tekrar üret'}).` : '',
+        ].filter(Boolean).join('\n');
+        uiToast(`${ozet(toplam)}${ek ? `\n${ek}` : ''}`, { type: dusen.length || kalan > 0 ? 'info' : 'ok', title: dusen.length || kalan > 0 ? 'Kısmen yazıldı' : 'Case\'ler yazıldı', ms: dusen.length ? 0 : 12_000 });
         return;
       }
-      // 501: saglayici yok → elle yola dus (asagida). Diger hatalar: soyle ve dur.
-      if (status !== 501) {
-        uiToast(`${data.error || 'Üretilemedi.'}${data.hint ? `\n${data.hint}` : ''}`, { type: 'err', title: 'Üretilemedi' });
+      // Hiç parti geçmedi. 501: saglayici yok → elle yola dus (asagida). Diger hatalar: soyle ve dur.
+      if (!saglayiciYok) {
+        const d = dusen[0] || { error: 'Üretilemedi.' };
+        uiToast(`${d.error}${d.hint ? `\n${d.hint}` : ''}${partiler.length > 1 ? `\n${partiler.length} partinin hiçbiri yazılamadı.` : ''}`, { type: 'err', title: 'Üretilemedi' });
         return;
       }
-      uiToast(data.hint || 'Tek tık yolu kapalı; istem üret + yapıştır yoluna geçildi.', { type: 'info' });
+      uiToast('Tek tık yolu kapalı; istem üret + yapıştır yoluna geçildi.', { type: 'info' });
     }
   }
 

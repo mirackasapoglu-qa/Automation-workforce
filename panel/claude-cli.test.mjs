@@ -81,3 +81,14 @@ test("parseJsonLoose: kod blogu ve on ek metni tolere eder", () => {
   assert.deepEqual(parseJsonLoose('Iste sonuc: {"a":2} umarim olur'), { a: 2 });
   assert.throws(() => parseJsonLoose("hic json yok"), /JSON döndürmedi/);
 });
+
+test("zaman asimi: AI_TIMEOUT_MS ortak anahtar, CLAUDE_CLI_TIMEOUT_MS onu ezer, sinirlar", async () => {
+  const { cliTimeoutMs, DEFAULT_TIMEOUT_MS } = await import("./claude-cli.mjs");
+  assert.equal(cliTimeoutMs({}), DEFAULT_TIMEOUT_MS);
+  assert.equal(DEFAULT_TIMEOUT_MS, 600_000);
+  assert.equal(cliTimeoutMs({ AI_TIMEOUT_MS: "420000" }), 420_000);            // hata ipucundaki degisken artik etkili
+  assert.equal(cliTimeoutMs({ AI_TIMEOUT_MS: "420000", CLAUDE_CLI_TIMEOUT_MS: "90000" }), 90_000);
+  assert.equal(cliTimeoutMs({ AI_TIMEOUT_MS: "1" }), 10_000);                  // alt sinir
+  assert.equal(cliTimeoutMs({ AI_TIMEOUT_MS: "99999999" }), 1_800_000);        // ust sinir
+  assert.equal(cliTimeoutMs({ AI_TIMEOUT_MS: "abc" }), DEFAULT_TIMEOUT_MS);    // bozuk deger → varsayilan
+});

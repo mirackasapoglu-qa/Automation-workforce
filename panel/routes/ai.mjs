@@ -35,6 +35,18 @@ import { deriveRoutes } from "../scope-bridge.mjs";
 
 const clampLimit = (v, def, max) => Math.min(Math.max(Number(v) || def, 1), max);
 
+/**
+ * Tek model çağrısına en fazla kaç düğüm girer.
+ *
+ * NEDEN (2026-09-16): "Tümünü seç" ile 426 düğüm TEK isteme girdi; CLI 240
+ * sn'de zaman aşımına uğradı, hiçbir case yazılmadı ve ücret boşa gitti. Süre
+ * artırmak (bkz. claude-cli.mjs) tek başına çözüm değil: istem büyüdükçe yanıt
+ * da büyür ve AI_MAX_TOKENS'a çarpar (TRUNCATED). Doğru yol partileme; istemci
+ * (testcase-request.js → BATCH_SIZE) 6'şar gönderir, bu tavan onun sigortası —
+ * elle kurulan bir istek de yanlışlıkla devasa tek çağrı yapamasın.
+ */
+export const MAX_NODES_PER_GENERATE = 24;
+
 /** Sabit zemin — okunamazsa boş (özellik kapanmaz). */
 function stable() {
   try { return stableDigest().text; } catch { return ""; }
@@ -116,6 +128,13 @@ export function registerAiRoutes(router, ctx) {
 
   router.post("/api/scope/testcases/generate", ({ res, body }) => {
     const { nodeIds, types, limit, account } = body;
+    if (Array.isArray(nodeIds) && nodeIds.length > MAX_NODES_PER_GENERATE) {
+      return send(res, 400, {
+        ok: false, code: "BAD_INPUT",
+        error: `Tek istekte en fazla ${MAX_NODES_PER_GENERATE} düğüm üretilebilir (${nodeIds.length} gönderildi).`,
+        hint: "Panel toplu seçimi kendisi partiler; bu uca doğrudan istek atıyorsan düğümleri parçalara böl.",
+      });
+    }
     let built;
     const repo = profilUrunu();
     try { built = buildPrompt({ nodeIds, types, limit: clampLimit(limit, 4, 12), repoContext: repo }); }

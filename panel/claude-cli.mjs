@@ -22,7 +22,27 @@ import { spawn } from "node:child_process";
 import os from "node:os";
 
 const BIN = process.env.CLAUDE_BIN || "claude";
-const TIMEOUT_MS = Number(process.env.CLAUDE_CLI_TIMEOUT_MS || 240_000);
+
+/**
+ * Zaman aşımı — ÇAĞRI ANINDA okunur (modül yüklenirken değil; test ve `.env`
+ * sonradan set edebilir).
+ *
+ * NEDEN DEĞİŞTİ (2026-09-16): CLI 240 sn'de düşüyordu, hata ipucu ise
+ * "AI_TIMEOUT_MS'i artır" diyordu — ama bu yol o değişkeni HİÇ okumuyordu
+ * (yalnız CLAUDE_CLI_TIMEOUT_MS). Kullanıcı 400+ düğüm için üretimde zaman
+ * aşımı yedi, değişkeni artırdı, hiçbir şey değişmedi. Artık:
+ *   CLAUDE_CLI_TIMEOUT_MS  > AI_TIMEOUT_MS (tüm sağlayıcıların ortak anahtarı)
+ *   > varsayılan 600 sn.   Alt sınır 10 sn, üst sınır 30 dk.
+ * Büyük istem asıl çözümü partileme (istemci 6'şar düğüm gönderir); bu süre
+ * tek partinin tavanıdır.
+ */
+export const DEFAULT_TIMEOUT_MS = 600_000;
+export function cliTimeoutMs(env = process.env) {
+  const raw = env.CLAUDE_CLI_TIMEOUT_MS || env.AI_TIMEOUT_MS;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_TIMEOUT_MS;
+  return Math.min(Math.max(Math.round(n), 10_000), 1_800_000);
+}
 
 export const CLI_HINT =
   "Claude Code CLI bulunamadı. Panel bu yolu kullanabilmek için `claude` " +
@@ -75,16 +95,17 @@ export function askClaude(prompt, { env = null, bin = null, account = null } = {
     let err = "";
     let bitti = false;
 
+    const timeoutMs = cliTimeoutMs();
     const timer = setTimeout(() => {
       if (bitti) return;
       bitti = true;
       child.kill("SIGKILL");
       const e = new Error(
-        `Claude Code CLI ${Math.round(TIMEOUT_MS / 1000)} sn içinde yanıt vermedi.`,
+        `Claude Code CLI ${Math.round(timeoutMs / 1000)} sn içinde yanıt vermedi.`,
       );
       e.code = "TIMEOUT";
       reject(e);
-    }, TIMEOUT_MS);
+    }, timeoutMs);
 
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (err += d));

@@ -31,7 +31,7 @@ function kapat() {
 function escKapat(e) { if (e.key === 'Escape') kapat(); }
 
 /**
- * @param {{nodeIds: string[]}} p  seçili düğümler (yalnız yapraklar seçilebiliyor)
+ * @param {{nodeIds: string[]}} p  seçili düğümler (küme her zaman YAPRAK: konteyner işaretlenirse alt yaprakları gelir)
  */
 export function openBulkGenerateModal({ nodeIds }) {
   const ids = (nodeIds ?? []).filter(Boolean);

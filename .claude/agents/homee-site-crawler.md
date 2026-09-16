@@ -117,6 +117,7 @@ Her sayfada topladıkların:
 `POST /api/scope/testcases/generate` **birden çok düğümü tek çağrıda** alıyor
 (`{"nodeIds":["n148","n149","n150"],"types":["happy","negative"],"limit":2}`).
 Bu yüzden düğüm başına ayrı çağrı yapma — **3-5'li gruplar** hâlinde gönder.
+Üst sınır **24 düğüm/çağrı** (`MAX_NODES_PER_GENERATE`, 2026-09-16); fazlası 400 döner.
 
 Ölçüldü (2026-08-26): 3 düğüm / tek çağrı → 6 case, **26.5 sn**, **$0.173**.
 Düğüm başına ayrı çağrıda maliyet ~3 katı ($0.15/düğüm) çünkü her çağrı sistem

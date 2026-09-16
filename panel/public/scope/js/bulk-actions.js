@@ -1,10 +1,19 @@
 // Toplu seçim modu: birden fazla yaprak (alt öğesi olmayan) node seçip durumlarını tek
-// hamlede değiştirmeyi sağlar. Sadece yaprak node'lar seçilebilir; üst öğelerin durumu zaten
-// alt öğelerinden otomatik hesaplanıyor (bkz. effectiveStatus), o yüzden onlara doğrudan
-// durum atamanın anlamı yok.
+// hamlede değiştirmeyi ya da hepsine test case üretmeyi sağlar.
+//
+// SEÇİM KÜMESİ YAPRAKLARDIR. Üst öğelerin durumu alt öğelerinden otomatik hesaplanır
+// (bkz. effectiveStatus), case'ler de yapraklara yazılır. Konteynerlerde (modül/sayfa/
+// bölüm) de checkbox VAR (2026-09-16) ama işareti "kendini seç" değil, "alt ağacındaki
+// tüm yaprakları seç" demektir: kullanıcı "x modülünü seçtiğimde altındaki y, z, b için
+// case üretilsin, her biri kendi altına yazılsın" istedi. Konteynerin kutusu alt
+// yaprakların hepsi seçiliyse dolu, bir kısmı seçiliyse "belirsiz" (indeterminate) çizilir.
+//
+// ⚠️ "Tümünü seç" de aynı kuralla YAPRAK sayar: eskiden konteyner id'leri de kümeye
+// giriyordu, sayı (455) durum atamasının gerçekten dokunduğu öğe sayısından fazla
+// gösteriliyordu ve konteynerler tek isteme "düğüm" olarak giriyordu.
 import { state } from './state.js';
 import { ICON, STATUS_ORDER, STATUS_META, statusClass } from './constants.js';
-import { findNode, setNodeStatus, persist, computeSearchVisibleIds } from './data.js';
+import { findNode, setNodeStatus, persist, computeSearchVisibleIds, getLeafIds } from './data.js';
 import { renderContent } from './shell.js';
 import { applyGenerateLabel } from './testcase-request.js';
 import { openBulkGenerateModal } from './bulk-generate.js';
@@ -19,6 +28,22 @@ export function toggleNodeSelected(id) {
   if (state.selectedIds.has(id)) state.selectedIds.delete(id);
   else state.selectedIds.add(id);
   renderContent();
+}
+
+/** Konteynerin alt yaprakları: hepsi seçiliyse kümeden çıkar, değilse hepsini ekle. */
+export function toggleSubtreeSelected(node) {
+  const yapraklar = getLeafIds(node);
+  if (!yapraklar.length) return;
+  const hepsi = yapraklar.every(id => state.selectedIds.has(id));
+  yapraklar.forEach(id => hepsi ? state.selectedIds.delete(id) : state.selectedIds.add(id));
+  renderContent();
+}
+
+/** Konteyner kutusunun durumu: 'all' | 'some' | 'none'. */
+export function subtreeSelection(node) {
+  const yapraklar = getLeafIds(node);
+  const secili = yapraklar.filter(id => state.selectedIds.has(id)).length;
+  return secili === 0 ? 'none' : secili === yapraklar.length ? 'all' : 'some';
 }
 
 export function clearSelection() {
@@ -39,6 +64,16 @@ export function buildSelectCheckbox(node) {
   const cb = document.createElement('input');
   cb.type = 'checkbox';
   cb.className = 'select-checkbox';
+  if (node.children.length) {
+    const durum = subtreeSelection(node);
+    const n = getLeafIds(node).length;
+    cb.checked = durum === 'all';
+    cb.indeterminate = durum === 'some';
+    cb.classList.add('select-checkbox-subtree');
+    cb.title = `Alt ağaçtaki ${n} yaprağı seç/kaldır — durum ve test case'ler her yaprağın kendi altına yazılır`;
+    cb.onclick = (e) => { e.stopPropagation(); toggleSubtreeSelected(node); };
+    return cb;
+  }
   cb.checked = state.selectedIds.has(node.id);
   cb.title = 'Toplu güncelleme için seç';
   cb.onclick = (e) => { e.stopPropagation(); toggleNodeSelected(node.id); };
@@ -65,7 +100,15 @@ export function buildBulkBar() {
    * ağacın kendi görünürlük kuralını (eşleşen + ataları + eşleşen dalın altı)
    * hesaplıyor; aynı kural burada da geçerli.
    */
-  const secilebilir = computeSearchVisibleIds(state.tree, state.searchQuery.trim().toLowerCase(), state.activeFacets);
+  const gorunen = computeSearchVisibleIds(state.tree, state.searchQuery.trim().toLowerCase(), state.activeFacets);
+  // Yalnız yapraklar: konteyner id'leri kümeye girmez (üstteki başlık notu).
+  const secilebilir = new Set();
+  (function walk(list) {
+    list.forEach(n => {
+      if (gorunen.has(n.id) && !n.children.length) secilebilir.add(n.id);
+      walk(n.children);
+    });
+  })(state.tree);
   const hepsiSecili = secilebilir.size > 0 && [...secilebilir].every(id => state.selectedIds.has(id));
   const suzgecVar = Boolean(state.searchQuery.trim() || state.activeFacets.size);
 
@@ -76,8 +119,8 @@ export function buildBulkBar() {
     ? 'Seçimi kaldır'
     : `Tümünü seç (${secilebilir.size})`;
   allBtn.title = suzgecVar
-    ? 'Süzgeçten geçen öğelerin tamamını seçer — ekranda görünmeyen öğe seçilmez.'
-    : 'Ağaçtaki tüm öğeleri seçer.';
+    ? 'Süzgeçten geçen yaprak öğelerin tamamını seçer — ekranda görünmeyen öğe seçilmez.'
+    : 'Ağaçtaki tüm yaprak öğeleri seçer (modül/sayfa/bölüm başlıkları değil, altlarındaki öğeler).';
   allBtn.disabled = secilebilir.size === 0;
   allBtn.onclick = () => {
     if (hepsiSecili) secilebilir.forEach(id => state.selectedIds.delete(id));

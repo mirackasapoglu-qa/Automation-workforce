@@ -268,7 +268,7 @@ export function hintFor(code) {
     case "BUSY": return "Başka bir üretim sürüyor; birkaç saniye sonra tekrar dene.";
     case "RATE_LIMIT": return "Bu hesabın kullanım limiti dolmuş. Limit yenilenene kadar bekle ya da kendi hesabınla başka bir hesap ekleyip onu seç — panel kendiliğinden başkasının hesabına geçmez.";
     case "AUTH": return "Anahtar geçersiz ya da süresi dolmuş — ANTHROPIC_API_KEY'i yenile.";
-    case "TIMEOUT": return "Model zaman aşımına uğradı; istemi küçült ya da AI_TIMEOUT_MS'i artır.";
+    case "TIMEOUT": return "Model zaman aşımına uğradı; daha az düğüm seç (istemci 6'şar düğüm partiler) ya da AI_TIMEOUT_MS'i artır (varsayılan CLI 600 sn · API 300 sn; panel yeniden başlatılmalı).";
     case "REFUSAL": return "Model isteği reddetti; istem metnini gözden geçir.";
     case "TRUNCATED": return "Yanıt kesildi; en fazla case/senaryo sayısını düşür ya da AI_MAX_TOKENS'ı artır.";
     case "BAD_JSON": return "Model geçerli JSON döndürmedi; bir kez daha dene, tekrar ederse 'İstem üret' yolunu kullan.";

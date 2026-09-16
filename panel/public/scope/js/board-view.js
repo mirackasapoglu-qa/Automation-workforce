@@ -89,7 +89,7 @@ export function renderBoardCard(node, path) {
   top.className = 'board-card-top';
   const topLeft = document.createElement('div');
   topLeft.className = 'board-card-top-left';
-  if (isLeaf && state.selectMode) topLeft.appendChild(buildSelectCheckbox(node));
+  if (state.selectMode) topLeft.appendChild(buildSelectCheckbox(node));   // konteynerde: alt yaprakları seç
   topLeft.appendChild(buildTypeChip(node));
   top.appendChild(topLeft);
   top.appendChild(buildActionButtons(node));

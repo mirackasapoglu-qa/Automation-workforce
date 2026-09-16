@@ -426,6 +426,58 @@ export function getDescendantIds(node, acc) {
   return acc;
 }
 
+/**
+ * Alt ağaçtaki YAPRAKLAR (alt öğesi olmayan düğümler) — düğümün kendisi
+ * yapraksa yalnız kendisi. Toplu seçim yaprak bazlı çalışır (durum ataması ve
+ * test case üretimi yapraklara yazılır); bir modül/sayfa işaretlendiğinde
+ * seçilen şey bu kümedir (bkz. bulk-actions.js → toggleSubtreeSelected).
+ */
+export function getLeafIds(node, acc = []) {
+  if (!node.children.length) { acc.push(node.id); return acc; }
+  node.children.forEach(c => getLeafIds(c, acc));
+  return acc;
+}
+
+/**
+ * "Test case hazır" bilgisi — durum makinesine YENİ BİR DURUM EKLENMEDİ.
+ *
+ * NEDEN (2026-09-16): 455 düğümün hepsi "Bekliyor" görünüyordu; hangisinin
+ * içinde üretilmiş/yazılmış case olduğu satırdan anlaşılmıyordu (kullanıcı
+ * bildirdi). "Bekliyor" koşum durumudur (hiç koşulmadı); case'in varlığı ondan
+ * bağımsız bir hazırlık bilgisidir. Ayrı bir status değeri eklemek KPI'ları,
+ * pano kolonlarını, koşum kurallarını (R13/R14: üretilmiş case koşulmadan
+ * "geçti" olamaz) ve dışa aktarımı etkilerdi. Bu yüzden TÜRETİLMİŞ bir rozet:
+ * durum ⬜ + case var → chip "Test case hazır · N" yazar; durum değeri ⬜ kalır.
+ *
+ * @returns {{cases:number, leaves:number, leavesWithCases:number}}
+ */
+export function readyInfo(node) {
+  const acc = { cases: 0, leaves: 0, leavesWithCases: 0 };
+  (function walk(n) {
+    if (!n.children.length) {
+      acc.leaves++;
+      const k = (n.testCases ?? []).length;
+      acc.cases += k;
+      if (k) acc.leavesWithCases++;
+      return;
+    }
+    n.children.forEach(walk);
+  })(node);
+  return acc;
+}
+
+/** Yaprak "Bekliyor" ve içinde case var mı — rozet, facet ve sidebar sayacı aynı kuralı kullanır. */
+export function isReadyLeaf(node) {
+  return !node.children.length && node.status === '⬜' && (node.testCases ?? []).length > 0;
+}
+
+/** Ağaç genelinde "test case hazır" yaprak sayısı (sidebar). */
+export function countReadyLeaves(nodes) {
+  let n = 0;
+  (function walk(list) { list.forEach(x => { if (isReadyLeaf(x)) n++; walk(x.children); }); })(nodes);
+  return n;
+}
+
 export function clearDanglingLinks(nodes, removedIds) {
   nodes.forEach(n => {
     if (n.linkTos && n.linkTos.length) n.linkTos = n.linkTos.filter(id => !removedIds.has(id));
@@ -526,6 +578,9 @@ export function jiraTaskIsKnownNotDone(taskInfo) {
 export const FACET_META = {
   hatali: { label: 'Hatalı', predicate: (node) => effectiveStatus(node) === '❌' },
   noTestCase: { label: 'Test Case Yok', predicate: (node) => node.testCases.length === 0 },
+  // "Bekliyor ama içi hazır": case yazılmış, henüz koşulmamış yapraklar — koşuma
+  // alınacak işin listesi. Konteynerler alt ağaç kuralıyla (subtreeMatchesFilters) görünür.
+  ready: { label: 'Test Case Hazır', predicate: (node) => isReadyLeaf(node) },
   stale: {
     label: 'Bayatlar',
     predicate: (node) => isStale(node) || node.testCases.some(tc => isTestCaseRunStale(tc))

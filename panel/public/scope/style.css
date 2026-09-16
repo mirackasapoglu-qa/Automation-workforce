@@ -209,6 +209,12 @@ html, body { background: var(--bg); margin: 0; }
 .chip-status.status-progress { color: var(--progress); background: rgba(96,165,250,.14); border-color: rgba(96,165,250,.4); }
 .chip-status-auto { cursor: default; }
 .chip-status-auto:hover { border-color: inherit; color: inherit; }
+/* "Test case hazır" — Bekliyor'un türetilmiş yüzü (chips.js → readyLabel). Durum ⬜ kalır;
+   nötr griden ayrışsın diye vurgu rengi, ama ok/warn/fail koşum renklerini TAŞIMAZ. */
+.chip-status.status-todo.chip-status-ready { color: var(--accent); background: var(--accent-dim); border-color: var(--accent); }
+.fw-sb-status-sub { padding-left: 10px; opacity: .85; }
+.select-checkbox-subtree { accent-color: var(--accent); }
+.select-checkbox:indeterminate { opacity: .75; }
 
 /* Salt-okunur Jira varlık rozeti (bkz. chips.js → buildJiraIndicator). Canlı "done"
    durumunu YANSITMAZ — sadece bağlı Task ID sayısını gösterir, bu yüzden nötr renkte;

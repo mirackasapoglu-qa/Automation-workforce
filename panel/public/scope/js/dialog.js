@@ -25,6 +25,13 @@ function ensureCss() {
 .fw-toast .dot{width:8px;height:8px;border-radius:50%;flex:none}
 .fw-toast .x{margin-left:auto;background:none;border:0;color:var(--text-muted,#9aa5b1);cursor:pointer;font-size:16px;line-height:1;padding:0 2px}
 .fw-toast .bd{white-space:pre-line;color:var(--text-muted,#c7ced6)}
+.fw-toast .pg{position:relative;height:6px;margin-top:8px;border-radius:999px;background:var(--border,#2b3640);overflow:hidden}
+.fw-toast .pg>i{position:absolute;inset:0 auto 0 0;width:0;border-radius:999px;background:var(--accent,#0e6e8c);transition:width .35s ease}
+.fw-toast .pg.busy>i::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:fwShimmer 1.2s linear infinite}
+.fw-toast .pg.indet>i{width:35%;animation:fwIndet 1.4s ease-in-out infinite}
+.fw-toast .pgtxt{display:flex;justify-content:space-between;gap:8px;margin-top:4px;font-size:11.5px;color:var(--text-muted,#9aa5b1);font-variant-numeric:tabular-nums}
+@keyframes fwShimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+@keyframes fwIndet{0%{left:-35%}100%{left:100%}}
 #fwAsk{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:10000}
 #fwAsk .box{background:var(--surface,#1b2027);color:var(--text,#e6eaee);border:1px solid var(--border,#2b3640);border-radius:var(--radius,10px);box-shadow:var(--shadow,0 10px 40px rgba(0,0,0,.5));padding:18px 20px;width:min(440px,calc(100vw - 32px))}
 #fwAsk h3{margin:0 0 8px;font-size:15px}
@@ -35,6 +42,43 @@ function ensureCss() {
 #fwAsk button.primary{background:var(--accent,#0e6e8c);border-color:var(--accent,#0e6e8c);color:var(--accent-on,#fff)}
 #fwAsk button:focus-visible{outline:2px solid var(--accent,#4fb3d4);outline-offset:2px}`;
   document.head.appendChild(s);
+}
+
+/**
+ * İlerleme toast'ı — `uiToast`in çubuklu kardeşi. Uzun süren, ADIMLI işler için
+ * (toplu test case üretimi: N parti). `set(done, total, metin)` çubuğu ve alt
+ * satırı günceller; total bilinmiyorsa (tek parti) çubuk belirsiz modda kayar.
+ * Toast kendiliğinden kapanmaz; çağıran `remove()` der.
+ *
+ * @returns {{el:HTMLElement, set:(done:number,total:number,text?:string)=>void, remove:()=>void}}
+ */
+export function uiProgress(mesaj, opt = {}) {
+  const t = uiToast(mesaj, { ...opt, ms: 0 });
+  const pg = document.createElement('div'); pg.className = 'pg busy indet';
+  pg.setAttribute('role', 'progressbar'); pg.setAttribute('aria-valuemin', '0'); pg.setAttribute('aria-valuemax', '100');
+  const fill = document.createElement('i'); pg.appendChild(fill);
+  const txt = document.createElement('div'); txt.className = 'pgtxt';
+  const sol = document.createElement('span'); const sag = document.createElement('span');
+  txt.append(sol, sag);
+  t.append(pg, txt);
+  return {
+    el: t,
+    set(done, total, text) {
+      const n = Number(total) || 0;
+      if (n > 0) {
+        const pct = Math.max(0, Math.min(100, Math.round((Number(done) || 0) / n * 100)));
+        pg.classList.remove('indet');
+        fill.style.width = pct + '%';
+        pg.setAttribute('aria-valuenow', String(pct));
+        sag.textContent = `%${pct}`;
+      } else {
+        pg.classList.add('indet');
+        sag.textContent = '';
+      }
+      if (text != null) sol.textContent = text;
+    },
+    remove() { t.remove(); },
+  };
 }
 
 export function uiToast(mesaj, opt = {}) {

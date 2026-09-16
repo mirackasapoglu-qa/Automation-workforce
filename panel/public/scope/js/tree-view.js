@@ -25,6 +25,8 @@ export function renderNode(node, isRoot, visibleIds) {
   attachDrawerOpener(row, node);
 
   if (node.children.length) {
+    // Konteyner kutusu = alt ağacın yapraklarını seç (bkz. bulk-actions.js başlığı).
+    if (state.selectMode) row.appendChild(buildSelectCheckbox(node));
     const caret = document.createElement('button');
     caret.type = 'button';
     caret.className = 'caret' + ((node.open || visibleIds) ? ' open' : '');
