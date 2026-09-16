@@ -12,6 +12,13 @@ let loginContinueRequested = false;
 /** Son başlatılan taramanın parametreleri — sonuç ekranındaki "Daha Detaylı Tara"
  *  linki forma dönerken bunları temel alıp derinlik/sayfayı bir üst kademeye taşır. */
 let lastParams = null;
+/**
+ * "Daha Detaylı Tara"ya basılırken terk edilen sonuç ekranının `job`'u — geri
+ * dönülebilsin diye. ÖNCEDEN yoktu: kullanıcı forma düşünce önceki taramanın
+ * bulduğu ağaç/seçim tamamen kayboluyordu, geri dönecek bir yol yoktu (rapor
+ * edildi: "verisini kaybettiğini hissediyor"). Tek kademe — bir tarama
+ * geçmişi yığını değil, `lastParams` ile aynı ilke. */
+let previousResultJob = null;
 
 /**
  * "Sinema" modu: tarama sürerken pop-up büyür, tüm ekranın arkasında bulanık,
@@ -47,6 +54,7 @@ function closeModal() {
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   currentJobId = null;
   lastParams = null;
+  previousResultJob = null;
   const overlay = state.root.querySelector('.sitemap-overlay');
   if (!overlay) return;
   // Sinema videosu DOM'dan kopsa da hls.js segment indirmeyi sürdürür — önce yık.
@@ -333,6 +341,20 @@ export function openSitemapImportModal(opts) {
     setCinema(false);
     body.innerHTML = '';
     loginContinueRequested = false;
+
+    // "Daha Detaylı Tara"dan geldiysek geri dönülecek bir sonuç var — göster.
+    // previousResultJob renderForm çağrısı SIRASINDA yakalanıyor (aşağıda
+    // sıfırlanmıyor), çünkü back'e basmadan formu değiştirip yeni bir tarama
+    // başlatmak da geçerli bir akış; o durumda previousResultJob zaten
+    // renderProgress/renderResult'ın kendi çağrılarıyla güncellenir.
+    if (previousResultJob) {
+      const backBtn = document.createElement('button');
+      backBtn.type = 'button';
+      backBtn.className = 'sitemap-back-link';
+      backBtn.textContent = '‹ Önceki sonuca dön';
+      backBtn.onclick = () => renderResult(previousResultJob);
+      body.appendChild(backBtn);
+    }
 
     const hint = document.createElement('div');
     hint.className = 'drawer-hint';
@@ -846,7 +868,11 @@ export function openSitemapImportModal(opts) {
     setCinema(false);
     body.innerHTML = '';
     const tree = job.tree;
-    initSelection(tree);
+    // Yalnız İLK açılışta başlat: "‹ Bu sonuca dön" ile aynı job'a geri
+    // dönüldüğünde initSelection tekrar çağrılırsa kullanıcının işaretlediği
+    // seçimler sıfırlanıp hepsi yeniden "seçili" olurdu — geri dönüşün amacı
+    // tam da o seçimi KORUMAKTI.
+    if (tree._checked === undefined) initSelection(tree);
 
     const count = countNodes(tree);
     const summary = document.createElement('div');
@@ -942,6 +968,7 @@ export function openSitemapImportModal(opts) {
     moreLink.className = 'sitemap-more-detail-link';
     moreLink.textContent = 'Daha Detaylı Tara →';
     moreLink.onclick = () => {
+      previousResultJob = job; // formda "‹ Bu sonuca dön" ile geri gelinebilsin
       renderForm({
         url: lastParams.url,
         maxDepth: plan.nextDepth,
