@@ -55,7 +55,7 @@ export function slugify(s) {
  * zaten ortamdan çözüyor, koda gömülen adres ortam değişince sessizce yanlış
  * siteyi test eder.
  */
-export function renderUser({ product, baseUrl, node, cases, credentials = null }) {
+export function renderUser({ product, baseUrl, node, cases, credentials = null, pageProbe = "" }) {
   const adimlar = cases.map((c, i) => {
     const satirlar = (c.steps ?? []).map((st, j) =>
       `     ${j + 1}. ${st.action ?? "(adım yok)"}${st.expected ? `  →  beklenen: ${st.expected}` : ""}`);
@@ -68,7 +68,15 @@ Sayfa/düğüm: ${node.name}${node.path ? `  (rota: ${node.path})` : ""}
 
 Aşağıdaki test case'lerini ÇALIŞAN bir Playwright spec dosyasına çevir.
 
-${adimlar}
+${adimlar}${pageProbe ? `
+
+${pageProbe}
+
+⚠️ Yukarıdaki liste sayfanın GERÇEK hâlidir (otomatik keşifle çıkarıldı).
+Seçicileri YALNIZ buradan seç. Case metnindeki adlandırma ile sayfadaki
+gerçek metin farklıysa GERÇEK OLANI kullan (case "Tüm Ürünler bağlantısı"
+diyorsa ama listede "TÜMÜNÜ GÖR"→/tum-urunler varsa, onu kullan). Listede
+olmayan bir placeholder/metin/rol UYDURMA.` : ""}
 
 KURALLAR
 1. TypeScript, Playwright test API'si: import { test, expect } from "@playwright/test".
@@ -172,7 +180,7 @@ export function pickCode(out) {
   return "";
 }
 
-export function gate(out, { titles = [], secret = null } = {}) {
+export function gate(out, { titles = [], secret = null, probe = null } = {}) {
   const kod = String(pickCode(out) ?? "");
   if (!kod.trim()) return { ok: false, error: "model kod üretmedi" };
   if (!/from\s+["']@playwright\/test["']/.test(kod)) return { ok: false, error: "Playwright import'u yok — bu bir spec dosyası değil" };
@@ -199,6 +207,29 @@ export function gate(out, { titles = [], secret = null } = {}) {
    */
   if (secret && kod.includes(secret)) {
     return { ok: false, error: "üretilen kodda parola düz metin geçiyor — reddedildi" };
+  }
+
+  /*
+   * ⚠️ UYDURMA PLACEHOLDER. Keşif verisi elimizdeyse modelin yazdığı
+   * `getByPlaceholder("X")` sayfada gerçekten var mı diye bakılır. Ölçüldü
+   * (canlı): model `getByPlaceholder('E-posta')` yazmıştı, gerçek placeholder
+   * `ornek@mail.com` — koşum 20 sn timeout'a düştü ve sebebi kullanıcıya
+   * "seçici bulunamadı" gibi görünmedi. Yazmadan reddetmek, yeşil sanılan ama
+   * hiçbir şey doğrulamayan bir dosyadan iyidir; hata mesajı gerçek listeyi verir.
+   */
+  if (probe?.alanlar?.length) {
+    const mevcut = probe.alanlar.map((f) => String(f.placeholder ?? "").toLowerCase()).filter(Boolean);
+    const kullanilan = [...kod.matchAll(/getByPlaceholder\(\s*["'`]([^"'`]+)["'`]/g)].map((m) => m[1]);
+    const uydurma = kullanilan.filter((x) => {
+      const k = x.toLowerCase();
+      return !mevcut.some((m) => m.includes(k) || k.includes(m));
+    });
+    if (uydurma.length) {
+      return {
+        ok: false,
+        error: `üretilen kodda sayfada OLMAYAN placeholder var: ${uydurma.join(", ")} — sayfadakiler: ${mevcut.join(", ") || "(yok)"}`,
+      };
+    }
   }
 
   // İstenen başlıklar gerçekten var mı (model kendi testini uydurmasın).
